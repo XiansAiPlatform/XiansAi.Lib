@@ -1,10 +1,10 @@
 using Temporalio.Workflows;
 
-namespace AgentFlow.Common
+namespace Flowmaxer.Common
 {
-    public interface IWorkflow
+    public interface IWorkflow<TInput, TOutput>
     {
         [WorkflowRun]
-        Task RunAsync();
+        Task<TOutput> RunAsync(TInput input);
     }
 }

@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace AgentFlow.Common
+namespace Flowmaxer.Common
 {
     /// <summary>
     /// Base class for all agents. Agents are activities that can be invoked by workflows.
