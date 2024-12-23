@@ -13,8 +13,14 @@ public class OpenAIClientServiceTests
         
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new Exception("OPENAI_API_KEY Environment variable is not set");
         var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4";
-        
-        _service = new OpenAIClientService(model, apiKey);
+
+        var config = new OpenAIClientServiceConfig
+        {
+            Model = model,
+            ApiKey = apiKey
+        };
+
+        _service = new OpenAIClientService(config);
     }
 
 

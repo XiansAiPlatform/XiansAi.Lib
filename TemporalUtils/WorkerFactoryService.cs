@@ -1,17 +1,23 @@
 using Temporalio.Client;
 using Temporalio.Worker;
 
-public class WorkerFactory
+public interface IWorkerFactoryService
+{
+    Task<TemporalWorker> CreateWorkerAsync<TWorkflow, TActivities>(TActivities activities)
+        where TWorkflow : class
+        where TActivities : class;
+}
+
+public class WorkerFactoryService : IWorkerFactoryService
 {
     private readonly TemporalClientService _temporalClientService;
     private readonly TemporalConfig _temporalConfig;
 
     private readonly List<TemporalWorker> _workers = new();
 
-    public WorkerFactory()
+    public WorkerFactoryService(TemporalConfig temporalConfig)
     {
-        // Use temporalConfig to create TemporalClientService
-        _temporalConfig = new TemporalConfig();
+        _temporalConfig = temporalConfig;
         _temporalClientService = new TemporalClientService(_temporalConfig);
     }
 
@@ -23,7 +29,7 @@ public class WorkerFactory
 
         var worker = new TemporalWorker(
             client,
-            new TemporalWorkerOptions(taskQueue: _temporalConfig.TaskQueue)
+            new TemporalWorkerOptions(taskQueue: "DefaultQueue")
                 .AddAllActivities(activities)
                 .AddWorkflow<TWorkflow>()
         );
