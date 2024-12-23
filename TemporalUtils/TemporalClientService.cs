@@ -1,13 +1,21 @@
 using Temporalio.Client;
 
-public class TemporalClientService
+public interface ITemporalClientService
+{
+    Task<ITemporalClient> GetClientAsync();
+
+    TemporalConfig Config { get; }
+}
+
+public class TemporalClientService : ITemporalClientService
 {
     private ITemporalClient? _client;
-    private readonly TemporalConfig _config;
+
+    public TemporalConfig Config { get; set; }
 
     public TemporalClientService(TemporalConfig config)
     {
-        _config = config;
+        Config = config ?? throw new ArgumentNullException(nameof(config));
     }
 
 
@@ -15,13 +23,13 @@ public class TemporalClientService
     {
         if (_client != null) return _client;
 
-        _client = await TemporalClient.ConnectAsync(new(_config.TemporalServerUrl)
+        _client = await TemporalClient.ConnectAsync(new(Config.TemporalServerUrl)
         {
-            Namespace = _config.Namespace,
+            Namespace = Config.Namespace,
             Tls = new()
             {
-                ClientCert = await File.ReadAllBytesAsync(_config.ClientCert),
-                ClientPrivateKey = await File.ReadAllBytesAsync(_config.ClientPrivateKey),
+                ClientCert = await File.ReadAllBytesAsync(Config.ClientCert),
+                ClientPrivateKey = await File.ReadAllBytesAsync(Config.ClientPrivateKey),
             }
         });
 

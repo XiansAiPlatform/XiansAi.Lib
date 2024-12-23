@@ -6,11 +6,10 @@ using System;
 
 public abstract class DockerExec
 {
-    private readonly SystemProcess _systemProcess;
+    private readonly SystemProcess _systemProcess = new SystemProcess();
     protected string? ContainerId { get; private set; }
     protected DockerExec(string? containerId = null)
     {
-        _systemProcess = new SystemProcess();
         ContainerId = containerId;
     }
 
