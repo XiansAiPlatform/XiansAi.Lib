@@ -4,7 +4,12 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text;
 
-public class SystemProcess
+public interface ISystemProcess
+{
+    Task<string> RunCommandAsync(string command, string arguments = "");
+}
+
+public class SystemProcess : ISystemProcess
 {
     public async Task<string> RunCommandAsync(string command, string arguments = "")
     {

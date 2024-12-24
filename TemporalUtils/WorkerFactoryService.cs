@@ -3,9 +3,8 @@ using Temporalio.Worker;
 
 public interface IWorkerFactoryService
 {
-    Task<TemporalWorker> CreateWorkerAsync<TWorkflow, TActivities>(TActivities activities)
-        where TWorkflow : class
-        where TActivities : class;
+    Task<TemporalWorker> CreateWorkerAsync<TWorkflow>(Dictionary<Type, object> activities)
+        where TWorkflow : class;
 }
 
 public class WorkerFactoryService : IWorkerFactoryService
@@ -21,17 +20,20 @@ public class WorkerFactoryService : IWorkerFactoryService
         _temporalClientService = new TemporalClientService(_temporalConfig);
     }
 
-    public async Task<TemporalWorker> CreateWorkerAsync<TWorkflow, TActivities>(TActivities activities)
+    public async Task<TemporalWorker> CreateWorkerAsync<TWorkflow>(Dictionary<Type, object> activities)
         where TWorkflow : class
-        where TActivities : class
     {
         var client = await _temporalClientService.GetClientAsync();
+        var options = new TemporalWorkerOptions(taskQueue: "DefaultQueue");
+        options.AddWorkflow<TWorkflow>();
+        foreach (var activity in activities)
+        {
+            options.AddAllActivities(activity.Key, activity.Value);
+        }
 
         var worker = new TemporalWorker(
             client,
-            new TemporalWorkerOptions(taskQueue: "DefaultQueue")
-                .AddAllActivities(activities)
-                .AddWorkflow<TWorkflow>()
+            options
         );
         _workers.Add(worker);
 
