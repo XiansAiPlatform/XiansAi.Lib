@@ -1,11 +1,6 @@
 using OpenAI.Chat;
 using Microsoft.Extensions.Logging;
 
-public class OpenAIClientServiceConfig
-{
-    public required string Model { get; set; }
-    public required string ApiKey { get; set; }
-}
 
 public interface IOpenAIClientService
 {
@@ -16,7 +11,7 @@ public class OpenAIClientService : IOpenAIClientService
 {
     private readonly ChatClient _chatClient;
     private readonly ILogger<OpenAIClientService>? _logger;
-    public OpenAIClientService(OpenAIClientServiceConfig config, ILogger<OpenAIClientService>? logger = null)
+    public OpenAIClientService(OpenAIConfig config, ILogger<OpenAIClientService>? logger = null)
     {
         _logger = logger;
         _logger?.LogInformation("OpenAIClientService constructor initiated with model: {0} and apiKey: {1}...", config.Model, config.ApiKey.Substring(0, 2) + "..." + config.ApiKey.Substring(config.ApiKey.Length - 2));
