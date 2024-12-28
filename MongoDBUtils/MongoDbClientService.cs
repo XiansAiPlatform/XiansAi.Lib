@@ -10,29 +10,15 @@ public interface IMongoDbClientService
 
 public class MongoDbClientService : IMongoDbClientService
 {
-    private readonly IMongoClient _mongoClient;
-    public  MongoDBConfig Config { get; init; }
+    private IMongoClient _mongoClient;
+    public MongoDBConfig Config { get; init; }
 
 
     public MongoDbClientService(MongoDBConfig config)
     {
         Config = config;
-        var serverApi = new ServerApi(ServerApiVersion.V1);
+        _mongoClient = GetClient();
 
-        #pragma warning disable SYSLIB0057 // Type or member is obsolete
-        var cert = new X509Certificate2(Config.PfxPath, Config.PfxPassphrase);
-        #pragma warning restore SYSLIB0057 // Type or member is obsolete
-
-        var sslSettings = new SslSettings
-        {
-            ClientCertificates = new List<X509Certificate>() { cert }
-        };
-
-        _mongoClient = new MongoClient(new MongoClientSettings
-        {
-            ServerApi = serverApi,
-            SslSettings = sslSettings
-        });
     }
 
     public IMongoDatabase GetDatabase()
@@ -48,6 +34,19 @@ public class MongoDbClientService : IMongoDbClientService
 
     public IMongoClient GetClient()
     {
+        if (_mongoClient == null)
+        {
+            var connectionString = Config.ConnectionString;
+            var settings = MongoClientSettings.FromConnectionString(connectionString);
+#pragma warning disable SYSLIB0057 // Type or member is obsolete
+            var cert = new X509Certificate2(Config.PfxPath, Config.PfxPassphrase);
+#pragma warning restore SYSLIB0057 // Type or member is obsolete
+            settings.SslSettings = new SslSettings
+            {
+                ClientCertificates = new List<X509Certificate>() { cert }
+            };
+            _mongoClient = new MongoClient(settings);
+        }
         return _mongoClient;
     }
 }

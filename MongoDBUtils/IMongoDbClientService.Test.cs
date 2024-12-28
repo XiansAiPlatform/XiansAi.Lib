@@ -1,7 +1,8 @@
-
-
 using DotNetEnv;
 using Xunit;
+using System.Threading.Tasks;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 public class MongoDbClientServiceTests
 {
@@ -37,10 +38,36 @@ public class MongoDbClientServiceTests
         // Act
         var collection = _sut.GetCollection<Definition>(collectionName);
 
+        
+
         // Assert
         Assert.NotNull(collection);
     }
 
+    [Fact]
+    public async Task InsertDocument_ShouldSuccessfullyInsertDocument()
+    {
+        // Arrange
+        const string collectionName = "test_collection";
+        var testDoc = new Definition { Id = ObjectId.GenerateNewId(), Name = "Test Definition" };
+        var collection = _sut.GetCollection<Definition>(collectionName);
+
+        try
+        {
+            // Act
+            await collection.InsertOneAsync(testDoc);
+
+            // Assert
+            var result = await collection.Find(d => d.Id == testDoc.Id).FirstOrDefaultAsync();
+            Assert.NotNull(result);
+            Assert.Equal(testDoc.Name, result.Name);
+        }
+        finally
+        {
+            // Cleanup
+            //await collection.DeleteOneAsync(d => d.Id == testDoc.Id);
+        }
+    }
 
 }
 
