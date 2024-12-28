@@ -18,14 +18,14 @@ public class DockerRunResult : IDisposable
 public abstract class DockerRunAgent : IDisposable
 {
     private readonly DockerUtil _docker;
-    private readonly string? _settingsFile;
+    private readonly string[]? _instructions;
     public DockerRunAgent() {
         var dockerImage = GetType().GetCustomAttribute<AgentAttribute>();
         if (dockerImage == null) {
             throw new InvalidOperationException("DockerImageAttribute is missing.");
         }
         _docker = new DockerUtil(dockerImage.Name);
-        _settingsFile = dockerImage.Settings;
+        _instructions = dockerImage.Instructions;
     }
 
     public static async Task<bool> IsPortInUse(string host, int port)
@@ -75,12 +75,12 @@ public abstract class DockerRunAgent : IDisposable
         await _docker.Remove(true);
     }
 
-    protected string LoadSettings()
+    protected string LoadInstruction(int index = 0)
     {
-        if (_settingsFile == null) {
-            throw new InvalidOperationException("Settings file is not set");
+        if (_instructions == null || index >= _instructions.Length) {
+            throw new InvalidOperationException("Instructions are not set");
         }
-        var settings = File.ReadAllText(_settingsFile);
-        return settings;
+        var instruction = File.ReadAllText(_instructions[index]);
+        return instruction;
     }
 }
