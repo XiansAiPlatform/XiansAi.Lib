@@ -2,11 +2,12 @@ using Xunit;
 using System.Net.Http;
 using System.IO;
 using System.Net;
+using MongoDB.Driver.Core.Operations.ElementNameValidators;
 
 public class SecureApiTests
 {
-    private readonly string _testCertPath = "/Users/hasithy/Downloads/flowmaxer.pfx";
-    private readonly string _testCertPassword = "flowpwd";
+    private readonly string _testCertPath = "/Users/hasithy/Downloads/xians-ai.pfx";
+    private readonly string _testCertPassword = "test";
 
     public SecureApiTests()
     {
@@ -35,21 +36,34 @@ public class SecureApiTests
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
+
+    /*
+    dotnet test --filter "FullyQualifiedName~SecureApiTests.GetLatestInstruction"
+    */
     [Fact]
-    public async Task CanAuthenticateWithCertificate()
+    public async Task GetLatestInstruction()
     {
         // Arrange
-        var baseUrl = "http://localhost:5257/";
-        var api = new SecureApi(_testCertPath, baseUrl);
+        var api = new SecureApi(_testCertPath, _testCertPassword);
         var client = api.GetClient();
 
         // Act
-        var response = await client.GetAsync("/debug/claims");
-        
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var name = "Find if ISV company";
+        var encodedName = WebUtility.UrlEncode(name);
+        var url = $"http://localhost:5257/api/server/instructions/latest?name={encodedName}";   
+        Console.WriteLine( "url: " + url);
+        var response = await client.GetAsync(url);
+        //var content = await response.Content.ReadAsStringAsync();
         var content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Authenticated with certificate", content);
+
+        var tagToReplace = "{{company-name}}";
+        var tagToReplaceWith = "Xians AI";
+        content = content.Replace(tagToReplace, tagToReplaceWith);
+
+        
+        Console.WriteLine( "content: " + content);
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
+
 
 }

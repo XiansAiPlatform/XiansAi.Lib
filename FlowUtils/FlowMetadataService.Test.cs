@@ -97,8 +97,8 @@ public class FlowMetadataServiceTests
         Assert.Equal("flowmaxer/scraper-agent", activity.AgentName);
         Assert.Equal("Get Links", activity.ActivityName);
         Assert.Equal("LinkActivity", activity.ClassName);
-        Assert.Equal("You are a scraper", activity.Instructions[0]);
-        Assert.Equal("find links", activity.Instructions[1]);
+        Assert.Equal("You are a scraper", activity.Instructions[0].Content);
+        Assert.Equal("find links", activity.Instructions[1].Content);
 
         var activity2 = flowInfo.Activities[1];
         Assert.Equal("flowmaxer/search-agent", activity2.AgentName);

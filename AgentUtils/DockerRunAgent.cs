@@ -1,5 +1,8 @@
 using System.Net.Sockets;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 public class DockerRunResult : IDisposable
 {
@@ -59,9 +62,9 @@ public abstract class DockerRunAgent : IDisposable
         _docker.SetVolume(hostPath, containerPath);
     }
 
-    public async Task<DockerRunResult> DockerRun(Dictionary<string, string>? arguments = null, bool detach = true)
+    public async Task<DockerRunResult> DockerRun(Dictionary<string, string>? arguments = null, bool detach = true, bool remove = false)
     {
-        var output = await _docker.Run(arguments, remove: false, detach: detach);
+        var output = await _docker.Run(arguments, remove: remove, detach: detach);
         return new DockerRunResult(_docker) { Output = output };
     }
 
@@ -82,5 +85,16 @@ public abstract class DockerRunAgent : IDisposable
         }
         var instruction = File.ReadAllText(_instructions[index]);
         return instruction;
+    }
+
+    protected IConfiguration GetHostConfiguration()
+    {
+        return Host.CreateDefaultBuilder()
+            .ConfigureServices((hostContext, services) =>
+            {
+                IConfiguration configuration = hostContext.Configuration;
+            })
+            .Build()
+            .Services.GetRequiredService<IConfiguration>();
     }
 }

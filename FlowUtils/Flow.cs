@@ -1,12 +1,17 @@
 using System.Reflection;
-using Temporalio.Activities;
-using Temporalio.Workflows;
 
+public class InstructionInfo
+{
+    public required string Content { get; set; }
+    public required string Name { get; set; }
+    public Type? Type { get; set; }
+    public string? Version { get; set; }
+}
 
 public class ActivityInfo
 {
     public required string AgentName { get; set; }
-    public required string[] Instructions { get; set; }
+    public required InstructionInfo[] Instructions { get; set; }
     public required string ActivityName { get; set; }
     public required string ClassName {get; set;}
     
@@ -18,8 +23,10 @@ public class FlowInfo
     public required ActivityInfo[] Activities { get; set; }
     public required string ClassName { get; set; }
     public required ParameterInfo[] Parameters { get; set; }
-    
+    public string? Version { get; set; }
+    public string? Source { get; set; }
 }
+
 public class Flow<TClass>
 {
     private readonly Dictionary<Type, object> _activities = new Dictionary<Type, object>();

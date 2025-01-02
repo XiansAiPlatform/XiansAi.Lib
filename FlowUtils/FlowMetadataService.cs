@@ -67,13 +67,27 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
                 activities.Add(new ActivityInfo
                 {
                     AgentName = agentAttribute.Name,
-                    Instructions = agentAttribute.Instructions,
+                    Instructions = agentAttribute.Instructions.Select(i => new InstructionInfo
+                    {
+                        Content = FetchInstructionContent(i),
+                        Name = i,
+                        Version = null
+                    }).ToArray(),
                     ActivityName = activityAttribute?.Name ?? method.Name,
                     ClassName = type.FullName ?? type.Name
                 });
             }
         }
         return activities.ToArray();
+    }
+
+    private string FetchInstructionContent(string instructionKey)
+    {
+        if (instructionKey == null) {
+            throw new InvalidOperationException("Instruction key is not set");
+        }
+        var instruction = File.ReadAllText(instructionKey);
+        return instruction;
     }
 
 
