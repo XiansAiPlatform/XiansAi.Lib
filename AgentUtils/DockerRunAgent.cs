@@ -1,5 +1,8 @@
+using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text.Json;
+using System.Web;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,6 +25,8 @@ public abstract class DockerRunAgent : IDisposable
 {
     private readonly DockerUtil _docker;
     private readonly string[]? _instructions;
+    private readonly InstructionLoader? _instructionLoader;
+
     public DockerRunAgent() {
         var dockerImage = GetType().GetCustomAttribute<AgentAttribute>();
         if (dockerImage == null) {
@@ -29,6 +34,10 @@ public abstract class DockerRunAgent : IDisposable
         }
         _docker = new DockerUtil(dockerImage.Name);
         _instructions = dockerImage.Instructions;
+        
+        if (_instructions != null) {
+            _instructionLoader = new InstructionLoader(_instructions);
+        }
     }
 
     public static async Task<bool> IsPortInUse(string host, int port)
@@ -78,23 +87,11 @@ public abstract class DockerRunAgent : IDisposable
         await _docker.Remove(true);
     }
 
-    protected string LoadInstruction(int index = 0)
+    protected async Task<string> LoadInstruction(int index = 0)
     {
-        if (_instructions == null || index >= _instructions.Length) {
-            throw new InvalidOperationException("Instructions are not set");
+        if (_instructionLoader == null) {
+            throw new InvalidOperationException("Instructions are not initialized");
         }
-        var instruction = File.ReadAllText(_instructions[index]);
-        return instruction;
-    }
-
-    protected IConfiguration GetHostConfiguration()
-    {
-        return Host.CreateDefaultBuilder()
-            .ConfigureServices((hostContext, services) =>
-            {
-                IConfiguration configuration = hostContext.Configuration;
-            })
-            .Build()
-            .Services.GetRequiredService<IConfiguration>();
+        return await _instructionLoader.LoadInstruction(index);
     }
 }
