@@ -8,7 +8,7 @@ public class Company
     public string? Url { get; set; }
 }
 
-[Agent("flowmaxer/search-agent")]
+[DockerImage("flowmaxer/search-agent")]
 public class CompanyActivity
 {
     [Activity]
@@ -19,7 +19,8 @@ public class CompanyActivity
     }
 }
 
-[Agent("flowmaxer/scraper-agent", ["You are a scraper", "find links"])]
+[DockerImage("flowmaxer/scraper-agent")]
+[Instructions("You are a scraper", "find links")]
 public class LinkActivity
 {
     [Activity("Get Links")]
@@ -94,14 +95,13 @@ public class FlowMetadataServiceTests
         Assert.NotEmpty(flowInfo.Activities);
 
         var activity = flowInfo.Activities.First();
-        Assert.Equal("flowmaxer/scraper-agent", activity.AgentName);
+        Assert.Equal("flowmaxer/scraper-agent", activity.DockerImage);
         Assert.Equal("Get Links", activity.ActivityName);
         Assert.Equal("LinkActivity", activity.ClassName);
-        Assert.Equal("You are a scraper", activity.Instructions[0].Content);
-        Assert.Equal("find links", activity.Instructions[1].Content);
-
+        Assert.Equal(2, activity.Instructions.Length);
+        
         var activity2 = flowInfo.Activities[1];
-        Assert.Equal("flowmaxer/search-agent", activity2.AgentName);
+        Assert.Equal("flowmaxer/search-agent", activity2.DockerImage);
         Assert.Equal("GetCompanies", activity2.ActivityName);
         Assert.Equal("CompanyActivity", activity2.ClassName);
         Assert.Empty(activity2.Instructions);

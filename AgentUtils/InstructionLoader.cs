@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Web;
+using DotNetEnv;
 
 public class InstructionLoader
 {
@@ -11,37 +12,48 @@ public class InstructionLoader
         _instructions = instructions;
     }
 
-    public async Task<string> LoadInstruction(int index = 0)
+    public async Task<Instruction> LoadInstruction(int index = 0)
     {
         if (_instructions == null || index >= _instructions.Length) {
             throw new InvalidOperationException("Instructions are not set or index is out of range");
         }
         var instructionName = _instructions[index];
 
-        if (Globals.XiansAIConfig?.PriorityToServer == true) {
+        // Check the environment variable for the instruction path
+        var instructionPath = Env.GetString(instructionName);
+
+        // If the environment variable is not set, try to load from the server
+        if (instructionPath == null) {
             var fromServer = await LoadFromServer(instructionName);
             if (fromServer != null) {
                 return fromServer;
+            } else {
+                throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}");
             }
-            Console.WriteLine($"Failed to load instruction from server: {instructionName}. response: {fromServer}");
+        } else {
+            // If the environment variable is set, load from the file
+            if (!File.Exists(instructionPath)) {
+                throw new InvalidOperationException($"Instruction file does not exist: {instructionPath}");
+            }
+            return new Instruction {
+                Content = File.ReadAllText(instructionPath),
+                Name = instructionName,
+            };
         }
-        
-        return File.ReadAllText(instructionName);
     }
 
-    private async Task<string?> LoadFromServer(string instructionName)
+    private async Task<Instruction?> LoadFromServer(string instructionName)
     {
         if (Globals.XiansAIConfig?.CertificatePath == null || 
-            Globals.XiansAIConfig.CertificatePassword == null) {    
-            throw new InvalidOperationException("CertificatePath and CertificatePassword are required for XiansAI Server");
+            Globals.XiansAIConfig.CertificatePassword == null ||    
+            Globals.XiansAIConfig.ServerUrl == null) {    
+            throw new InvalidOperationException("CertificatePath, CertificatePassword and ServerUrl are required for XiansAI Server");
         }
 
-        var instructionNameOnly = Path.GetFileNameWithoutExtension(Path.GetFileName(instructionName));
-        var url = BuildServerUrl(instructionNameOnly);
+        var url = BuildServerUrl(instructionName);
         
         try {
-            var api = new SecureApi(Globals.XiansAIConfig.CertificatePath, Globals.XiansAIConfig.CertificatePassword);
-            var client = api.GetClient();
+            var client = SecureApi.GetClient();
             var httpResult = await client.GetAsync(url);
 
             if (httpResult.StatusCode == HttpStatusCode.NotFound) {
@@ -55,7 +67,7 @@ public class InstructionLoader
             return await ParseServerResponse(httpResult);
         }
         catch (Exception e) {
-            Console.WriteLine($"Failed to load instruction from server: {instructionNameOnly}. error: {e.Message}");
+            Console.WriteLine($"Failed to load instruction from server: {instructionName}. error: {e.Message}");
             Console.WriteLine($"Server Config: {Globals.XiansAIConfig}");
             throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. error: {e.Message}");
         }
@@ -76,7 +88,7 @@ public class InstructionLoader
         return builder.Uri.ToString();
     }
 
-    private async Task<string> ParseServerResponse(HttpResponseMessage httpResult)
+    private async Task<Instruction> ParseServerResponse(HttpResponseMessage httpResult)
     {
         var response = await httpResult.Content.ReadAsStringAsync();
 
@@ -86,7 +98,14 @@ public class InstructionLoader
             if (json == null || !json.ContainsKey("content")) {
                 throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}");
             }
-            return json["content"];
+            return new Instruction {
+                Id = json["id"],
+                Name = json["name"],
+                Version = json["version"],
+                Type = json["type"],
+                CreatedAt = DateTime.Parse(json["createdAt"]),
+                Content = json["content"]
+            };
         } 
         catch (Exception e) {
             throw new InvalidOperationException($"Failed to deserialize instruction from server: {response} {e.Message}");

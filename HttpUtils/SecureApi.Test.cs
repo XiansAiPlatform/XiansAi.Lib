@@ -24,8 +24,8 @@ public class SecureApiTests
         var url = "http://localhost:5257/api/server/debug/certificate";
 
         // Act
-        var api = new SecureApi(_testCertPath, _testCertPassword);
-        var client = api.GetClient();
+        SecureApi.Initialize(_testCertPath, _testCertPassword);
+        var client = SecureApi.GetClient();
 
         // Assert
         Assert.NotNull(client);
@@ -44,8 +44,8 @@ public class SecureApiTests
     public async Task GetLatestInstruction()
     {
         // Arrange
-        var api = new SecureApi(_testCertPath, _testCertPassword);
-        var client = api.GetClient();
+        SecureApi.Initialize(_testCertPath, _testCertPassword);
+        var client = SecureApi.GetClient();
 
         // Act
         var name = "Find if ISV company";

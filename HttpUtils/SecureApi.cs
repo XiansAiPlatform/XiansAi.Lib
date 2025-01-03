@@ -4,8 +4,10 @@ public class SecureApi
 {
     private readonly HttpClient _client;
     private readonly X509Certificate2 _clientCertificate;
+    private static SecureApi? _instance;
+    private static readonly object _lock = new object();
 
-    public SecureApi(string certPath, string certPassword)
+    private SecureApi(string certPath, string certPassword)
     {
         // Regular HTTP client without SSL/TLS requirements
         _client = new HttpClient();
@@ -20,9 +22,24 @@ public class SecureApi
         _client.DefaultRequestHeaders.Add("X-Client-Cert", certBase64);
     }
 
-    public HttpClient GetClient()
+    public static SecureApi Initialize(string certPath, string certPassword)
     {
-        return _client;
+        if (_instance == null)
+        {
+            lock (_lock)
+            {
+                _instance ??= new SecureApi(certPath, certPassword);
+            }
+        }
+        return _instance;
     }
 
+    public static HttpClient GetClient()
+    {
+        if (_instance == null)
+        {
+            throw new InvalidOperationException("SecureApi must be initialized before getting client");
+        }
+        return _instance._client;
+    }
 }

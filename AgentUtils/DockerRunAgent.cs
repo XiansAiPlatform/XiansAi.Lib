@@ -1,11 +1,6 @@
-using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Text.Json;
-using System.Web;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+
 
 public class DockerRunResult : IDisposable
 {
@@ -21,23 +16,19 @@ public class DockerRunResult : IDisposable
     }
 }
 
-public abstract class DockerRunAgent : IDisposable
+public abstract class DockerRunAgent : InstructionAgent, IDisposable
 {
     private readonly DockerUtil _docker;
-    private readonly string[]? _instructions;
-    private readonly InstructionLoader? _instructionLoader;
 
-    public DockerRunAgent() {
-        var dockerImage = GetType().GetCustomAttribute<AgentAttribute>();
-        if (dockerImage == null) {
+    public DockerRunAgent() : base()
+    {
+        var dockerImage = GetType().GetCustomAttribute<DockerImageAttribute>();
+
+        if (dockerImage == null)
+        {
             throw new InvalidOperationException("DockerImageAttribute is missing.");
         }
         _docker = new DockerUtil(dockerImage.Name);
-        _instructions = dockerImage.Instructions;
-        
-        if (_instructions != null) {
-            _instructionLoader = new InstructionLoader(_instructions);
-        }
     }
 
     public static async Task<bool> IsPortInUse(string host, int port)
@@ -56,7 +47,7 @@ public abstract class DockerRunAgent : IDisposable
         }
     }
 
-    public void SetEnvironmentVariable(string key, string value)
+    public void SetEnv(string key, string value)
     {
         _docker.SetEnvironmentVariable(key, value);
     }
@@ -85,13 +76,5 @@ public abstract class DockerRunAgent : IDisposable
     public async void Dispose()
     {
         await _docker.Remove(true);
-    }
-
-    protected async Task<string> LoadInstruction(int index = 0)
-    {
-        if (_instructionLoader == null) {
-            throw new InvalidOperationException("Instructions are not initialized");
-        }
-        return await _instructionLoader.LoadInstruction(index);
     }
 }

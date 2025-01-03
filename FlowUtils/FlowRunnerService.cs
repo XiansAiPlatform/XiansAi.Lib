@@ -17,6 +17,9 @@ public class FlowRunnerService : IFlowRunnerService
         _temporalConfig = temporalConfig;
         _temporalClientService = new TemporalClientService(_temporalConfig);
         Globals.XiansAIConfig = xiansAIConfig;
+        if (xiansAIConfig.CertificatePath != null && xiansAIConfig.CertificatePassword != null) {
+            SecureApi.Initialize(xiansAIConfig.CertificatePath, xiansAIConfig.CertificatePassword);
+        }
     }
 
     private string GetWorkflowName<TFlow>() where TFlow : class

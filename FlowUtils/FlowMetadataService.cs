@@ -1,6 +1,5 @@
 using System.Reflection;
 using Temporalio.Activities;
-using Temporalio.Worker;
 using Temporalio.Workflows;
 
 public interface IFlowMetadataService<TClass>
@@ -54,9 +53,10 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
         foreach (var activity in flow.GetActivities())
         {
             var type = activity.Key;
-            var agentAttribute = type.GetCustomAttribute<AgentAttribute>();
+            var dockerImageAttribute = type.GetCustomAttribute<DockerImageAttribute>();
+            var instructionsAttribute = type.GetCustomAttribute<InstructionsAttribute>();
             
-            if (agentAttribute == null) continue;
+            if (dockerImageAttribute == null) continue;
 
             var activityMethods = type.GetMethods()
                 .Where(m => m.GetCustomAttribute<ActivityAttribute>() != null);
@@ -66,13 +66,8 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
                 var activityAttribute = method.GetCustomAttribute<ActivityAttribute>();
                 activities.Add(new ActivityInfo
                 {
-                    AgentName = agentAttribute.Name,
-                    Instructions = agentAttribute.Instructions.Select(i => new InstructionInfo
-                    {
-                        Content = FetchInstructionContent(i),
-                        Name = i,
-                        Version = null
-                    }).ToArray(),
+                    DockerImage = dockerImageAttribute.Name,
+                    Instructions = instructionsAttribute?.Instructions ?? [],
                     ActivityName = activityAttribute?.Name ?? method.Name,
                     ClassName = type.FullName ?? type.Name
                 });
