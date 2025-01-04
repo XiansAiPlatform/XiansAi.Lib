@@ -21,12 +21,18 @@ public class FlowInfo
 public class Flow<TClass>
 {
     private readonly Dictionary<Type, object> _activities = new Dictionary<Type, object>();
-    public Flow<TClass> AddActivity<IActivity>(IActivity activity)  where IActivity : class
+    public Flow<TClass> AddActivity<IActivity, TActivity>(TActivity activity) 
+        where TActivity : BaseAgent, IActivity
+        where IActivity : class
     {
         ArgumentNullException.ThrowIfNull(activity);
-        var activityProxy = ActivityTrackerProxy<IActivity>.Create(activity);
+        if (!typeof(IActivity).IsInterface)
+        {
+            throw new InvalidOperationException("First type parameter must be an interface");
+        }
+        var activityProxy = ActivityTrackerProxy<IActivity, TActivity>.Create(activity);
 
-        _activities[typeof(IActivity)] = activityProxy;
+        _activities[typeof(IActivity)] = activityProxy!;
         return this;
     }
 

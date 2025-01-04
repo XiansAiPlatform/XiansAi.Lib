@@ -1,21 +1,19 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
-using System.Threading.Tasks;
-using DnsClient.Protocol;
-using Google.Protobuf.WellKnownTypes;
 using System.Text.Json;
 
-public class ActivityTrackerProxy<T> : DispatchProxy where T : class
+public class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgent, I
 {
     private T? _target;
-    private static readonly ILogger<ActivityTrackerProxy<T>> _logger = Globals.LogFactory.CreateLogger<ActivityTrackerProxy<T>>();
+    private static readonly ILogger<ActivityTrackerProxy<I, T>> _logger = Globals.LogFactory.CreateLogger<ActivityTrackerProxy<I, T>>();
 
-    public static T Create(T target)
+    public static I Create(T target)
     {
-        object proxy = Create<T, ActivityTrackerProxy<T>>();
-        ((ActivityTrackerProxy<T>)proxy)._target = target;
-        return (T)proxy;
+        object proxy = Create<I, ActivityTrackerProxy<I, T>>() 
+            ?? throw new InvalidOperationException("Failed to create proxy");
+        ((ActivityTrackerProxy<I, T>)proxy)._target = target;
+        return (I)proxy;
     }
 
 
@@ -26,6 +24,8 @@ public class ActivityTrackerProxy<T> : DispatchProxy where T : class
         // if the method is not an activity, just call it
         var attribute = method?.GetCustomAttribute<ActivityAttribute>();
         if (attribute == null) return method!.Invoke(_target, args)!;
+
+        //method.
 
         // get the activity name
         var activityName = attribute.Name ?? method!.Name;

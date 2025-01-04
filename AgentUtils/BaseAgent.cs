@@ -4,11 +4,32 @@ using Microsoft.Extensions.Logging;
 public class BaseAgent
 {
     private readonly ILogger<BaseAgent> _logger;
+    private Activity? _currentActivity;
     public BaseAgent()
     {
         _logger = Globals.LogFactory.CreateLogger<BaseAgent>();
     }
-    public Activity? GetActivity()
+
+    protected bool IsInWorkflow()
+    {
+        return ActivityExecutionContext.Current != null;
+    }
+
+    protected void NewCurrentActivity()
+    {
+        _currentActivity = CreateActivity();
+    }
+
+    protected Activity? GetCurrentActivity()
+    {
+        if (_currentActivity != null) {
+            return _currentActivity;
+        } else {
+            return CreateActivity();
+        }
+    }
+
+    private Activity? CreateActivity()
     {
         try {
             return new Activity {
@@ -21,9 +42,7 @@ public class BaseAgent
             };
         } catch (Exception e) {
             _logger.LogWarning(e, "Failed to get activity id, not running in temporal context");
-            return null;
+            throw;
         }
     }
-
-
 }

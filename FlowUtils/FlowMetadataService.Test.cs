@@ -9,7 +9,7 @@ public class Company
 }
 
 [DockerImage("flowmaxer/search-agent")]
-public class CompanyActivity
+public class CompanyActivity: BaseAgent
 {
     [Activity]
     public async Task<List<Company>> GetCompanies(string link)
@@ -21,7 +21,7 @@ public class CompanyActivity
 
 [DockerImage("flowmaxer/scraper-agent")]
 [Instructions("You are a scraper", "find links")]
-public class LinkActivity
+public class LinkActivity: BaseAgent
 {
     [Activity("Get Links")]
     public async Task<List<string>> GetLinks(string sourceLink, string prompt)
@@ -75,8 +75,8 @@ public class FlowMetadataServiceTests
         };
 
         var flow = new Flow<MarketingFlow>();
-        flow.AddActivity(new LinkActivity());
-        flow.AddActivity(new CompanyActivity());
+        flow.AddActivity<LinkActivity, LinkActivity>(new LinkActivity());
+        flow.AddActivity<CompanyActivity, CompanyActivity>(new CompanyActivity());
         
         // Act
         var flowInfo = service.ExtractFlowInformation(flow);
