@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 
 public class DockerRunResult : IDisposable
@@ -19,16 +20,30 @@ public class DockerRunResult : IDisposable
 public abstract class DockerRunAgent : InstructionAgent, IDisposable
 {
     private readonly DockerUtil _docker;
-
+    private readonly ILogger _logger;
     public DockerRunAgent() : base()
     {
-        var dockerImage = GetType().GetCustomAttribute<DockerImageAttribute>();
+        _logger = Globals.LogFactory.CreateLogger<DockerRunAgent>();
+        _docker = new DockerUtil(GetDockerImageName());
+    }
 
-        if (dockerImage == null)
-        {
+    public string GetDockerImageName()
+    {
+        var attribute = GetType().GetCustomAttribute<DockerImageAttribute>();
+        if (attribute == null) {
             throw new InvalidOperationException("DockerImageAttribute is missing.");
         }
-        _docker = new DockerUtil(dockerImage.Name);
+        if (attribute.Name == null) {
+            throw new InvalidOperationException("DockerImageAttribute.Name is missing.");
+        }
+        return attribute.Name;
+    }
+
+    public override Activity GetCurrentActivity()
+    {
+        var activity = base.GetCurrentActivity();
+        activity.AgentName = GetDockerImageName();
+        return activity;
     }
 
     public static async Task<bool> IsPortInUse(string host, int port)

@@ -20,7 +20,7 @@ public class BaseAgent
         _currentActivity = CreateActivity();
     }
 
-    public Activity GetCurrentActivity()
+    public virtual Activity GetCurrentActivity()
     {
         if (_currentActivity != null) {
             return _currentActivity;

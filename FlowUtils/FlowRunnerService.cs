@@ -16,9 +16,13 @@ public class FlowRunnerService : IFlowRunnerService
     {
         _temporalConfig = temporalConfig;
         _temporalClientService = new TemporalClientService(_temporalConfig);
-        Globals.XiansAIConfig = xiansAIConfig;
-        if (xiansAIConfig.CertificatePath != null && xiansAIConfig.CertificatePassword != null) {
-            SecureApi.Initialize(xiansAIConfig.CertificatePath, xiansAIConfig.CertificatePassword);
+        //Globals.XiansAIConfig = xiansAIConfig;
+        if (xiansAIConfig.CertificatePath != null && xiansAIConfig.CertificatePassword != null && xiansAIConfig.ServerUrl != null) {
+            SecureApi.Initialize(
+                xiansAIConfig.CertificatePath,
+                xiansAIConfig.CertificatePassword,
+                xiansAIConfig.ServerUrl
+            );
         }
     }
 

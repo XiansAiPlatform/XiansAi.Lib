@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Web;
 using DotNetEnv;
@@ -6,26 +7,22 @@ using Microsoft.Extensions.Logging;
 
 public class InstructionLoader
 {
-    private readonly string[] _instructions;
     private readonly ILogger<InstructionLoader> _logger;
+    private readonly Dictionary<string, Instruction> _cache;
 
-    public InstructionLoader(string[] instructions)
+    public InstructionLoader()
     {
-        _instructions = instructions;
         _logger = Globals.LogFactory.CreateLogger<InstructionLoader>();
-    }
-
-    public async Task<Instruction> LoadInstruction(int index = 0)
-    {
-        if (_instructions == null || index >= _instructions.Length) {
-            throw new InvalidOperationException("Instructions are not set or index is out of range");
-        }
-        var instructionName = _instructions[index];
-        return await LoadInstruction(instructionName);
+        _cache = new Dictionary<string, Instruction>();
     }
 
     public async Task<Instruction> LoadInstruction(string instructionName)
     {
+        if (_cache.TryGetValue(instructionName, out var cachedInstruction))
+        {
+            return cachedInstruction;
+        }
+
         // Check the environment variable for the instruction path
         var instructionPath = Env.GetString(instructionName);
 
@@ -33,25 +30,30 @@ public class InstructionLoader
         if (instructionPath == null) {
             var fromServer = await LoadFromServer(instructionName);
             if (fromServer != null) {
-                return fromServer;
+                _cache[instructionName] = fromServer;
             } else {
-                throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}");
+                _logger.LogError($"Failed to load instruction from server: {instructionName}. Instruction does not exist.");
+                throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. Instruction does not exist.");
             }
         } else {
             // If the environment variable is set, load from the file
             if (!File.Exists(instructionPath)) {
+                _logger.LogError($"Instruction file does not exist: {instructionPath}");
                 throw new InvalidOperationException($"Instruction file does not exist: {instructionPath}");
             }
-            return new Instruction {
+            var instruction = new Instruction {
                 Content = File.ReadAllText(instructionPath),
                 Name = instructionName,
             };
+            _cache[instructionName] = instruction;
         }
+        return _cache[instructionName];
     }
 
     private async Task<Instruction?> LoadFromServer(string instructionName)
     {
-        if (!SecureApi.IsReady()) {    
+        if (!SecureApi.IsReady()) { 
+            _logger.LogError("SecureApi is not initialized");
             throw new InvalidOperationException("SecureApi is not initialized");
         }
 
@@ -66,30 +68,21 @@ public class InstructionLoader
             }
             
             if (httpResult.StatusCode != HttpStatusCode.OK) {
+                _logger.LogError($"Failed to get instruction from server: {httpResult.StatusCode}");
                 throw new InvalidOperationException($"Failed to get instruction from server: {httpResult.StatusCode}");
             }
 
             return await ParseServerResponse(httpResult);
         }
         catch (Exception e) {
-            _logger.LogError(e, $"Failed to load instruction from server: {instructionName}. Server Config: {Globals.XiansAIConfig}");
+            _logger.LogError(e, $"Failed to load instruction from server: {instructionName}.");
             throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. error: {e.Message}");
         }
     }
 
     private string BuildServerUrl(string instructionNameOnly)
     {
-        if (Globals.XiansAIConfig?.ServerUrl == null) {
-            throw new InvalidOperationException("ServerUrl is required for XiansAI Server");
-        }
-
-        var builder = new UriBuilder(new Uri(Globals.XiansAIConfig!.ServerUrl));
-        builder.Path += "api/server/instructions/latest";
-        var query = HttpUtility.ParseQueryString(string.Empty);
-        query["name"] = instructionNameOnly;
-        builder.Query = query.ToString();
-
-        return builder.Uri.ToString();
+        return "api/server/instructions/latest?name=" + UrlEncoder.Default.Encode(instructionNameOnly);
     }
 
     private async Task<Instruction> ParseServerResponse(HttpResponseMessage httpResult)
@@ -100,6 +93,7 @@ public class InstructionLoader
             var json = JsonSerializer.Deserialize<Dictionary<string, string>>(response);
 
             if (json == null || !json.ContainsKey("content")) {
+                _logger.LogError($"Failed to deserialize instruction from server: {response}");
                 throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}");
             }
             return new Instruction {
@@ -112,6 +106,7 @@ public class InstructionLoader
             };
         } 
         catch (Exception e) {
+            _logger.LogError(e, $"Failed to deserialize instruction from server: {response}");
             throw new InvalidOperationException($"Failed to deserialize instruction from server: {response} {e.Message}");
         }
     }

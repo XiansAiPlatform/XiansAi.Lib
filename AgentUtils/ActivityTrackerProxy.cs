@@ -2,6 +2,8 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using System.Text.Json;
+using System.Data.Common;
+using System.Net.Http.Json;
 
 public class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgent, I
 {
@@ -10,7 +12,7 @@ public class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgent, I
 
     public static I Create(T target)
     {
-        object proxy = Create<I, ActivityTrackerProxy<I, T>>() 
+        object proxy = Create<I, ActivityTrackerProxy<I, T>>()
             ?? throw new InvalidOperationException("Failed to create proxy");
         ((ActivityTrackerProxy<I, T>)proxy)._target = target;
         return (I)proxy;
@@ -45,7 +47,9 @@ public class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgent, I
         if (result is not Task task)
         {
             UploadActivityResult(activityName, inputs, result).ConfigureAwait(false);
-        } else {
+        }
+        else
+        {
             task.ContinueWith(t =>
             {
                 var resultProperty = t.GetType().GetProperty("Result");
@@ -61,20 +65,31 @@ public class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgent, I
 
     private async Task UploadActivityResult(string activityName, Dictionary<string, object?> inputs, object? result)
     {
-        try {
+        try
+        {
             if (ActivityExecutionContext.Current == null) throw new Exception("ActivityExecutionContext.Current is null");
             if (!activityName.Equals(ActivityExecutionContext.Current.Info.ActivityType)) throw new Exception("Activity name does not match");
 
-            var activity = _target!.GetCurrentActivity();
-            activity.Inputs = inputs;
-            activity.Result = result;
-            activity.EndedTime = DateTime.UtcNow;
+            var activity = _target?.GetCurrentActivity();
+            if (activity != null)
+            {
+                // Set the activity properties
+                activity.Inputs = inputs;
+                activity.Result = result;
+                activity.EndedTime = DateTime.UtcNow;
 
-            await Task.Delay(100);
-            var json = JsonSerializer.Serialize(activity);
+                // Upload to server
+                await new ActivityUploader().UploadActivity(activity);
 
-            _logger.LogInformation($"******* Activity Completed: {activityName} - {json}");
-        } catch (Exception e) {
+                _logger.LogInformation($"Activity Completed: {activityName} - {JsonSerializer.Serialize(activity)}");
+            }
+            else
+            {
+                _logger.LogWarning("No current activity found, skipping activity result upload, ignore this warning if you are not running in a flow");
+            }
+        }
+        catch (Exception e)
+        {
             _logger.LogError(e, "Failed to upload activity result");
             throw;
         }

@@ -21,10 +21,10 @@ public class SecureApiTests
     public async Task Constructor_ValidCertificate_CreatesClientWithCertificate()
     {
         // Arrange
-        var url = "http://localhost:5257/api/server/debug/certificate";
+        var url = "api/server/debug/certificate";
 
         // Act
-        SecureApi.Initialize(_testCertPath, _testCertPassword);
+        SecureApi.Initialize(_testCertPath, _testCertPassword, "http://localhost:5257");
         var client = SecureApi.GetClient();
 
         // Assert
@@ -44,13 +44,13 @@ public class SecureApiTests
     public async Task GetLatestInstruction()
     {
         // Arrange
-        SecureApi.Initialize(_testCertPath, _testCertPassword);
+        SecureApi.Initialize(_testCertPath, _testCertPassword, "http://localhost:5257");
         var client = SecureApi.GetClient();
 
         // Act
         var name = "Find if ISV company";
         var encodedName = WebUtility.UrlEncode(name);
-        var url = $"http://localhost:5257/api/server/instructions/latest?name={encodedName}";   
+        var url = $"api/server/instructions/latest?name={encodedName}";   
         Console.WriteLine( "url: " + url);
         var response = await client.GetAsync(url);
         //var content = await response.Content.ReadAsStringAsync();

@@ -7,10 +7,11 @@ public class SecureApi
     private static SecureApi? _instance;
     private static readonly object _lock = new object();
 
-    private SecureApi(string certPath, string certPassword)
+    private SecureApi(string certPath, string certPassword, string serverUrl)
     {
         // Regular HTTP client without SSL/TLS requirements
         _client = new HttpClient();
+        _client.BaseAddress = new Uri(serverUrl);
 
         // Load the certificate for identity purposes
 
@@ -22,13 +23,13 @@ public class SecureApi
         _client.DefaultRequestHeaders.Add("X-Client-Cert", certBase64);
     }
 
-    public static SecureApi Initialize(string certPath, string certPassword)
+    public static SecureApi Initialize(string certPath, string certPassword, string serverUrl)
     {
         if (_instance == null)
         {
             lock (_lock)
             {
-                _instance ??= new SecureApi(certPath, certPassword);
+                _instance ??= new SecureApi(certPath, certPassword, serverUrl);
             }
         }
         return _instance;

@@ -7,36 +7,42 @@ public abstract class InstructionAgent: BaseAgent
     private readonly string[]? _instructions;
     private readonly InstructionLoader? _instructionLoader;
 
-    protected InstructionAgent(string[]? instructions = null): base()
+    protected InstructionAgent(): base()
     {
         _logger = Globals.LogFactory.CreateLogger<InstructionAgent>();
 
         var instructionsAttr = GetType().GetCustomAttribute<InstructionsAttribute>();
-        _instructions = instructions ?? instructionsAttr?.Instructions;
-        
-        if (_instructions != null)
-        {
-            _instructionLoader = new InstructionLoader(_instructions);
+
+        if (instructionsAttr != null) {
+            _instructions = instructionsAttr.Instructions;
+            _instructionLoader = new InstructionLoader();
         }
     }
 
-    protected async Task<string> LoadInstruction(string instructionName)
+    protected async Task<string> LoadInstruction(int index = 1)
     {
-        if (_instructionLoader == null)
-        {
-            throw new InvalidOperationException("Instructions are not initialized");
+        if (_instructions == null || index <= 0 || index > _instructions.Length) {
+            _logger.LogError($"Index {index} is out of range for instructions.");
+            throw new InvalidOperationException($"Index {index} is out of range for instructions");
         }
+        var instructionName = _instructions[index - 1];
+
+        if (_instructionLoader == null) {
+            _logger.LogError("InstructionLoader is not initialized");
+            throw new InvalidOperationException("InstructionLoader is not initialized. Did you forget to set the InstructionsAttribute?");
+        }
+
         var instruction = await _instructionLoader.LoadInstruction(instructionName);
-        return instruction.Content;
-    }
 
-    protected async Task<string> LoadInstruction(int index = 0)
-    {
-        if (_instructionLoader == null)
-        {
-            throw new InvalidOperationException("Instructions are not initialized");
+        _logger.LogInformation($"Loaded instruction {instructionName} from server");
+
+        // If instruction loaded from local file, id might be null
+        var currentActivity = GetCurrentActivity();
+        if (currentActivity != null && instruction.Id != null) {
+            currentActivity.InstructionIds.Add(instruction.Id);
+        } else {
+            _logger.LogWarning("No current activity found, or instruction id is null, skipping instruction id addition");
         }
-        var instruction = await _instructionLoader.LoadInstruction(index);
         return instruction.Content;
     }
 }
