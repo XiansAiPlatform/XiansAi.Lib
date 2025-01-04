@@ -10,17 +10,17 @@ public class BaseAgent
         _logger = Globals.LogFactory.CreateLogger<BaseAgent>();
     }
 
-    protected bool IsInWorkflow()
+    public bool IsInWorkflow()
     {
         return ActivityExecutionContext.Current != null;
     }
 
-    protected void NewCurrentActivity()
+    public void NewCurrentActivity()
     {
         _currentActivity = CreateActivity();
     }
 
-    protected Activity? GetCurrentActivity()
+    public Activity GetCurrentActivity()
     {
         if (_currentActivity != null) {
             return _currentActivity;
@@ -29,7 +29,7 @@ public class BaseAgent
         }
     }
 
-    private Activity? CreateActivity()
+    private Activity CreateActivity()
     {
         try {
             return new Activity {
