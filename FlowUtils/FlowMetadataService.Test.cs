@@ -75,8 +75,8 @@ public class FlowMetadataServiceTests
         };
 
         var flow = new Flow<MarketingFlow>();
-        flow.AddActivity<LinkActivity, LinkActivity>(new LinkActivity());
-        flow.AddActivity<CompanyActivity, CompanyActivity>(new CompanyActivity());
+        flow.AddActivity<LinkActivity>(new LinkActivity());
+        flow.AddActivity<CompanyActivity>(new CompanyActivity());
         
         // Act
         var flowInfo = service.ExtractFlowInformation(flow);
