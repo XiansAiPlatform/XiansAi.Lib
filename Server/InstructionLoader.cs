@@ -2,14 +2,17 @@ using System.Net;
 using System.Text.Json;
 using System.Web;
 using DotNetEnv;
+using Microsoft.Extensions.Logging;
 
 public class InstructionLoader
 {
     private readonly string[] _instructions;
+    private readonly ILogger<InstructionLoader> _logger;
 
     public InstructionLoader(string[] instructions)
     {
         _instructions = instructions;
+        _logger = Globals.LogFactory.CreateLogger<InstructionLoader>();
     }
 
     public async Task<Instruction> LoadInstruction(int index = 0)
@@ -18,7 +21,11 @@ public class InstructionLoader
             throw new InvalidOperationException("Instructions are not set or index is out of range");
         }
         var instructionName = _instructions[index];
+        return await LoadInstruction(instructionName);
+    }
 
+    public async Task<Instruction> LoadInstruction(string instructionName)
+    {
         // Check the environment variable for the instruction path
         var instructionPath = Env.GetString(instructionName);
 
@@ -44,10 +51,8 @@ public class InstructionLoader
 
     private async Task<Instruction?> LoadFromServer(string instructionName)
     {
-        if (Globals.XiansAIConfig?.CertificatePath == null || 
-            Globals.XiansAIConfig.CertificatePassword == null ||    
-            Globals.XiansAIConfig.ServerUrl == null) {    
-            throw new InvalidOperationException("CertificatePath, CertificatePassword and ServerUrl are required for XiansAI Server");
+        if (!SecureApi.IsReady()) {    
+            throw new InvalidOperationException("SecureApi is not initialized");
         }
 
         var url = BuildServerUrl(instructionName);
@@ -67,8 +72,7 @@ public class InstructionLoader
             return await ParseServerResponse(httpResult);
         }
         catch (Exception e) {
-            Console.WriteLine($"Failed to load instruction from server: {instructionName}. error: {e.Message}");
-            Console.WriteLine($"Server Config: {Globals.XiansAIConfig}");
+            _logger.LogError(e, $"Failed to load instruction from server: {instructionName}. Server Config: {Globals.XiansAIConfig}");
             throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. error: {e.Message}");
         }
     }

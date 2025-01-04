@@ -8,53 +8,22 @@ public class BaseAgent
     {
         _logger = Globals.LogFactory.CreateLogger<BaseAgent>();
     }
-    public string? GetActivityId()
+    public Activity? GetActivity()
     {
         try {
-            return ActivityExecutionContext.Current.Info.ActivityId;
+            return new Activity {
+                ActivityId = ActivityExecutionContext.Current.Info.ActivityId,
+                ActivityName = ActivityExecutionContext.Current.Info.ActivityType,
+                StartedTime = ActivityExecutionContext.Current.Info.StartedTime,
+                WorkflowId = ActivityExecutionContext.Current.Info.WorkflowId,
+                WorkflowType = ActivityExecutionContext.Current.Info.WorkflowType,
+                TaskQueue = ActivityExecutionContext.Current.Info.TaskQueue
+            };
         } catch (Exception e) {
             _logger.LogWarning(e, "Failed to get activity id, not running in temporal context");
             return null;
         }
     }
 
-    public string? GetActivityType()
-    {
-        try {
-            return ActivityExecutionContext.Current.Info.ActivityType;
-        } catch (Exception e) {
-            _logger.LogWarning(e, "Failed to get activity id, not running in temporal context");
-            return null;
-        }
-    }
 
-    public string? GetWorkflowId()
-    {
-        try {
-            return ActivityExecutionContext.Current.Info.WorkflowId;
-        } catch (Exception e) {
-            _logger.LogWarning(e, "Failed to get workflow id, not running in temporal context");
-            return null;
-        }
-    }
-
-    public string? GetWorkflowType()
-    {
-        try {
-            return ActivityExecutionContext.Current.Info.WorkflowType;
-        } catch (Exception e) {
-            _logger.LogWarning(e, "Failed to get workflow type, not running in temporal context");
-            return null;
-        }
-    }
-
-    public string? GetTaskQueue()
-    {
-        try {
-            return ActivityExecutionContext.Current.Info.TaskQueue;
-        } catch (Exception e) {
-            _logger.LogWarning(e, "Failed to get task queue, not running in temporal context");
-            return null;
-        }
-    }
 }

@@ -42,4 +42,9 @@ public class SecureApi
         }
         return _instance._client;
     }
+
+    public static bool IsReady()
+    {
+        return _instance != null;
+    }
 }

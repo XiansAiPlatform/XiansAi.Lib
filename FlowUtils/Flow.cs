@@ -21,10 +21,12 @@ public class FlowInfo
 public class Flow<TClass>
 {
     private readonly Dictionary<Type, object> _activities = new Dictionary<Type, object>();
-    public Flow<TClass> AddActivity<TActivity>(TActivity activity)
+    public Flow<TClass> AddActivity<IActivity>(IActivity activity)  where IActivity : class
     {
         ArgumentNullException.ThrowIfNull(activity);
-        _activities[typeof(TActivity)] = activity;
+        var activityProxy = ActivityTrackerProxy<IActivity>.Create(activity);
+
+        _activities[typeof(IActivity)] = activityProxy;
         return this;
     }
 

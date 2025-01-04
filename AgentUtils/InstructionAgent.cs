@@ -20,6 +20,16 @@ public abstract class InstructionAgent: BaseAgent
         }
     }
 
+    protected async Task<string> LoadInstruction(string instructionName)
+    {
+        if (_instructionLoader == null)
+        {
+            throw new InvalidOperationException("Instructions are not initialized");
+        }
+        var instruction = await _instructionLoader.LoadInstruction(instructionName);
+        return instruction.Content;
+    }
+
     protected async Task<string> LoadInstruction(int index = 0)
     {
         if (_instructionLoader == null)
@@ -27,7 +37,6 @@ public abstract class InstructionAgent: BaseAgent
             throw new InvalidOperationException("Instructions are not initialized");
         }
         var instruction = await _instructionLoader.LoadInstruction(index);
-        _logger.LogInformation("{ActivityType} ({ActivityId}) of workflow {WorkflowId} loaded instruction: {Instruction}", GetActivityType(), GetActivityId(), GetWorkflowId(), instruction.Id);
         return instruction.Content;
     }
 }
