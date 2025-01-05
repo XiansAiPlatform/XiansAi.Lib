@@ -1,3 +1,4 @@
+namespace XiansAi.Activity;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class InstructionsAttribute: Attribute

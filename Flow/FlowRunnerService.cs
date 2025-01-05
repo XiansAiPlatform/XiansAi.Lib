@@ -1,10 +1,14 @@
 using System.Reflection;
 using Temporalio.Worker;
 using Temporalio.Workflows;
+using XiansAi.Http;
+using XiansAi.Temporal;
+
+namespace XiansAi.Flow;
 
 public interface IFlowRunnerService
 {
-    Task RunFlowAsync<TFlow>(Flow<TFlow> flow, CancellationToken cancellationToken)
+    Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken)
         where TFlow : class;
 }
 
@@ -36,7 +40,7 @@ public class FlowRunnerService : IFlowRunnerService
         return workflowAttr.Name ?? typeof(TFlow).Name;
     }
 
-    public async Task RunFlowAsync<TFlow>(Flow<TFlow> flow, CancellationToken cancellationToken)
+    public async Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken)
         where TFlow : class
     {
         var client = await _temporalClientService.GetClientAsync();

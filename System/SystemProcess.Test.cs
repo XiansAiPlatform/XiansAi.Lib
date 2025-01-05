@@ -1,5 +1,7 @@
 using Xunit;
 
+namespace XiansAi.System;
+
 public class SystemProcessTest
 {
     /*

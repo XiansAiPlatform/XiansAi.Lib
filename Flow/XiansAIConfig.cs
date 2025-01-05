@@ -1,3 +1,5 @@
+namespace XiansAi.Flow;
+
 public class XiansAIConfig
 {
     public string? ServerUrl { get; set; }

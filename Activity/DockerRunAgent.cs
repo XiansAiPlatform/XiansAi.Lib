@@ -1,7 +1,9 @@
 using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using XiansAi.System;
 
+namespace XiansAi.Activity;
 
 public class DockerRunResult : IDisposable
 {
@@ -39,7 +41,7 @@ public abstract class DockerRunAgent : InstructionAgent, IDisposable
         return attribute.Name;
     }
 
-    public override Activity GetCurrentActivity()
+    public override Models.Activity GetCurrentActivity()
     {
         var activity = base.GetCurrentActivity();
         activity.AgentName = GetDockerImageName();

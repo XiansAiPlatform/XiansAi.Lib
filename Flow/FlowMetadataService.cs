@@ -1,31 +1,27 @@
 using System.Reflection;
-using Temporalio.Activities;
-using Temporalio.Workflows;
+using XiansAi.Activity;
+using XiansAi.Models;
+
+namespace XiansAi.Flow;
 
 public interface IFlowMetadataService<TClass>
 {
-    FlowInfo ExtractFlowInformation(Flow<TClass> flow);
+    FlowDefinition ExtractFlowInformation(FlowInfo<TClass> flow);
 }
 
 public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
 {
 
-    public FlowMetadataService()
+    public FlowDefinition ExtractFlowInformation(FlowInfo<TClass> flow)
     {
-
-    }
-
-
-    public FlowInfo ExtractFlowInformation(Flow<TClass> flow)
-    {
-        var flowAttribute = typeof(TClass).GetCustomAttribute<WorkflowAttribute>();
+        var flowAttribute = typeof(TClass).GetCustomAttribute<Temporalio.Workflows.WorkflowAttribute>();
         if (flowAttribute == null)
         {
             throw new InvalidOperationException($"Class {typeof(TClass).Name} must have WorkflowAttribute");
         }
 
         var workflowRunMethod = typeof(TClass).GetMethods()
-            .FirstOrDefault(m => m.GetCustomAttribute<WorkflowRunAttribute>() != null);
+            .FirstOrDefault(m => m.GetCustomAttribute<Temporalio.Workflows.WorkflowRunAttribute>() != null);
 
         if (workflowRunMethod == null)
         {
@@ -38,18 +34,18 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
         var flowName = flowAttribute?.Name ?? typeof(TClass).Name;
         var activities = ExtractActivityInformation(flow);
 
-        return new FlowInfo
+        return new FlowDefinition
         {
             Parameters = parameters,
-            FlowName = flowName,
+            TypeName = flowName,
             ClassName = className,
             Activities = activities
         };
     }
 
-    private ActivityInfo[] ExtractActivityInformation(Flow<TClass> flow)
+    private ActivityDefinition[] ExtractActivityInformation(FlowInfo<TClass> flow)
     {
-        var activities = new List<ActivityInfo>();
+        var activities = new List<ActivityDefinition>();
         foreach (var activity in flow.GetActivities())
         {
             var type = activity.Key;
@@ -59,12 +55,12 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
             if (dockerImageAttribute == null) continue;
 
             var activityMethods = type.GetMethods()
-                .Where(m => m.GetCustomAttribute<ActivityAttribute>() != null);
+                .Where(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null);
 
             foreach (var method in activityMethods)
             {
-                var activityAttribute = method.GetCustomAttribute<ActivityAttribute>();
-                activities.Add(new ActivityInfo
+                var activityAttribute = method.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>();
+                activities.Add(new ActivityDefinition
                 {
                     DockerImage = dockerImageAttribute.Name,
                     Instructions = instructionsAttribute?.Instructions ?? [],
@@ -75,15 +71,5 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
         }
         return activities.ToArray();
     }
-
-    private string FetchInstructionContent(string instructionKey)
-    {
-        if (instructionKey == null) {
-            throw new InvalidOperationException("Instruction key is not set");
-        }
-        var instruction = File.ReadAllText(instructionKey);
-        return instruction;
-    }
-
 
 }

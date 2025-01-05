@@ -1,4 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+
+namespace XiansAi.Temporal;
+
 public class TemporalConfig
 {
 

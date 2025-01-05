@@ -1,8 +1,7 @@
-
+namespace XiansAi.Models;
 
 public class Instruction
 {
-
     public string? Id { get; set; }
     public required string Name { get; set; }
     public string? Version { get; set; }

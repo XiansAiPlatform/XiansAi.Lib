@@ -1,6 +1,9 @@
 using Xunit;
 using Temporalio.Activities;
 using Temporalio.Workflows;
+using XiansAi.Activity;
+
+namespace XiansAi.Flow;
 
 public class Company
 {
@@ -74,7 +77,7 @@ public class FlowMetadataServiceTests
             { typeof(CompanyActivity), new CompanyActivity() }
         };
 
-        var flow = new Flow<MarketingFlow>();
+        var flow = new FlowInfo<MarketingFlow>();
         flow.AddActivity<LinkActivity>(new LinkActivity());
         flow.AddActivity<CompanyActivity>(new CompanyActivity());
         
@@ -83,7 +86,7 @@ public class FlowMetadataServiceTests
 
         // Assert
         Assert.NotNull(flowInfo);
-        Assert.Equal("MarketingFlow", flowInfo.FlowName);
+        Assert.Equal("MarketingFlow", flowInfo.TypeName);
         Assert.Equal(typeof(MarketingFlow).FullName, flowInfo.ClassName);
         
         // Verify parameters

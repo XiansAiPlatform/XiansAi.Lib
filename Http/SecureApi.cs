@@ -1,5 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 
+namespace XiansAi.Http;
 public class SecureApi
 {
     private readonly HttpClient _client;

@@ -1,6 +1,10 @@
 using DotNetEnv;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
+using XiansAi.Http;
+
+namespace XiansAi.Server;
+
 public class ActivityUploader
 {
     private readonly ILogger _logger;
@@ -11,7 +15,7 @@ public class ActivityUploader
         _logger = Globals.LogFactory.CreateLogger<ActivityUploader>();
     }
 
-    public async Task UploadActivity(Activity activity)
+    public async Task UploadActivity(XiansAi.Models.Activity activity)
     {
         if (SecureApi.IsReady())
         {

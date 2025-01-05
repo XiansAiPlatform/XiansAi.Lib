@@ -1,8 +1,7 @@
 using Xunit;
-using System.Net.Http;
-using System.IO;
 using System.Net;
-using MongoDB.Driver.Core.Operations.ElementNameValidators;
+
+namespace XiansAi.Http;
 
 public class SecureApiTests
 {
@@ -33,7 +32,7 @@ public class SecureApiTests
         var response = await client.GetAsync(url);
         var content = await response.Content.ReadAsStringAsync();
         Console.WriteLine(content);
-        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
 
@@ -48,7 +47,7 @@ public class SecureApiTests
         var client = SecureApi.GetClient();
 
         // Act
-        var name = "Find if ISV company";
+        var name = "HowToIdentifyProductCompanies";
         var encodedName = WebUtility.UrlEncode(name);
         var url = $"api/server/instructions/latest?name={encodedName}";   
         Console.WriteLine( "url: " + url);
@@ -62,7 +61,7 @@ public class SecureApiTests
 
         
         Console.WriteLine( "content: " + content);
-        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
 

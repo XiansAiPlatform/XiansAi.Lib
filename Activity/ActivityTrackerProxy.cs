@@ -2,8 +2,9 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using System.Text.Json;
-using System.Data.Common;
-using System.Net.Http.Json;
+using XiansAi.Server;
+
+namespace XiansAi.Activity;
 
 public class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgent, I
 {

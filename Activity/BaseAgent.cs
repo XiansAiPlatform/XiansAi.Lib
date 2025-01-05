@@ -1,10 +1,11 @@
 using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 
+namespace XiansAi.Activity;
 public class BaseAgent
 {
     private readonly ILogger<BaseAgent> _logger;
-    private Activity? _currentActivity;
+    private Models.Activity? _currentActivity;
     public BaseAgent()
     {
         _logger = Globals.LogFactory.CreateLogger<BaseAgent>();
@@ -20,7 +21,7 @@ public class BaseAgent
         _currentActivity = CreateActivity();
     }
 
-    public virtual Activity GetCurrentActivity()
+    public virtual Models.Activity GetCurrentActivity()
     {
         if (_currentActivity != null) {
             return _currentActivity;
@@ -29,10 +30,10 @@ public class BaseAgent
         }
     }
 
-    private Activity CreateActivity()
+    private Models.Activity CreateActivity()
     {
         try {
-            return new Activity {
+            return new Models.Activity {
                 ActivityId = ActivityExecutionContext.Current.Info.ActivityId,
                 ActivityName = ActivityExecutionContext.Current.Info.ActivityType,
                 StartedTime = ActivityExecutionContext.Current.Info.StartedTime,

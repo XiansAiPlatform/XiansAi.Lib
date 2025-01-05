@@ -1,27 +1,24 @@
 using System.Net;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Web;
 using DotNetEnv;
 using Microsoft.Extensions.Logging;
+using XiansAi.Http;
+using XiansAi.Models;
+
+namespace XiansAi.Server;
 
 public class InstructionLoader
 {
     private readonly ILogger<InstructionLoader> _logger;
-    private readonly Dictionary<string, Instruction> _cache;
 
     public InstructionLoader()
     {
         _logger = Globals.LogFactory.CreateLogger<InstructionLoader>();
-        _cache = new Dictionary<string, Instruction>();
     }
 
     public async Task<Instruction> LoadInstruction(string instructionName)
     {
-        if (_cache.TryGetValue(instructionName, out var cachedInstruction))
-        {
-            return cachedInstruction;
-        }
 
         // Check the environment variable for the instruction path
         var instructionPath = Env.GetString(instructionName);
@@ -30,7 +27,7 @@ public class InstructionLoader
         if (instructionPath == null) {
             var fromServer = await LoadFromServer(instructionName);
             if (fromServer != null) {
-                _cache[instructionName] = fromServer;
+                return fromServer;
             } else {
                 _logger.LogError($"Failed to load instruction from server: {instructionName}. Instruction does not exist.");
                 throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. Instruction does not exist.");
@@ -45,9 +42,9 @@ public class InstructionLoader
                 Content = File.ReadAllText(instructionPath),
                 Name = instructionName,
             };
-            _cache[instructionName] = instruction;
+            return instruction;
         }
-        return _cache[instructionName];
+        
     }
 
     private async Task<Instruction?> LoadFromServer(string instructionName)

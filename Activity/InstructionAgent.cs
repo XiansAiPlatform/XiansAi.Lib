@@ -1,5 +1,8 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using XiansAi.Server;
+
+namespace XiansAi.Activity;
 
 public abstract class InstructionAgent: BaseAgent
 {

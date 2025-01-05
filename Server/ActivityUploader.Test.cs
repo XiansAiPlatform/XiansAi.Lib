@@ -1,5 +1,8 @@
 using Xunit;
 using DotNetEnv;
+using XiansAi.Http;
+
+namespace XiansAi.Server;
 
 public class ActivityUploaderTest
 {
@@ -19,7 +22,7 @@ public class ActivityUploaderTest
     [Fact]
     public async Task TestUploadActivity()
     {
-        var activity = new Activity {
+        var activity = new Models.Activity {
             ActivityId = "125",
             ActivityName = "TestActivity",
             StartedTime = DateTime.UtcNow,

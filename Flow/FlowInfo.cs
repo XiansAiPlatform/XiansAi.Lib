@@ -1,27 +1,11 @@
-using System.Reflection;
+using XiansAi.Activity;
 
-public class ActivityInfo
-{
-    public required string DockerImage { get; set; }
-    public required string[] Instructions { get; set; }
-    public required string ActivityName { get; set; }
-    public required string ClassName {get; set;}
-}
+namespace XiansAi.Flow;
 
-public class FlowInfo   
-{
-    public required string FlowName { get; set; }
-    public required ActivityInfo[] Activities { get; set; }
-    public required string ClassName { get; set; }
-    public required ParameterInfo[] Parameters { get; set; }
-    public string? Version { get; set; }
-    public string? Source { get; set; }
-}
-
-public class Flow<TClass>
+public class FlowInfo<TClass>
 {
     private readonly Dictionary<Type, object> _activities = new Dictionary<Type, object>();
-    public Flow<TClass> AddActivity<IActivity>(BaseAgent activity) 
+    public FlowInfo<TClass> AddActivity<IActivity>(BaseAgent activity) 
         where IActivity : class
     {
         ArgumentNullException.ThrowIfNull(activity);
