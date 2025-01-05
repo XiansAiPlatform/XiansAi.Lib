@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Nuget
+nupkg
+
 # User-specific files
 *.rsuser
 *.suo

@@ -1,7 +1,29 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup> 
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>XiansAi.Lib</PackageId> 
+    <Version>1.0.0</Version> 
+    <Description> 
+      This is a library for the Xians.Ai flow projects. 
+      This LIbrary is used by the Flows. It contains the base classes, 
+      interfaces and other utilities for creating and running Flows.
+    </Description> 
+    <PackageProjectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</PackageProjectUrl> 
+    <RepositoryUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</RepositoryUrl> 
+    <Authors>99x</Authors> 
+    <Copyright>Copyright (c) 99x</Copyright> 
+    <PackageReadmeFile>README.md</PackageReadmeFile> 
+    <PackageIcon>XiansAi.Lib.png</PackageIcon> 
+    <PackageTags>Xians AI</PackageTags> 
+    <PackageLicenseFile>LICENSE</PackageLicenseFile> 
+    <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance> 
+    <PackageReleaseNotes>- Update README.md</PackageReleaseNotes> 
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild> 
+  </PropertyGroup>
+
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -10,6 +32,12 @@
     <Content Include=".env">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="LICENSE" Pack="true" PackagePath="\" />
+    <None Include="XiansAi.Lib.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
