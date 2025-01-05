@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <id>XiansAi.Lib</id>
+        <version>1.0.0</version>
+        <authors>99x</authors>
+        <description>This is a library for the Xians.Ai flow projects.</description>
+        <projectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</projectUrl>
+        <icon>XiansAi.Lib.png</icon>
+        <readme>README.md</readme>
+        <copyright>Copyright (c) 99x</copyright> 
+        <PackageId>XiansAi.Lib</PackageId> 
+        <Description> 
+        This is a library for the Xians.Ai flow projects. 
+        This LIbrary is used by the Flows. It contains the base classes, 
+        interfaces and other utilities for creating and running Flows.
+        </Description> 
+        <PackageProjectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</PackageProjectUrl> 
+        <RepositoryUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</RepositoryUrl> 
+        <PackageTags>Xians AI</PackageTags> 
+        <PackageLicenseFile>LICENSE</PackageLicenseFile> 
+        <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance> 
+        <PackageReleaseNotes>- Update README.md</PackageReleaseNotes> 
+        <GeneratePackageOnBuild>True</GeneratePackageOnBuild> 
+    </metadata>
+    <files>
+        <file src="README.md" target="" />
+        <file src="LICENSE" target="" />
+        <file src="XiansAi.Lib.png" target="" />
+        <file src="**/*" exclude="**/.env;**/*.nupkg;**/*.csproj;.gitignore" target="" />
+    </files>
+</package>

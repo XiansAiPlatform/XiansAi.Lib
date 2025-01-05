@@ -90,7 +90,7 @@ public class FlowMetadataServiceTests
         Assert.Equal(typeof(MarketingFlow).FullName, flowInfo.ClassName);
         
         // Verify parameters
-        Assert.Equal(2, flowInfo.Parameters.Length);
+        Assert.Equal(2, flowInfo.Parameters.Count);
         Assert.Equal("sourceLink", flowInfo.Parameters[0].Name);
         Assert.Equal("prompt", flowInfo.Parameters[1].Name);
         
@@ -100,13 +100,11 @@ public class FlowMetadataServiceTests
         var activity = flowInfo.Activities.First();
         Assert.Equal("flowmaxer/scraper-agent", activity.DockerImage);
         Assert.Equal("Get Links", activity.ActivityName);
-        Assert.Equal("LinkActivity", activity.ClassName);
-        Assert.Equal(2, activity.Instructions.Length);
+        Assert.Equal(2, activity.Instructions.Count);
         
         var activity2 = flowInfo.Activities[1];
         Assert.Equal("flowmaxer/search-agent", activity2.DockerImage);
         Assert.Equal("GetCompanies", activity2.ActivityName);
-        Assert.Equal("CompanyActivity", activity2.ClassName);
         Assert.Empty(activity2.Instructions);
 
     }

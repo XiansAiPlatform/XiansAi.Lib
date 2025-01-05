@@ -28,7 +28,7 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
             throw new InvalidOperationException($"Class {typeof(TClass).Name} must have a method with WorkflowRunAttribute");
         }
 
-        var parameters = workflowRunMethod.GetParameters();
+        var parameters = workflowRunMethod.GetParameters().ToList();
 
         var className = typeof(TClass).FullName ?? typeof(TClass).Name;
         var flowName = flowAttribute?.Name ?? typeof(TClass).Name;
@@ -36,7 +36,10 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
 
         return new FlowDefinition
         {
-            Parameters = parameters,
+            Parameters = parameters.Select(p => new ParameterDefinition {
+                Name = p.Name,
+                Type = p.ParameterType.Name
+            }).ToList(),
             TypeName = flowName,
             ClassName = className,
             Activities = activities
@@ -46,7 +49,7 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
     private ActivityDefinition[] ExtractActivityInformation(FlowInfo<TClass> flow)
     {
         var activities = new List<ActivityDefinition>();
-        foreach (var activity in flow.GetActivities())
+        foreach (var activity in flow.GetProxyActivities())
         {
             var type = activity.Key;
             var dockerImageAttribute = type.GetCustomAttribute<DockerImageAttribute>();
@@ -63,9 +66,12 @@ public class FlowMetadataService<TClass> : IFlowMetadataService<TClass>
                 activities.Add(new ActivityDefinition
                 {
                     DockerImage = dockerImageAttribute.Name,
-                    Instructions = instructionsAttribute?.Instructions ?? [],
+                    Instructions = instructionsAttribute?.Instructions.ToList() ?? [],
                     ActivityName = activityAttribute?.Name ?? method.Name,
-                    ClassName = type.FullName ?? type.Name
+                    Parameters = method.GetParameters().Select(p => new ParameterDefinition {
+                        Name = p.Name,
+                        Type = p.ParameterType.Name
+                    }).ToList()
                 });
             }
         }
