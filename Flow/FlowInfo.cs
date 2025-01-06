@@ -8,7 +8,7 @@ public class FlowInfo<TClass>
 {
     private readonly Dictionary<Type, object> _proxyActivities = new Dictionary<Type, object>();
     private readonly Dictionary<Type, object> _activities = new Dictionary<Type, object>();
-    public FlowInfo<TClass> AddActivity<IActivity>(BaseAgent activity) 
+    public FlowInfo<TClass> AddActivity<IActivity>(ActivityBase activity) 
         where IActivity : class
     {
         ArgumentNullException.ThrowIfNull(activity);

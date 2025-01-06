@@ -8,10 +8,7 @@ public class SecureApiTests
     private readonly string _testCertPath = "/Users/hasithy/Downloads/xians-ai.pfx";
     private readonly string _testCertPassword = "test";
 
-    public SecureApiTests()
-    {
 
-    }
 
     /*
     dotnet test --filter "FullyQualifiedName~SecureApiTests.Constructor_ValidCertificate_CreatesClientWithCertificate"

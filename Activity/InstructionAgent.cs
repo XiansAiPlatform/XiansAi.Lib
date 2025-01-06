@@ -4,15 +4,15 @@ using XiansAi.Server;
 
 namespace XiansAi.Activity;
 
-public abstract class InstructionAgent: BaseAgent
+public abstract class InstructionActivity: ActivityBase
 {
-    private readonly ILogger<InstructionAgent> _logger;
+    private readonly ILogger<InstructionActivity> _logger;
     private readonly string[]? _instructions;
     private readonly InstructionLoader? _instructionLoader;
 
-    protected InstructionAgent(): base()
+    protected InstructionActivity(): base()
     {
-        _logger = Globals.LogFactory.CreateLogger<InstructionAgent>();
+        _logger = Globals.LogFactory.CreateLogger<InstructionActivity>();
 
         var instructionsAttr = GetType().GetCustomAttribute<InstructionsAttribute>();
 

@@ -12,7 +12,7 @@ public class Company
 }
 
 [DockerImage("flowmaxer/search-agent")]
-public class CompanyActivity: BaseAgent
+public class CompanyActivity: ActivityBase
 {
     [Activity]
     public async Task<List<Company>> GetCompanies(string link)
@@ -24,7 +24,7 @@ public class CompanyActivity: BaseAgent
 
 [DockerImage("flowmaxer/scraper-agent")]
 [Instructions("You are a scraper", "find links")]
-public class LinkActivity: BaseAgent
+public class LinkActivity: ActivityBase
 {
     [Activity("Get Links")]
     public async Task<List<string>> GetLinks(string sourceLink, string prompt)

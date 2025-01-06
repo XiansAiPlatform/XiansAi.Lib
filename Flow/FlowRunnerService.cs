@@ -54,7 +54,7 @@ public class FlowRunnerService : IFlowRunnerService
         where TFlow : class
     {
         // Upload the flow definition to the server
-        //await _flowDefinitionUploader.UploadFlowDefinition(flow);
+        await _flowDefinitionUploader.UploadFlowDefinition(flow);
 
         // Run the worker for the flow
         var client = await _temporalClientService.GetClientAsync();

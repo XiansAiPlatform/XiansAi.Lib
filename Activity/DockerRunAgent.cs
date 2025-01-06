@@ -19,13 +19,13 @@ public class DockerRunResult : IDisposable
     }
 }
 
-public abstract class DockerRunAgent : InstructionAgent, IDisposable
+public abstract class DockerRunActivity : InstructionActivity, IDisposable
 {
     private readonly DockerUtil _docker;
     private readonly ILogger _logger;
-    public DockerRunAgent() : base()
+    public DockerRunActivity() : base()
     {
-        _logger = Globals.LogFactory.CreateLogger<DockerRunAgent>();
+        _logger = Globals.LogFactory.CreateLogger<DockerRunActivity>();
         _docker = new DockerUtil(GetDockerImageName());
     }
 

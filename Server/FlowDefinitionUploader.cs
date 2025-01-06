@@ -19,7 +19,7 @@ public class FlowDefinitionUploader
         _logger = Globals.LogFactory.CreateLogger<FlowDefinitionUploader>();
     }
 
-    public async Task UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow)
+    public async Task UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source = null)
         where TFlow : class
     {
         var flowDefinition = new FlowDefinition {
@@ -30,11 +30,9 @@ public class FlowDefinitionUploader
                 Type = p.ParameterType.Name
             }).ToList(),
             Activities = flow.GetActivities().Select(CreateActivityDefinition).ToArray(),
-            Source = ReadSource(typeof(TFlow))
+            Source = source ?? ReadSource(typeof(TFlow))
         };
-
-        _logger.LogInformation("Trying to upload flow definition: {FlowDefinition}", JsonSerializer.Serialize(flowDefinition));
-
+        await Task.Delay(1000);
         await Upload(flowDefinition);
 
     }
@@ -43,9 +41,21 @@ public class FlowDefinitionUploader
     {
         if (SecureApi.IsReady())
         {
-            HttpClient client = SecureApi.GetClient();
-            var response = await client.PostAsync("api/server/flow-definitions", JsonContent.Create(flowDefinition));
-            response.EnsureSuccessStatusCode();
+            try
+            {
+                HttpClient client = SecureApi.GetClient();
+                var response = await client.PostAsync("api/server/definitions", JsonContent.Create(flowDefinition));
+                response.EnsureSuccessStatusCode();
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError("Failed to upload flow definition: {Message}", ex.Message);
+                throw;
+            }
+        } 
+        else
+        {
+            _logger.LogWarning("SecureApi is not ready, skipping upload of flow definition");
         }
     }
 

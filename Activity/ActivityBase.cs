@@ -2,13 +2,13 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 
 namespace XiansAi.Activity;
-public class BaseAgent
+public class ActivityBase
 {
-    private readonly ILogger<BaseAgent> _logger;
+    private readonly ILogger<ActivityBase> _logger;
     private Models.Activity? _currentActivity;
-    public BaseAgent()
+    public ActivityBase()
     {
-        _logger = Globals.LogFactory.CreateLogger<BaseAgent>();
+        _logger = Globals.LogFactory.CreateLogger<ActivityBase>();
     }
 
     public bool IsInWorkflow()
