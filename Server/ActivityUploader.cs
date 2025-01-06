@@ -1,4 +1,3 @@
-using DotNetEnv;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using XiansAi.Http;
@@ -11,7 +10,6 @@ public class ActivityUploader
 
     public ActivityUploader()
     {
-        Env.Load();
         _logger = Globals.LogFactory.CreateLogger<ActivityUploader>();
     }
 

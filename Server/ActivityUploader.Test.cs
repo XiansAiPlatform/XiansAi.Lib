@@ -1,5 +1,4 @@
 using Xunit;
-using DotNetEnv;
 using XiansAi.Http;
 
 namespace XiansAi.Server;
@@ -12,7 +11,6 @@ public class ActivityUploaderTest
 
     public ActivityUploaderTest()
     {
-        Env.Load();
         SecureApi.Initialize(_testCertPath, _testCertPassword, "http://localhost:5257");
     }
 

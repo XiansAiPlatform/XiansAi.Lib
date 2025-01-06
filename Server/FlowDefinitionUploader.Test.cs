@@ -5,28 +5,23 @@ using XiansAi.Flow;
 using XiansAi.Temporal;
 using Xunit;
 
-namespace XiansAi.Flow.Tests;
+namespace XiansAi.Server.Tests;
 
-public class FlowRunnerServiceTests
+public class FlowDefinitionUploaderTests
 {
 
     /*
-    dotnet test --filter "FullyQualifiedName=XiansAi.Flow.Tests.FlowRunnerServiceTests.UploadFlowDefinition_ValidFlow_ReturnsCorrectFlowDefinition"
+    dotnet test --filter "FullyQualifiedName=XiansAi.Server.Tests.FlowDefinitionUploader.UploadFlowDefinition_ValidFlow_ReturnsCorrectFlowDefinition"
     */
     [Fact]
-    public void UploadFlowDefinition_ValidFlow_ReturnsCorrectFlowDefinition()
+    public async Task UploadFlowDefinition_ValidFlow_ReturnsCorrectFlowDefinition()
     {
         var flow = new FlowInfo<MarketingFlow>();
         flow.AddActivity<ILinkActivity>(new LinkActivity());
         flow.AddActivity<ICompanyActivity>(new CompanyActivity());
 
-        var flowRunnerService = new FlowRunnerService(new TemporalConfig {
-            TemporalServerUrl = "localhost:7233",
-            Namespace = "default",
-            ClientCert = "cert.pem",
-            ClientPrivateKey = "key.pem"
-        }, new XiansAIConfig() );
-        flowRunnerService.UploadFlowDefinition(flow);
+        var flowDefinitionUploader = new FlowDefinitionUploader();
+        await flowDefinitionUploader.UploadFlowDefinition(flow);
     }
 
 }

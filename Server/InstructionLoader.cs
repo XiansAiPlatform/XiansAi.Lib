@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using DotNetEnv;
 using Microsoft.Extensions.Logging;
 using XiansAi.Http;
 using XiansAi.Models;
@@ -21,7 +20,7 @@ public class InstructionLoader
     {
 
         // Check the environment variable for the instruction path
-        var instructionPath = Env.GetString(instructionName);
+        var instructionPath = Environment.GetEnvironmentVariable(instructionName);
 
         // If the environment variable is not set, try to load from the server
         if (instructionPath == null) {

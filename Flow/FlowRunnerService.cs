@@ -1,12 +1,12 @@
 using System.Reflection;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Temporalio.Workflows;
-using XiansAi.Activity;
 using XiansAi.Http;
-using XiansAi.Models;
 using XiansAi.Temporal;
+using XiansAi.Server;
+using System.Runtime.Serialization;
+using System.Text.Json;
 
 namespace XiansAi.Flow;
 
@@ -19,18 +19,23 @@ public interface IFlowRunnerService
 public class FlowRunnerService : IFlowRunnerService
 {
     private readonly TemporalClientService _temporalClientService;
-    private readonly TemporalConfig _temporalConfig;
+    private readonly Config _config;
     private readonly ILogger<FlowRunnerService> _logger;
-    public FlowRunnerService(TemporalConfig temporalConfig, XiansAIConfig xiansAIConfig)
+    private readonly FlowDefinitionUploader _flowDefinitionUploader;
+
+    public FlowRunnerService(Config config)
     {
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
-        _temporalConfig = temporalConfig;
-        _temporalClientService = new TemporalClientService(_temporalConfig);
-        if (xiansAIConfig.CertificatePath != null && xiansAIConfig.CertificatePassword != null && xiansAIConfig.ServerUrl != null) {
+        _config = config;
+        _temporalClientService = new TemporalClientService(_config);
+        _flowDefinitionUploader = new FlowDefinitionUploader();
+        
+        if (config.AppServerCertPath != null && config.AppServerCertPwd != null && config.AppServerUrl != null) {
+            _logger.LogInformation("Initializing SecureApi with AppServerUrl: {AppServerUrl}", config.AppServerUrl);
             SecureApi.Initialize(
-                xiansAIConfig.CertificatePath,
-                xiansAIConfig.CertificatePassword,
-                xiansAIConfig.ServerUrl
+                config.AppServerCertPath,
+                config.AppServerCertPwd,
+                config.AppServerUrl
             );
         }
     }
@@ -49,7 +54,7 @@ public class FlowRunnerService : IFlowRunnerService
         where TFlow : class
     {
         // Upload the flow definition to the server
-        UploadFlowDefinition(flow);
+        //await _flowDefinitionUploader.UploadFlowDefinition(flow);
 
         // Run the worker for the flow
         var client = await _temporalClientService.GetClientAsync();
@@ -68,43 +73,5 @@ public class FlowRunnerService : IFlowRunnerService
         );
 
         await worker.ExecuteAsync(cancellationToken);
-    }
-
-    public void UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow)
-    {
-        var flowDefinition = new FlowDefinition {
-            TypeName = flow.GetWorkflowName(),
-            ClassName = typeof(TFlow).Name,
-            Parameters = flow.GetParameters().Select(p => new ParameterDefinition {
-                Name = p.Name,
-                Type = p.ParameterType.Name
-            }).ToList(),
-            Activities = flow.GetActivities().Select(CreateActivityDefinition).ToArray()
-        };
-
-        _logger.LogInformation("Flow definition: {FlowDefinition}", JsonSerializer.Serialize(flowDefinition));
-    }
-
-    private ActivityDefinition CreateActivityDefinition(KeyValuePair<Type, object> activity)
-    {
-        Console.WriteLine(activity.Key.Name);
-        Console.WriteLine(activity.Value.GetType().Name);
-
-        var dockerImageAttribute = activity.Value.GetType().GetCustomAttribute<DockerImageAttribute>();
-        var instructionsAttribute = activity.Value.GetType().GetCustomAttribute<InstructionsAttribute>();
-
-
-
-        return new ActivityDefinition {
-            Instructions = instructionsAttribute?.Instructions.ToList() ?? [],
-            DockerImage = dockerImageAttribute?.Name,
-            ActivityName = activity.Key.Name,
-            Parameters = activity.Key.GetMethods()
-                .FirstOrDefault(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null)?
-                .GetParameters().Select(p => new ParameterDefinition {
-                    Name = p.Name,
-                    Type = p.ParameterType.Name
-                }).ToList() ?? []
-        };
     }
 }

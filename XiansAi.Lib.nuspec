@@ -2,12 +2,12 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>XiansAi.Lib</id>
-        <version>1.0.0</version>
+        <version>1.0.2</version>
         <authors>99x</authors>
         <description>This is a library for the Xians.Ai flow projects.</description>
         <projectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</projectUrl>
-        <icon>XiansAi.Lib.png</icon>
-        <readme>README.md</readme>
+        <icon>images/XiansAi.Lib.png</icon>
+        <readme>docs/README.md</readme>
         <copyright>Copyright (c) 99x</copyright> 
         <PackageId>XiansAi.Lib</PackageId> 
         <Description> 
@@ -18,15 +18,26 @@
         <PackageProjectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</PackageProjectUrl> 
         <RepositoryUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</RepositoryUrl> 
         <PackageTags>Xians AI</PackageTags> 
-        <PackageLicenseFile>LICENSE</PackageLicenseFile> 
+        <PackageLicenseFile>docs/LICENSE</PackageLicenseFile> 
         <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance> 
         <PackageReleaseNotes>- Update README.md</PackageReleaseNotes> 
         <GeneratePackageOnBuild>True</GeneratePackageOnBuild> 
+        <dependencies>
+            <group targetFramework="net9.0">
+                <dependency id="Microsoft.Extensions.Hosting" version="9.0.0" />
+                <dependency id="MongoDB.Driver" version="3.1.0" />
+                <dependency id="OpenAI" version="2.1.0" />
+                <dependency id="Temporalio" version="1.3.1" />
+                <dependency id="Microsoft.Extensions.Configuration.Json" version="9.0.0" />
+                <dependency id="Microsoft.Extensions.Options" version="9.0.0" />
+                <dependency id="Microsoft.Extensions.Options.ConfigurationExtensions" version="9.0.0" />
+            </group>
+        </dependencies>
     </metadata>
     <files>
-        <file src="README.md" target="" />
-        <file src="LICENSE" target="" />
-        <file src="XiansAi.Lib.png" target="" />
-        <file src="**/*" exclude="**/.env;**/*.nupkg;**/*.csproj;.gitignore" target="" />
+        <file src="bin\Release\net9.0\*.dll" exclude="**/.env" target="lib\net9.0" />
+        <file src="README.md" target="docs" />
+        <file src="LICENSE" target="docs" />
+        <file src="XiansAi.Lib.png" target="images" />
     </files>
 </package>

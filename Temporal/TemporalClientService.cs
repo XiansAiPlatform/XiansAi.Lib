@@ -1,4 +1,5 @@
 using Temporalio.Client;
+using XiansAi.Flow;
 
 namespace XiansAi.Temporal;
 
@@ -6,16 +7,16 @@ public interface ITemporalClientService
 {
     Task<ITemporalClient> GetClientAsync();
 
-    TemporalConfig Config { get; }
+    Config Config { get; }
 }
 
 public class TemporalClientService : ITemporalClientService
 {
     private ITemporalClient? _client;
 
-    public TemporalConfig Config { get; set; }
+    public Config Config { get; set; }
 
-    public TemporalClientService(TemporalConfig config)
+    public TemporalClientService(Config config)
     {
         Config = config ?? throw new ArgumentNullException(nameof(config));
     }
@@ -25,13 +26,13 @@ public class TemporalClientService : ITemporalClientService
     {
         if (_client != null) return _client;
 
-        _client = await TemporalClient.ConnectAsync(new(Config.TemporalServerUrl)
+        _client = await TemporalClient.ConnectAsync(new(Config.FlowServerUrl)
         {
-            Namespace = Config.Namespace,
+            Namespace = Config.FlowServerNamespace,
             Tls = new()
             {
-                ClientCert = await File.ReadAllBytesAsync(Config.ClientCert),
-                ClientPrivateKey = await File.ReadAllBytesAsync(Config.ClientPrivateKey),
+                ClientCert = await File.ReadAllBytesAsync(Config.FlowServerCertPath),
+                ClientPrivateKey = await File.ReadAllBytesAsync(Config.FlowServerPrivateKeyPath),
             }
         });
 
