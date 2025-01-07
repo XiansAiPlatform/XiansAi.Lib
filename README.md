@@ -23,7 +23,7 @@ dotnet build -c Release
 
 mkdir nupkg
 dotnet pack -c Release -o ./nupkg
-dotnet nuget push ./nupkg/XiansAi.Lib.1.0.1.nupkg -s https://api.nuget.org/v3/index.json -k <your-api-key>
+dotnet nuget push ./nupkg/XiansAi.Lib.1.0.5.nupkg -s https://api.nuget.org/v3/index.json -k <your-api-key>
 ```
 
 ## Nuget Package
