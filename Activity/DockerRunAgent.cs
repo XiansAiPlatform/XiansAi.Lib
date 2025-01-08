@@ -41,10 +41,12 @@ public abstract class DockerRunActivity : InstructionActivity, IDisposable
         return attribute.Name;
     }
 
-    public override Models.Activity GetCurrentActivity()
+    public override Models.Activity? GetCurrentActivity()
     {
         var activity = base.GetCurrentActivity();
-        activity.AgentName = GetDockerImageName();
+        if (activity != null) {
+            activity.AgentName = GetDockerImageName();
+        }
         return activity;
     }
 

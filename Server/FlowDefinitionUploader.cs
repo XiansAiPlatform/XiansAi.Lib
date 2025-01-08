@@ -55,7 +55,7 @@ public class FlowDefinitionUploader
         } 
         else
         {
-            _logger.LogWarning("SecureApi is not ready, skipping upload of flow definition");
+            _logger.LogWarning("App server secure API is not ready, skipping upload of flow definition");
         }
     }
 

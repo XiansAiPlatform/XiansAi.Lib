@@ -16,43 +16,35 @@ public class InstructionLoader
         _logger = Globals.LogFactory.CreateLogger<InstructionLoader>();
     }
 
-    public async Task<Instruction> LoadInstruction(string instructionName)
+    private async Task<Instruction?> LoadFromLocal(string instructionName)
+    {
+        _logger.LogWarning($"Loading instruction from local file. File path taken from environment variable '{instructionName}'");
+
+        var instructionPath = Environment.GetEnvironmentVariable(instructionName);
+        if (instructionPath == null) {
+            _logger.LogError($"Instruction file does not exist: '{instructionPath}'. Failed to load instruction from local file. Please check the environment variable '{instructionName}'.");
+            return null;
+        }
+        return new Instruction { 
+            Content = await File.ReadAllTextAsync(instructionPath), 
+            Name = instructionName,
+            Id = null // Indicate that this is a local instruction from a file
+        };
+    }
+
+    public async Task<Instruction?> Load(string instructionName)
     {
 
-        // Check the environment variable for the instruction path
-        var instructionPath = Environment.GetEnvironmentVariable(instructionName);
-
-        // If the environment variable is not set, try to load from the server
-        if (instructionPath == null) {
-            var fromServer = await LoadFromServer(instructionName);
-            if (fromServer != null) {
-                return fromServer;
-            } else {
-                _logger.LogError($"Failed to load instruction from server: {instructionName}. Instruction does not exist.");
-                throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. Instruction does not exist.");
-            }
+        if (!(SecureApi.IsReady())) { 
+            _logger.LogWarning("App server secure connection is not initialized");
+            return await LoadFromLocal(instructionName);
         } else {
-            // If the environment variable is set, load from the file
-            if (!File.Exists(instructionPath)) {
-                _logger.LogError($"Instruction file does not exist: {instructionPath}");
-                throw new InvalidOperationException($"Instruction file does not exist: {instructionPath}");
-            }
-            var instruction = new Instruction {
-                Content = File.ReadAllText(instructionPath),
-                Name = instructionName,
-            };
-            return instruction;
+            return await LoadFromServer(instructionName);
         }
-        
     }
 
     private async Task<Instruction?> LoadFromServer(string instructionName)
     {
-        if (!SecureApi.IsReady()) { 
-            _logger.LogError("SecureApi is not initialized");
-            throw new InvalidOperationException("SecureApi is not initialized");
-        }
-
         var url = BuildServerUrl(instructionName);
         
         try {
@@ -60,12 +52,13 @@ public class InstructionLoader
             var httpResult = await client.GetAsync(url);
 
             if (httpResult.StatusCode == HttpStatusCode.NotFound) {
+                _logger.LogError($"Instruction not found on server: {instructionName}");
                 return null;
             }
             
             if (httpResult.StatusCode != HttpStatusCode.OK) {
-                _logger.LogError($"Failed to get instruction from server: {httpResult.StatusCode}");
-                throw new InvalidOperationException($"Failed to get instruction from server: {httpResult.StatusCode}");
+                _logger.LogError($"Failed to get instruction from server. Status code: {httpResult.StatusCode}");
+                throw new InvalidOperationException($"Failed to get instruction from server: {httpResult.Content}");
             }
 
             return await ParseServerResponse(httpResult);
@@ -86,20 +79,18 @@ public class InstructionLoader
         var response = await httpResult.Content.ReadAsStringAsync();
 
         try {
-            var json = JsonSerializer.Deserialize<Dictionary<string, string>>(response);
+            var options = new JsonSerializerOptions { 
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            
+            var instruction = JsonSerializer.Deserialize<Instruction>(response, options);
 
-            if (json == null || !json.ContainsKey("content")) {
+            if (instruction?.Content == null || instruction.Name == null) {
                 _logger.LogError($"Failed to deserialize instruction from server: {response}");
                 throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}");
             }
-            return new Instruction {
-                Id = json["id"],
-                Name = json["name"],
-                Version = json["version"],
-                Type = json["type"],
-                CreatedAt = DateTime.Parse(json["createdAt"]),
-                Content = json["content"]
-            };
+            return instruction;
         } 
         catch (Exception e) {
             _logger.LogError(e, $"Failed to deserialize instruction from server: {response}");

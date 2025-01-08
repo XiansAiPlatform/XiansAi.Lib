@@ -24,7 +24,7 @@ public class ActivityUploader
         }
         else
         {
-            _logger.LogWarning("SecureApi is not ready, skipping activity upload to server");
+            _logger.LogWarning("App server secure API is not ready, skipping activity upload to server");
         }
     }
 }

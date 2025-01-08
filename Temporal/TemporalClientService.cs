@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using XiansAi.Flow;
 
@@ -33,7 +34,11 @@ public class TemporalClientService : ITemporalClientService
             {
                 ClientCert = await File.ReadAllBytesAsync(Config.FlowServerCertPath),
                 ClientPrivateKey = await File.ReadAllBytesAsync(Config.FlowServerPrivateKeyPath),
-            }
+            }, 
+            LoggerFactory = LoggerFactory.Create(builder =>
+                builder.
+                    AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ").
+                    SetMinimumLevel(LogLevel.Information)),
         });
 
         return _client;

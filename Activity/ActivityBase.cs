@@ -6,6 +6,8 @@ public class ActivityBase
 {
     private readonly ILogger<ActivityBase> _logger;
     private Models.Activity? _currentActivity;
+
+
     public ActivityBase()
     {
         _logger = Globals.LogFactory.CreateLogger<ActivityBase>();
@@ -21,14 +23,30 @@ public class ActivityBase
         _currentActivity = CreateActivity();
     }
 
-    public virtual Models.Activity GetCurrentActivity()
+    public void LogInfo(string message)
     {
+        ActivityLogger.LogInformation($"{message}");
+    }
+
+    public void LogError(string message, Exception exception)
+    {
+        ActivityLogger.LogError($"{message}", exception);
+    }
+
+    public virtual Models.Activity? GetCurrentActivity()
+    {
+        if (!IsInWorkflow()) {
+            _logger.LogWarning("Not in workflow, skipping activity retrieval");
+            return null;
+        }
         if (_currentActivity != null) {
             return _currentActivity;
         } else {
             return CreateActivity();
         }
     }
+
+
 
     private Models.Activity CreateActivity()
     {

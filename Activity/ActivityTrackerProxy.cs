@@ -42,9 +42,19 @@ public class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, 
             inputs[parameters[i].Name!] = args?[i];
         }
 
-        // call the activity
-        var result = method.Invoke(_target, args);
+        object? result = null;
 
+        try
+        {
+            // call the activity
+            result = method.Invoke(_target, args);
+        }
+        catch (TargetInvocationException ex)
+        {
+            // exception occurred in the activity
+            ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException?? ex);
+            throw;
+        }
         if (result is not Task task)
         {
             UploadActivityResult(activityName, inputs, result).ConfigureAwait(false);
@@ -59,10 +69,9 @@ public class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, 
                 return t;
             });
         }
-
-
         return result;
     }
+
 
     private async Task UploadActivityResult(string activityName, Dictionary<string, object?> inputs, object? result)
     {
