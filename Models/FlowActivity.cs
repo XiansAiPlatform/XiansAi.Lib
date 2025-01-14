@@ -4,7 +4,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace XiansAi.Models;
 
-public class Activity
+public class FlowActivity
 {
     [BsonId]
     [JsonPropertyName("activityId")]
@@ -44,9 +44,9 @@ public class Activity
     [JsonPropertyName("taskQueue")]
     public required string TaskQueue { get; set; }
 
-    [BsonElement("agentName")]
-    [JsonPropertyName("agentName")]
-    public string? AgentName { get; set; }
+    [BsonElement("agentNames")]
+    [JsonPropertyName("agentNames")]
+    public List<string> AgentNames { get; set; } = [];
 
     [BsonElement("instructionIds")]
     [JsonPropertyName("instructionIds")]

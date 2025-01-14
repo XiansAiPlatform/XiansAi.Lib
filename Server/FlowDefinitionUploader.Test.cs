@@ -26,8 +26,8 @@ public class FlowDefinitionUploaderTest
     public async Task UploadFlowDefinition()
     {
         var flow = new FlowInfo<MarketingFlow>();
-        flow.AddActivity<ILinkActivity>(new LinkActivity());
-        flow.AddActivity<ICompanyActivity>(new CompanyActivity());
+        flow.AddActivities<ILinkActivity>(new LinkStub());
+        flow.AddActivities<ICompanyActivity>(new CompanyStub());
         
 
         var flowDefinitionUploader = new FlowDefinitionUploader();
@@ -79,8 +79,8 @@ public interface ICompanyActivity
     Task<List<Company>> GetCompanies(string link);
 }
 
-[DockerImage("flowmaxer/search-agent")]
-public class CompanyActivity: ActivityBase, ICompanyActivity
+[Agents("flowmaxer/search-agent")]
+public class CompanyStub: AgentStub, ICompanyActivity
 {
     [Activity]
     public async Task<List<Company>> GetCompanies(string link)
@@ -96,9 +96,9 @@ public interface ILinkActivity
     Task<List<string>> GetLinks(string sourceLink, string prompt);
 }
 
-[DockerImage("flowmaxer/scraper-agent")]
+[Agents("flowmaxer/scraper-agent")]
 [Instructions("You are a scraper", "find links")]
-public class LinkActivity: ActivityBase, ILinkActivity
+public class LinkStub: AgentStub, ILinkActivity
 {
     [Activity]
     public async Task<List<string>> GetLinks(string sourceLink, string prompt)
@@ -120,10 +120,10 @@ public class MarketingFlow
         var isvCompanies = new List<Company>();
 
         var links = await Workflow.ExecuteActivityAsync(
-            (LinkActivity a) => a.GetLinks(sourceLink, prompt), options);
+            (LinkStub a) => a.GetLinks(sourceLink, prompt), options);
 
         var companies = await Workflow.ExecuteActivityAsync(
-            (CompanyActivity a) => a.GetCompanies(links[0]), options);
+            (CompanyStub a) => a.GetCompanies(links[0]), options);
         
         await Workflow.DelayAsync(TimeSpan.FromSeconds(10));
 

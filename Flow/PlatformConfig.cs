@@ -1,6 +1,6 @@
 namespace XiansAi.Flow;
 
-public class Config
+public class PlatformConfig
 {
     public required string AppServerUrl { get; set; }
     public required string AppServerCertPath { get; set; }

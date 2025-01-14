@@ -24,7 +24,7 @@ public class FlowDefinitionUploader
     {
         var flowDefinition = new FlowDefinition {
             TypeName = flow.GetWorkflowName(),
-            ClassName = typeof(TFlow).Name,
+            ClassName = typeof(TFlow).FullName ?? typeof(TFlow).Name,
             Parameters = flow.GetParameters().Select(p => new ParameterDefinition {
                 Name = p.Name,
                 Type = p.ParameterType.Name
@@ -33,8 +33,8 @@ public class FlowDefinitionUploader
             Source = source ?? ReadSource(typeof(TFlow))
         };
         await Task.Delay(1000);
+        _logger.LogInformation("Uploading flow definition for {TypeName} to App server...", typeof(TFlow).FullName);
         await Upload(flowDefinition);
-
     }
 
     private async Task Upload(FlowDefinition flowDefinition)
@@ -45,12 +45,22 @@ public class FlowDefinitionUploader
             {
                 HttpClient client = SecureApi.GetClient();
                 var response = await client.PostAsync("api/server/definitions", JsonContent.Create(flowDefinition));
+                
+                if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    var errorMessage = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("Bad Request: {ErrorMessage}", errorMessage);
+                    throw new InvalidOperationException(errorMessage);
+                }
+                
                 response.EnsureSuccessStatusCode();
+                var responseBody = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation("Flow definition uploaded successfully: {ResponseBody}", responseBody);
             }
             catch (HttpRequestException ex)
             {
                 _logger.LogError("Failed to upload flow definition: {Message}", ex.Message);
-                throw;
+                throw new InvalidOperationException("Failed to upload flow definition", ex);
             }
         } 
         else
@@ -71,8 +81,7 @@ public class FlowDefinitionUploader
             {
                 // Debug helper: List all available resources
                 var resources = assembly.GetManifestResourceNames();
-                _logger.LogWarning("Source code for {TypeName} not found. Available resources: {Resources}", 
-                    type.FullName, string.Join(", ", resources));
+                _logger.LogWarning("Source code not found in assembly. Did you forget to embed `{TypeName}.cs` to the project?",  type.FullName);
                 return null;
             }
 
@@ -91,12 +100,12 @@ public class FlowDefinitionUploader
 
     private ActivityDefinition CreateActivityDefinition(KeyValuePair<Type, object> activity)
     {
-        var dockerImageAttribute = activity.Value.GetType().GetCustomAttribute<DockerImageAttribute>();
+        var agentsAttribute = activity.Value.GetType().GetCustomAttribute<AgentsAttribute>();
         var instructionsAttribute = activity.Value.GetType().GetCustomAttribute<InstructionsAttribute>();
 
         return new ActivityDefinition {
             Instructions = instructionsAttribute?.Instructions.ToList() ?? [],
-            DockerImage = dockerImageAttribute?.Name,
+            Agents = agentsAttribute?.Names.ToList() ?? [],
             ActivityName = activity.Key.Name,
             Parameters = activity.Key.GetMethods()
                 .FirstOrDefault(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null)?

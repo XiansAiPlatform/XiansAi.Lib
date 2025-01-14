@@ -3,7 +3,7 @@ using Temporalio.Activities;
 
 namespace XiansAi.Activity;
 
-public static class ActivityLogger
+static class ActivityLogger
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger("ActivityLogger");
 

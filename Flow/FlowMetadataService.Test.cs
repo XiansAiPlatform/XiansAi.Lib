@@ -11,8 +11,8 @@ public class Company
     public string? Url { get; set; }
 }
 
-[DockerImage("flowmaxer/search-agent")]
-public class CompanyActivity: ActivityBase
+[Agents("flowmaxer/search-agent")]
+public class CompanyStub: AgentStub
 {
     [Activity]
     public async Task<List<Company>> GetCompanies(string link)
@@ -22,9 +22,9 @@ public class CompanyActivity: ActivityBase
     }
 }
 
-[DockerImage("flowmaxer/scraper-agent")]
+[Agents("flowmaxer/scraper-agent")]
 [Instructions("You are a scraper", "find links")]
-public class LinkActivity: ActivityBase
+public class LinkStub: AgentStub
 {
     [Activity("Get Links")]
     public async Task<List<string>> GetLinks(string sourceLink, string prompt)
@@ -46,10 +46,10 @@ public class MarketingFlow
         var isvCompanies = new List<Company>();
 
         var links = await Workflow.ExecuteActivityAsync(
-            (LinkActivity a) => a.GetLinks(sourceLink, prompt), options);
+            (LinkStub a) => a.GetLinks(sourceLink, prompt), options);
 
         var companies = await Workflow.ExecuteActivityAsync(
-            (CompanyActivity a) => a.GetCompanies(links[0]), options);
+            (CompanyStub a) => a.GetCompanies(links[0]), options);
         
         await Workflow.DelayAsync(TimeSpan.FromSeconds(10));
 
@@ -73,13 +73,13 @@ public class FlowMetadataServiceTests
         
         var activities = new Dictionary<Type, object>
         {
-            { typeof(LinkActivity), new LinkActivity() },
-            { typeof(CompanyActivity), new CompanyActivity() }
+            { typeof(LinkStub), new LinkStub() },
+            { typeof(CompanyStub), new CompanyStub() }
         };
 
         var flow = new FlowInfo<MarketingFlow>();
-        flow.AddActivity<LinkActivity>(new LinkActivity());
-        flow.AddActivity<CompanyActivity>(new CompanyActivity());
+        flow.AddActivities<LinkStub>(new LinkStub());
+        flow.AddActivities<CompanyStub>(new CompanyStub());
         
         // Act
         var flowInfo = service.ExtractFlowInformation(flow);
@@ -98,12 +98,12 @@ public class FlowMetadataServiceTests
         Assert.NotEmpty(flowInfo.Activities);
 
         var activity = flowInfo.Activities.First();
-        Assert.Equal("flowmaxer/scraper-agent", activity.DockerImage);
+        Assert.Equal("flowmaxer/scraper-agent", activity.Agents[0]);
         Assert.Equal("Get Links", activity.ActivityName);
         Assert.Equal(2, activity.Instructions.Count);
         
         var activity2 = flowInfo.Activities[1];
-        Assert.Equal("flowmaxer/search-agent", activity2.DockerImage);
+        Assert.Equal("flowmaxer/search-agent", activity2.Agents[0]);
         Assert.Equal("GetCompanies", activity2.ActivityName);
         Assert.Empty(activity2.Instructions);
 

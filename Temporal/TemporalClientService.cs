@@ -8,16 +8,16 @@ public interface ITemporalClientService
 {
     Task<ITemporalClient> GetClientAsync();
 
-    Config Config { get; }
+    PlatformConfig Config { get; }
 }
 
 public class TemporalClientService : ITemporalClientService
 {
     private ITemporalClient? _client;
 
-    public Config Config { get; set; }
+    public PlatformConfig Config { get; set; }
 
-    public TemporalClientService(Config config)
+    public TemporalClientService(PlatformConfig config)
     {
         Config = config ?? throw new ArgumentNullException(nameof(config));
     }
