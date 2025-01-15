@@ -1,17 +1,17 @@
 using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
+using System.Reflection;
 
 namespace XiansAi.Activity;
-public abstract class BaseStub
+public class BaseAgentStub
 {
-    private readonly ILogger<BaseStub> _logger;
+    private readonly ILogger<BaseAgentStub> _logger;
     private FlowActivity? _currentActivity;
 
-
-    public BaseStub()
+    public BaseAgentStub()
     {
-        _logger = Globals.LogFactory.CreateLogger<BaseStub>();
+        _logger = Globals.LogFactory.CreateLogger<BaseAgentStub>();
     }
 
     public bool IsInWorkflow()
@@ -26,6 +26,8 @@ public abstract class BaseStub
             return false;
         }
     }
+
+    public MethodInfo? CurrentMethod { get; internal set; }
 
     public void NewCurrentActivity()
     {

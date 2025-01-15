@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using XiansAi.Activity;
 using XiansAi.Flow;
@@ -25,11 +24,8 @@ public class FlowDefinitionUploader
         var flowDefinition = new FlowDefinition {
             TypeName = flow.GetWorkflowName(),
             ClassName = typeof(TFlow).FullName ?? typeof(TFlow).Name,
-            Parameters = flow.GetParameters().Select(p => new ParameterDefinition {
-                Name = p.Name,
-                Type = p.ParameterType.Name
-            }).ToList(),
-            Activities = flow.GetActivities().Select(CreateActivityDefinition).ToArray(),
+            Parameters = flow.GetParameters(),
+            Activities = GetAllActivities(flow.GetObjects()).ToArray(),
             Source = source ?? ReadSource(typeof(TFlow))
         };
         await Task.Delay(1000);
@@ -98,21 +94,38 @@ public class FlowDefinitionUploader
         }
     }
 
-    private ActivityDefinition CreateActivityDefinition(KeyValuePair<Type, object> activity)
-    {
-        var agentsAttribute = activity.Value.GetType().GetCustomAttribute<AgentsAttribute>();
-        var instructionsAttribute = activity.Value.GetType().GetCustomAttribute<InstructionsAttribute>();
-
-        return new ActivityDefinition {
-            Instructions = instructionsAttribute?.Instructions.ToList() ?? [],
-            Agents = agentsAttribute?.Names.ToList() ?? [],
-            ActivityName = activity.Key.Name,
-            Parameters = activity.Key.GetMethods()
-                .FirstOrDefault(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null)?
-                .GetParameters().Select(p => new ParameterDefinition {
-                    Name = p.Name,
-                    Type = p.ParameterType.Name
-                }).ToList() ?? []
-        };
+    private List<ActivityDefinition> GetAllActivities(List<(Type @interface, object stub, object proxy)> objects) {
+        var activities = new List<ActivityDefinition>();
+        foreach (var (interfaceType, stub, proxy) in objects) {
+            var agentsAttribute = stub.GetType().GetCustomAttribute<DockerAgentsAttribute>();
+            var agentNames = agentsAttribute?.Names.ToList() ?? [];
+            activities.AddRange(GetActivities(interfaceType, agentNames));
+        }
+        return activities;
     }
+
+    private List<ActivityDefinition> GetActivities(Type stubType, List<string> agentNames) {
+        var activityMethods = stubType.GetMethods().Where(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null).ToList();
+
+        var activities = new List<ActivityDefinition>();
+
+        foreach (var method in activityMethods) {
+            var activityName = method.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>()?.Name ?? method.Name;
+            var parameters = method.GetParameters().Select(p => new ParameterDefinition {
+                Name = p.Name,
+                Type = p.ParameterType.Name
+            }).ToList() ?? [];
+
+            var instructionsAttribute = method.GetCustomAttribute<InstructionsAttribute>();
+
+            activities.Add(new ActivityDefinition {
+                ActivityName = activityName,
+                Parameters = parameters,
+                Instructions = instructionsAttribute?.Instructions.ToList() ?? [],
+                AgentNames = agentNames
+            });
+        }
+        return activities;
+    }
+
 }

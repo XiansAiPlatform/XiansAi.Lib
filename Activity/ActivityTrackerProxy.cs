@@ -6,7 +6,7 @@ using XiansAi.Server;
 
 namespace XiansAi.Activity;
 
-class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseStub, I
+class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgentStub, I
 {
     private T? _target;
     private static readonly ILogger<ActivityTrackerProxy<I, T>> _logger = Globals.LogFactory.CreateLogger<ActivityTrackerProxy<I, T>>();
@@ -22,6 +22,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseStub, I
 
     protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
+        Console.WriteLine($"Invoking method: {method?.Name}");
         if (method == null || _target == null) throw new Exception("Method not found or target is null");
 
         // if the method is not an activity, or we are not in a workflow, just call it
@@ -30,7 +31,9 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseStub, I
 
         //Create a new activity on the BaseAgent
         _target.NewCurrentActivity();
-
+        Console.WriteLine($"New activity created: {_target.GetCurrentActivity()}");
+        _target.CurrentMethod = method;
+        Console.WriteLine($"Current method set: {_target.CurrentMethod}");
         // get the activity name
         var activityName = attribute.Name ?? method!.Name;
 

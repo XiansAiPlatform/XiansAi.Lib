@@ -1,10 +1,10 @@
 namespace XiansAi.Activity;
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
-public sealed class AgentsAttribute: Attribute
+public sealed class DockerAgentsAttribute: Attribute
 {
     public string[] Names { get; private set; }
 
-    public AgentsAttribute(params string[] names) {
+    public DockerAgentsAttribute(params string[] names) {
         Names = names;
     }
 

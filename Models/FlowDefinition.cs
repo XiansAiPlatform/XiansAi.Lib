@@ -10,7 +10,6 @@ public class FlowDefinition
     public required string ClassName { get; set; }
     public required List<ParameterDefinition> Parameters { get; set; } = [];
     public string? Source { get; set; } = string.Empty;
-    public string? Markdown { get; set; } = string.Empty;
 }
 
 public class ParameterDefinition

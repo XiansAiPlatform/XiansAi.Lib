@@ -7,14 +7,14 @@ namespace XiansAi.Activity;
 /// <summary>
 /// Base class for activities that require instruction loading.
 /// </summary>
-public abstract class InstructionStub: BaseStub
+public class InstructionAgentStub: BaseAgentStub
 {
-    private readonly ILogger<InstructionStub> _logger;
+    private readonly ILogger<InstructionAgentStub> _logger;
     private readonly InstructionLoader _instructionLoader;
 
-    protected InstructionStub(): base()
+    protected InstructionAgentStub(): base()
     {
-        _logger = Globals.LogFactory?.CreateLogger<InstructionStub>() 
+        _logger = Globals.LogFactory?.CreateLogger<InstructionAgentStub>() 
             ?? throw new InvalidOperationException($"[{GetType().Name}] LogFactory not initialized");
         _instructionLoader = new InstructionLoader();
     }
@@ -26,7 +26,9 @@ public abstract class InstructionStub: BaseStub
     /// <exception cref="InvalidOperationException">Thrown when instructions are missing or empty</exception>
     protected string[] GetDependingInstructions()
     {
-        var instructionsAttr = GetType().GetCustomAttribute<InstructionsAttribute>();
+        Console.WriteLine($"Getting instructions for {CurrentMethod?.Name}");
+        var instructionsAttr = CurrentMethod?.GetCustomAttribute<InstructionsAttribute>();
+        Console.WriteLine($"Instructions attribute: {instructionsAttr}");
         if (instructionsAttr?.Instructions == null || instructionsAttr.Instructions.Length == 0) 
         {
             _logger.LogError($"[{GetType().Name}] Instructions attribute is missing or empty");
@@ -61,6 +63,25 @@ public abstract class InstructionStub: BaseStub
             }
 
             var instructionName = instructions[index - 1];
+            return await GetInstruction(instructionName);
+        }
+        catch (Exception ex) when (ex is not ArgumentOutOfRangeException)
+        {
+            _logger.LogError(ex, $"[{GetType().Name}] Failed to load instruction");
+            throw new InvalidOperationException($"[{GetType().Name}] Failed to load instruction", ex);
+        }
+    }
+
+    /// <summary>
+    /// Loads an instruction by its name.
+    /// </summary>
+    /// <param name="instructionName">Name of the instruction to load</param>
+    /// <returns>The content of the loaded instruction</returns>
+    /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
+    private async Task<string?> GetInstruction(string instructionName)
+    {
+        try
+        {
             var instruction = await _instructionLoader.Load(instructionName);
             
             if (instruction == null)
@@ -82,7 +103,7 @@ public abstract class InstructionStub: BaseStub
 
             return instruction.Content;
         }
-        catch (Exception ex) when (ex is not ArgumentOutOfRangeException)
+        catch (Exception ex)
         {
             _logger.LogError(ex, $"[{GetType().Name}] Failed to load instruction");
             throw new InvalidOperationException($"[{GetType().Name}] Failed to load instruction", ex);

@@ -18,30 +18,28 @@ public interface IFlowRunnerService
 public class FlowRunnerService : IFlowRunnerService
 {
     private readonly TemporalClientService _temporalClientService;
-    private readonly PlatformConfig _config;
     private readonly ILogger<FlowRunnerService> _logger;
     private readonly FlowDefinitionUploader _flowDefinitionUploader;
 
-    public FlowRunnerService(PlatformConfig config)
+    public FlowRunnerService()
     {
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
-        _config = config;
-        _temporalClientService = new TemporalClientService(_config);
+        _temporalClientService = new TemporalClientService();
         _flowDefinitionUploader = new FlowDefinitionUploader();
         
-        if (config.AppServerCertPath != null && config.AppServerCertPwd != null && config.AppServerUrl != null) {
-            _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", config.AppServerUrl);
+        if (PlatformConfig.APP_SERVER_CERT_PATH != null && PlatformConfig.APP_SERVER_CERT_PWD != null && PlatformConfig.APP_SERVER_URL != null) {
+            _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
             SecureApi.Initialize(
-                config.AppServerCertPath,
-                config.AppServerCertPwd,
-                config.AppServerUrl
+                PlatformConfig.APP_SERVER_CERT_PATH,
+                PlatformConfig.APP_SERVER_CERT_PWD,
+                PlatformConfig.APP_SERVER_URL
             );
         }
     }
 
     public async Task TestMe()
     {
-        _logger.LogInformation("Trying to connect to flow server at: {FlowServerUrl}", _config.FlowServerUrl);
+        _logger.LogInformation("Trying to connect to flow server at: {FlowServerUrl}", PlatformConfig.FLOW_SERVER_URL);
         var temporalClient = await _temporalClientService.GetClientAsync();
         if (temporalClient == null)
         {
@@ -51,8 +49,12 @@ public class FlowRunnerService : IFlowRunnerService
             _logger.LogInformation("Flow server is successfully connected");
         }
 
-        _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", _config.AppServerUrl);
-        var secureApi = SecureApi.Initialize(_config.AppServerCertPath, _config.AppServerCertPwd, _config.AppServerUrl);
+        _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
+        var secureApi = SecureApi.Initialize(
+            PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"), 
+            PlatformConfig.APP_SERVER_CERT_PWD ?? throw new InvalidOperationException("APP_SERVER_CERT_PWD is not set"), 
+            PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
+        );
         if (secureApi == null)
         {
             _logger.LogError("App server connection failed");
@@ -87,9 +89,9 @@ public class FlowRunnerService : IFlowRunnerService
         
         var options = new TemporalWorkerOptions(taskQueue: workFlowType);
         options.AddWorkflow<TFlow>();
-        foreach (var activity in flow.GetProxyActivities())
+        foreach (var stub in flow.GetStubProxies())
         {
-            options.AddAllActivities(activity.Key, activity.Value);
+            options.AddAllActivities(stub.Key, stub.Value);
         }
 
         var worker = new TemporalWorker(

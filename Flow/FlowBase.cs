@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.Extensions.Logging;
+using Temporalio.Worker.Interceptors;
 using Temporalio.Workflows;
 
 namespace XiansAi.Flow;
@@ -72,6 +73,16 @@ public abstract class FlowBase
                 typeof(TActivityInstance).Name);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Delays the workflow for a specified duration.
+    /// </summary>
+    /// <param name="timeSpan">The duration to delay for</param>
+    /// <param name="cancellationToken">Optional cancellation token</param>
+    /// <returns>A task that completes after the delay</returns>
+    protected async Task DelayAsync(TimeSpan timeSpan, CancellationToken cancellationToken = default) {
+        await Workflow.DelayAsync(timeSpan, cancellationToken);
     }
 
     /// <summary>

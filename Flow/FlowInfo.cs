@@ -1,6 +1,8 @@
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using XiansAi.Activity;
+using XiansAi.Models;
 
 namespace XiansAi.Flow;
 
@@ -10,8 +12,10 @@ namespace XiansAi.Flow;
 /// <typeparam name="TClass">The workflow class type</typeparam>
 public class FlowInfo<TClass>
 {
-    private readonly Dictionary<Type, object> _proxyActivities = new();
-    private readonly Dictionary<Type, object> _activities = new();
+    private readonly Dictionary<Type, object> _stubProxies = new();
+    private readonly List<BaseAgentStub> _stubs = new();
+    private readonly List<(Type @interface, object stub, object proxy)> _objects = new();
+    private readonly ILogger<FlowInfo<TClass>> _logger = Globals.LogFactory.CreateLogger<FlowInfo<TClass>>();
 
     /// <summary>
     /// Registers an activity implementation with its interface.
@@ -21,10 +25,12 @@ public class FlowInfo<TClass>
     /// <returns>The current FlowInfo instance for method chaining</returns>
     /// <exception cref="ArgumentNullException">Thrown when activity is null</exception>
     /// <exception cref="InvalidOperationException">Thrown when IActivity is not an interface</exception>
-    public FlowInfo<TClass> AddActivities<IActivity>(BaseStub activity) 
+    public FlowInfo<TClass> AddActivities<IActivity>(BaseAgentStub stub) 
         where IActivity : class
     {
-        ArgumentNullException.ThrowIfNull(activity, nameof(activity));
+        Console.WriteLine($"Adding activities for {stub.GetType().Name}");
+        _logger.LogDebug($"Adding activities for {stub.GetType().Name}");
+        ArgumentNullException.ThrowIfNull(stub, nameof(stub));
 
         var interfaceType = typeof(IActivity);
         if (!interfaceType.IsInterface)
@@ -34,18 +40,22 @@ public class FlowInfo<TClass>
 
         try
         {
-            _activities[interfaceType] = activity;
+            _stubs.Add(stub);
             
-            var activityType = activity.GetType();
-            var proxyMethod = typeof(ActivityTrackerProxy<,>)
+            var activityType = stub.GetType();
+            var proxyCreateMethod = typeof(ActivityTrackerProxy<,>)
                 .MakeGenericType(interfaceType, activityType)
                 .GetMethod("Create") 
                 ?? throw new InvalidOperationException("Failed to find Create method on ActivityTrackerProxy");
 
-            var activityProxy = proxyMethod.Invoke(null, new[] { activity })
+            var stubProxy = proxyCreateMethod.Invoke(null, new[] { stub })
                 ?? throw new InvalidOperationException("Failed to create activity proxy");
 
-            _proxyActivities[interfaceType] = activityProxy;
+            Console.WriteLine($"Activity proxy created: {stubProxy} for interface {interfaceType.Name}");
+
+            _stubProxies[interfaceType] = stubProxy;
+
+            _objects.Add((interfaceType, stub, stubProxy));
             return this;
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -58,19 +68,25 @@ public class FlowInfo<TClass>
     /// Gets the registered activity implementations.
     /// </summary>
     /// <returns>Dictionary of interface types to activity implementations</returns>
-    public IReadOnlyDictionary<Type, object> GetActivities()
+    public List<BaseAgentStub> GetStubs()
     {
-        return _activities;
+        return _stubs;
     }
 
     /// <summary>
     /// Gets the registered activity proxies.
     /// </summary>
     /// <returns>Dictionary of interface types to activity proxies</returns>
-    public IReadOnlyDictionary<Type, object> GetProxyActivities()
+    public IReadOnlyDictionary<Type, object> GetStubProxies()
     {
-        return _proxyActivities;
+        return _stubProxies;
     }
+
+    public List<(Type @interface, object stub, object proxy)> GetObjects()
+    {
+        return _objects;
+    }
+
 
     /// <summary>
     /// Gets the workflow name from the WorkflowAttribute or class name.
@@ -79,28 +95,31 @@ public class FlowInfo<TClass>
     /// <exception cref="InvalidOperationException">Thrown when WorkflowAttribute is missing</exception>
     public string GetWorkflowName() 
     {
-        var workflowType = typeof(TClass);
-        var workflowAttr = workflowType.GetCustomAttribute<WorkflowAttribute>();
+        var workflowClass = typeof(TClass);
+        var workflowAttr = workflowClass.GetCustomAttribute<WorkflowAttribute>();
         
         if (workflowAttr == null)
         {
             throw new InvalidOperationException(
-                $"Workflow {workflowType.Name} is missing required WorkflowAttribute");
+                $"Workflow {workflowClass.Name} is missing required WorkflowAttribute");
         }
 
-        return workflowAttr.Name ?? workflowType.Name;
+        return workflowAttr.Name ?? workflowClass.Name;
     }
 
     /// <summary>
     /// Gets the parameters of the workflow's run method.
     /// </summary>
     /// <returns>List of parameter information for the workflow run method</returns>
-    public IReadOnlyList<ParameterInfo> GetParameters()
+    public List<ParameterDefinition> GetParameters()
     {
         var workflowType = typeof(TClass);
         var workflowRunMethod = workflowType.GetMethods()
             .FirstOrDefault(m => m.GetCustomAttribute<WorkflowRunAttribute>() != null);
 
-        return workflowRunMethod?.GetParameters() ?? Array.Empty<ParameterInfo>();
+        return workflowRunMethod?.GetParameters().Select(p => new ParameterDefinition {
+                Name = p.Name,
+                Type = p.ParameterType.Name
+            }).ToList() ?? [];
     }
 }

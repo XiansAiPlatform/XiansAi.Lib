@@ -20,16 +20,16 @@ public class DockerRunResult : IDisposable
     }
 }
 
-public abstract class AgentStub : InstructionStub
+public abstract class DockerAgentStub : InstructionAgentStub
 {
     private readonly ILogger _logger;
-    public AgentStub() : base()
+    public DockerAgentStub() : base()
     {
-        _logger = Globals.LogFactory.CreateLogger<AgentStub>();
+        _logger = Globals.LogFactory.CreateLogger<DockerAgentStub>();
         
     }
 
-    public Agent GetAgent(int index = 1)
+    public DockerAgent GetAgent(int index = 1)
     {
         if (index < 1)
         {
@@ -44,12 +44,12 @@ public abstract class AgentStub : InstructionStub
         }
         var agentName = agents[index - 1];
         var docker = new DockerUtil(agentName);
-        return new Agent(docker);
+        return new DockerAgent(docker);
     }
 
     public string[] GetAgents()
     {
-        var attribute = GetType().GetCustomAttribute<AgentsAttribute>();
+        var attribute = GetType().GetCustomAttribute<DockerAgentsAttribute>();
         if (attribute == null) {
             _logger.LogError($"[{GetType().Name}] AgentAttribute is missing.");
             throw new InvalidOperationException($"[{GetType().Name}] AgentAttribute is missing.");
@@ -97,10 +97,10 @@ public abstract class AgentStub : InstructionStub
 
 }
 
-public class Agent  {
+public class DockerAgent  {
     private readonly DockerUtil _docker;
 
-    public Agent(DockerUtil docker) {
+    public DockerAgent(DockerUtil docker) {
         _docker = docker ?? throw new ArgumentNullException(nameof(docker));
     }
 

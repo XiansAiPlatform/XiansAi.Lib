@@ -1,12 +1,13 @@
 namespace XiansAi.Flow;
 
-public class PlatformConfig
+public static class PlatformConfig
 {
-    public required string AppServerUrl { get; set; }
-    public required string AppServerCertPath { get; set; }
-    public required string AppServerCertPwd { get; set; }
-    public required string FlowServerUrl { get; set; }
-    public required string FlowServerNamespace { get; set; }
-    public required string FlowServerCertPath { get; set; }
-    public required string FlowServerPrivateKeyPath { get; set; }
+    public static string? APP_SERVER_URL = Environment.GetEnvironmentVariable("APP_SERVER_URL");
+    public static string? APP_SERVER_CERT_PATH = Environment.GetEnvironmentVariable("APP_SERVER_CERT_PATH");
+    public static string? APP_SERVER_CERT_PWD = Environment.GetEnvironmentVariable("APP_SERVER_CERT_PWD");
+    public static string? FLOW_SERVER_URL = Environment.GetEnvironmentVariable("FLOW_SERVER_URL");
+    public static string? FLOW_SERVER_NAMESPACE = Environment.GetEnvironmentVariable("FLOW_SERVER_NAMESPACE");
+    public static string? FLOW_SERVER_CERT_PATH = Environment.GetEnvironmentVariable("FLOW_SERVER_CERT_PATH");
+    public static string? FLOW_SERVER_PRIVATE_KEY_PATH = Environment.GetEnvironmentVariable("FLOW_SERVER_PRIVATE_KEY_PATH");
+
 }
