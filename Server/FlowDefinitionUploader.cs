@@ -28,8 +28,7 @@ public class FlowDefinitionUploader
             Activities = GetAllActivities(flow.GetObjects()).ToArray(),
             Source = source ?? ReadSource(typeof(TFlow))
         };
-        await Task.Delay(1000);
-        _logger.LogInformation("Uploading flow definition for {TypeName} to App server...", typeof(TFlow).FullName);
+        _logger.LogInformation("Uploading flow definition of {TypeName} to App server...", typeof(TFlow).FullName);
         await Upload(flowDefinition);
     }
 
@@ -61,7 +60,7 @@ public class FlowDefinitionUploader
         } 
         else
         {
-            _logger.LogWarning("App server secure API is not ready, skipping upload of flow definition");
+            _logger.LogError("App server secure API to server is not available, upload of flow definition failed");
         }
     }
 

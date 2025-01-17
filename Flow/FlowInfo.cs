@@ -103,6 +103,7 @@ public class FlowInfo<TClass>
             throw new InvalidOperationException(
                 $"Workflow {workflowClass.Name} is missing required WorkflowAttribute");
         }
+        _logger.LogDebug($"Workflow name: {workflowAttr.Name ?? workflowClass.Name}");
 
         return workflowAttr.Name ?? workflowClass.Name;
     }

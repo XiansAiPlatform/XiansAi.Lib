@@ -21,6 +21,11 @@ public class FlowRunnerService : IFlowRunnerService
     private readonly ILogger<FlowRunnerService> _logger;
     private readonly FlowDefinitionUploader _flowDefinitionUploader;
 
+    public static void SetLoggerFactory(ILoggerFactory loggerFactory)
+    {
+        Globals.LogFactory = loggerFactory;
+    }
+
     public FlowRunnerService()
     {
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
@@ -34,6 +39,8 @@ public class FlowRunnerService : IFlowRunnerService
                 PlatformConfig.APP_SERVER_CERT_PWD,
                 PlatformConfig.APP_SERVER_URL
             );
+        } else {
+            _logger.LogError("App server connection failed because of missing configuration");
         }
     }
 
@@ -63,7 +70,7 @@ public class FlowRunnerService : IFlowRunnerService
             _logger.LogInformation("App server is successfully connected");
         }
 
-        _logger.LogInformation("Flow server is successfully configured");
+        _logger.LogInformation("All connections are successful! You are ready to go!");
 
     }
 

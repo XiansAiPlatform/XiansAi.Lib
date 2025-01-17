@@ -26,8 +26,8 @@ public class InstructionAgentStub: BaseAgentStub
     /// <exception cref="InvalidOperationException">Thrown when instructions are missing or empty</exception>
     protected string[] GetDependingInstructions()
     {
-        Console.WriteLine($"Getting instructions for {CurrentMethod?.Name}");
-        var instructionsAttr = CurrentMethod?.GetCustomAttribute<InstructionsAttribute>();
+        Console.WriteLine($"Getting instructions for {CurrentActivityMethod?.Name}");
+        var instructionsAttr = CurrentActivityMethod?.GetCustomAttribute<InstructionsAttribute>();
         Console.WriteLine($"Instructions attribute: {instructionsAttr}");
         if (instructionsAttr?.Instructions == null || instructionsAttr.Instructions.Length == 0) 
         {

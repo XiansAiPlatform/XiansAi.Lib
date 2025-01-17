@@ -23,43 +23,47 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgentStub, I
     protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
         Console.WriteLine($"Invoking method: {method?.Name}");
-        if (method == null || _target == null) throw new Exception("Method not found or target is null");
+        if (method == null || _target == null)
+            throw new Exception("Method not found or target is null");
 
-        // if the method is not an activity, or we are not in a workflow, just call it
-        var attribute = method?.GetCustomAttribute<ActivityAttribute>();
-        if (attribute == null || _target.IsInWorkflow() == false) return method!.Invoke(_target, args)!;
+        // Check if the method is an activity and if we are in a workflow
+        var attribute = method.GetCustomAttribute<ActivityAttribute>();
+        if (attribute == null || !_target.IsInWorkflow())
+            return method.Invoke(_target, args);
 
-        //Create a new activity on the BaseAgent
+        // Create a new activity on the BaseAgent
         _target.NewCurrentActivity();
-        Console.WriteLine($"New activity created: {_target.GetCurrentActivity()}");
-        _target.CurrentMethod = method;
-        Console.WriteLine($"Current method set: {_target.CurrentMethod}");
-        // get the activity name
-        var activityName = attribute.Name ?? method!.Name;
+        _logger.LogDebug($"New activity created: {_target.GetCurrentActivity()}");
+        _target.CurrentActivityMethod = method;
+        _target.CurrentActivityClass = _target.GetType();
+        _logger.LogDebug($"Current method set: {_target.CurrentActivityMethod}");
 
-        // get the parameters
-        var parameters = method!.GetParameters();
-        var inputs = new Dictionary<string, object?>();
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            inputs[parameters[i].Name!] = args?[i];
-        }
+        // Get the activity name
+        var activityName = attribute.Name ?? method.Name;
+
+        // Get the parameters and their values
+        var inputs = method.GetParameters()
+                           .Select((param, index) => new { param.Name, Value = args?[index] })
+                           .ToDictionary(p => p.Name!, p => p.Value);
 
         object? result = null;
 
         try
         {
-            // call the activity
+            // Call the activity
             result = method.Invoke(_target, args);
         }
         catch (TargetInvocationException ex)
         {
-            // exception occurred in the activity
-            ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException?? ex);
+            // Log and rethrow the exception
+            ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException ?? ex);
             throw;
         }
+
+        // Handle the result
         if (result is not Task task)
         {
+            _logger.LogDebug($"Activity result is not a task, uploading result: {result}");
             UploadActivityResult(activityName, inputs, result).ConfigureAwait(false);
         }
         else
@@ -68,6 +72,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgentStub, I
             {
                 var resultProperty = t.GetType().GetProperty("Result");
                 var resultValue = resultProperty?.GetValue(t);
+                _logger.LogDebug($"Activity result is a task, uploading result: {resultValue}");
                 UploadActivityResult(activityName, inputs, resultValue).ConfigureAwait(false);
                 return t;
             });
@@ -81,7 +86,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgentStub, I
         try
         {
             if (ActivityExecutionContext.Current == null) throw new Exception("ActivityExecutionContext.Current is null");
-            if (!activityName.Equals(ActivityExecutionContext.Current.Info.ActivityType)) throw new Exception("Activity name does not match");
+            ValidateActivityName(activityName);
 
             var activity = _target?.GetCurrentActivity();
             if (activity != null)
@@ -105,6 +110,19 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseAgentStub, I
         {
             _logger.LogError(e, "Failed to upload activity result");
             throw;
+        }
+    }
+
+    private void ValidateActivityName(string activityName)
+    {
+        string normalizedActivityName = activityName.EndsWith("Async") ? activityName[..^5] : activityName;
+        string normalizedActivityType = ActivityExecutionContext.Current.Info.ActivityType.EndsWith("Async")
+            ? ActivityExecutionContext.Current.Info.ActivityType[..^5]
+            : ActivityExecutionContext.Current.Info.ActivityType;
+
+        if (!normalizedActivityName.Equals(normalizedActivityType))
+        {
+            throw new Exception($"Activity name does not match {normalizedActivityName} != {normalizedActivityType}");
         }
     }
 

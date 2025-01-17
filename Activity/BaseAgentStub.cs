@@ -27,8 +27,8 @@ public class BaseAgentStub
         }
     }
 
-    public MethodInfo? CurrentMethod { get; internal set; }
-
+    public MethodInfo? CurrentActivityMethod { get; internal set; }
+    public Type? CurrentActivityClass { get; internal set; }
     public void NewCurrentActivity()
     {
         try 
