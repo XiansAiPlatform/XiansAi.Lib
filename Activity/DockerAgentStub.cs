@@ -20,12 +20,12 @@ public class DockerRunResult : IDisposable
     }
 }
 
-public abstract class DockerAgentStub : InstructionAgentStub
+public abstract class DockerActivity : InstructionActivity
 {
     private readonly ILogger _logger;
-    public DockerAgentStub() : base()
+    public DockerActivity() : base()
     {
-        _logger = Globals.LogFactory.CreateLogger<DockerAgentStub>();
+        _logger = Globals.LogFactory.CreateLogger<DockerActivity>();
         
     }
 

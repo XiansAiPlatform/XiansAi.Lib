@@ -4,14 +4,14 @@ using XiansAi.Models;
 using System.Reflection;
 
 namespace XiansAi.Activity;
-public class BaseAgentStub
+public class BaseActivity
 {
-    private readonly ILogger<BaseAgentStub> _logger;
+    private readonly ILogger<BaseActivity> _logger;
     private FlowActivity? _currentActivity;
 
-    public BaseAgentStub()
+    public BaseActivity()
     {
-        _logger = Globals.LogFactory.CreateLogger<BaseAgentStub>();
+        _logger = Globals.LogFactory.CreateLogger<BaseActivity>();
     }
 
     public bool IsInWorkflow()

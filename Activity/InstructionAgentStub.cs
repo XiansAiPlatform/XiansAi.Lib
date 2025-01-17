@@ -7,14 +7,14 @@ namespace XiansAi.Activity;
 /// <summary>
 /// Base class for activities that require instruction loading.
 /// </summary>
-public class InstructionAgentStub: BaseAgentStub
+public class InstructionActivity: BaseActivity
 {
-    private readonly ILogger<InstructionAgentStub> _logger;
+    private readonly ILogger<InstructionActivity> _logger;
     private readonly InstructionLoader _instructionLoader;
 
-    protected InstructionAgentStub(): base()
+    protected InstructionActivity(): base()
     {
-        _logger = Globals.LogFactory?.CreateLogger<InstructionAgentStub>() 
+        _logger = Globals.LogFactory?.CreateLogger<InstructionActivity>() 
             ?? throw new InvalidOperationException($"[{GetType().Name}] LogFactory not initialized");
         _instructionLoader = new InstructionLoader();
     }

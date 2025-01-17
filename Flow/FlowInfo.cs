@@ -13,7 +13,7 @@ namespace XiansAi.Flow;
 public class FlowInfo<TClass>
 {
     private readonly Dictionary<Type, object> _stubProxies = new();
-    private readonly List<BaseAgentStub> _stubs = new();
+    private readonly List<BaseActivity> _stubs = new();
     private readonly List<(Type @interface, object stub, object proxy)> _objects = new();
     private readonly ILogger<FlowInfo<TClass>> _logger = Globals.LogFactory.CreateLogger<FlowInfo<TClass>>();
 
@@ -25,12 +25,12 @@ public class FlowInfo<TClass>
     /// <returns>The current FlowInfo instance for method chaining</returns>
     /// <exception cref="ArgumentNullException">Thrown when activity is null</exception>
     /// <exception cref="InvalidOperationException">Thrown when IActivity is not an interface</exception>
-    public FlowInfo<TClass> AddActivities<IActivity>(BaseAgentStub stub) 
+    public FlowInfo<TClass> AddActivities<IActivity>(BaseActivity activity) 
         where IActivity : class
     {
-        Console.WriteLine($"Adding activities for {stub.GetType().Name}");
-        _logger.LogDebug($"Adding activities for {stub.GetType().Name}");
-        ArgumentNullException.ThrowIfNull(stub, nameof(stub));
+        Console.WriteLine($"Adding activities for {activity.GetType().Name}");
+        _logger.LogDebug($"Adding activities for {activity.GetType().Name}");
+        ArgumentNullException.ThrowIfNull(activity, nameof(activity));
 
         var interfaceType = typeof(IActivity);
         if (!interfaceType.IsInterface)
@@ -40,22 +40,22 @@ public class FlowInfo<TClass>
 
         try
         {
-            _stubs.Add(stub);
+            _stubs.Add(activity);
             
-            var activityType = stub.GetType();
+            var activityType = activity.GetType();
             var proxyCreateMethod = typeof(ActivityTrackerProxy<,>)
                 .MakeGenericType(interfaceType, activityType)
                 .GetMethod("Create") 
                 ?? throw new InvalidOperationException("Failed to find Create method on ActivityTrackerProxy");
 
-            var stubProxy = proxyCreateMethod.Invoke(null, new[] { stub })
+            var stubProxy = proxyCreateMethod.Invoke(null, new[] { activity })
                 ?? throw new InvalidOperationException("Failed to create activity proxy");
 
             Console.WriteLine($"Activity proxy created: {stubProxy} for interface {interfaceType.Name}");
 
             _stubProxies[interfaceType] = stubProxy;
 
-            _objects.Add((interfaceType, stub, stubProxy));
+            _objects.Add((interfaceType, activity, stubProxy));
             return this;
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -68,7 +68,7 @@ public class FlowInfo<TClass>
     /// Gets the registered activity implementations.
     /// </summary>
     /// <returns>Dictionary of interface types to activity implementations</returns>
-    public List<BaseAgentStub> GetStubs()
+    public List<BaseActivity> GetStubs()
     {
         return _stubs;
     }
