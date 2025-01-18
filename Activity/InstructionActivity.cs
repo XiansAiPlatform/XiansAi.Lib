@@ -7,16 +7,14 @@ namespace XiansAi.Activity;
 /// <summary>
 /// Base class for activities that require instruction loading.
 /// </summary>
-public class InstructionActivity: BaseActivity
+public abstract class InstructionActivity: AbstractActivity
 {
     private readonly ILogger<InstructionActivity> _logger;
-    private readonly InstructionLoader _instructionLoader;
 
     protected InstructionActivity(): base()
     {
         _logger = Globals.LogFactory?.CreateLogger<InstructionActivity>() 
             ?? throw new InvalidOperationException($"[{GetType().Name}] LogFactory not initialized");
-        _instructionLoader = new InstructionLoader();
     }
 
     /// <summary>
@@ -45,7 +43,7 @@ public class InstructionActivity: BaseActivity
     /// <returns>The content of the loaded instruction</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when index is less than 1</exception>
     /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
-    protected async Task<string?> GetInstruction(int index = 1)
+    protected async Task<string?> GetInstructionAsync(int index = 1)
     {
         if (index < 1)
         {
@@ -82,7 +80,7 @@ public class InstructionActivity: BaseActivity
     {
         try
         {
-            var instruction = await _instructionLoader.Load(instructionName);
+            var instruction = await new InstructionLoader().Load(instructionName);
             
             if (instruction == null)
             {

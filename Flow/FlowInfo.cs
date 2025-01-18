@@ -13,7 +13,7 @@ namespace XiansAi.Flow;
 public class FlowInfo<TClass>
 {
     private readonly Dictionary<Type, object> _stubProxies = new();
-    private readonly List<BaseActivity> _stubs = new();
+    private readonly List<ActivityBase> _stubs = new();
     private readonly List<(Type @interface, object stub, object proxy)> _objects = new();
     private readonly ILogger<FlowInfo<TClass>> _logger = Globals.LogFactory.CreateLogger<FlowInfo<TClass>>();
 
@@ -25,7 +25,7 @@ public class FlowInfo<TClass>
     /// <returns>The current FlowInfo instance for method chaining</returns>
     /// <exception cref="ArgumentNullException">Thrown when activity is null</exception>
     /// <exception cref="InvalidOperationException">Thrown when IActivity is not an interface</exception>
-    public FlowInfo<TClass> AddActivities<IActivity>(BaseActivity activity) 
+    public FlowInfo<TClass> AddActivities<IActivity>(ActivityBase activity) 
         where IActivity : class
     {
         Console.WriteLine($"Adding activities for {activity.GetType().Name}");
@@ -68,7 +68,7 @@ public class FlowInfo<TClass>
     /// Gets the registered activity implementations.
     /// </summary>
     /// <returns>Dictionary of interface types to activity implementations</returns>
-    public List<BaseActivity> GetStubs()
+    public List<ActivityBase> GetStubs()
     {
         return _stubs;
     }

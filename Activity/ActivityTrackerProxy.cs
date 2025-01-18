@@ -6,7 +6,7 @@ using XiansAi.Server;
 
 namespace XiansAi.Activity;
 
-class ActivityTrackerProxy<I, T> : DispatchProxy where T : BaseActivity, I
+class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 {
     private T? _target;
     private static readonly ILogger<ActivityTrackerProxy<I, T>> _logger = Globals.LogFactory.CreateLogger<ActivityTrackerProxy<I, T>>();

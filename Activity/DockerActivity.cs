@@ -51,8 +51,8 @@ public abstract class DockerActivity : InstructionActivity
     {
         var attribute = GetType().GetCustomAttribute<DockerAgentsAttribute>();
         if (attribute == null) {
-            _logger.LogError($"[{GetType().Name}] AgentAttribute is missing.");
-            throw new InvalidOperationException($"[{GetType().Name}] AgentAttribute is missing.");
+            _logger.LogInformation($"[{GetType().Name}] AgentAttribute is missing. No agents will be used.");
+            return [];
         }
         if (attribute.Names == null) {
             _logger.LogError($"[{GetType().Name}] AgentAttribute.Names is missing.");
