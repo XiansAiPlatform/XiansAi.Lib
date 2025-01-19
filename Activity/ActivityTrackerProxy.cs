@@ -33,10 +33,9 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 
         // Create a new activity on the BaseAgent
         _target.NewCurrentActivity();
-        _logger.LogDebug($"New activity created: {_target.GetCurrentActivity()}");
         _target.CurrentActivityMethod = method;
         _target.CurrentActivityClass = _target.GetType();
-        _logger.LogDebug($"Current method set: {_target.CurrentActivityMethod}");
+        _target.CurrentActivityInterfaceType = typeof(I);
 
         // Get the activity name
         var activityName = attribute.Name ?? method.Name;

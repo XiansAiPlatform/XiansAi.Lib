@@ -14,7 +14,7 @@ public class DockerUtilTests
         var dockerUtil = new DockerUtil("flowmaxer/scraper-agent");
 
         // Act
-        var containerId = await dockerUtil.Run();
+        var containerId = await dockerUtil.Run(null, true, true);
         Console.WriteLine($"Container ID: {containerId}");
         var isHealthy = await dockerUtil.Healthy(60, 5);
         Console.WriteLine($"Is Healthy: {isHealthy}");

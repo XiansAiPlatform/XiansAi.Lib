@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace XiansAi.System;
 
@@ -12,15 +13,26 @@ public class DockerUtil
     private readonly Dictionary<string, string> _ports = new();
     private readonly Dictionary<string, string> _volumes = new();
     private Dictionary<string, string> _commandArguments = new();
+    private readonly ILogger _logger;
+
+    public DockerUtil(string dockerImage)
+    {
+        _logger = Globals.LogFactory.CreateLogger<DockerUtil>();
+        _dockerImage = dockerImage;
+        _systemProcess = new SystemProcess();
+    }
+
 
     public DockerUtil SetEnvironmentVariable(string key, string value)
     {
+        _logger.LogInformation($"Setting environment variable: {key} = {value}");
         _environmentVariables[key] = value;
         return this;
     }
 
     public DockerUtil SetPort(string hostPort, string containerPort)
     {
+        _logger.LogInformation($"Setting port: {hostPort} -> {containerPort}");
         _ports[hostPort] = containerPort;
         return this;
     }
@@ -29,13 +41,6 @@ public class DockerUtil
     {
         _volumes[hostPath] = containerPath;
         return this;
-    }
-
-
-    public DockerUtil(string dockerImage)
-    {
-        _dockerImage = dockerImage;
-        _systemProcess = new SystemProcess();
     }
 
     public async Task<string> Create()
@@ -76,14 +81,16 @@ public class DockerUtil
         return result.Trim();
     }
 
-    public async Task<string> Run(Dictionary<string, string>? args = null, bool remove = false, bool detach = true)
+    public async Task<string> Run(Dictionary<string, string>? args, bool remove, bool detach)
     {
         if (args != null)
         {
             _commandArguments = args;
         }
         var arguments = BuildDockerArguments("run", includeRmFlag: remove, detach: detach);
-        _containerId = await _systemProcess.RunCommandAsync("docker", string.Join(" ", arguments));
+        var argString = string.Join(" ", arguments);
+        _logger.LogInformation($"Running Docker command: {argString}");
+        _containerId = await _systemProcess.RunCommandAsync("docker", argString);
         return _containerId.Trim();
     }
 
@@ -152,7 +159,7 @@ public class DockerUtil
             foreach (var volume in _volumes)
             {
                 arguments.Add("-v");
-                arguments.Add($"{volume.Value}:{volume.Key}");
+                arguments.Add($"{volume.Key}:{volume.Value}");
             }
         }
 

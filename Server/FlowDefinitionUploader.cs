@@ -93,11 +93,11 @@ public class FlowDefinitionUploader
         }
     }
 
-    private List<ActivityDefinition> GetAllActivities(List<(Type @interface, object stub, object proxy)> objects) {
+    private List<ActivityDefinition> GetAllActivities(List<(Type interfaceType, object stub, object proxy)> objects) {
         var activities = new List<ActivityDefinition>();
         foreach (var (interfaceType, stub, proxy) in objects) {
-            var agentsAttribute = stub.GetType().GetCustomAttribute<DockerAgentsAttribute>();
-            var agentNames = agentsAttribute?.Names.ToList() ?? [];
+            var agentsAttribute = interfaceType.GetCustomAttributes<AgentAttribute>();
+            var agentNames = agentsAttribute?.Select(a => a.ToString() ?? "").ToList() ?? [];
             activities.AddRange(GetActivities(interfaceType, agentNames));
         }
         return activities;

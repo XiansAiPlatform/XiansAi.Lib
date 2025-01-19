@@ -71,6 +71,27 @@ public abstract class InstructionActivity: AbstractActivity
     }
 
     /// <summary>
+    /// Loads an instruction by its index from the depending instructions and returns the path to a temporary file containing the instruction.
+    /// </summary>
+    /// <param name="index">1-based index of the instruction to load</param>
+    /// <returns>The path to the temporary file containing the instruction</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when index is less than 1</exception>
+    /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
+    public async Task<string?> GetInstructionAsTempFile(int index = 1)
+    {
+        var instruction = await GetInstructionAsync(index);
+        if (instruction == null)
+        {
+            _logger.LogError($"[{GetType().Name}] Failed to load instruction, returning null as temp file");
+            return null;
+        }
+
+        var tempFile = Path.GetTempFileName();
+        File.WriteAllText(tempFile, instruction);
+        return tempFile;
+    }
+
+    /// <summary>
     /// Loads an instruction by its name.
     /// </summary>
     /// <param name="instructionName">Name of the instruction to load</param>

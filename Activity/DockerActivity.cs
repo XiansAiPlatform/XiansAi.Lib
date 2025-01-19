@@ -20,7 +20,7 @@ public class DockerRunResult : IDisposable
     }
 }
 
-public abstract class DockerActivity : InstructionActivity
+public abstract class DockerActivity : AgentActivity
 {
     private readonly ILogger _logger;
     public DockerActivity() : base()
@@ -29,48 +29,23 @@ public abstract class DockerActivity : InstructionActivity
         
     }
 
-    public DockerAgent GetAgent(int index = 1)
+    public DockerAgent GetDockerAgent(int index = 1)
     {
         if (index < 1)
         {
-            throw new ArgumentOutOfRangeException(nameof(index), $"[{GetType().Name}] Index must be greater than 0");
+            throw new ArgumentOutOfRangeException(nameof(index), $"Index must be greater than 0");
         }
 
-        var agents = GetAgents();
-        if (agents.Length < index) {
-            _logger.LogError($"[{GetType().Name}] AgentAttribute.Names: [{string.Join(", ", agents)}]");
-            _logger.LogError($"[{GetType().Name}] AgentAttribute.Names has less than {index} agents.", index);
-            throw new InvalidOperationException($"[{GetType().Name}] AgentAttribute.Names has less than {index} agents. {string.Join(", ", agents)}");
+        var agents = GetAgents(AgentType.Docker);
+        if (agents.Count < index) {
+            throw new InvalidOperationException($"Activity has less than {index} Docker agents. {string.Join(", ", agents)}");
         }
-        var agentName = agents[index - 1];
+        var agentName = agents[index - 1].Name;
         var docker = new DockerUtil(agentName);
         return new DockerAgent(docker);
     }
 
-    public string[] GetAgents()
-    {
-        var attribute = GetType().GetCustomAttribute<DockerAgentsAttribute>();
-        if (attribute == null) {
-            _logger.LogInformation($"[{GetType().Name}] AgentAttribute is missing. No agents will be used.");
-            return [];
-        }
-        if (attribute.Names == null) {
-            _logger.LogError($"[{GetType().Name}] AgentAttribute.Names is missing.");
-            throw new InvalidOperationException($"[{GetType().Name}] AgentAttribute.Names is missing.");
-        }
-        return attribute.Names;
-    }
-
-    public override FlowActivity? GetCurrentActivity()
-    {
-        var activity = base.GetCurrentActivity();
-        if (activity != null) {
-            activity.AgentNames = GetAgents().ToList();
-        }
-        return activity;
-    }
-
-    public async Task<bool> IsPortInUse(string host, int port)
+    public static async Task<bool> IsPortInUse(string host, int port)
     {
         if (string.IsNullOrEmpty(host))
         {
@@ -78,7 +53,7 @@ public abstract class DockerActivity : InstructionActivity
         }
         if (port < 1 || port > 65535)
         {
-            throw new ArgumentOutOfRangeException(nameof(port), $"[{GetType().Name}] Port must be between 1 and 65535");
+            throw new ArgumentOutOfRangeException(nameof(port), $"Port must be between 1 and 65535");
         }
 
         try
@@ -96,6 +71,7 @@ public abstract class DockerActivity : InstructionActivity
     }
 
 }
+
 
 public class DockerAgent  {
     private readonly DockerUtil _docker;
@@ -134,7 +110,7 @@ public class DockerAgent  {
         _docker.SetVolume(hostPath, containerPath);
     }
 
-    public async Task<DockerRunResult> DockerRun(Dictionary<string, string>? arguments = null, bool detach = true, bool remove = false)
+    public async Task<DockerRunResult> DockerRun(Dictionary<string, string>? arguments = null, bool detach = false, bool remove = true)
     {
         try 
         {

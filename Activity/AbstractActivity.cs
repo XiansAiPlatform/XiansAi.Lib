@@ -29,6 +29,7 @@ public class AbstractActivity
 
     public MethodInfo? CurrentActivityMethod { get; internal set; }
     public Type? CurrentActivityClass { get; internal set; }
+    public Type? CurrentActivityInterfaceType { get; internal set; }
     public void NewCurrentActivity()
     {
         try 
@@ -77,8 +78,6 @@ public class AbstractActivity
             return CreateActivity();
         }
     }
-
-
 
     private FlowActivity CreateActivity()
     {
