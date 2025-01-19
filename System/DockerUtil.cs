@@ -25,14 +25,12 @@ public class DockerUtil
 
     public DockerUtil SetEnvironmentVariable(string key, string value)
     {
-        _logger.LogInformation($"Setting environment variable: {key} = {value}");
         _environmentVariables[key] = value;
         return this;
     }
 
     public DockerUtil SetPort(string hostPort, string containerPort)
     {
-        _logger.LogInformation($"Setting port: {hostPort} -> {containerPort}");
         _ports[hostPort] = containerPort;
         return this;
     }
@@ -89,7 +87,6 @@ public class DockerUtil
         }
         var arguments = BuildDockerArguments("run", includeRmFlag: remove, detach: detach);
         var argString = string.Join(" ", arguments);
-        _logger.LogInformation($"Running Docker command: {argString}");
         _containerId = await _systemProcess.RunCommandAsync("docker", argString);
         return _containerId.Trim();
     }
