@@ -26,7 +26,6 @@ public abstract class InstructionActivity: AbstractActivity
     {
         Console.WriteLine($"Getting instructions for {CurrentActivityMethod?.Name}");
         var instructionsAttr = CurrentActivityMethod?.GetCustomAttribute<InstructionsAttribute>();
-        Console.WriteLine($"Instructions attribute: {instructionsAttr}");
         if (instructionsAttr?.Instructions == null || instructionsAttr.Instructions.Length == 0) 
         {
             _logger.LogError($"[{GetType().Name}] Instructions attribute is missing or empty");
@@ -70,20 +69,31 @@ public abstract class InstructionActivity: AbstractActivity
         }
     }
 
+    public async Task<string?> GetInstructionAsTempFile(int index = 1) 
+    {
+        return await GetInstructionAsTempFile(new Dictionary<string, string>(), index);
+    }
+
     /// <summary>
     /// Loads an instruction by its index from the depending instructions and returns the path to a temporary file containing the instruction.
     /// </summary>
     /// <param name="index">1-based index of the instruction to load</param>
+    /// <param name="parameters">Dictionary of parameters to replace in the instruction</param>
     /// <returns>The path to the temporary file containing the instruction</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when index is less than 1</exception>
     /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
-    public async Task<string?> GetInstructionAsTempFile(int index = 1)
+    public virtual async Task<string?> GetInstructionAsTempFile(IDictionary<string, string> parameters, int index = 1)
     {
         var instruction = await GetInstructionAsync(index);
         if (instruction == null)
         {
             _logger.LogError($"[{GetType().Name}] Failed to load instruction, returning null as temp file");
             return null;
+        }
+
+        foreach (var parameter in parameters)
+        {
+            instruction = instruction.Replace($"{{{parameter.Key}}}", parameter.Value);
         }
 
         var tempFile = Path.GetTempFileName();
