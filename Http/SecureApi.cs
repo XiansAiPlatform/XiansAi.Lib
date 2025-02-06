@@ -24,25 +24,7 @@ public class SecureApi
         }
         else
         {
-            // Handle .pem file
-            var pemContents = File.ReadAllText(certPath);
-            
-            // Extract just the certificate portion between BEGIN and END markers
-            var certMatch = Regex.Match(pemContents, 
-                @"-----BEGIN CERTIFICATE-----\s*([^-]+)\s*-----END CERTIFICATE-----");
-            
-            if (!certMatch.Success || certMatch.Groups.Count < 2)
-            {
-                throw new InvalidOperationException("Invalid certificate format. Expected PEM format with BEGIN/END markers.");
-            }
-
-            // Get just the Base64 content and clean it
-            var pemBase64 = certMatch.Groups[1].Value
-                .Replace("\n", "")
-                .Replace("\r", "")
-                .Trim();
-
-            var pemBytes = Convert.FromBase64String(pemBase64);
+            var pemBytes = Convert.FromBase64String(certPath);
             #pragma warning disable SYSLIB0057 // Type or member is obsolete    
             _clientCertificate = new X509Certificate2(pemBytes);
             #pragma warning restore SYSLIB0057 // Type or member is obsolete

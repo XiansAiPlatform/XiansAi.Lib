@@ -34,7 +34,7 @@ public class FlowRunnerService : IFlowRunnerService
         
         _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
         SecureApi.Initialize(
-            PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"), 
+            PlatformConfig.APP_SERVER_API_KEY ?? PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"), 
             PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set"),
             PlatformConfig.APP_SERVER_CERT_PWD
         );
