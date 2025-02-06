@@ -32,16 +32,13 @@ public class FlowRunnerService : IFlowRunnerService
         _temporalClientService = new TemporalClientService();
         _flowDefinitionUploader = new FlowDefinitionUploader();
         
-        if (PlatformConfig.APP_SERVER_CERT_PATH != null && PlatformConfig.APP_SERVER_CERT_PWD != null && PlatformConfig.APP_SERVER_URL != null) {
-            _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-            SecureApi.Initialize(
-                PlatformConfig.APP_SERVER_CERT_PATH,
-                PlatformConfig.APP_SERVER_CERT_PWD,
-                PlatformConfig.APP_SERVER_URL
-            );
-        } else {
-            _logger.LogError("App server connection failed because of missing configuration");
-        }
+        _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
+        SecureApi.Initialize(
+            PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"), 
+            PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set"),
+            PlatformConfig.APP_SERVER_CERT_PWD
+        );
+
     }
 
     public async Task TestMe()
@@ -59,8 +56,8 @@ public class FlowRunnerService : IFlowRunnerService
         _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
         var secureApi = SecureApi.Initialize(
             PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"), 
-            PlatformConfig.APP_SERVER_CERT_PWD ?? throw new InvalidOperationException("APP_SERVER_CERT_PWD is not set"), 
-            PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
+            PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set"),
+            PlatformConfig.APP_SERVER_CERT_PWD
         );
         if (secureApi == null)
         {
