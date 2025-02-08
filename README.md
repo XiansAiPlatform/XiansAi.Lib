@@ -14,19 +14,14 @@ dotnet build
 
 ## Publishing to Nuget
 
-Ensure you update the version in the nuspec file and use the correctversion in the command below.
+1. Change the version in the nuspec file.
 
-```bash
+1. Run the following command to push the package to Nuget.
 
-dotnet clean
-dotnet build -c Release
-
-mkdir nupkg
-dotnet pack -c Release -o ./nupkg
-dotnet nuget push ./nupkg/XiansAi.Lib.1.1.2.nupkg -s https://api.nuget.org/v3/index.json -k <your-api-key>
-```
+    ```bash
+    ./nuget-push.sh <version> <api_key>
+    ```
 
 ## Nuget Package
 
 You can find the latest version of the package [here](https://www.nuget.org/packages/XiansAi.Lib/).
-
