@@ -69,7 +69,41 @@ public abstract class InstructionActivity: AbstractActivity
         }
     }
 
-    public async Task<string?> GetInstructionAsTempFile(int index = 1) 
+    public class TempInstructionFile : IDisposable
+    {
+        private readonly string _filePath;
+        private readonly ILogger _logger;
+        private bool _disposed;
+
+        public string FilePath => _filePath;
+
+        public TempInstructionFile(string filePath, ILogger logger)
+        {
+            _filePath = filePath;
+            _logger = logger;
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                try
+                {
+                    if (File.Exists(_filePath))
+                    {
+                        File.Delete(_filePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Failed to delete temporary instruction file: {_filePath}");
+                }
+                _disposed = true;
+            }
+        }
+    }
+
+    public async Task<TempInstructionFile> GetInstructionAsTempFile(int index = 1)
     {
         return await GetInstructionAsTempFile(new Dictionary<string, string>(), index);
     }
@@ -82,14 +116,10 @@ public abstract class InstructionActivity: AbstractActivity
     /// <returns>The path to the temporary file containing the instruction</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when index is less than 1</exception>
     /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
-    public virtual async Task<string?> GetInstructionAsTempFile(IDictionary<string, string> parameters, int index = 1)
+    public virtual async Task<TempInstructionFile> GetInstructionAsTempFile(IDictionary<string, string> parameters, int index = 1)
     {
         var instruction = await GetInstructionAsync(index);
-        if (instruction == null)
-        {
-            _logger.LogError($"[{GetType().Name}] Failed to load instruction, returning null as temp file");
-            return null;
-        }
+        if (instruction == null) throw new InvalidOperationException($"[{GetType().Name}] Failed to load instruction");
 
         foreach (var parameter in parameters)
         {
@@ -98,7 +128,7 @@ public abstract class InstructionActivity: AbstractActivity
 
         var tempFile = Path.GetTempFileName();
         File.WriteAllText(tempFile, instruction);
-        return tempFile;
+        return new TempInstructionFile(tempFile, _logger);
     }
 
     /// <summary>
