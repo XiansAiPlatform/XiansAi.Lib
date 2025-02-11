@@ -20,7 +20,7 @@ public class TemporalClientService : ITemporalClientService
     }
 
 
-     public async Task<ITemporalClient> GetClientAsync()
+     public async Task<ITemporalClient> GetClientAsyncLocal()
     {
         if (_client != null) return _client;
 
@@ -36,7 +36,7 @@ public class TemporalClientService : ITemporalClientService
         return _client;
     }
 
-    public async Task<ITemporalClient> GetClientGlobalAsync()
+    public async Task<ITemporalClient> GetClientAsync()
     {
         if (_client != null) return _client;
 
