@@ -1,25 +1,11 @@
 using System.Net.Sockets;
 using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
 using XiansAi.System;
 
 namespace XiansAi.Activity;
-
-public class DockerRunResult : IDisposable
-{
-    private readonly DockerUtil _docker;
-    public DockerRunResult(DockerUtil docker) {
-        _docker = docker ?? throw new ArgumentNullException(nameof(docker));
-    }
-    public string? Output { get; set; }
-
-    public async void Dispose()
-    {
-        await _docker.Remove(true);
-    }
-}
-
 public abstract class DockerActivity : AgentActivity
 {
     private readonly ILogger _logger;
@@ -41,43 +27,17 @@ public abstract class DockerActivity : AgentActivity
             throw new InvalidOperationException($"Activity has less than {index} Docker agents. {string.Join(", ", agents)}");
         }
         var agentName = agents[index - 1].Name;
-        var docker = new DockerUtil(agentName);
-        return new DockerAgent(docker);
-    }
-
-    public static async Task<bool> IsPortInUse(string host, int port)
-    {
-        if (string.IsNullOrEmpty(host))
-        {
-            throw new ArgumentNullException(nameof(host));
-        }
-        if (port < 1 || port > 65535)
-        {
-            throw new ArgumentOutOfRangeException(nameof(port), $"Port must be between 1 and 65535");
-        }
-
-        try
-        {
-            using (var client = new TcpClient())
-            {
-                await client.ConnectAsync(host, port);
-                return true; // Port is in use
-            }
-        }
-        catch (Exception ex) when (ex is not SocketException)
-        {
-            throw new InvalidOperationException($"Error checking port {port} on {host}", ex);
-        }
+        return new DockerAgent(agentName);
     }
 
 }
 
 
-public class DockerAgent  {
+public class DockerAgent : IDisposable {
     private readonly DockerUtil _docker;
 
-    public DockerAgent(DockerUtil docker) {
-        _docker = docker ?? throw new ArgumentNullException(nameof(docker));
+    public DockerAgent(string agentName) {
+        _docker = new DockerUtil(agentName);
     }
 
     public void SetEnv(string key, string value)
@@ -110,12 +70,12 @@ public class DockerAgent  {
         _docker.SetVolume(hostPath, containerPath);
     }
 
-    public async Task<DockerRunResult> DockerRun(Dictionary<string, string>? arguments = null, bool detach = false, bool remove = true)
+    public async Task<string> DockerRun(Dictionary<string, string>? arguments = null, bool detach = false, bool remove = true)
     {
         try 
         {
             var output = await _docker.Run(arguments, remove: remove, detach: detach);
-            return new DockerRunResult(_docker) { Output = output };
+            return output;
         }
         catch (Exception ex)
         {
@@ -126,6 +86,11 @@ public class DockerAgent  {
     public async Task<bool> UntilHealthy(int timeoutSeconds)
     {
         return await _docker.Healthy(timeoutSeconds);
+    }
+
+    public async void Dispose()
+    {
+        await _docker.Remove(true);
     }
 
 }

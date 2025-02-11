@@ -22,7 +22,6 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 
     protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
-        Console.WriteLine($"Invoking method: {method?.Name}");
         if (method == null || _target == null)
             throw new Exception("Method not found or target is null");
 
