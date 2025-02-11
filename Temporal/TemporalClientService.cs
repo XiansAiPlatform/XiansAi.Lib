@@ -20,7 +20,23 @@ public class TemporalClientService : ITemporalClientService
     }
 
 
-    public async Task<ITemporalClient> GetClientAsync()
+     public async Task<ITemporalClient> GetClientAsync()
+    {
+        if (_client != null) return _client;
+
+
+
+        var options = new TemporalClientConnectOptions(new("localhost:7233")) // Local Temporal URL
+                {
+                    Namespace = "default", // Default local namespace
+                };
+
+                _client =  await TemporalClient.ConnectAsync(options);
+
+        return _client;
+    }
+
+    public async Task<ITemporalClient> GetClientGlobalAsync()
     {
         if (_client != null) return _client;
 
