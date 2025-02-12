@@ -25,14 +25,36 @@ public abstract class InstructionActivity: AbstractActivity
     protected string[] GetDependingInstructions()
     {
         Console.WriteLine($"Getting instructions for {CurrentActivityMethod?.Name}");
-        var instructionsAttr = CurrentActivityMethod?.GetCustomAttribute<InstructionsAttribute>();
-        if (instructionsAttr?.Instructions == null || instructionsAttr.Instructions.Length == 0) 
+        var methodInfo = CurrentActivityMethod;
+        if (methodInfo == null)
         {
-            _logger.LogError($"[{GetType().Name}] Instructions attribute is missing or empty");
-            throw new InvalidOperationException($"[{GetType().Name}] Instructions attribute is missing or empty");
+            _logger.LogError($"[{GetType().Name}] CurrentActivityMethod is null");
+            throw new InvalidOperationException($"[{GetType().Name}] CurrentActivityMethod is null");
+        }
+        // Attempt to find the InstructionsAttribute on the method
+        var instructionsAttr = methodInfo.GetCustomAttribute<InstructionsAttribute>();
+        if (instructionsAttr?.Instructions != null && instructionsAttr.Instructions.Length > 0)
+        {
+            return instructionsAttr.Instructions;
         }
 
-        return instructionsAttr.Instructions;
+        // If not, attempt to find the InstructionsAttribute on the interface declarations
+        var interfaceMethods = this.GetType().GetInterfaces()
+            .SelectMany(interfaceType => interfaceType.GetMethods())
+            .Where(m => m.Name == methodInfo.Name && m.GetParameters().Length == methodInfo.GetParameters().Length)
+            .ToList();
+
+        foreach (var interfaceMethod in interfaceMethods)
+        {
+            instructionsAttr = interfaceMethod.GetCustomAttribute<InstructionsAttribute>();
+            if (instructionsAttr?.Instructions != null && instructionsAttr.Instructions.Length > 0)
+            {
+                return instructionsAttr.Instructions;
+            }
+        }
+
+        _logger.LogError($"[{GetType().Name}.{methodInfo.Name}] Instructions attribute is missing or empty on interface methods");
+        throw new InvalidOperationException($"[{GetType().Name}.{methodInfo.Name}] Instructions attribute is missing or empty on interface methods");
     }
 
     /// <summary>

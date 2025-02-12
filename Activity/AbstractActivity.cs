@@ -2,12 +2,17 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
 using System.Reflection;
+using System.Diagnostics;
 
 namespace XiansAi.Activity;
 public class AbstractActivity
 {
     private readonly ILogger<AbstractActivity> _logger;
     private FlowActivity? _currentActivity;
+
+    public MethodInfo? _currentActivityMethod { get; internal set; }
+
+    public Type? _currentActivityInterfaceType { get; internal set; }
 
     public AbstractActivity()
     {
@@ -16,23 +21,48 @@ public class AbstractActivity
 
     public bool IsInWorkflow()
     {
-        try 
+        try
         {
             return ActivityExecutionContext.Current != null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Error checking workflow context");
+            _logger.LogWarning("Error checking workflow context, not in workflow");
             return false;
         }
     }
 
-    public MethodInfo? CurrentActivityMethod { get; internal set; }
+    public MethodInfo? CurrentActivityMethod
+    {
+        get
+        {
+            if (!IsInWorkflow() || _currentActivityMethod == null)
+            {
+                // Iterate through the stack frames to find a method in a class derived from ActivityBase
+                var stackTrace = new StackTrace();
+                for (int i = 1; i < stackTrace.FrameCount; i++)
+                {
+                    var method = stackTrace.GetFrame(i)?.GetMethod();
+                    if (method != null && typeof(ActivityBase).IsAssignableFrom(method.DeclaringType))
+                    {
+                        _currentActivityMethod = (MethodInfo?)method;
+                        break;
+                    }
+                }
+                _logger.LogInformation("Current activity method: {Method}", _currentActivityMethod?.Name);
+            }
+            return _currentActivityMethod;
+        }
+        internal set
+        {
+            _currentActivityMethod = value;
+        }
+    }
     public Type? CurrentActivityClass { get; internal set; }
-    public Type? CurrentActivityInterfaceType { get; internal set; }
+    //public Type? CurrentActivityInterfaceType { get; internal set; }
     public void NewCurrentActivity()
     {
-        try 
+        try
         {
             _currentActivity = CreateActivity();
         }
@@ -68,13 +98,17 @@ public class AbstractActivity
 
     public virtual FlowActivity? GetCurrentActivity()
     {
-        if (!IsInWorkflow()) {
+        if (!IsInWorkflow())
+        {
             _logger.LogWarning("Not in workflow, skipping activity retrieval");
             return null;
         }
-        if (_currentActivity != null) {
+        if (_currentActivity != null)
+        {
             return _currentActivity;
-        } else {
+        }
+        else
+        {
             return CreateActivity();
         }
     }
@@ -86,23 +120,56 @@ public class AbstractActivity
             throw new InvalidOperationException("Cannot create activity outside of workflow context");
         }
 
-        try 
+        try
         {
             var context = ActivityExecutionContext.Current;
-            return new FlowActivity 
+            return new FlowActivity
             {
                 ActivityId = context.Info.ActivityId ?? throw new InvalidOperationException("ActivityId is null"),
                 ActivityName = context.Info.ActivityType ?? throw new InvalidOperationException("ActivityType is null"),
                 StartedTime = context.Info.StartedTime,
                 WorkflowId = context.Info.WorkflowId ?? throw new InvalidOperationException("WorkflowId is null"),
                 WorkflowType = context.Info.WorkflowType ?? throw new InvalidOperationException("WorkflowType is null"),
-                TaskQueue = context.Info.TaskQueue ?? throw new InvalidOperationException("TaskQueue is null")
+                TaskQueue = context.Info.TaskQueue ?? throw new InvalidOperationException("TaskQueue is null"),
+                WorkflowRunId = context.Info.WorkflowRunId ?? throw new InvalidOperationException("WorkflowRunId is null")
             };
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to create activity");
             throw;
+        }
+    }
+
+    public Type? CurrentActivityInterfaceType
+    {
+        get
+        {
+            if (!IsInWorkflow() || _currentActivityInterfaceType == null)
+            {
+                // Iterate through the stack frames to find an interface in a class derived from ActivityBase
+                var stackTrace = new StackTrace();
+                for (int i = 1; i < stackTrace.FrameCount; i++)
+                {
+                    var method = stackTrace.GetFrame(i)?.GetMethod();
+                    if (method != null && typeof(ActivityBase).IsAssignableFrom(method.DeclaringType))
+                    {
+                        // Get the interfaces implemented by the declaring type of the method
+                        var interfaces = method.DeclaringType?.GetInterfaces();
+                        if (interfaces != null && interfaces.Length > 0)
+                        {
+                            _currentActivityInterfaceType = interfaces[0]; // Assuming the first interface is the desired one
+                            break;
+                        }
+                    }
+                }
+                _logger.LogInformation("Current activity interface type: {Interface}", _currentActivityInterfaceType?.Name);
+            }
+            return _currentActivityInterfaceType;
+        }
+        internal set
+        {
+            _currentActivityInterfaceType = value;
         }
     }
 }

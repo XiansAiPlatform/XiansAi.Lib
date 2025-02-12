@@ -26,7 +26,8 @@ public class FlowDefinitionUploader
             ClassName = typeof(TFlow).FullName ?? typeof(TFlow).Name,
             Parameters = flow.GetParameters(),
             Activities = GetAllActivities(flow.GetObjects()).ToArray(),
-            Source = source ?? ReadSource(typeof(TFlow))
+            Source = source ?? ReadSource(typeof(TFlow)),
+            Categories = flow.GetCategories()
         };
         _logger.LogInformation("Uploading flow definition of {TypeName} to App server...", typeof(TFlow).FullName);
         await Upload(flowDefinition);

@@ -36,6 +36,10 @@ public class FlowActivity
     [JsonPropertyName("workflowId")]
     public required string WorkflowId { get; set; }
 
+    [BsonElement("workflowRunId")]
+    [JsonPropertyName("workflowRunId")]
+    public required string WorkflowRunId { get; set; }
+
     [BsonElement("workflowType")]
     [JsonPropertyName("workflowType")]
     public required string WorkflowType { get; set; }

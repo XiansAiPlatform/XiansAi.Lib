@@ -35,6 +35,7 @@ public class ActivityUploaderTest
             },
             Result = null,
             WorkflowId = "456",
+            WorkflowRunId = "789",
             WorkflowType = "TestWorkflow",
             TaskQueue = "TestQueue",
             AgentNames = new List<string> { "flowmaxer/scraper-agent", "flowmaxer/search-agent" },

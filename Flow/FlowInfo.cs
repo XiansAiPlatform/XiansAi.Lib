@@ -108,6 +108,13 @@ public class FlowInfo<TClass>
         return workflowAttr.Name ?? workflowClass.Name;
     }
 
+    public string[] GetCategories()
+    {
+        var workflowClass = typeof(TClass);
+        var categoriesAttr = workflowClass.GetCustomAttribute<CategoriesAttribute>();
+        return categoriesAttr?.Categories ?? [];
+    }
+
     /// <summary>
     /// Gets the parameters of the workflow's run method.
     /// </summary>

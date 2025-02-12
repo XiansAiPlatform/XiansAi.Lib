@@ -18,11 +18,12 @@ public class InstructionLoader
 
     private async Task<Instruction?> LoadFromLocal(string instructionName)
     {
-        _logger.LogWarning($"Loading instruction from local file. File path taken from environment variable '{instructionName}'");
+        var envVarName = instructionName.Replace(".", "_").Replace(" ", "_").ToUpper();
+        _logger.LogWarning($"Loading instruction from local file. File path taken from environment variable '{envVarName}'");
 
-        var instructionPath = Environment.GetEnvironmentVariable(instructionName);
+        var instructionPath = Environment.GetEnvironmentVariable(envVarName);
         if (instructionPath == null) {
-            _logger.LogError($"Instruction file does not exist: '{instructionPath}'. Failed to load instruction from local file. Please check the environment variable '{instructionName}'.");
+            _logger.LogError($"Instruction file does not exist: '{instructionPath}'. Failed to load instruction from local file. Please check the environment variable '{envVarName}'.");
             return null;
         }
         return new Instruction { 
