@@ -37,7 +37,7 @@ public abstract class FlowBase
     /// <returns>Task representing the result of the activity execution</returns>
     /// <exception cref="ArgumentNullException">Thrown when activityCall is null</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when timeoutMinutes is less than or equal to 0</exception>
-    protected async Task<TResult> RunActivityAsync<TActivityInstance, TResult>(
+    protected virtual async Task<TResult> RunActivityAsync<TActivityInstance, TResult>(
         Expression<Func<TActivityInstance, Task<TResult>>> activityCall,
         int timeoutMinutes = 5)
     {
@@ -86,7 +86,7 @@ public abstract class FlowBase
     /// <param name="timeSpan">The duration to delay for</param>
     /// <param name="cancellationToken">Optional cancellation token</param>
     /// <returns>A task that completes after the delay</returns>
-    protected async Task DelayAsync(TimeSpan timeSpan, CancellationToken cancellationToken = default)
+    protected virtual async Task DelayAsync(TimeSpan timeSpan, CancellationToken cancellationToken = default)
     {
         await Workflow.DelayAsync(timeSpan, cancellationToken);
     }
@@ -100,7 +100,7 @@ public abstract class FlowBase
     /// <param name="options">Custom activity options</param>
     /// <returns>Task representing the result of the activity execution</returns>
     /// <exception cref="ArgumentNullException">Thrown when activityCall or options is null</exception>
-    protected async Task<TResult> RunActivityAsync<TActivityInstance, TResult>(
+    protected virtual async Task<TResult> RunActivityAsync<TActivityInstance, TResult>(
         Expression<Func<TActivityInstance, Task<TResult>>> activityCall,
         ActivityOptions options)
     {
