@@ -9,9 +9,7 @@ public class AbstractActivity
 {
     private readonly ILogger<AbstractActivity> _logger;
     private FlowActivity? _currentActivity;
-
     public MethodInfo? _currentActivityMethod { get; internal set; }
-
     public Type? _currentActivityInterfaceType { get; internal set; }
 
     public AbstractActivity()
@@ -21,15 +19,7 @@ public class AbstractActivity
 
     public bool IsInWorkflow()
     {
-        try
-        {
-            return ActivityExecutionContext.Current != null;
-        }
-        catch (Exception)
-        {
-            _logger.LogWarning("Error checking workflow context, not in workflow");
-            return false;
-        }
+        return ActivityExecutionContext.HasCurrent;
     }
 
     public MethodInfo? CurrentActivityMethod
@@ -49,7 +39,6 @@ public class AbstractActivity
                         break;
                     }
                 }
-                _logger.LogInformation("Current activity method: {Method}", _currentActivityMethod?.Name);
             }
             return _currentActivityMethod;
         }
@@ -163,7 +152,6 @@ public class AbstractActivity
                         }
                     }
                 }
-                _logger.LogInformation("Current activity interface type: {Interface}", _currentActivityInterfaceType?.Name);
             }
             return _currentActivityInterfaceType;
         }

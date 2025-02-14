@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using XiansAi.Http;
 using XiansAi.Models;
+using System.Text.RegularExpressions;
 
 namespace XiansAi.Server;
 
@@ -18,7 +19,7 @@ public class InstructionLoader
 
     private async Task<Instruction?> LoadFromLocal(string instructionName)
     {
-        var envVarName = instructionName.Replace(".", "_").Replace(" ", "_").ToUpper();
+        var envVarName = Regex.Replace(instructionName, "[^a-zA-Z]", "_").ToUpper();
         _logger.LogWarning($"Loading instruction from local file. File path taken from environment variable '{envVarName}'");
 
         var instructionPath = Environment.GetEnvironmentVariable(envVarName);
@@ -37,7 +38,7 @@ public class InstructionLoader
     {
 
         if (!(SecureApi.IsReady())) { 
-            _logger.LogWarning("App server secure connection is not initialized");
+            _logger.LogWarning("App server connection is not established, loading instruction locally");
             return await LoadFromLocal(instructionName);
         } else {
             return await LoadFromServer(instructionName);

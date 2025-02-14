@@ -150,6 +150,7 @@ public abstract class InstructionActivity: AbstractActivity
 
         var tempFile = Path.GetTempFileName();
         File.WriteAllText(tempFile, instruction);
+        _logger.LogInformation("Saved instruction to temporary file: {TempFile}", tempFile);
         return new TempInstructionFile(tempFile, _logger);
     }
 

@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Worker.Interceptors;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
+using Temporalio.Activities;
+using Temporalio.Api.Common.V1;
 
 namespace XiansAi.Flow;
 
@@ -12,6 +14,8 @@ namespace XiansAi.Flow;
 public abstract class FlowBase
 {
     private readonly ILogger _logger;
+
+    private readonly Dictionary<Type, Type> _typeMappings = new();
 
     // Dictionary to track received signal values
     private readonly ConcurrentDictionary<string, object> _receivedSignals = new();
@@ -25,6 +29,44 @@ public abstract class FlowBase
     {
         _logger = Globals.LogFactory?.CreateLogger<FlowBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
+    }
+
+    public void SetActivityTypeMapping<TInterface, TImplementation>()
+    {
+        _typeMappings[typeof(TInterface)] = typeof(TImplementation);
+    }
+
+
+    public void SetActivityTypeMappings(Dictionary<Type, Type> typeMappings)
+    {
+        foreach (var mapping in typeMappings)
+        {
+            _typeMappings[mapping.Key] = mapping.Value;
+        }
+    }
+
+    private Task<TResult> RunActivityAsyncLocal<TActivityInstance, TResult>(Expression<Func<TActivityInstance, Task<TResult>>> activityCall, int timeoutMinutes = 5)
+    {
+        // Create an instance of TActivityInstance
+        TActivityInstance activityInstance;
+        if (typeof(TActivityInstance).IsInterface)
+        {
+            if (_typeMappings.ContainsKey(typeof(TActivityInstance)))
+            {
+                Type concreteType = _typeMappings[typeof(TActivityInstance)];
+                activityInstance = (TActivityInstance)Activator.CreateInstance(concreteType)!;
+            }
+            else
+            {
+                throw new InvalidOperationException("No concrete type provided for interface " + typeof(TActivityInstance).Name);
+            }
+        }
+        else
+        {
+            activityInstance = Activator.CreateInstance<TActivityInstance>(); // Directly create an instance if not an interface
+        }
+
+        return activityCall.Compile()(activityInstance);
     }
 
     /// <summary>
@@ -57,16 +99,7 @@ public abstract class FlowBase
                 StartToCloseTimeout = TimeSpan.FromMinutes(timeoutMinutes)
             };
 
-            _logger.LogDebug(
-                "Executing activity {ActivityType} with {TimeoutMinutes} minute timeout",
-                typeof(TActivityInstance).Name,
-                timeoutMinutes);
-
-            var result = await Workflow.ExecuteActivityAsync(activityCall, options);
-
-            _logger.LogDebug(
-                "Successfully completed activity {ActivityType}",
-                typeof(TActivityInstance).Name);
+            var result = await RunActivityAsync(activityCall, options);
 
             return result;
         }
@@ -88,7 +121,15 @@ public abstract class FlowBase
     /// <returns>A task that completes after the delay</returns>
     protected virtual async Task DelayAsync(TimeSpan timeSpan, CancellationToken cancellationToken = default)
     {
-        await Workflow.DelayAsync(timeSpan, cancellationToken);
+        _logger.LogInformation("Delaying for {TimeSpan}", timeSpan);
+        if (IsInWorkflow())
+        {
+            await Workflow.DelayAsync(timeSpan, cancellationToken);
+        }
+        else
+        {
+            await Task.Delay(timeSpan, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -109,15 +150,25 @@ public abstract class FlowBase
 
         try
         {
-            _logger.LogDebug(
-                "Executing activity {ActivityType} with custom options",
-                typeof(TActivityInstance).Name);
+            _logger.LogInformation(
+                "Executing activity '{ActivityType}' with custom options : {Options}",
+                typeof(TActivityInstance).Name,
+                options);
 
-            var result = await Workflow.ExecuteActivityAsync(activityCall, options);
+            TResult result;
+            if (IsInWorkflow())
+            {
+                result = await Workflow.ExecuteActivityAsync(activityCall, options);
+            }
+            else
+            {
+                result = await RunActivityAsyncLocal(activityCall);
+            }
 
-            _logger.LogDebug(
-                "Successfully completed activity {ActivityType}",
-                typeof(TActivityInstance).Name);
+            _logger.LogInformation(
+                "Successfully completed activity '{ActivityType}' with result: {Result}",
+                typeof(TActivityInstance).Name,
+                result);
 
             return result;
         }
@@ -159,6 +210,13 @@ public abstract class FlowBase
         _logger.LogDebug("Signal received for '{SignalName}', storing value.", payload.SignalName);
         _receivedSignals[payload.SignalName] = payload.Value;
         return Task.CompletedTask;
+    }
+
+    public bool IsInWorkflow()
+    {
+        var isInWorkflow = Workflow.InWorkflow;
+        _logger.LogDebug("IsInWorkflow: {IsInWorkflow}", isInWorkflow);
+        return isInWorkflow;
     }
 
 }
