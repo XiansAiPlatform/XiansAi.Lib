@@ -78,11 +78,28 @@ public class FlowRunnerService : IFlowRunnerService
         }
 
         _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-        var secureApi = SecureApi.Initialize(
-            PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"),
-            PlatformConfig.APP_SERVER_CERT_PWD ?? throw new InvalidOperationException("APP_SERVER_CERT_PWD is not set"),
-            PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
-        );
+        SecureApi? secureApi = null;
+
+        if (PlatformConfig.APP_SERVER_CERT_PWD != null)
+        {
+            secureApi = SecureApi.Initialize(
+                PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"),
+                PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set"),
+                PlatformConfig.APP_SERVER_CERT_PWD
+            );
+        }
+        else if (PlatformConfig.APP_SERVER_API_KEY != null)
+        {
+            secureApi = SecureApi.Initialize(
+                PlatformConfig.APP_SERVER_API_KEY,
+                PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
+            );
+        }
+        else
+        {
+            _logger.LogError("App server connection failed because of missing configuration");
+        }
+
         if (secureApi == null)
         {
             _logger.LogError("App server connection failed");
@@ -94,7 +111,6 @@ public class FlowRunnerService : IFlowRunnerService
         }
 
         _logger.LogInformation("All connections are successful! You are ready to go!");
-
     }
 
     private string GetWorkflowName<TFlow>() where TFlow : class

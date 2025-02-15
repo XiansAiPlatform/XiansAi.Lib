@@ -168,7 +168,7 @@ public abstract class FlowBase
             _logger.LogInformation(
                 "Successfully completed activity '{ActivityType}' with result: {Result}",
                 typeof(TActivityInstance).Name,
-                result);
+                result?.ToString());
 
             return result;
         }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace XiansAi.Http;
 public class SecureApi
@@ -8,15 +9,19 @@ public class SecureApi
     private readonly X509Certificate2 _clientCertificate;
     private static SecureApi? _instance;
     private static readonly object _lock = new object();
+    private readonly ILogger _logger;
 
     private SecureApi(string certPath, string serverUrl, string? certPassword)
     {
         _client = new HttpClient();
         _client.BaseAddress = new Uri(serverUrl);
+        _logger = Globals.LogFactory.CreateLogger<SecureApi>();
+
 
         // Load the certificate based on whether password is provided (pfx) or not (pem)
         if (!string.IsNullOrEmpty(certPassword))
         {
+            _logger.LogInformation("Loading .pfx file with password");
             // Handle .pfx file with password
             #pragma warning disable SYSLIB0057 // Type or member is obsolete
             _clientCertificate = new X509Certificate2(certPath, certPassword);
@@ -24,6 +29,7 @@ public class SecureApi
         }
         else
         {
+            _logger.LogInformation("Loading .pem file without password");
             var pemBytes = Convert.FromBase64String(certPath);
             #pragma warning disable SYSLIB0057 // Type or member is obsolete    
             _clientCertificate = new X509Certificate2(pemBytes);
