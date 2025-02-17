@@ -43,9 +43,9 @@ public class DockerAgent : IDisposable {
     public void SetEnv(string key, string value)
     {
         if (string.IsNullOrEmpty(key))
-            throw new ArgumentNullException(nameof(key), "Environment variable key cannot be null or empty.");
-        if (value == null)
-            throw new ArgumentNullException(nameof(value), "Environment variable value cannot be null.");
+            throw new ArgumentNullException(nameof(key), "Environment variable key '" + key + "' cannot be null or empty.");
+        if (string.IsNullOrEmpty(value))
+            throw new ArgumentNullException(nameof(value), "Environment variable value for key '" + key + "' cannot be null or empty.");
 
         _docker.SetEnvironmentVariable(key, value);
     }

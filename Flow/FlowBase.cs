@@ -148,10 +148,13 @@ public abstract class FlowBase
         ArgumentNullException.ThrowIfNull(activityCall, nameof(activityCall));
         ArgumentNullException.ThrowIfNull(options, nameof(options));
 
+        var methodName = activityCall.Compile().Method.Name;
+
         try
         {
             _logger.LogInformation(
-                "Executing activity '{ActivityType}' with custom options : {Options}",
+                "Executing activity '{ActivityMethod}' at '{ActivityType}' with custom options : {Options}",
+                methodName,
                 typeof(TActivityInstance).Name,
                 options);
 
@@ -166,7 +169,8 @@ public abstract class FlowBase
             }
 
             _logger.LogInformation(
-                "Successfully completed activity '{ActivityType}' with result: {Result}",
+                "Successfully completed activity '{ActivityMethod}' at '{ActivityType}' with result: {Result}",
+                methodName,
                 typeof(TActivityInstance).Name,
                 result?.ToString());
 

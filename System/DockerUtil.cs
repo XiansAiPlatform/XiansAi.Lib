@@ -87,8 +87,24 @@ public class DockerUtil
         }
         var arguments = BuildDockerArguments("run", includeRmFlag: remove, detach: detach);
         var argString = string.Join(" ", arguments);
+        LogDockerCommand(argString);
         _containerId = await _systemProcess.RunCommandAsync("docker", argString);
         return _containerId.Trim();
+    }
+
+    private void LogDockerCommand(string command)
+    {
+        // Replace all environment variables with asterisks
+        var parts = command.Split(" -e ");
+        for (int i = 1; i < parts.Length; i++)
+        {
+            var envVar = parts[i].Split(' ')[0];
+            if (!string.IsNullOrEmpty(envVar))
+            {
+                command = command.Replace($"-e {envVar}", "-e ********");
+            }
+        }
+        _logger.LogInformation("Running docker command: {Command}", command);
     }
 
     public async Task<bool> Healthy(int timeoutSeconds = 30, int intervalSeconds = 5)
@@ -104,6 +120,7 @@ public class DockerUtil
 
         while (stopwatch.Elapsed < timeout)
         {
+            _logger.LogInformation("Checking health of container {ContainerId}", _containerId);
             var result = await _systemProcess.RunCommandAsync("docker", $"inspect --format='{{{{.State.Health.Status}}}}' {_containerId.Trim()}");
             if (result.Trim().Equals("'healthy'"))
             {
