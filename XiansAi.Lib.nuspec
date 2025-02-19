@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>XiansAi.Lib</id>
-        <version>1.1.9</version>
+        <version>1.2.1</version>
         <authors>99x</authors>
         <description>This is a library for the Xians.Ai flow projects.</description>
         <projectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</projectUrl>

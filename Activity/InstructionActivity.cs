@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic;
 using XiansAi.Server;
 
 namespace XiansAi.Activity;
@@ -225,6 +226,15 @@ public class TempInstructionFile : IDisposable
             _logger = logger;
         }
 
+        public void Apply(IDictionary<string, string> parameters)
+        {
+            var instruction = File.ReadAllText(_filePath);
+            foreach (var parameter in parameters)
+            {
+                instruction = instruction.Replace($"{{{parameter.Key}}}", parameter.Value);
+            }
+            File.WriteAllText(_filePath, instruction);
+        }
         public void Dispose()
         {
             if (!_disposed)

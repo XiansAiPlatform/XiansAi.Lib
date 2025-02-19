@@ -26,8 +26,12 @@ public class FlowRunnerService : IFlowRunnerService
         Globals.LogFactory = loggerFactory;
     }
 
-    public FlowRunnerService()
+    public FlowRunnerService(ILoggerFactory? loggerFactory = null)
     {
+        if (loggerFactory != null)
+        {
+            SetLoggerFactory(loggerFactory);
+        }
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
         _temporalClientService = new TemporalClientService();
         _flowDefinitionUploader = new FlowDefinitionUploader();

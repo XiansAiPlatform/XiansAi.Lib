@@ -5,6 +5,7 @@ using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using Temporalio.Activities;
 using Temporalio.Api.Common.V1;
+using System.Text.Json;
 
 namespace XiansAi.Flow;
 
@@ -29,6 +30,15 @@ public abstract class FlowBase
     {
         _logger = Globals.LogFactory?.CreateLogger<FlowBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
+    }
+
+    public ILogger GetLogger()
+    {
+        if (IsInWorkflow())
+        {
+            return Workflow.Logger;
+        }
+        return _logger;
     }
 
     public void SetActivityTypeMapping<TInterface, TImplementation>()
@@ -148,15 +158,14 @@ public abstract class FlowBase
         ArgumentNullException.ThrowIfNull(activityCall, nameof(activityCall));
         ArgumentNullException.ThrowIfNull(options, nameof(options));
 
-        var methodName = activityCall.Compile().Method.Name;
+        // Get method name from expression without compiling
+        var methodName = ((MethodCallExpression)activityCall.Body).Method.Name;
 
         try
         {
-            _logger.LogInformation(
-                "Executing activity '{ActivityMethod}' at '{ActivityType}' with custom options : {Options}",
+            _logger.LogInformation("Executing activity '{ActivityMethod}' at '{ActivityType}'",
                 methodName,
-                typeof(TActivityInstance).Name,
-                options);
+                typeof(TActivityInstance).Name);
 
             TResult result;
             if (IsInWorkflow())

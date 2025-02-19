@@ -97,7 +97,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
                 // Upload to server
                 await new ActivityUploader().UploadActivity(activity);
 
-                _logger.LogInformation($"Activity Completed: {activityName} - {JsonSerializer.Serialize(activity)}");
+                _logger.LogInformation($"Activity Completed: {activityName}");
             }
             else
             {

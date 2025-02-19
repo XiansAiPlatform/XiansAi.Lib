@@ -34,10 +34,17 @@ public abstract class DockerActivity : AgentActivity
 
 
 public class DockerAgent : IDisposable {
-    private readonly DockerUtil _docker;
+    private DockerUtil _docker;
+    private string _dockerImage;
 
     public DockerAgent(string agentName) {
+        _dockerImage = agentName;
         _docker = new DockerUtil(agentName);
+    }
+
+    public DockerAgent Clear() {
+        _docker = new DockerUtil(_dockerImage);
+        return this;
     }
 
     public void SetEnv(string key, string value)
