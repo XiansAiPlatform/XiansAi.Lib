@@ -116,9 +116,9 @@ public abstract class InstructionActivity : AbstractActivity
 
     
 
-    public async Task<TempInstructionFile> GetInstructionAsTempFile(int index = 1)
+    public async Task<TempInstructionFile> GetInstructionAsTempFile(int index = 1, string directoryName = "agentdata")
     {
-        return await GetInstructionAsTempFile(new Dictionary<string, string>(), index);
+        return await GetInstructionAsTempFile(new Dictionary<string, string>(), index, directoryName);
     }
 
     /// <summary>
@@ -129,7 +129,7 @@ public abstract class InstructionActivity : AbstractActivity
     /// <returns>The path to the temporary file containing the instruction</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when index is less than 1</exception>
     /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
-    public virtual async Task<TempInstructionFile> GetInstructionAsTempFile(IDictionary<string, string> parameters, int index = 1)
+    public virtual async Task<TempInstructionFile> GetInstructionAsTempFile(IDictionary<string, string> parameters, int index = 1, string directoryName = "agentdata")
     {
         var instruction = await GetInstructionAsync(index);
         if (instruction == null) throw new InvalidOperationException($"[{GetType().Name}] Failed to load instruction");
@@ -139,8 +139,15 @@ public abstract class InstructionActivity : AbstractActivity
             instruction = instruction.Replace($"{{{parameter.Key}}}", parameter.Value);
         }
 
-        var tempFile = Path.GetTempFileName();
+        string tempDirectory = Path.Combine(Path.GetTempPath(), directoryName);
+        if (!Directory.Exists(tempDirectory))
+        {
+            Directory.CreateDirectory(tempDirectory);
+        }
+
+        string tempFile = Path.Combine(tempDirectory, Path.GetRandomFileName());
         File.WriteAllText(tempFile, instruction);
+
         _logger.LogInformation("Saved instruction to temporary file: {TempFile}", tempFile);
         return new TempInstructionFile(tempFile, _logger);
     }
