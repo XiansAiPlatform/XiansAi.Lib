@@ -33,10 +33,10 @@ public abstract class InstructionActivity : AbstractActivity
             throw new InvalidOperationException($"[{GetType().Name}] CurrentActivityMethod is null");
         }
         // Attempt to find the InstructionsAttribute on the method
-        var instructionsAttr = methodInfo.GetCustomAttribute<InstructionsAttribute>();
-        if (instructionsAttr?.Instructions != null && instructionsAttr.Instructions.Length > 0)
+        var knowledgeAttr = methodInfo.GetCustomAttribute<KnowledgeAttribute>();
+        if (knowledgeAttr?.Knowledge != null && knowledgeAttr.Knowledge.Length > 0)
         {
-            return instructionsAttr.Instructions;
+            return knowledgeAttr.Knowledge;
         }
 
         // If not, attempt to find the InstructionsAttribute on the interface declarations
@@ -47,10 +47,10 @@ public abstract class InstructionActivity : AbstractActivity
 
         foreach (var interfaceMethod in interfaceMethods)
         {
-            instructionsAttr = interfaceMethod.GetCustomAttribute<InstructionsAttribute>();
-            if (instructionsAttr?.Instructions != null && instructionsAttr.Instructions.Length > 0)
+            knowledgeAttr = interfaceMethod.GetCustomAttribute<KnowledgeAttribute>();
+            if (knowledgeAttr?.Knowledge != null && knowledgeAttr.Knowledge.Length > 0)
             {
-                return instructionsAttr.Instructions;
+                return knowledgeAttr.Knowledge;
             }
         }
 

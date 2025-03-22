@@ -117,12 +117,12 @@ public class FlowDefinitionUploader
                 Type = p.ParameterType.Name
             }).ToList() ?? [];
 
-            var instructionsAttribute = method.GetCustomAttribute<InstructionsAttribute>();
+            var knowledgeAttribute = method.GetCustomAttribute<KnowledgeAttribute>();
 
             activities.Add(new ActivityDefinition {
                 ActivityName = activityName,
                 Parameters = parameters,
-                Instructions = instructionsAttribute?.Instructions.ToList() ?? [],
+                Instructions = knowledgeAttribute?.Knowledge.ToList() ?? [],
                 AgentNames = agentNames
             });
         }
