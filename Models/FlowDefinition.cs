@@ -5,6 +5,7 @@ namespace XiansAi.Models;
 
 public class FlowDefinition   
 {
+    public required string AgentName { get; set; }
     public required string TypeName { get; set; }
     public required ActivityDefinition[] Activities { get; set; } = [];
     public required string ClassName { get; set; }

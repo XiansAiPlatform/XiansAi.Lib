@@ -23,6 +23,7 @@ public class FlowDefinitionUploader
     {
         var flowDefinition = new FlowDefinition {
             TypeName = flow.GetWorkflowName(),
+            AgentName = flow.GetAgentName(),
             ClassName = typeof(TFlow).FullName ?? typeof(TFlow).Name,
             Parameters = flow.GetParameters(),
             Activities = GetAllActivities(flow.GetObjects()).ToArray(),

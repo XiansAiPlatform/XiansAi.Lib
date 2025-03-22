@@ -108,6 +108,16 @@ public class FlowInfo<TClass>
         return workflowAttr.Name ?? workflowClass.Name;
     }
 
+    public string GetAgentName()
+    {
+        var flowName = GetWorkflowName();
+        if (flowName.Contains(":"))
+        {
+            return flowName.Split(':')[0];
+        }
+        return flowName;
+    }
+
     public string[] GetCategories()
     {
         var workflowClass = typeof(TClass);

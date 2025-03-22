@@ -133,8 +133,6 @@ public class FlowRunnerService : IFlowRunnerService
         // Upload the flow definition to the server
         await _flowDefinitionUploader.UploadFlowDefinition(flow);
 
-
-
         // Run the worker for the flow
         var client = await _temporalClientService.GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
