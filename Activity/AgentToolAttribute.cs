@@ -2,11 +2,11 @@ namespace XiansAi.Activity;
 
 
 [AttributeUsage(AttributeTargets.Interface, Inherited = false)]
-public sealed class AgentAttribute : Attribute
+public sealed class AgentToolAttribute : Attribute
 {
     public string Name { get; private set; }
-    public AgentType Type { get; private set; }
-    public AgentAttribute(string name, AgentType type = AgentType.Custom)
+    public AgentToolType Type { get; private set; }
+    public AgentToolAttribute(string name, AgentToolType type = AgentToolType.Custom)
     {
         Name = name;
         Type = type;
@@ -19,7 +19,7 @@ public sealed class AgentAttribute : Attribute
 
 }
 
-public enum AgentType
+public enum AgentToolType
 {
     Package,
     Docker,

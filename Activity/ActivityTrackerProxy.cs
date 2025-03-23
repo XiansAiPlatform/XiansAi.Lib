@@ -30,7 +30,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         if (attribute == null || !_target.IsInWorkflow())
             return method.Invoke(_target, args);
 
-        // Create a new activity on the BaseAgent
+        // Create a new activity 
         _target.NewCurrentActivity();
         _target.CurrentActivityMethod = method;
         _target.CurrentActivityClass = _target.GetType();

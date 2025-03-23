@@ -8,7 +8,6 @@ public class FlowDefinition
     public required string AgentName { get; set; }
     public required string TypeName { get; set; }
     public required ActivityDefinition[] Activities { get; set; } = [];
-    public required string ClassName { get; set; }
     public required List<ParameterDefinition> Parameters { get; set; } = [];
     public string? Source { get; set; } = string.Empty;
     public string[]? Categories { get; set; } = [];

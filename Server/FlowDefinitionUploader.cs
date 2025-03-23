@@ -24,7 +24,6 @@ public class FlowDefinitionUploader
         var flowDefinition = new FlowDefinition {
             TypeName = flow.GetWorkflowName(),
             AgentName = flow.GetAgentName(),
-            ClassName = typeof(TFlow).FullName ?? typeof(TFlow).Name,
             Parameters = flow.GetParameters(),
             Activities = GetAllActivities(flow.GetObjects()).ToArray(),
             Source = source ?? ReadSource(typeof(TFlow)),
@@ -98,9 +97,9 @@ public class FlowDefinitionUploader
     private List<ActivityDefinition> GetAllActivities(List<(Type interfaceType, object stub, object proxy)> objects) {
         var activities = new List<ActivityDefinition>();
         foreach (var (interfaceType, stub, proxy) in objects) {
-            var agentsAttribute = interfaceType.GetCustomAttributes<AgentAttribute>();
-            var agentNames = agentsAttribute?.Select(a => a.ToString() ?? "").ToList() ?? [];
-            activities.AddRange(GetActivities(interfaceType, agentNames));
+            var agentToolsAttribute = interfaceType.GetCustomAttributes<AgentToolAttribute>();
+            var agentToolNames = agentToolsAttribute?.Select(a => a.ToString() ?? "").ToList() ?? [];
+            activities.AddRange(GetActivities(interfaceType, agentToolNames));
         }
         return activities;
     }
@@ -123,7 +122,7 @@ public class FlowDefinitionUploader
                 ActivityName = activityName,
                 Parameters = parameters,
                 Instructions = knowledgeAttribute?.Knowledge.ToList() ?? [],
-                AgentNames = agentNames
+                AgentToolNames = agentNames
             });
         }
         return activities;

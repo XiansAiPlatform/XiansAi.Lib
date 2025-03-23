@@ -16,6 +16,12 @@ public class FlowInfo<TClass>
     private readonly List<ActivityBase> _stubs = new();
     private readonly List<(Type @interface, object stub, object proxy)> _objects = new();
     private readonly ILogger<FlowInfo<TClass>> _logger = Globals.LogFactory.CreateLogger<FlowInfo<TClass>>();
+    public AgentInfo? AgentInfo { get; private set; }
+
+    public FlowInfo(AgentInfo? agentInfo = null)
+    {
+        AgentInfo = agentInfo;
+    }
 
     /// <summary>
     /// Registers an activity implementation with its interface.
@@ -110,12 +116,11 @@ public class FlowInfo<TClass>
 
     public string GetAgentName()
     {
-        var flowName = GetWorkflowName();
-        if (flowName.Contains(":"))
+        if (AgentInfo != null)
         {
-            return flowName.Split(':')[0];
+            return AgentInfo.Name;
         }
-        return flowName;
+        return GetWorkflowName();
     }
 
     public string[] GetCategories()

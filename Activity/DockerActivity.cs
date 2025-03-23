@@ -6,7 +6,7 @@ using XiansAi.Models;
 using XiansAi.System;
 
 namespace XiansAi.Activity;
-public abstract class DockerActivity : AgentActivity
+public abstract class DockerActivity : AgentToolActivity
 {
     private readonly ILogger _logger;
     public DockerActivity() : base()
@@ -15,34 +15,34 @@ public abstract class DockerActivity : AgentActivity
         
     }
 
-    public DockerAgent GetDockerAgent(int index = 1)
+    public DockerAgentTool GetDockerAgentTool(int index = 1)
     {
         if (index < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(index), "Index must be greater than 0. Provided index: " + index);
         }
 
-        var agents = GetAgents(AgentType.Docker);
-        if (agents.Count < index) {
-            throw new InvalidOperationException($"Requested index {index} exceeds the number of available Docker agents ({agents.Count}). Available agents: {string.Join(", ", agents)}");
+        var agentTools = GetAgentTools(AgentToolType.Docker);
+        if (agentTools.Count < index) {
+            throw new InvalidOperationException($"Requested index {index} exceeds the number of available Docker agent tools ({agentTools.Count}). Available agent tools: {string.Join(", ", agentTools)}");
         }
-        var agentName = agents[index - 1].Name;
-        return new DockerAgent(agentName);
+        var agentToolName = agentTools[index - 1].Name;
+        return new DockerAgentTool(agentToolName);
     }
 
 }
 
 
-public class DockerAgent : IDisposable {
+public class DockerAgentTool : IDisposable {
     private DockerUtil _docker;
     private string _dockerImage;
 
-    public DockerAgent(string agentName) {
-        _dockerImage = agentName;
-        _docker = new DockerUtil(agentName);
+    public DockerAgentTool(string agentToolName) {
+        _dockerImage = agentToolName;
+        _docker = new DockerUtil(agentToolName);
     }
 
-    public DockerAgent Clear() {
+    public DockerAgentTool Clear() {
         _docker = new DockerUtil(_dockerImage);
         return this;
     }
