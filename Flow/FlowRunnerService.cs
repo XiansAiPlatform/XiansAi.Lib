@@ -5,7 +5,6 @@ using Temporalio.Workflows;
 using XiansAi.Http;
 using XiansAi.Temporal;
 using XiansAi.Server;
-using XiansAi.Models;
 
 namespace XiansAi.Flow;
 
@@ -137,7 +136,11 @@ public class FlowRunnerService : IFlowRunnerService
         var client = await _temporalClientService.GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
 
-        var options = new TemporalWorkerOptions(taskQueue: workFlowName);
+        var options = new TemporalWorkerOptions(taskQueue: workFlowName)
+        {
+            LoggerFactory = Globals.LogFactory,
+        };
+        
         options.AddWorkflow<TFlow>();
         foreach (var stub in flow.GetStubProxies())
         {
