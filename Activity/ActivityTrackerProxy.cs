@@ -53,8 +53,12 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         }
         catch (TargetInvocationException ex)
         {
+            // Log error to console and file
+            _logger.LogError(ex.InnerException, "Error in activity {ActivityName} with parameters {Inputs}",
+                activityName, JsonSerializer.Serialize(inputs));
+            _logger.LogError(ex.InnerException, "Trace: {Trace}", ex.InnerException);
             // Log and rethrow the exception
-            ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException ?? ex);
+            //ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException ?? ex);
             throw;
         }
 
