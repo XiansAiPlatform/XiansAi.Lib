@@ -73,6 +73,17 @@ public abstract class InstructionActivity : AbstractActivity
             Content = instruction.Content
         };
     }
+     
+
+    protected async Task<string> GetInstructionAsync(IDictionary<string, string> parameters, int index = 1)
+    {
+        var instruction = await GetInstructionAsync(index);
+        foreach (var parameter in parameters)
+        {
+            instruction = instruction.Replace($"{{{parameter.Key}}}", parameter.Value);
+        }
+        return instruction;
+    }
 
     /// <summary>
     /// Loads an instruction by its index from the depending instructions.
@@ -81,7 +92,7 @@ public abstract class InstructionActivity : AbstractActivity
     /// <returns>The content of the loaded instruction</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when index is less than 1</exception>
     /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
-    protected async Task<string?> GetInstructionAsync(int index = 1)
+    protected async Task<string> GetInstructionAsync(int index = 1)
     {
         try
         {
@@ -151,7 +162,7 @@ public abstract class InstructionActivity : AbstractActivity
     /// <param name="instructionName">Name of the instruction to load</param>
     /// <returns>The content of the loaded instruction</returns>
     /// <exception cref="InvalidOperationException">Thrown when instruction loading fails</exception>
-    private async Task<string?> GetInstruction(string instructionName)
+    private async Task<string> GetInstruction(string instructionName)
     {
         try
         {
@@ -160,7 +171,7 @@ public abstract class InstructionActivity : AbstractActivity
             if (instruction == null)
             {
                 _logger.LogError($"[{GetType().Name}] Failed to load instruction: {instructionName}");
-                return null;
+                throw new InvalidOperationException($"[{GetType().Name}] Failed to load instruction: {instructionName}");
             }
 
             var currentActivity = GetCurrentActivity();
