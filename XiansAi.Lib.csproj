@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <IsPackable>true</IsPackable>
     <NuspecFile>XiansAi.Lib.nuspec</NuspecFile>
+    <!-- <GenerateAssemblyInfo>false</GenerateAssemblyInfo> -->
   </PropertyGroup>
 
   <PropertyGroup>
