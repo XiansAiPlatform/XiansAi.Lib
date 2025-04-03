@@ -14,15 +14,30 @@ public interface IFlowRunnerService
         where TFlow : class;
 }
 
+public class FlowRunnerOptions
+{
+    public ILoggerFactory? LoggerFactory { get; set; }
+    public string? PriorityQueue { get; set; }
+}
+
 public class FlowRunnerService : IFlowRunnerService
 {
     private readonly TemporalClientService _temporalClientService;
     private readonly ILogger<FlowRunnerService> _logger;
     private readonly FlowDefinitionUploader _flowDefinitionUploader;
+    private readonly string? _priorityQueue;
 
     public static void SetLoggerFactory(ILoggerFactory loggerFactory)
     {
         Globals.LogFactory = loggerFactory;
+    }
+
+    public FlowRunnerService(FlowRunnerOptions options): this(options.LoggerFactory)
+    {
+        if (options.PriorityQueue != null)
+        {
+            _priorityQueue = options.PriorityQueue;
+        }
     }
 
     public FlowRunnerService(ILoggerFactory? loggerFactory = null)
@@ -136,7 +151,9 @@ public class FlowRunnerService : IFlowRunnerService
         var client = await _temporalClientService.GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
 
-        var options = new TemporalWorkerOptions(taskQueue: workFlowName)
+        var taskQueue = string.IsNullOrEmpty(_priorityQueue) ? workFlowName : _priorityQueue + "--" + workFlowName;
+
+        var options = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
             LoggerFactory = Globals.LogFactory,
         };
