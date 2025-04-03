@@ -3,16 +3,16 @@ using XiansAi.Server;
 
 namespace XiansAi.Activity;
 
-public class ActivityBase: DockerActivity
+public class ActivityBase : DockerActivity
 {
     private readonly ILogger _logger;
     private readonly ObjectCacheManager _cacheManager;
 
-    protected ActivityBase()
+    protected ActivityBase(ObjectCacheManager cacheManager)
     {
         _logger = Globals.LogFactory?.CreateLogger<ActivityBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
-        _cacheManager = new ObjectCacheManager();
+        _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
     }
 
     public ILogger GetLogger()
