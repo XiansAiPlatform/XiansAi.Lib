@@ -314,6 +314,10 @@ public class ActivityBaseTest
     [Fact]
     public async Task ConcurrentCacheReads_ShouldReturnConsistentValues()
     {
+        // Test: Ensures that concurrent reads from the cache return consistent values.
+        // This test simulates multiple concurrent read operations for the same key
+        // and verifies that all reads return the expected value without any inconsistencies.
+
         // Arrange
         var activity = new TestActivity(_mockCacheManager.Object);
         var key = "read_concurrent_key";
@@ -336,6 +340,10 @@ public class ActivityBaseTest
     [Fact]
     public async Task SetCachedValue_ShouldOverwriteExistingValue()
     {
+        // Test: Verifies that setting a new value for an existing key overwrites the previous value.
+        // This test ensures that the cache correctly updates the value associated with a key
+        // when a new value is set, and the old value is no longer retrievable.
+
         // Arrange
         var activity = new TestActivity(_mockCacheManager.Object);
         var key = "overwrite_key";
