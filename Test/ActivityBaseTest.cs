@@ -310,4 +310,51 @@ public class ActivityBaseTest
             Assert.Equal(expectedValue, actualValue);
         }
     }
+
+    [Fact]
+    public async Task ConcurrentCacheReads_ShouldReturnConsistentValues()
+    {
+        // Arrange
+        var activity = new TestActivity(_mockCacheManager.Object);
+        var key = "read_concurrent_key";
+        var value = "consistent_value";
+
+        _mockCacheManager.Setup(m => m.GetValueAsync<string>(key))
+                        .ReturnsAsync(value);
+
+        var tasks = Enumerable.Range(0, 100)
+                            .Select(_ => activity.GetCachedValue<string>(key))
+                            .ToArray();
+
+        // Act
+        var results = await Task.WhenAll(tasks);
+
+        // Assert
+        Assert.All(results, result => Assert.Equal(value, result));
+    }
+
+    [Fact]
+    public async Task SetCachedValue_ShouldOverwriteExistingValue()
+    {
+        // Arrange
+        var activity = new TestActivity(_mockCacheManager.Object);
+        var key = "overwrite_key";
+        var initialValue = "initial_value";
+        var newValue = "new_value";
+
+        _mockCacheManager.Setup(m => m.SetValueAsync(key, initialValue))
+                        .ReturnsAsync(true);
+        _mockCacheManager.Setup(m => m.SetValueAsync(key, newValue))
+                        .ReturnsAsync(true);
+        _mockCacheManager.Setup(m => m.GetValueAsync<string>(key))
+                        .ReturnsAsync(newValue);
+
+        // Act
+        await activity.SetCachedValue(key, initialValue);
+        await activity.SetCachedValue(key, newValue);
+        var result = await activity.GetCachedValue<string>(key);
+
+        // Assert
+        Assert.Equal(newValue, result);
+    }
 }
