@@ -230,6 +230,16 @@ public abstract class FlowBase
         return isInWorkflow;
     }
 
+    private string GetWorkflowPrefixedKey(string key)
+    {
+        var workflowId = Workflow.Info.WorkflowId;
+        if (string.IsNullOrEmpty(workflowId))
+        {
+            throw new InvalidOperationException("WorkflowId is not available in the current context.");
+        }
+        return $"{workflowId}:{key}";
+    }
+
     /// <summary>
     /// Gets a value from the cache for the specified key.
     /// </summary>
@@ -238,8 +248,9 @@ public abstract class FlowBase
     /// <returns>The cached value if found, otherwise null</returns>
     protected async Task<T?> GetCacheValueAsync<T>(string key)
     {
-        _logger.LogInformation("Getting value from cache for key: {Key}", key);
-        return await _cacheManager.GetValueAsync<T>(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key);
+        _logger.LogInformation("Getting value from cache for key: {Key}", prefixedKey);
+        return await _cacheManager.GetValueAsync<T>(prefixedKey);
     }
 
     /// <summary>
@@ -251,8 +262,9 @@ public abstract class FlowBase
     /// <returns>True if the operation was successful, false otherwise</returns>
     protected async Task<bool> SetCacheValueAsync<T>(string key, T value)
     {
-        _logger.LogInformation("Setting value in cache for key: {Key}", key);
-        return await _cacheManager.SetValueAsync(key, value);
+        var prefixedKey = GetWorkflowPrefixedKey(key);
+        _logger.LogInformation("Setting value in cache for key: {Key}", prefixedKey);
+        return await _cacheManager.SetValueAsync(prefixedKey, value);
     }
 
     /// <summary>
@@ -262,8 +274,9 @@ public abstract class FlowBase
     /// <returns>True if the operation was successful, false otherwise</returns>
     protected async Task<bool> DeleteCacheValueAsync(string key)
     {
-        _logger.LogInformation("Deleting value from cache for key: {Key}", key);
-        return await _cacheManager.DeleteValueAsync(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key);
+        _logger.LogInformation("Deleting value from cache for key: {Key}", prefixedKey);
+        return await _cacheManager.DeleteValueAsync(prefixedKey);
     }
 }
 
