@@ -7,14 +7,12 @@ public class ActivityBase : DockerActivity
 {
     private readonly ILogger _logger;
     private readonly ObjectCacheManager _cacheManager;
-    private readonly string? _flowId;
 
     protected ActivityBase()
     {
         _logger = Globals.LogFactory?.CreateLogger<ActivityBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
-        _flowId = this.CreateActivity()?.WorkflowId;
     }
 
     public ILogger GetLogger()
