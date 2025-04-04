@@ -1,3 +1,4 @@
+using System.Reflection;
 using XiansAi.Activity;
 using Xunit;
 using Microsoft.Extensions.Logging;
@@ -10,7 +11,12 @@ public class ActivityBaseTest
 {
     private class TestActivity : ActivityBase
     {
-        public TestActivity(ObjectCacheManager cacheManager) : base(cacheManager) { }
+        public TestActivity(Mock<ObjectCacheManager> mockCacheManager)
+        {
+            // Use reflection to replace the internal _cacheManager with the mock
+            var field = typeof(ActivityBase).GetField("_cacheManager", BindingFlags.NonPublic | BindingFlags.Instance);
+            field?.SetValue(this, mockCacheManager.Object);
+        }
 
         public async Task<T?> GetCachedValue<T>(string key)
         {
@@ -52,7 +58,7 @@ public class ActivityBaseTest
     {
         // Test: Verifies that retrieving a non-existent key from the cache returns null.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "non_existent_key";
 
         _mockCacheManager.Setup(m => m.GetValueAsync<string>(key))
@@ -70,7 +76,7 @@ public class ActivityBaseTest
     {
         // Test: Ensures that a value can be set and retrieved correctly from the cache.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "test_key";
         var value = "test_value";
 
@@ -96,7 +102,7 @@ public class ActivityBaseTest
     {
         // Test: Confirms that deleting a value from the cache removes it successfully.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "test_key";
         var value = "test_value";
 
@@ -131,7 +137,7 @@ public class ActivityBaseTest
     {
         // Test: Checks that the GetLogger method returns a valid ILogger instance.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
 
         // Act
         var logger = activity.GetTestLogger();
@@ -146,7 +152,7 @@ public class ActivityBaseTest
     {
         // Test: Validates that the cache can handle various data types (string, int, bool, DateTime).
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
 
         _mockCacheManager.Setup(m => m.SetValueAsync(It.IsAny<string>(), It.IsAny<object>()))
                          .ReturnsAsync(true);
@@ -183,7 +189,7 @@ public class ActivityBaseTest
     {
         // Test: Ensures that the cache can handle null values correctly.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "null_value_key";
 
         _mockCacheManager.Setup(m => m.SetValueAsync<string>(key, null))
@@ -206,7 +212,7 @@ public class ActivityBaseTest
     {
         // Test: Verifies that the cache can handle empty string keys.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var emptyKey = "";
         var value = "test_value";
 
@@ -230,8 +236,8 @@ public class ActivityBaseTest
     {
         // Test: Confirms that keys with special characters can be used in the cache.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
-        var specialKey = "test!@#$%^&*()_+-=[]{}|;:'\",.<>?/\\";
+        var activity = new TestActivity(_mockCacheManager);
+        var specialKey = "test!@#$%^&*()_+-=[]{}|;:'\",.<>?/\\"; 
         var value = "test_value";
 
         _mockCacheManager.Setup(m => m.SetValueAsync(specialKey, value))
@@ -254,7 +260,7 @@ public class ActivityBaseTest
     {
         // Test: Ensures that the cache can handle large values (e.g., 10KB strings).
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "long_value_key";
         var longValue = new string('a', 10000); // 10KB string
 
@@ -278,7 +284,7 @@ public class ActivityBaseTest
     {
         // Test: Validates that concurrent cache operations work without conflicts or data corruption.
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var keyPrefix = "concurrent_key_";
         var valuePrefix = "concurrent_value_";
 
@@ -319,7 +325,7 @@ public class ActivityBaseTest
         // and verifies that all reads return the expected value without any inconsistencies.
 
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "read_concurrent_key";
         var value = "consistent_value";
 
@@ -345,7 +351,7 @@ public class ActivityBaseTest
         // when a new value is set, and the old value is no longer retrievable.
 
         // Arrange
-        var activity = new TestActivity(_mockCacheManager.Object);
+        var activity = new TestActivity(_mockCacheManager);
         var key = "overwrite_key";
         var initialValue = "initial_value";
         var newValue = "new_value";

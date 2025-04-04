@@ -102,7 +102,7 @@ public class AbstractActivity
         }
     }
 
-    private FlowActivity CreateActivity()
+    protected FlowActivity CreateActivity()
     {
         if (ActivityExecutionContext.Current == null)
         {
