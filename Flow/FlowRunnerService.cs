@@ -168,7 +168,7 @@ public class FlowRunnerService : IFlowRunnerService
             client,
             options
         );
-        _logger.LogInformation("Worker process to run flow `{FlowName}` is successfully created. Ready to run flow tasks!", workFlowName);
+        _logger.LogInformation("Worker to run `{FlowName}` on queue `{Queue}` created. Ready to run!", workFlowName, taskQueue);
         await worker.ExecuteAsync(cancellationToken);
     }
 }
