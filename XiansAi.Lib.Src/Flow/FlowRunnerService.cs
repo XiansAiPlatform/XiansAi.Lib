@@ -48,7 +48,7 @@ public class FlowRunnerService : IFlowRunnerService
         }
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
         _temporalClientService = new TemporalClientService();
-        _flowDefinitionUploader = new FlowDefinitionUploader();
+        _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
 
         if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
         {
