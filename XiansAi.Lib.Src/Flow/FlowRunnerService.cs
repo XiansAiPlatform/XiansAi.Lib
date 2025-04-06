@@ -48,7 +48,6 @@ public class FlowRunnerService : IFlowRunnerService
         }
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
         _temporalClientService = new TemporalClientService();
-        _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
 
         if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
         {
@@ -58,6 +57,8 @@ public class FlowRunnerService : IFlowRunnerService
                 PlatformConfig.APP_SERVER_URL
             );
         }
+        _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
+
         else
         {
             _logger.LogError("App server connection failed because of missing configuration");
