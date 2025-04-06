@@ -4,7 +4,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using XiansAi.Http;
 using XiansAi.Models;
-using System.Text.RegularExpressions;
 
 namespace XiansAi.Server;
 
@@ -97,7 +96,7 @@ public class InstructionLoader
 
     private string BuildServerUrl(string instructionNameOnly)
     {
-        return "api/server/instructions/latest?name=" + UrlEncoder.Default.Encode(instructionNameOnly);
+        return "api/agent/knowledge/latest?name=" + UrlEncoder.Default.Encode(instructionNameOnly);
     }
 
     private async Task<Instruction> ParseServerResponse(HttpResponseMessage httpResult)

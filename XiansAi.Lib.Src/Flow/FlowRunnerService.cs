@@ -32,15 +32,15 @@ public class FlowRunnerService : IFlowRunnerService
         Globals.LogFactory = loggerFactory;
     }
 
-    public FlowRunnerService(FlowRunnerOptions options): this(options.LoggerFactory)
+    public FlowRunnerService(FlowRunnerOptions? options = null): this(options?.LoggerFactory)
     {
-        if (options.PriorityQueue != null)
+        if (options?.PriorityQueue != null)
         {
             _priorityQueue = options.PriorityQueue;
         }
     }
 
-    public FlowRunnerService(ILoggerFactory? loggerFactory = null)
+    private FlowRunnerService(ILoggerFactory? loggerFactory = null)
     {
         if (loggerFactory != null)
         {
@@ -50,24 +50,7 @@ public class FlowRunnerService : IFlowRunnerService
         _temporalClientService = new TemporalClientService();
         _flowDefinitionUploader = new FlowDefinitionUploader();
 
-        if (PlatformConfig.APP_SERVER_CERT_PWD != null)
-        {
-            if (PlatformConfig.APP_SERVER_CERT_PATH != null && PlatformConfig.APP_SERVER_URL != null)
-            {
-                _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-                SecureApi.Initialize(
-                    PlatformConfig.APP_SERVER_CERT_PATH,
-                    PlatformConfig.APP_SERVER_URL,
-                    PlatformConfig.APP_SERVER_CERT_PWD
-                );
-
-            }
-            else
-            {
-                _logger.LogError("App server connection failed because of missing configuration");
-            }
-        }
-        else if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
+        if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
         {
             _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
             SecureApi.Initialize(
@@ -98,15 +81,8 @@ public class FlowRunnerService : IFlowRunnerService
         _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
         SecureApi? secureApi = null;
 
-        if (PlatformConfig.APP_SERVER_CERT_PWD != null)
-        {
-            secureApi = SecureApi.Initialize(
-                PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"),
-                PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set"),
-                PlatformConfig.APP_SERVER_CERT_PWD
-            );
-        }
-        else if (PlatformConfig.APP_SERVER_API_KEY != null)
+
+        if (PlatformConfig.APP_SERVER_API_KEY != null)
         {
             secureApi = SecureApi.Initialize(
                 PlatformConfig.APP_SERVER_API_KEY,
@@ -116,6 +92,7 @@ public class FlowRunnerService : IFlowRunnerService
         else
         {
             _logger.LogError("App server connection failed because of missing configuration");
+            throw new InvalidOperationException("App server connection failed because of missing configuration");
         }
 
         if (secureApi == null)

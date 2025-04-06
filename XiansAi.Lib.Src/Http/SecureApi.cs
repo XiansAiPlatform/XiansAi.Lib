@@ -11,30 +11,17 @@ public class SecureApi
     private static readonly object _lock = new object();
     private readonly ILogger _logger;
 
-    private SecureApi(string certPath, string serverUrl, string? certPassword)
+    private SecureApi(string certPath, string serverUrl)
     {
         _client = new HttpClient();
         _client.BaseAddress = new Uri(serverUrl);
         _logger = Globals.LogFactory.CreateLogger<SecureApi>();
 
-
         // Load the certificate based on whether password is provided (pfx) or not (pem)
-        if (!string.IsNullOrEmpty(certPassword))
-        {
-            _logger.LogInformation("Loading .pfx file with password");
-            // Handle .pfx file with password
-            #pragma warning disable SYSLIB0057 // Type or member is obsolete
-            _clientCertificate = new X509Certificate2(certPath, certPassword);
-            #pragma warning restore SYSLIB0057 // Type or member is obsolete
-        }
-        else
-        {
-            _logger.LogInformation("Loading .pem file without password");
-            var pemBytes = Convert.FromBase64String(certPath);
-            #pragma warning disable SYSLIB0057 // Type or member is obsolete    
-            _clientCertificate = new X509Certificate2(pemBytes);
-            #pragma warning restore SYSLIB0057 // Type or member is obsolete
-        }
+        var pemBytes = Convert.FromBase64String(certPath);
+        #pragma warning disable SYSLIB0057 // Type or member is obsolete    
+        _clientCertificate = new X509Certificate2(pemBytes);
+        #pragma warning restore SYSLIB0057 // Type or member is obsolete
 
         // Export and add certificate to headers regardless of type
         var certBytes = _clientCertificate.Export(X509ContentType.Cert);
@@ -42,13 +29,13 @@ public class SecureApi
         _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {certBase64}");
     }
 
-    public static SecureApi Initialize(string certPath, string serverUrl, string? certPassword = null)
+    public static SecureApi Initialize(string certPath, string serverUrl)
     {
         if (_instance == null)
         {
             lock (_lock)
             {
-                _instance ??= new SecureApi(certPath, serverUrl, certPassword);
+                _instance ??= new SecureApi(certPath, serverUrl);
             }
         }
         return _instance;
