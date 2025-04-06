@@ -40,7 +40,7 @@ public class FlowDefinitionUploader
             try
             {
                 HttpClient client = SecureApi.GetClient();
-                var response = await client.PostAsync("api/server/definitions", JsonContent.Create(flowDefinition));
+                var response = await client.PostAsync("api/agent/definitions", JsonContent.Create(flowDefinition));
                 
                 if (response.StatusCode == HttpStatusCode.BadRequest)
                 {

@@ -21,7 +21,7 @@ public class ActivityUploaderTest
     [Fact]
     public async Task TestUploadActivity()
     {
-        var activity = new FlowActivity {
+        var activity = new FlowActivityHistory {
             ActivityId = "125",
             ActivityName = "TestActivity",
             StartedTime = DateTime.UtcNow,
@@ -39,7 +39,8 @@ public class ActivityUploaderTest
             WorkflowType = "TestWorkflow",
             TaskQueue = "TestQueue",
             AgentToolNames = new List<string> { "flowmaxer/scraper-agent", "flowmaxer/search-agent" },
-            InstructionIds = new List<string> { "1", "2", "3" }
+            InstructionIds = new List<string> { "1", "2", "3" },
+            WorkflowNamespace = "TestNamespace"
         };
         
         var uploader = new ActivityUploader();

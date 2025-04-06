@@ -9,35 +9,11 @@ public class SecureApiTests
     private readonly string _testCertPassword = "test";
 
 
-
-    /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.Constructor_ValidCertificate_CreatesClientWithCertificate"
-    */
-    [Fact]
-    public async Task Constructor_ValidCertificate_CreatesClientWithCertificate()
-    {
-        // Arrange
-        var url = "api/server/debug/certificate";
-
-        // Act
-        SecureApi.Initialize(_testCertPath, _testCertPassword, "http://localhost:5257");
-        var client = SecureApi.GetClient();
-
-        // Assert
-        Assert.NotNull(client);
-
-        var response = await client.GetAsync(url);
-        var content = await response.Content.ReadAsStringAsync();
-        Console.WriteLine(content);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-
     /*
     dotnet test --filter "FullyQualifiedName~SecureApiTests.GetLatestInstruction"
     */
     [Fact]
-    public async Task GetLatestInstruction()
+    public async Task GetLatestKnowledge()
     {
         // Arrange
         SecureApi.Initialize(_testCertPath, _testCertPassword, "http://localhost:5257");
@@ -46,7 +22,7 @@ public class SecureApiTests
         // Act
         var name = "HowToIdentifyProductCompanies";
         var encodedName = WebUtility.UrlEncode(name);
-        var url = $"api/server/instructions/latest?name={encodedName}";   
+        var url = $"api/agent/knowledge/latest?name={encodedName}";   
         Console.WriteLine( "url: " + url);
         var response = await client.GetAsync(url);
         //var content = await response.Content.ReadAsStringAsync();

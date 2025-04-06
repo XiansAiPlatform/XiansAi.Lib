@@ -39,7 +39,7 @@ public class SecureApi
         // Export and add certificate to headers regardless of type
         var certBytes = _clientCertificate.Export(X509ContentType.Cert);
         var certBase64 = Convert.ToBase64String(certBytes);
-        _client.DefaultRequestHeaders.Add("X-Client-Cert", certBase64);
+        _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {certBase64}");
     }
 
     public static SecureApi Initialize(string certPath, string serverUrl, string? certPassword = null)

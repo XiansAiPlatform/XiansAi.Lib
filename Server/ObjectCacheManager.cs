@@ -26,7 +26,7 @@ public class ObjectCacheManager
         {
             HttpClient client = SecureApi.GetClient();
             var request = new CacheKeyRequest { Key = key };
-            var response = await client.PostAsJsonAsync("api/client/cache/get", request);
+            var response = await client.PostAsJsonAsync("api/agent/cache/get", request);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<T>();
@@ -58,7 +58,7 @@ public class ObjectCacheManager
                 SlidingExpirationMinutes = options?.SlidingExpirationMinutes
             };
             
-            var response = await client.PostAsJsonAsync("api/client/cache/set", request);
+            var response = await client.PostAsJsonAsync("api/agent/cache/set", request);
             response.EnsureSuccessStatusCode();
             
             return true;
@@ -83,7 +83,7 @@ public class ObjectCacheManager
         {
             HttpClient client = SecureApi.GetClient();
             var request = new CacheKeyRequest { Key = key };
-            var response = await client.PostAsJsonAsync("api/client/cache/delete", request);
+            var response = await client.PostAsJsonAsync("api/agent/cache/delete", request);
             response.EnsureSuccessStatusCode();
             
             return true;

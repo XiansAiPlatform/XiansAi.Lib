@@ -37,7 +37,7 @@ public abstract class AgentToolActivity : InstructionActivity
         return agentTools;
     }
 
-    public override FlowActivity? GetCurrentActivity()
+    public override FlowActivityHistory? GetCurrentActivity()
     {
         var activity = base.GetCurrentActivity();
         if (activity != null) {

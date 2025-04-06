@@ -14,14 +14,14 @@ public class ActivityUploader
         _logger = Globals.LogFactory.CreateLogger<ActivityUploader>();
     }
 
-    public async Task UploadActivity(FlowActivity activity)
+    public async Task UploadActivity(FlowActivityHistory activityHistory)
     {
-        _logger.LogInformation("Uploading activity to server: {activity}", activity);
+        _logger.LogInformation("Uploading activity to server: {activity}", activityHistory);
         if (SecureApi.IsReady())
         {
             HttpClient client = SecureApi.GetClient();
 
-            var response = await client.PostAsync("api/server/activities", JsonContent.Create(activity));
+            var response = await client.PostAsync("api/agent/activity-history", JsonContent.Create(activityHistory));
             response.EnsureSuccessStatusCode();
         }
         else
