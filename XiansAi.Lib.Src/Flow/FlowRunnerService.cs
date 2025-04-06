@@ -24,7 +24,7 @@ public class FlowRunnerService : IFlowRunnerService
 {
     private readonly TemporalClientService _temporalClientService;
     private readonly ILogger<FlowRunnerService> _logger;
-    private readonly FlowDefinitionUploader _flowDefinitionUploader;
+    private readonly FlowDefinitionUploader? _flowDefinitionUploader;
     private readonly string? _priorityQueue;
 
     public static void SetLoggerFactory(ILoggerFactory loggerFactory)
@@ -56,9 +56,8 @@ public class FlowRunnerService : IFlowRunnerService
                 PlatformConfig.APP_SERVER_API_KEY,
                 PlatformConfig.APP_SERVER_URL
             );
+            _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
         }
-        _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
-
         else
         {
             _logger.LogError("App server connection failed because of missing configuration");
@@ -122,6 +121,11 @@ public class FlowRunnerService : IFlowRunnerService
     public async Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken = default)
         where TFlow : class
     {
+        if (_flowDefinitionUploader == null)
+        {
+            throw new InvalidOperationException("Flow definition uploader is not initialized");
+        }
+
         // Upload the flow definition to the server
         await _flowDefinitionUploader.UploadFlowDefinition(flow);
 
