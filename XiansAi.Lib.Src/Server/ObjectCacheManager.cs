@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
-using XiansAi.Http;
+using Server.Http;
 
-namespace XiansAi.Server;
+namespace Server;
 
 public class ObjectCacheManager
 {

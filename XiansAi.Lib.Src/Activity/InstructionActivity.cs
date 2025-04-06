@@ -1,7 +1,8 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualBasic;
-using XiansAi.Server;
+using Server.Http;
+using Server;
 
 namespace XiansAi.Activity;
 
@@ -61,7 +62,7 @@ public abstract class InstructionActivity : AbstractActivity
     protected async Task<Instruction> LoadInstruction(int index = 1)
     {
         var instructionName = FindInstructionName(index);
-        var instruction = await new InstructionLoader().Load(instructionName);
+        var instruction = await new InstructionLoader(Globals.LogFactory, SecureApi.Instance).Load(instructionName);
         if (instruction == null)
         {
             _logger.LogError($"[{GetType().Name}] Failed to load instruction: {instructionName}");
@@ -166,7 +167,7 @@ public abstract class InstructionActivity : AbstractActivity
     {
         try
         {
-            var instruction = await new InstructionLoader().Load(instructionName);
+            var instruction = await new InstructionLoader(Globals.LogFactory, SecureApi.Instance).Load(instructionName);
 
             if (instruction == null)
             {

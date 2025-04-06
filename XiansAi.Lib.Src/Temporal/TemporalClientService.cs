@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using XiansAi.Flow;
 
-namespace XiansAi.Temporal;
+namespace Temporal;
 
 public interface ITemporalClientService
 {

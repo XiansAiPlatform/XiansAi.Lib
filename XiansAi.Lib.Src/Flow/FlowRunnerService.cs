@@ -2,9 +2,9 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Temporalio.Workflows;
-using XiansAi.Http;
-using XiansAi.Temporal;
-using XiansAi.Server;
+using Server.Http;
+using Server;
+using Temporal;
 
 namespace XiansAi.Flow;
 

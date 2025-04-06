@@ -4,10 +4,10 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using XiansAi.Activity;
 using XiansAi.Flow;
-using XiansAi.Http;
+using Server.Http;
 using XiansAi.Models;
 
-namespace XiansAi.Server;
+namespace Server;
 
 public class FlowDefinitionUploader
 {

@@ -1,8 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
-using System.Text.Json;
-using XiansAi.Server;
+using Server;
 
 namespace XiansAi.Activity;
 

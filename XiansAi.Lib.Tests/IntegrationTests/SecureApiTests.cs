@@ -1,12 +1,9 @@
 using Microsoft.Extensions.Logging;
-using XiansAi.Http;
+using Server.Http;
 using DotNetEnv;
-using Moq;
 using System.Reflection;
-using System.Net;
-using Microsoft.Extensions.Logging.Console;
 
-namespace XiansAi.Lib.Tests;
+namespace XiansAi.Lib.Tests.IntegrationTests;
 
 public class SecureApiTests : IDisposable
 {
@@ -33,7 +30,7 @@ public class SecureApiTests : IDisposable
     }
 
     /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.InitializeClient_ShouldReturnHttpClient_WhenValidParametersProvided"
+    dotnet test --filter "FullyQualifiedName~SecureApiTests.IntegrationTests.InitializeClient_ShouldReturnHttpClient_WhenValidParametersProvided"
     */
     [Fact]
     public void InitializeClient_ShouldReturnHttpClient_WhenValidParametersProvided()
@@ -48,7 +45,7 @@ public class SecureApiTests : IDisposable
     }
 
     /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.Instance_ShouldReturnInitializedClient_AfterInitialization"
+    dotnet test --filter "FullyQualifiedName~SecureApiTests.IntegrationTests.Instance_ShouldReturnInitializedClient_AfterInitialization"
     */
     [Fact]
     public void Instance_ShouldReturnInitializedClient_AfterInitialization()
@@ -66,7 +63,7 @@ public class SecureApiTests : IDisposable
     }
 
     /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.InitializeClient_ShouldThrowException_WhenCertificateIsEmpty"
+    dotnet test --filter "FullyQualifiedName~SecureApiTests.IntegrationTests.InitializeClient_ShouldThrowException_WhenCertificateIsEmpty"
     */
     [Fact]
     public void InitializeClient_ShouldThrowException_WhenCertificateIsEmpty()
@@ -76,7 +73,7 @@ public class SecureApiTests : IDisposable
     }
 
     /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.InitializeClient_ShouldThrowException_WhenServerUrlIsEmpty"
+    dotnet test --filter "FullyQualifiedName~SecureApiTests.IntegrationTests.InitializeClient_ShouldThrowException_WhenServerUrlIsEmpty"
     */
     [Fact]
     public void InitializeClient_ShouldThrowException_WhenServerUrlIsEmpty()
@@ -86,7 +83,7 @@ public class SecureApiTests : IDisposable
     }
 
     /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.GetAgentInfo_ShouldReturnInfo_WhenEndpointCalled"
+    dotnet test --filter "FullyQualifiedName~SecureApiTests.IntegrationTests.GetAgentInfo_ShouldReturnInfo_WhenEndpointCalled"
     */
     [Fact]
     public async Task GetAgentInfo_ShouldReturnInfo_WhenEndpointCalled()
