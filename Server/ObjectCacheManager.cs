@@ -25,7 +25,8 @@ public class ObjectCacheManager
         try
         {
             HttpClient client = SecureApi.GetClient();
-            var response = await client.GetAsync($"api/client/cache/{key}");
+            var request = new CacheKeyRequest { Key = key };
+            var response = await client.PostAsJsonAsync("api/client/cache/get", request);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<T>();
@@ -37,7 +38,7 @@ public class ObjectCacheManager
         }
     }
 
-    public async Task<bool> SetValueAsync<T>(string key, T value)
+    public async Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null)
     {
         _logger.LogInformation("Setting value in cache for key: {Key}", key);
         if (!SecureApi.IsReady())
@@ -49,7 +50,15 @@ public class ObjectCacheManager
         try
         {
             HttpClient client = SecureApi.GetClient();
-            var response = await client.PostAsync($"api/client/cache/{key}", JsonContent.Create(value));
+            var request = new CacheSetRequest 
+            { 
+                Key = key, 
+                Value = value,
+                RelativeExpirationMinutes = options?.RelativeExpirationMinutes,
+                SlidingExpirationMinutes = options?.SlidingExpirationMinutes
+            };
+            
+            var response = await client.PostAsJsonAsync("api/client/cache/set", request);
             response.EnsureSuccessStatusCode();
             
             return true;
@@ -73,7 +82,8 @@ public class ObjectCacheManager
         try
         {
             HttpClient client = SecureApi.GetClient();
-            var response = await client.DeleteAsync($"api/client/cache/{key}");
+            var request = new CacheKeyRequest { Key = key };
+            var response = await client.PostAsJsonAsync("api/client/cache/delete", request);
             response.EnsureSuccessStatusCode();
             
             return true;
@@ -84,4 +94,23 @@ public class ObjectCacheManager
             return false;
         }
     }
+}
+
+public class CacheKeyRequest
+{
+    public string Key { get; set; } = string.Empty;
+}
+
+public class CacheSetRequest
+{
+    public string Key { get; set; } = string.Empty;
+    public object? Value { get; set; }
+    public int? RelativeExpirationMinutes { get; set; }
+    public int? SlidingExpirationMinutes { get; set; }
+}
+
+public class CacheOptions
+{
+    public int? RelativeExpirationMinutes { get; set; }
+    public int? SlidingExpirationMinutes { get; set; }
 } 
