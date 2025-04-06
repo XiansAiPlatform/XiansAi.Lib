@@ -17,9 +17,9 @@ public class ActivityUploader
     public async Task UploadActivity(FlowActivityHistory activityHistory)
     {
         _logger.LogInformation("Uploading activity to server: {activity}", activityHistory);
-        if (SecureApi.IsReady())
+        if (SecureApi.Instance.IsReady)
         {
-            HttpClient client = SecureApi.GetClient();
+            var client = SecureApi.Instance.Client;
 
             var response = await client.PostAsync("api/agent/activity-history", JsonContent.Create(activityHistory));
             response.EnsureSuccessStatusCode();

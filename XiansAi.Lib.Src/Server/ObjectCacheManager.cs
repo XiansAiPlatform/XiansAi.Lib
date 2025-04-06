@@ -16,7 +16,7 @@ public class ObjectCacheManager
     public async Task<T?> GetValueAsync<T>(string key)
     {
         _logger.LogInformation("Getting value from cache for key: {Key}", key);
-        if (!SecureApi.IsReady())
+        if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache get operation");
             return default;
@@ -24,7 +24,7 @@ public class ObjectCacheManager
 
         try
         {
-            HttpClient client = SecureApi.GetClient();
+            var client = SecureApi.Instance.Client;
             var request = new CacheKeyRequest { Key = key };
             var response = await client.PostAsJsonAsync("api/agent/cache/get", request);
             response.EnsureSuccessStatusCode();
@@ -41,7 +41,7 @@ public class ObjectCacheManager
     public async Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null)
     {
         _logger.LogInformation("Setting value in cache for key: {Key}", key);
-        if (!SecureApi.IsReady())
+        if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache set operation");
             return false;
@@ -49,7 +49,7 @@ public class ObjectCacheManager
 
         try
         {
-            HttpClient client = SecureApi.GetClient();
+            var client = SecureApi.Instance.Client;
             var request = new CacheSetRequest 
             { 
                 Key = key, 
@@ -73,7 +73,7 @@ public class ObjectCacheManager
     public async Task<bool> DeleteValueAsync(string key)
     {
         _logger.LogInformation("Deleting value from cache for key: {Key}", key);
-        if (!SecureApi.IsReady())
+        if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache delete operation");
             return false;
@@ -81,7 +81,7 @@ public class ObjectCacheManager
 
         try
         {
-            HttpClient client = SecureApi.GetClient();
+            var client = SecureApi.Instance.Client;
             var request = new CacheKeyRequest { Key = key };
             var response = await client.PostAsJsonAsync("api/agent/cache/delete", request);
             response.EnsureSuccessStatusCode();

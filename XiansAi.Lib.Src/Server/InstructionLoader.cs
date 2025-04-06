@@ -60,7 +60,7 @@ public class InstructionLoader
     public async Task<Instruction?> Load(string instructionName)
     {
 
-        if (!SecureApi.IsReady()) { 
+        if (!SecureApi.Instance.IsReady) { 
             _logger.LogWarning("App server connection is not established, loading instruction locally");
             return await LoadFromLocal(instructionName);
         } else {
@@ -73,7 +73,7 @@ public class InstructionLoader
         var url = BuildServerUrl(instructionName);
         
         try {
-            var client = SecureApi.GetClient();
+            var client = SecureApi.Instance.Client;
             var httpResult = await client.GetAsync(url);
 
             if (httpResult.StatusCode == HttpStatusCode.NotFound) {

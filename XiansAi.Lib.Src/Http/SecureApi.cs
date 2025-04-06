@@ -1,57 +1,88 @@
+using System;
+using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace XiansAi.Http;
-public class SecureApi
+
+public interface ISecureApiClient
+{
+    HttpClient Client { get; }
+    bool IsReady { get; }
+}
+
+public class SecureApi : ISecureApiClient, IDisposable
 {
     private readonly HttpClient _client;
     private readonly X509Certificate2 _clientCertificate;
-    private static SecureApi? _instance;
-    private static readonly object _lock = new object();
-    private readonly ILogger _logger;
+    private readonly ILogger<SecureApi> _logger;
+    private bool _disposed;
+    
+    private static Lazy<SecureApi> _instance = new Lazy<SecureApi>(
+        () => throw new InvalidOperationException("SecureApi must be initialized before use"));
 
-    private SecureApi(string certPath, string serverUrl)
+    public HttpClient Client => _client;
+    public static ISecureApiClient Instance => _instance.Value;
+
+    private SecureApi(string certificateBase64, string serverUrl, ILogger<SecureApi> logger)
     {
-        _client = new HttpClient();
-        _client.BaseAddress = new Uri(serverUrl);
-        _logger = Globals.LogFactory.CreateLogger<SecureApi>();
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        
+        if (string.IsNullOrEmpty(certificateBase64))
+            throw new ArgumentNullException(nameof(certificateBase64));
+            
+        if (string.IsNullOrEmpty(serverUrl))
+            throw new ArgumentNullException(nameof(serverUrl));
 
-        // Load the certificate based on whether password is provided (pfx) or not (pem)
-        var pemBytes = Convert.FromBase64String(certPath);
-        #pragma warning disable SYSLIB0057 // Type or member is obsolete    
-        _clientCertificate = new X509Certificate2(pemBytes);
-        #pragma warning restore SYSLIB0057 // Type or member is obsolete
+        _client = new HttpClient { BaseAddress = new Uri(serverUrl) };
 
-        // Export and add certificate to headers regardless of type
-        var certBytes = _clientCertificate.Export(X509ContentType.Cert);
-        var certBase64 = Convert.ToBase64String(certBytes);
-        _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {certBase64}");
-    }
-
-    public static SecureApi Initialize(string certPath, string serverUrl)
-    {
-        if (_instance == null)
+        try
         {
-            lock (_lock)
-            {
-                _instance ??= new SecureApi(certPath, serverUrl);
-            }
-        }
-        return _instance;
-    }
+            var certificateBytes = Convert.FromBase64String(certificateBase64);
+            #pragma warning disable SYSLIB0057
+            _clientCertificate = new X509Certificate2(certificateBytes);
+            #pragma warning restore SYSLIB0057
 
-    public static HttpClient GetClient()
-    {
-        if (_instance == null)
+            var exportedCertBytes = _clientCertificate.Export(X509ContentType.Cert);
+            var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
+            _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
+            
+            _logger.LogInformation("SecureApi initialized successfully");
+        }
+        catch (Exception ex)
         {
-            throw new InvalidOperationException("SecureApi must be initialized before getting client");
+            _logger.LogError(ex, "Failed to initialize SecureApi");
+            throw;
         }
-        return _instance._client;
     }
 
-    public static bool IsReady()
+    public bool IsReady => _client != null;
+
+    public static HttpClient InitializeClient(string certificateBase64, string serverUrl)
     {
-        return _instance != null;
+        var logger = Globals.LogFactory.CreateLogger<SecureApi>();
+        _instance = new Lazy<SecureApi>(() => new SecureApi(certificateBase64, serverUrl, logger));
+        return _instance.Value.Client;
     }
-}
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+
+        if (disposing)
+        {
+            _client?.Dispose();
+            _clientCertificate?.Dispose();
+        }
+
+        _disposed = true;
+    }
+
+    ~SecureApi() => Dispose(false);
+} 

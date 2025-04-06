@@ -35,11 +35,11 @@ public class FlowDefinitionUploader
 
     private async Task Upload(FlowDefinition flowDefinition)
     {
-        if (SecureApi.IsReady())
+        if (SecureApi.Instance.IsReady)
         {
             try
             {
-                HttpClient client = SecureApi.GetClient();
+                var client = SecureApi.Instance.Client;
                 var response = await client.PostAsync("api/agent/definitions", JsonContent.Create(flowDefinition));
                 
                 if (response.StatusCode == HttpStatusCode.BadRequest)

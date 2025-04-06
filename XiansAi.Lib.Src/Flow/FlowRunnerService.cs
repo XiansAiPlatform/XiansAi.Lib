@@ -53,7 +53,7 @@ public class FlowRunnerService : IFlowRunnerService
         if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
         {
             _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-            SecureApi.Initialize(
+            SecureApi.InitializeClient(
                 PlatformConfig.APP_SERVER_API_KEY,
                 PlatformConfig.APP_SERVER_URL
             );
@@ -79,12 +79,12 @@ public class FlowRunnerService : IFlowRunnerService
         }
 
         _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-        SecureApi? secureApi = null;
+        HttpClient? client = null;
 
 
         if (PlatformConfig.APP_SERVER_API_KEY != null)
         {
-            secureApi = SecureApi.Initialize(
+            client = SecureApi.InitializeClient(
                 PlatformConfig.APP_SERVER_API_KEY,
                 PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
             );
@@ -95,7 +95,7 @@ public class FlowRunnerService : IFlowRunnerService
             throw new InvalidOperationException("App server connection failed because of missing configuration");
         }
 
-        if (secureApi == null)
+        if (client == null)
         {
             _logger.LogError("App server connection failed");
             return;
