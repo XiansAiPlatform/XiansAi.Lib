@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Temporalio.Workflows;
 using XiansAi.Flow;
-using XiansAi.Temporal;
+using Temporal;
 
 namespace XiansAi.Flow
 {

@@ -2,9 +2,9 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Temporalio.Workflows;
-using XiansAi.Http;
-using XiansAi.Temporal;
-using XiansAi.Server;
+using Server.Http;
+using Server;
+using Temporal;
 
 namespace XiansAi.Flow;
 
@@ -14,11 +14,18 @@ public interface IFlowRunnerService
         where TFlow : class;
 }
 
+public class FlowRunnerOptions
+{
+    public ILoggerFactory? LoggerFactory { get; set; }
+    public string? PriorityQueue { get; set; }
+}
+
 public class FlowRunnerService : IFlowRunnerService
 {
     private readonly TemporalClientService _temporalClientService;
     private readonly ILogger<FlowRunnerService> _logger;
-    private readonly FlowDefinitionUploader _flowDefinitionUploader;
+    private readonly FlowDefinitionUploader? _flowDefinitionUploader;
+    private readonly string? _priorityQueue;
 
     public static void SetLoggerFactory(ILoggerFactory loggerFactory)
     {
@@ -28,7 +35,15 @@ public class FlowRunnerService : IFlowRunnerService
         }
     }
 
-    public FlowRunnerService(ILoggerFactory? loggerFactory = null)
+    public FlowRunnerService(FlowRunnerOptions? options = null): this(options?.LoggerFactory)
+    {
+        if (options?.PriorityQueue != null)
+        {
+            _priorityQueue = options.PriorityQueue;
+        }
+    }
+
+    private FlowRunnerService(ILoggerFactory? loggerFactory = null)
     {
         if (loggerFactory != null)
         {
@@ -36,32 +51,15 @@ public class FlowRunnerService : IFlowRunnerService
         }
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
         _temporalClientService = new TemporalClientService();
-        _flowDefinitionUploader = new FlowDefinitionUploader();
 
-        if (PlatformConfig.APP_SERVER_CERT_PWD != null)
-        {
-            if (PlatformConfig.APP_SERVER_CERT_PATH != null && PlatformConfig.APP_SERVER_URL != null)
-            {
-                _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-                SecureApi.Initialize(
-                    PlatformConfig.APP_SERVER_CERT_PATH,
-                    PlatformConfig.APP_SERVER_URL,
-                    PlatformConfig.APP_SERVER_CERT_PWD
-                );
-
-            }
-            else
-            {
-                _logger.LogError("App server connection failed because of missing configuration");
-            }
-        }
-        else if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
+        if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
         {
             _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-            SecureApi.Initialize(
+            SecureApi.InitializeClient(
                 PlatformConfig.APP_SERVER_API_KEY,
                 PlatformConfig.APP_SERVER_URL
             );
+            _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
         }
         else
         {
@@ -84,19 +82,12 @@ public class FlowRunnerService : IFlowRunnerService
         }
 
         _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-        SecureApi? secureApi = null;
+        HttpClient? client = null;
 
-        if (PlatformConfig.APP_SERVER_CERT_PWD != null)
+
+        if (PlatformConfig.APP_SERVER_API_KEY != null)
         {
-            secureApi = SecureApi.Initialize(
-                PlatformConfig.APP_SERVER_CERT_PATH ?? throw new InvalidOperationException("APP_SERVER_CERT_PATH is not set"),
-                PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set"),
-                PlatformConfig.APP_SERVER_CERT_PWD
-            );
-        }
-        else if (PlatformConfig.APP_SERVER_API_KEY != null)
-        {
-            secureApi = SecureApi.Initialize(
+            client = SecureApi.InitializeClient(
                 PlatformConfig.APP_SERVER_API_KEY,
                 PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
             );
@@ -104,9 +95,10 @@ public class FlowRunnerService : IFlowRunnerService
         else
         {
             _logger.LogError("App server connection failed because of missing configuration");
+            throw new InvalidOperationException("App server connection failed because of missing configuration");
         }
 
-        if (secureApi == null)
+        if (client == null)
         {
             _logger.LogError("App server connection failed");
             return;
@@ -132,6 +124,11 @@ public class FlowRunnerService : IFlowRunnerService
     public async Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken = default)
         where TFlow : class
     {
+        if (_flowDefinitionUploader == null)
+        {
+            throw new InvalidOperationException("Flow definition uploader is not initialized");
+        }
+
         // Upload the flow definition to the server
         await _flowDefinitionUploader.UploadFlowDefinition(flow);
 
@@ -139,7 +136,9 @@ public class FlowRunnerService : IFlowRunnerService
         var client = await _temporalClientService.GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
 
-        var options = new TemporalWorkerOptions(taskQueue: workFlowName)
+        var taskQueue = string.IsNullOrEmpty(_priorityQueue) ? workFlowName : _priorityQueue + "--" + workFlowName;
+
+        var options = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
             LoggerFactory = Globals.LogFactory,
         };
@@ -154,7 +153,7 @@ public class FlowRunnerService : IFlowRunnerService
             client,
             options
         );
-        _logger.LogInformation("Worker process to run flow `{FlowName}` is successfully created. Ready to run flow tasks!", workFlowName);
+        _logger.LogInformation("Worker to run `{FlowName}` on queue `{Queue}` created. Ready to run!", workFlowName, taskQueue);
         await worker.ExecuteAsync(cancellationToken);
     }
 }
