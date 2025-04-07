@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
-using XiansAi.Http;
+using Server.Http;
 using XiansAi.Models;
 
-namespace XiansAi.Server;
+namespace Server;
 
 public class ActivityUploader
 {
@@ -14,14 +14,14 @@ public class ActivityUploader
         _logger = Globals.LogFactory.CreateLogger<ActivityUploader>();
     }
 
-    public async Task UploadActivity(FlowActivity activity)
+    public async Task UploadActivity(FlowActivityHistory activityHistory)
     {
-        _logger.LogInformation("Uploading activity to server: {activity}", activity);
-        if (SecureApi.IsReady())
+        _logger.LogInformation("Uploading activity to server: {activity}", activityHistory);
+        if (SecureApi.Instance.IsReady)
         {
-            HttpClient client = SecureApi.GetClient();
+            var client = SecureApi.Instance.Client;
 
-            var response = await client.PostAsync("api/server/activities", JsonContent.Create(activity));
+            var response = await client.PostAsync("api/agent/activity-history", JsonContent.Create(activityHistory));
             response.EnsureSuccessStatusCode();
         }
         else

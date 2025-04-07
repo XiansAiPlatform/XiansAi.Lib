@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
-using XiansAi.Http;
+using Server.Http;
 
-namespace XiansAi.Server;
+namespace Server;
 
 public class ObjectCacheManager
 {
@@ -16,7 +16,7 @@ public class ObjectCacheManager
     public async Task<T?> GetValueAsync<T>(string key)
     {
         _logger.LogInformation("Getting value from cache for key: {Key}", key);
-        if (!SecureApi.IsReady())
+        if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache get operation");
             return default;
@@ -24,8 +24,9 @@ public class ObjectCacheManager
 
         try
         {
-            HttpClient client = SecureApi.GetClient();
-            var response = await client.GetAsync($"api/client/cache/{key}");
+            var client = SecureApi.Instance.Client;
+            var request = new CacheKeyRequest { Key = key };
+            var response = await client.PostAsJsonAsync("api/agent/cache/get", request);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<T>();
@@ -37,10 +38,10 @@ public class ObjectCacheManager
         }
     }
 
-    public async Task<bool> SetValueAsync<T>(string key, T value)
+    public async Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null)
     {
         _logger.LogInformation("Setting value in cache for key: {Key}", key);
-        if (!SecureApi.IsReady())
+        if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache set operation");
             return false;
@@ -48,8 +49,16 @@ public class ObjectCacheManager
 
         try
         {
-            HttpClient client = SecureApi.GetClient();
-            var response = await client.PostAsync($"api/client/cache/{key}", JsonContent.Create(value));
+            var client = SecureApi.Instance.Client;
+            var request = new CacheSetRequest 
+            { 
+                Key = key, 
+                Value = value,
+                RelativeExpirationMinutes = options?.RelativeExpirationMinutes,
+                SlidingExpirationMinutes = options?.SlidingExpirationMinutes
+            };
+            
+            var response = await client.PostAsJsonAsync("api/agent/cache/set", request);
             response.EnsureSuccessStatusCode();
             
             return true;
@@ -64,7 +73,7 @@ public class ObjectCacheManager
     public async Task<bool> DeleteValueAsync(string key)
     {
         _logger.LogInformation("Deleting value from cache for key: {Key}", key);
-        if (!SecureApi.IsReady())
+        if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache delete operation");
             return false;
@@ -72,8 +81,9 @@ public class ObjectCacheManager
 
         try
         {
-            HttpClient client = SecureApi.GetClient();
-            var response = await client.DeleteAsync($"api/client/cache/{key}");
+            var client = SecureApi.Instance.Client;
+            var request = new CacheKeyRequest { Key = key };
+            var response = await client.PostAsJsonAsync("api/agent/cache/delete", request);
             response.EnsureSuccessStatusCode();
             
             return true;
@@ -84,4 +94,23 @@ public class ObjectCacheManager
             return false;
         }
     }
+}
+
+public class CacheKeyRequest
+{
+    public string Key { get; set; } = string.Empty;
+}
+
+public class CacheSetRequest
+{
+    public string Key { get; set; } = string.Empty;
+    public object? Value { get; set; }
+    public int? RelativeExpirationMinutes { get; set; }
+    public int? SlidingExpirationMinutes { get; set; }
+}
+
+public class CacheOptions
+{
+    public int? RelativeExpirationMinutes { get; set; }
+    public int? SlidingExpirationMinutes { get; set; }
 } 

@@ -8,7 +8,7 @@ namespace XiansAi.Activity;
 public class AbstractActivity
 {
     private readonly ILogger<AbstractActivity> _logger;
-    private FlowActivity? _currentActivity;
+    private FlowActivityHistory? _currentActivity;
     public MethodInfo? _currentActivityMethod { get; internal set; }
     public Type? _currentActivityInterfaceType { get; internal set; }
 
@@ -85,7 +85,7 @@ public class AbstractActivity
         ActivityLogger.LogError(message, exception);
     }
 
-    public virtual FlowActivity? GetCurrentActivity()
+    public virtual FlowActivityHistory? GetCurrentActivity()
     {
         if (!IsInWorkflow())
         {
@@ -102,7 +102,7 @@ public class AbstractActivity
         }
     }
 
-    private FlowActivity CreateActivity()
+    private FlowActivityHistory CreateActivity()
     {
         if (ActivityExecutionContext.Current == null)
         {
@@ -112,11 +112,13 @@ public class AbstractActivity
         try
         {
             var context = ActivityExecutionContext.Current;
-            return new FlowActivity
+            return new FlowActivityHistory
             {
                 ActivityId = context.Info.ActivityId ?? throw new InvalidOperationException("ActivityId is null"),
                 ActivityName = context.Info.ActivityType ?? throw new InvalidOperationException("ActivityType is null"),
                 StartedTime = context.Info.StartedTime,
+                Attempt = context.Info.Attempt,
+                WorkflowNamespace = context.Info.WorkflowNamespace ?? throw new InvalidOperationException("WorkflowNamespace is null"),
                 WorkflowId = context.Info.WorkflowId ?? throw new InvalidOperationException("WorkflowId is null"),
                 WorkflowType = context.Info.WorkflowType ?? throw new InvalidOperationException("WorkflowType is null"),
                 TaskQueue = context.Info.TaskQueue ?? throw new InvalidOperationException("TaskQueue is null"),

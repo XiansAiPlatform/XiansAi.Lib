@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace XiansAi.Models;
 
-public class FlowActivity
+public class FlowActivityHistory
 {
     [JsonPropertyName("activityId")]
     public required string ActivityId { get; set; }
@@ -39,4 +39,10 @@ public class FlowActivity
 
     [JsonPropertyName("instructionIds")]
     public List<string> InstructionIds { get; set; } = [];
+
+    [JsonPropertyName("attempt")]
+    public int Attempt { get; set; }
+
+    [JsonPropertyName("workflowNamespace")]
+    public required string WorkflowNamespace { get; set; }
 } 
