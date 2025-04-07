@@ -27,82 +27,72 @@ public class ApiLoggerProvider : ILoggerProvider
 public class ApiLogger : ILogger
 {
     private readonly string _logApiUrl;
-    private readonly AsyncLocal<LogContext> _logContext = new AsyncLocal<LogContext>();
+    private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
+    private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
 
     public ApiLogger(string logApiUrl)
     {
-        _logApiUrl = PlatformConfig.APP_SERVER_URL+logApiUrl;
-    }
-
-    // Set the context for the logger. This can be called before logging.
-    public void SetContext(string tenantId, string workflowId, string runId)
-    {
-        _logContext.Value = new LogContext
-        {
-            TenantId = tenantId,
-            WorkflowId = workflowId,
-            RunId = runId
-        };
+        _logApiUrl = PlatformConfig.APP_SERVER_URL + logApiUrl;
     }
 
     public IDisposable BeginScope<TState>(TState state)
     {
-        // Optional: implement if needed to add context to the logs
-        return null; 
+        if (state is IEnumerable<KeyValuePair<string, object>> kvps)
+        {
+            var contextDict = kvps.ToDictionary(kv => kv.Key, kv => kv.Value);
+            _currentContext.Value = contextDict;
+        }
+
+        var disposable = new ScopeDisposable(() => _currentContext.Value = null);
+        _currentScope.Value = disposable;
+        return disposable;
     }
 
     public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel)
     {
-        return true; // You can customize this to filter log levels
+        return true;
     }
 
-    public async void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         var logMessage = formatter(state, exception);
+        var context = _currentContext.Value;
 
-        // Get the dynamic context (tenantId, workflowId, runId)
-        var context = _logContext.Value;
-
-        // If context is null, use default values
-        if (context == null)
-        {
-            context = new LogContext
-            {
-                TenantId = "defaultTenantId",
-                WorkflowId = "defaultWorkflowId",
-                RunId = "defaultRunId"
-            };
-        }
+        var tenantId = context?.GetValueOrDefault("TenantId")?.ToString() ?? "defaultTenantId";
+        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
+        var runId = context?.GetValueOrDefault("RunId")?.ToString() ?? "defaultRunId";
 
         var log = new Log
         {
             Id = Guid.NewGuid().ToString(),
-            TenantId = context.TenantId,  // Use dynamic tenant ID
+            TenantId = tenantId,
             CreatedAt = DateTime.UtcNow,
-            Level = (XiansAi.Models.LogLevel)logLevel, // Map to your custom LogLevel
+            Level = (XiansAi.Models.LogLevel)logLevel,
             Message = logMessage,
-            WorkflowId = context.WorkflowId, // Use dynamic workflow ID
-            RunId = context.RunId, // Use dynamic run ID
-            Properties = null, // Add custom properties if needed
+            WorkflowId = workflowId,
+            RunId = runId,
+            Properties = null,
             Exception = exception?.ToString(),
             UpdatedAt = null
         };
 
-        Console.WriteLine($"Log: {logMessage}"); // Optional: log to console for debugging
-        Console.WriteLine($"Log Context: {context.TenantId}, {context.WorkflowId}, {context.RunId}"); // Optional: log context for debugging
-    
-        _ = Task.Run(async () =>
-        {
+        Console.WriteLine($"Log: {logMessage}");
+        Console.WriteLine($"Log Context: {tenantId}, {workflowId}, {runId}");
+
+        // Send to API (mocked or real)
+        _ = Task.Run(async () => {
             try
             {
                 using var httpClient = new HttpClient();
                 var content = new StringContent(JsonConvert.SerializeObject(log), Encoding.UTF8, "application/json");
-                //var response = await httpClient.PostAsync(_logApiUrl, content);
-                // mock response for testing
-                var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK); // Mock response for testing
+                var response = await httpClient.PostAsync(_logApiUrl, content);
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
+                }
+                else
+                {
+                    Console.WriteLine($"Logger API succeeded: {response.StatusCode}");
                 }
             }
             catch (Exception ex)
@@ -110,7 +100,14 @@ public class ApiLogger : ILogger
                 Console.Error.WriteLine($"Logger exception: {ex.Message}");
             }
         });
-      }
+    }
+
+    private class ScopeDisposable : IDisposable
+    {
+        private readonly Action _onDispose;
+        public ScopeDisposable(Action onDispose) => _onDispose = onDispose;
+        public void Dispose() => _onDispose();
+    }
 }
 
 public class LogContext
