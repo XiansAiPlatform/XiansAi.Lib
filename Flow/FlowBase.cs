@@ -4,6 +4,7 @@ using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using XiansAi.Server;
 
+
 namespace XiansAi.Flow;
 
 /// <summary>
@@ -273,7 +274,7 @@ public abstract class FlowBase
     /// </summary>
     /// <returns>The latest error logs as a string, or null if the file does not exist.</returns>
     [WorkflowQuery]
-    public string? GetLogs()
+    public string? GetLogsFromFile()
     {
         var currentDateFileName = DateTime.Now.ToString("yyyyMMdd");
         var errorFilePath = Path.Combine(Directory.GetCurrentDirectory(), $"logs/app{currentDateFileName}.log");
@@ -306,6 +307,26 @@ public abstract class FlowBase
         }
     }
 
+    /// <summary>
+    /// Get the latest error logs from an Mongo DB collection.
+    /// </summary>
+    /// <returns>The latest error logs as a string, or null if the collection does not exist.</returns>
+    [WorkflowQuery]
+    public string? GetLogsFromMongo(string workflowId, string runId)
+    {
+
+        Console.WriteLine($"GetLogsFromMongo: workflowId: {workflowId}, runId: {runId}");
+
+        // Call the activity asynchronously using 'await'
+        var mongoDbActivity = new MongoDbActivity();
+        var logs = mongoDbActivity.GetLogsFromMongo(workflowId, runId);
+       
+        return string.Join(Environment.NewLine, logs.Select(log =>
+            $"Level: {log.GetValue("Level", "N/A")}\n" +
+            $"Timestamp: {log.GetValue("UtcTimeStamp", "N/A")}\n" +
+            $"Message: {log.GetValue("RenderedMessage", "N/A")}\n" +
+            "--------------------------------------------------"));
+    }
 }
 
 /// <summary>

@@ -22,7 +22,10 @@ public class FlowRunnerService : IFlowRunnerService
 
     public static void SetLoggerFactory(ILoggerFactory loggerFactory)
     {
-        Globals.LogFactory = loggerFactory;
+        if (Globals.LogFactory == null)
+        {
+            typeof(Globals).GetProperty("LogFactory", BindingFlags.Static | BindingFlags.NonPublic)?.SetValue(null, loggerFactory);
+        }
     }
 
     public FlowRunnerService(ILoggerFactory? loggerFactory = null)

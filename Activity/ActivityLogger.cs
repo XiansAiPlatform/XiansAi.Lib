@@ -5,7 +5,20 @@ namespace XiansAi.Activity;
 
 static class ActivityLogger
 {
-    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger("ActivityLogger");
+    private static readonly ILogger _logger;
+
+    static ActivityLogger()
+    {
+        var logFactory = LoggerFactory.Create(builder =>
+        {
+            // Only add ApiLoggerProvider to ActivityLogger
+            builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
+        });
+
+        _logger = logFactory.CreateLogger("ActivityLogger");
+
+        _logger.LogInformation("ActivityLogger initialized.");
+    }
 
     public static void LogInformation(string message)
     {

@@ -58,7 +58,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
                 activityName, JsonSerializer.Serialize(inputs));
             _logger.LogError(ex.InnerException, "Trace: {Trace}", ex.InnerException);
             // Log and rethrow the exception
-            //ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException ?? ex);
+            ActivityLogger.LogError($"Error in activity {activityName}", ex.InnerException ?? ex);
             throw;
         }
 
