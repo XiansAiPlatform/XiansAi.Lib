@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
-using XiansAi.Server;
+using Server;
 
 namespace XiansAi.Activity;
 
-public class ActivityBase: DockerActivity
+public class ActivityBase : DockerActivity
 {
     private readonly ILogger _logger;
     private readonly ObjectCacheManager _cacheManager;
@@ -13,6 +13,17 @@ public class ActivityBase: DockerActivity
         _logger = Globals.LogFactory?.CreateLogger<ActivityBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
+    }
+
+    protected virtual string GetWorkflowPrefixedKey(string key)
+    {
+        var activityInfo = this.CreateActivity();
+        var workflowId = activityInfo.WorkflowId;
+        if (string.IsNullOrEmpty(workflowId))
+        {
+            throw new InvalidOperationException("WorkflowId is not available in the current context.");
+        }
+        return $"{workflowId}:{key}";
     }
 
     public ILogger GetLogger()
@@ -28,8 +39,9 @@ public class ActivityBase: DockerActivity
     /// <returns>The cached value if found, otherwise null</returns>
     protected async Task<T?> GetCacheValueAsync<T>(string key)
     {
-        _logger.LogInformation("Getting value from cache for key: {Key}", key);
-        return await _cacheManager.GetValueAsync<T>(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key);
+        _logger.LogInformation("Getting value from cache for key: {Key}", prefixedKey);
+        return await _cacheManager.GetValueAsync<T>(prefixedKey);
     }
 
     /// <summary>
@@ -41,8 +53,9 @@ public class ActivityBase: DockerActivity
     /// <returns>True if the operation was successful, false otherwise</returns>
     protected async Task<bool> SetCacheValueAsync<T>(string key, T value)
     {
-        _logger.LogInformation("Setting value in cache for key: {Key}", key);
-        return await _cacheManager.SetValueAsync(key, value);
+        var prefixedKey = GetWorkflowPrefixedKey(key);
+        _logger.LogInformation("Setting value in cache for key: {Key}", prefixedKey);
+        return await _cacheManager.SetValueAsync(prefixedKey, value);
     }
 
     /// <summary>
@@ -52,7 +65,8 @@ public class ActivityBase: DockerActivity
     /// <returns>True if the operation was successful, false otherwise</returns>
     protected async Task<bool> DeleteCacheValueAsync(string key)
     {
-        _logger.LogInformation("Deleting value from cache for key: {Key}", key);
-        return await _cacheManager.DeleteValueAsync(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key);
+        _logger.LogInformation("Deleting value from cache for key: {Key}", prefixedKey);
+        return await _cacheManager.DeleteValueAsync(prefixedKey);
     }
 }
