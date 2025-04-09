@@ -1,10 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net.Http.Json;
+using Server.Http;
+using System.Net;
 using XiansAi.Models;
-using System;
 using XiansAi.Flow;
 
 public class ApiLoggerProvider : ILoggerProvider
@@ -18,7 +17,7 @@ public class ApiLoggerProvider : ILoggerProvider
 
     public ILogger CreateLogger(string categoryName)
     {
-        return new ApiLogger(_logApiUrl);
+        return new ApiLogger(_logApiUrl, SecureApi.Instance);
     }
 
     public void Dispose() { }
@@ -27,15 +26,19 @@ public class ApiLoggerProvider : ILoggerProvider
 public class ApiLogger : ILogger
 {
     private readonly string _logApiUrl;
+
+    private readonly ISecureApiClient _secureApi;
     private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
     private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
 
-    public ApiLogger(string logApiUrl)
+    public ApiLogger(string logApiUrl, ISecureApiClient secureApi)
     {
         _logApiUrl = PlatformConfig.APP_SERVER_URL + logApiUrl;
+        _secureApi = secureApi ??
+           throw new ArgumentNullException(nameof(secureApi));
     }
 
-    public IDisposable BeginScope<TState>(TState state)
+    IDisposable ILogger.BeginScope<TState>(TState state)
     {
         if (state is IEnumerable<KeyValuePair<string, object>> kvps)
         {
@@ -60,7 +63,7 @@ public class ApiLogger : ILogger
 
         var tenantId = context?.GetValueOrDefault("TenantId")?.ToString() ?? "defaultTenantId";
         var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
-        var runId = context?.GetValueOrDefault("RunId")?.ToString() ?? "defaultRunId";
+        var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() ?? "defaultWorkflowRunId";
 
         var log = new Log
         {
@@ -70,22 +73,26 @@ public class ApiLogger : ILogger
             Level = (XiansAi.Models.LogLevel)logLevel,
             Message = logMessage,
             WorkflowId = workflowId,
-            RunId = runId,
+            WorkflowRunId = workflowRunId,
             Properties = null,
             Exception = exception?.ToString(),
             UpdatedAt = null
         };
 
-        Console.WriteLine($"Log: {logMessage}");
-        Console.WriteLine($"Log Context: {tenantId}, {workflowId}, {runId}");
-
-        // Send to API (mocked or real)
-        _ = Task.Run(async () => {
+        _ = Task.Run(async () =>
+        {
             try
             {
-                using var httpClient = new HttpClient();
-                var content = new StringContent(JsonConvert.SerializeObject(log), Encoding.UTF8, "application/json");
-                var response = await httpClient.PostAsync(_logApiUrl, content);
+
+                if (!_secureApi.IsReady)
+                {
+                    Console.Error.WriteLine("App server secure API is not available, upload of flow definition failed");
+                    throw new InvalidOperationException("App server secure API is not available");
+                }
+
+                var client = _secureApi.Client;
+                var response = await client.PostAsync(_logApiUrl, JsonContent.Create(log));
+
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
@@ -112,7 +119,7 @@ public class ApiLogger : ILogger
 
 public class LogContext
 {
-    public string TenantId { get; set; }
-    public string WorkflowId { get; set; }
-    public string RunId { get; set; }
+    public required string TenantId { get; set; }
+    public required string WorkflowId { get; set; }
+    public required string RunId { get; set; }
 }

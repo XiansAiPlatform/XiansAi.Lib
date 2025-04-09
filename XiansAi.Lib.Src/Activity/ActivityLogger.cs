@@ -30,7 +30,7 @@ static class ActivityLogger
             {
                 ["TenantId"] = info.WorkflowNamespace,
                 ["WorkflowId"] = info.WorkflowId,
-                ["RunId"] = info.WorkflowRunId
+                ["WorkflowRunId"] = info.WorkflowRunId
             }))
             {
                 _logger.LogInformation(message);
@@ -54,7 +54,7 @@ static class ActivityLogger
         {
             ["TenantId"] = info.WorkflowNamespace,
             ["WorkflowId"] = info.WorkflowId,
-            ["RunId"] = info.WorkflowRunId
+            ["WorkflowRunId"] = info.WorkflowRunId
         }))
         {
             _logger.LogError(exception, message);
