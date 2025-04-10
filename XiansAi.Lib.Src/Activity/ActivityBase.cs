@@ -15,8 +15,13 @@ public class ActivityBase : DockerActivity
         _cacheManager = new ObjectCacheManager();
     }
 
-    protected virtual string GetWorkflowPrefixedKey(string key)
+    protected virtual string GetWorkflowPrefixedKey(string key, bool usePrefix = true)
     {
+        if (!usePrefix)
+        {
+            return key;
+        }
+
         var activityInfo = this.CreateActivity();
         var workflowId = activityInfo.WorkflowId;
         if (string.IsNullOrEmpty(workflowId))
@@ -36,10 +41,11 @@ public class ActivityBase : DockerActivity
     /// </summary>
     /// <typeparam name="T">The type of the value to retrieve</typeparam>
     /// <param name="key">The key to look up</param>
+    /// <param name="usePrefix">Whether to prefix the key with workflow ID (default: true)</param>
     /// <returns>The cached value if found, otherwise null</returns>
-    protected async Task<T?> GetCacheValueAsync<T>(string key)
+    protected async Task<T?> GetCacheValueAsync<T>(string key, bool usePrefix = true)
     {
-        var prefixedKey = GetWorkflowPrefixedKey(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
         _logger.LogInformation("Getting value from cache for key: {Key}", prefixedKey);
         return await _cacheManager.GetValueAsync<T>(prefixedKey);
     }
@@ -50,10 +56,11 @@ public class ActivityBase : DockerActivity
     /// <typeparam name="T">The type of the value to store</typeparam>
     /// <param name="key">The key to store the value under</param>
     /// <param name="value">The value to store</param>
+    /// <param name="usePrefix">Whether to prefix the key with workflow ID (default: true)</param>
     /// <returns>True if the operation was successful, false otherwise</returns>
-    protected async Task<bool> SetCacheValueAsync<T>(string key, T value)
+    protected async Task<bool> SetCacheValueAsync<T>(string key, T value, bool usePrefix = true)
     {
-        var prefixedKey = GetWorkflowPrefixedKey(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
         _logger.LogInformation("Setting value in cache for key: {Key}", prefixedKey);
         return await _cacheManager.SetValueAsync(prefixedKey, value);
     }
@@ -62,10 +69,11 @@ public class ActivityBase : DockerActivity
     /// Deletes a value from the cache for the specified key.
     /// </summary>
     /// <param name="key">The key to delete</param>
+    /// <param name="usePrefix">Whether to prefix the key with workflow ID (default: true)</param>
     /// <returns>True if the operation was successful, false otherwise</returns>
-    protected async Task<bool> DeleteCacheValueAsync(string key)
+    protected async Task<bool> DeleteCacheValueAsync(string key, bool usePrefix = true)
     {
-        var prefixedKey = GetWorkflowPrefixedKey(key);
+        var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
         _logger.LogInformation("Deleting value from cache for key: {Key}", prefixedKey);
         return await _cacheManager.DeleteValueAsync(prefixedKey);
     }
