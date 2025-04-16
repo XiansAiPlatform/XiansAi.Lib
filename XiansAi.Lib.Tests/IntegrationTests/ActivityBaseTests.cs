@@ -22,8 +22,13 @@ public class ActivityBaseTest
             field?.SetValue(this, mockCacheManager.Object);
         }
 
-        protected override string GetWorkflowPrefixedKey(string key)
+        protected override string GetWorkflowPrefixedKey(string key, bool usePrefix = true)
         {
+            if (!usePrefix)
+            {
+                return key;
+            }
+
             if (string.IsNullOrEmpty(_mockWorkflowId))
             {
                 throw new InvalidOperationException("Mock WorkflowId is not set.");
