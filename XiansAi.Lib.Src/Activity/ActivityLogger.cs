@@ -20,9 +20,7 @@ static class ActivityLogger
 
     public static void LogInformation(string message)
     {
-        Console.WriteLine("logging info: " + message);
-
-        if (ActivityExecutionContext.Current != null)
+       if (ActivityExecutionContext.Current != null)
         {
             var info = ActivityExecutionContext.Current.Info;
 
@@ -44,9 +42,7 @@ static class ActivityLogger
 
    public static void LogError(string message, Exception exception)
 {
-    Console.WriteLine("logging error: " + message);
-
-    if (ActivityExecutionContext.Current != null)
+     if (ActivityExecutionContext.Current != null)
     {
         var info = ActivityExecutionContext.Current.Info;
 
