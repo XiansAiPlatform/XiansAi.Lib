@@ -15,9 +15,14 @@ public abstract class FlowBase
     private readonly ObjectCacheManager _cacheManager;
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
-    // Dictionary to track received signal values
-    private readonly ConcurrentDictionary<string, object> _receivedSignals = new();
+    private readonly Messenger _messenger;
 
+    [WorkflowSignal]
+    public async Task HandleInboundMessage(MessageSignal messageSignal)
+    {
+        _logger.LogInformation($"Received inbound message in base class: {messageSignal.Content}");
+        await _messenger.ReceiveMessage(messageSignal);
+    }
 
     /// <summary>
     /// Initializes a new instance of the FlowBase class.
@@ -25,9 +30,15 @@ public abstract class FlowBase
     /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
     protected FlowBase()
     {
+        _messenger = new Messenger(Workflow.Info.WorkflowId);
         _logger = Globals.LogFactory?.CreateLogger<FlowBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
+    }
+
+    public IMessenger GetMessenger()
+    {
+        return _messenger;
     }
 
     public ILogger GetLogger()
@@ -193,36 +204,6 @@ public abstract class FlowBase
         }
     }
 
-    /// <summary>
-    /// Waits asynchronously for an external signal with the specified logical name.
-    /// Uses Temporal's built-in wait mechanism.
-    /// </summary>
-    /// <typeparam name="T">The type of the signal payload</typeparam>
-    /// <param name="signalName">The logical signal name to wait for</param>
-    /// <param name="cancellationToken">Optional cancellation token</param>
-    /// <returns>The signal payload value</returns>
-    protected async Task<T> WaitForEvent<T>(string signalName, CancellationToken cancellationToken = default)
-    {
-        await Workflow.WaitConditionAsync(() => _receivedSignals.ContainsKey(signalName), cancellationToken);
-
-        _receivedSignals.TryRemove(signalName, out var result);
-        return (T)result!;
-    }
-
-    /// <summary>
-    /// A dictionary to store received signals.
-    /// </summary>
-    /// <remarks>
-    /// This is used to store signals received by the workflow.
-    /// </remarks>
-    [WorkflowSignal("HandleSignal")]
-    public Task HandleSignal(SignalPayload payload)
-    {
-        _logger.LogDebug("Signal received for '{SignalName}', storing value.", payload.SignalName);
-        _receivedSignals[payload.SignalName] = payload.Value;
-        return Task.CompletedTask;
-    }
-
     public bool IsInWorkflow()
     {
         var isInWorkflow = Workflow.InWorkflow;
@@ -266,9 +247,3 @@ public abstract class FlowBase
         return await _cacheManager.DeleteValueAsync(key);
     }
 }
-
-/// <summary>
-/// A simple record type representing the payload for a signal.
-/// Contains a logical signal name and an associated value.
-/// </summary>
-public record SignalPayload(string SignalName, object Value);

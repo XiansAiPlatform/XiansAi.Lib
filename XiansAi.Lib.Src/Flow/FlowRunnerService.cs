@@ -22,52 +22,71 @@ public class FlowRunnerOptions
 
 public class FlowRunnerService : IFlowRunnerService
 {
-    private readonly TemporalClientService _temporalClientService;
     private readonly ILogger<FlowRunnerService> _logger;
-    private readonly FlowDefinitionUploader? _flowDefinitionUploader;
     private readonly string? _priorityQueue;
-
-    public static void SetLoggerFactory(ILoggerFactory loggerFactory)
-    {
-        Globals.LogFactory = loggerFactory;
-    }
-
-    public FlowRunnerService(FlowRunnerOptions? options = null): this(options?.LoggerFactory)
+    private readonly Lazy<Task>? _initializationTask;
+    
+    public FlowRunnerService(FlowRunnerOptions? options = null)
     {
         if (options?.PriorityQueue != null)
         {
             _priorityQueue = options.PriorityQueue;
         }
-    }
 
-    private FlowRunnerService(ILoggerFactory? loggerFactory = null)
-    {
-        if (loggerFactory != null)
+        if (options?.LoggerFactory != null)
         {
-            SetLoggerFactory(loggerFactory);
+            Globals.LogFactory = options.LoggerFactory;
         }
         _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
-        _temporalClientService = new TemporalClientService();
 
-        if (PlatformConfig.APP_SERVER_API_KEY != null && PlatformConfig.APP_SERVER_URL != null)
+        ValidateConfig();
+
+        SecureApi.InitializeClient(
+            PlatformConfig.APP_SERVER_API_KEY!,
+            PlatformConfig.APP_SERVER_URL!
+        );
+
+        if (bool.TryParse(Environment.GetEnvironmentVariable("TEST_CONFIGURATION"), out var testConfiguration) && testConfiguration)
         {
-            _logger.LogDebug("Initializing SecureApi with AppServerUrl: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
-            SecureApi.InitializeClient(
-                PlatformConfig.APP_SERVER_API_KEY,
-                PlatformConfig.APP_SERVER_URL
-            );
-            _flowDefinitionUploader = new FlowDefinitionUploader(Globals.LogFactory, SecureApi.Instance);
+            _initializationTask = new Lazy<Task>(() => TestMe());
+            // Force initialization
+            _ = _initializationTask.Value;
         }
-        else
+    }
+    
+    private void ValidateConfig()
+    {
+        if (string.IsNullOrEmpty(PlatformConfig.APP_SERVER_API_KEY))
         {
             _logger.LogError("App server connection failed because of missing configuration");
+            throw new InvalidOperationException("App server connection failed because of missing APP_SERVER_API_KEY");
+        }
+        if (string.IsNullOrEmpty(PlatformConfig.APP_SERVER_URL))
+        {
+            _logger.LogError("App server connection failed because of missing configuration");
+            throw new InvalidOperationException("App server connection failed because of missing APP_SERVER_URL");
+        }
+        if (string.IsNullOrEmpty(PlatformConfig.FLOW_SERVER_URL))
+        {
+            _logger.LogError("Flow server connection failed because of missing configuration");
+            throw new InvalidOperationException("Flow server connection failed because of missing FLOW_SERVER_URL");
+        }
+        if (string.IsNullOrEmpty(PlatformConfig.FLOW_SERVER_NAMESPACE))
+        {   
+            _logger.LogError("Flow server connection failed because of missing configuration");
+            throw new InvalidOperationException("Flow server connection failed because of missing FLOW_SERVER_NAMESPACE");
+        }
+        if (string.IsNullOrEmpty(PlatformConfig.FLOW_SERVER_API_KEY))
+        {
+            _logger.LogError("Flow server connection failed because of missing configuration");
+            throw new InvalidOperationException("Flow server connection failed because of missing FLOW_SERVER_API_KEY");
         }
     }
 
     public async Task TestMe()
     {
         _logger.LogInformation("Trying to connect to flow server at: {FlowServerUrl}", PlatformConfig.FLOW_SERVER_URL);
-        var temporalClient = await _temporalClientService.GetClientAsync();
+        var temporalClient = await new TemporalClientService().GetClientAsync();
         if (temporalClient == null)
         {
             _logger.LogError("Flow server connection failed");
@@ -121,16 +140,13 @@ public class FlowRunnerService : IFlowRunnerService
     public async Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken = default)
         where TFlow : class
     {
-        if (_flowDefinitionUploader == null)
-        {
-            throw new InvalidOperationException("Flow definition uploader is not initialized");
-        }
+
 
         // Upload the flow definition to the server
-        await _flowDefinitionUploader.UploadFlowDefinition(flow);
+        await new FlowDefinitionUploader().UploadFlowDefinition(flow);
 
         // Run the worker for the flow
-        var client = await _temporalClientService.GetClientAsync();
+        var client = await new TemporalClientService().GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
 
         var taskQueue = string.IsNullOrEmpty(_priorityQueue) ? workFlowName : _priorityQueue + "--" + workFlowName;
@@ -145,6 +161,8 @@ public class FlowRunnerService : IFlowRunnerService
         {
             options.AddAllActivities(stub.Key, stub.Value);
         }
+        // Add all activities from the SystemActivities class
+        options.AddAllActivities(new SystemActivities());
 
         var worker = new TemporalWorker(
             client,
