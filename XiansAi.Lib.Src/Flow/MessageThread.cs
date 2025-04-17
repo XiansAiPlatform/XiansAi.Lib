@@ -18,7 +18,7 @@ public class MessageThread
         return history;
     }
 
-    public async Task<bool> Respond(string content, string? metadata = null)
+    public async Task<SendMessageResponse?> Respond(string content, string? metadata = null)
     {
         var outgoingMessage = new OutgoingMessage
         {
@@ -55,9 +55,32 @@ public class MessageSignal {
 
 public class OutgoingMessage
 {
-    public required string ThreadId { get; set; }
+    public string? ThreadId { get; set; }
     public required string Content { get; set; }
     public required object Metadata { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
+}
+
+
+public class HistoricalMessage {
+    public string Id { get; set; } = null!;
+    public required string ThreadId { get; set; }
+    public required DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public required string Direction { get; set; }
+    public required string Content { get; set; }
+    public string? Status { get; set; }
+    public object? Metadata { get; set; }
+    public List<MessageLogEvent>? Logs { get; set; }
+}
+
+
+public class MessageLogEvent
+{
+    public required DateTime Timestamp { get; set; }
+    
+    public required string Event { get; set; }
+    
+    public object? Details { get; set; }
 }
