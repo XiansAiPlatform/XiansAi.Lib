@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
-using XiansAi.System;
+using XiansAi.Docker;
 
 namespace XiansAi.Activity;
 public abstract class DockerActivity : AgentToolActivity

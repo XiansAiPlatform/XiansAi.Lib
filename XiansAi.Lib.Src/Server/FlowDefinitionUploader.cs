@@ -41,14 +41,10 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="loggerFactory">Factory to create a logger instance</param>
     /// <param name="secureApi">Secure API client for server communication</param>
     /// <exception cref="ArgumentNullException">Thrown if secureApi is null</exception>
-    public FlowDefinitionUploader(
-        ILoggerFactory loggerFactory,
-        ISecureApiClient secureApi)
+    public FlowDefinitionUploader()
     {
-        _logger = loggerFactory.CreateLogger<FlowDefinitionUploader>() ?? 
-            throw new ArgumentNullException(nameof(loggerFactory));
-        _secureApi = secureApi ?? 
-            throw new ArgumentNullException(nameof(secureApi));
+        _logger = Globals.LogFactory.CreateLogger<FlowDefinitionUploader>();
+        _secureApi = SecureApi.Instance;
     }
 
     /// <summary>

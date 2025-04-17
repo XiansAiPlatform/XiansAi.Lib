@@ -40,7 +40,7 @@ public class FlowDefinitionUploaderTests : IDisposable
         var secureApiClient = SecureApi.Instance;
 
         // Create the flow definition uploader with real SecureApi
-        _flowDefinitionUploader = new FlowDefinitionUploader(_loggerFactory, secureApiClient);
+        _flowDefinitionUploader = new FlowDefinitionUploader();
     }
 
     /*
