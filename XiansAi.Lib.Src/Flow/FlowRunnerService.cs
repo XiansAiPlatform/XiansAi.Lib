@@ -2,7 +2,6 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Temporalio.Workflows;
-using Server.Http;
 using Server;
 using Temporal;
 

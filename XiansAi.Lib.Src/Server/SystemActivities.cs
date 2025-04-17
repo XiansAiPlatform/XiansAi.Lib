@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
-using Server.Http;
+using Server;
 using Temporalio.Activities;
 using XiansAi.Flow;
 
@@ -10,6 +10,12 @@ public class SystemActivities {
     public SystemActivities()
     {
         _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
+    }
+
+    [Activity]
+    public async Task<List<IncomingMessage>> GetMessageHistory(string threadId, int page = 1, int pageSize = 10) {
+        _logger.LogInformation("Getting message history for thread: {ThreadId}", threadId);
+        return new List<IncomingMessage>();
     }
 
     [Activity]

@@ -15,13 +15,13 @@ public abstract class FlowBase
     private readonly ObjectCacheManager _cacheManager;
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
-    private readonly Messenger _messenger;
+    public Messenger Messenger { get; }
 
     [WorkflowSignal]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
     {
         _logger.LogInformation($"Received inbound message in base class: {messageSignal.Content}");
-        await _messenger.ReceiveMessage(messageSignal);
+        await Messenger.ReceiveMessage(messageSignal);
     }
 
     /// <summary>
@@ -30,17 +30,11 @@ public abstract class FlowBase
     /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
     protected FlowBase()
     {
-        _messenger = new Messenger(Workflow.Info.WorkflowId);
+        Messenger = new Messenger(Workflow.Info.WorkflowId);
         _logger = Globals.LogFactory?.CreateLogger<FlowBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
     }
-
-    public IMessenger GetMessenger()
-    {
-        return _messenger;
-    }
-
     public ILogger GetLogger()
     {
         if (IsInWorkflow())

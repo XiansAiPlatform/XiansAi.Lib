@@ -9,9 +9,13 @@ public class MessageThread
     public required string WorkflowId { get; set; }
 
 
-    public List<IncomingMessage> GetHistory(int page = 1, int pageSize = 10)
+    public async Task<List<IncomingMessage>> GetHistory(int page = 1, int pageSize = 10)
     {
-        return new List<IncomingMessage>();
+        var history = await Workflow.ExecuteActivityAsync(
+            (SystemActivities a) => a.GetMessageHistory(ThreadId, page, pageSize),
+            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+
+        return history;
     }
 
     public async Task<bool> Respond(string content, string? metadata = null)
