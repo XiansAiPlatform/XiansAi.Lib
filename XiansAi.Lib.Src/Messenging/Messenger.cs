@@ -1,3 +1,5 @@
+using Temporalio.Workflows;
+
 namespace XiansAi.Messaging;
 
 public delegate Task MessageReceivedAsyncHandler(MessageThread messageThread);
@@ -5,6 +7,7 @@ public delegate void MessageReceivedHandler(MessageThread messageThread);
 
 public interface IMessenger
 {
+    Task<SendMessageResponse> SendMessage(string content, string participantId, string? metadata = null);
     void RegisterAsyncHandler(MessageReceivedAsyncHandler handler);
     void RegisterHandler(MessageReceivedHandler handler);
     void UnregisterHandler(MessageReceivedHandler handler);
@@ -24,6 +27,24 @@ public class Messenger : IMessenger
     public Messenger(string workflowId)
     {
         _workflowId = workflowId;
+    }
+
+    public async Task<SendMessageResponse> SendMessage(string content, string participantId, string? metadata = null)
+    {
+
+        var outgoingMessage = new OutgoingMessage
+        {
+            Content = content,
+            Metadata = metadata,
+            ParticipantId = participantId,
+            WorkflowId = _workflowId
+        };
+
+        var success = await Workflow.ExecuteActivityAsync(
+            (SystemActivities a) => a.SendMessage(outgoingMessage),
+            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+
+        return success;
     }
 
     public void RegisterAsyncHandler(MessageReceivedAsyncHandler handler)

@@ -60,7 +60,7 @@ public class OutgoingMessage
 {
     public string? ThreadId { get; set; }
     public required string Content { get; set; }
-    public required object Metadata { get; set; }
+    public object? Metadata { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
 }

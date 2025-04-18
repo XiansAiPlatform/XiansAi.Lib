@@ -35,6 +35,10 @@ class SemanticRouterImpl: ISemanticRouter
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions? options)
     {
+        if (string.IsNullOrWhiteSpace(systemPrompt))
+        {
+            throw new Exception("System prompt is required");
+        }
         options = options ?? new RouterOptions();
         var kernel = Initialize(options, capabilitiesPluginNames);
         var chatHistory = await ExtractHistory(messageThread, systemPrompt, options.HistorySizeToFetch);

@@ -35,12 +35,12 @@ public class SystemActivities {
 
 
     [Activity ("SystemActivities.SendMessage")]
-    public async Task<SendMessageResponse?> SendMessage(OutgoingMessage message) {
+    public async Task<SendMessageResponse> SendMessage(OutgoingMessage message) {
         _logger.LogInformation("Sending message: {Message}", message);
         if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
-            return null;
+            throw new Exception("App server secure API is not ready, skipping message send operation");
         }
 
         try
@@ -49,12 +49,12 @@ public class SystemActivities {
             var response = await client.PostAsJsonAsync("api/agent/conversation/outbound", message);
             response.EnsureSuccessStatusCode();
             
-            return await response.Content.ReadFromJsonAsync<SendMessageResponse>();
+            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending message: {Message}", message);
-            throw;
+            throw new Exception($"Failed to send message: {ex.Message}");
         }
     }
 }
