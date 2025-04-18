@@ -23,14 +23,7 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.3" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.3" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.3" />
-    <!-- <PackageReference Include="99x.XiansAi.DynamicOrchestrator" Version="1.0.0" /> -->
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.43.0" />
   </ItemGroup>
-
-  <!-- Commenting out project reference as we're using the NuGet package instead -->
-  <!--
-  <ItemGroup>
-    <ProjectReference Include="..\XiansAi.DynamicOrchestrator\99x.XiansAi.DynamicOrchestrator.csproj" />
-  </ItemGroup>
-  -->
 
 </Project>

@@ -1,9 +1,7 @@
-using System.Net;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Server;
 using DotNetEnv;
-using Temporalio.Activities;
 using XiansAi.Flow;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
@@ -12,6 +10,7 @@ public class SystemActivitiesTests : IDisposable
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly SystemActivities _systemActivities;
+    private readonly ThreadHistoryService _threadHistoryService;
     private readonly string _certificateBase64;
     private readonly string _serverUrl;
     private readonly ILogger<SystemActivitiesTests> _logger;
@@ -41,6 +40,7 @@ public class SystemActivitiesTests : IDisposable
         SecureApi.InitializeClient(_certificateBase64, _serverUrl);
 
         // Create the system activities instance
+        _threadHistoryService = new ThreadHistoryService();
         _systemActivities = new SystemActivities();
     }
 
@@ -82,7 +82,7 @@ public class SystemActivitiesTests : IDisposable
         await Task.Delay(1000);
         
         // Get message history
-        var messages = await _systemActivities.GetMessageHistory(sendResult1!.ThreadId);
+        var messages = await _threadHistoryService.GetMessageHistory(sendResult1!.ThreadId);
 
         // Log what we received
         _logger.LogInformation($"Retrieved {messages.Count} messages for thread {sendResult1!.ThreadId}");

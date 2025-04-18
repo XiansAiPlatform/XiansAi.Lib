@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using Server;
+using XiansAi.Router;
 
 namespace XiansAi.Flow;
 
@@ -16,6 +17,8 @@ public abstract class FlowBase
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
     public Messenger Messenger { get; }
+
+    public SemanticRouter Router { get; }
 
     [WorkflowSignal]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
@@ -34,6 +37,7 @@ public abstract class FlowBase
         _logger = Globals.LogFactory?.CreateLogger<FlowBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
+        Router = new SemanticRouter();
     }
     public ILogger GetLogger()
     {

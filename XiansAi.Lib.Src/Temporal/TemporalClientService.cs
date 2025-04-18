@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client;
-using XiansAi.Flow;
+using XiansAi;
 
 namespace Temporal;
 

@@ -1,20 +1,23 @@
 using Temporalio.Workflows;
 
 namespace XiansAi.Flow;
-public class MessageThread
+
+public interface IMessageThread
+{
+    Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10);
+}
+
+public class MessageThread : IMessageThread
 {
     public required string ThreadId { get; set; }
     public required IncomingMessage IncomingMessage { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
+    
 
-
-    public async Task<List<IncomingMessage>> GetHistory(int page = 1, int pageSize = 10)
+    public async Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
     {
-        var history = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.GetMessageHistory(ThreadId, page, pageSize),
-            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
-
+        var history = await new ThreadHistoryService().GetMessageHistory(ThreadId, page, pageSize);
         return history;
     }
 
