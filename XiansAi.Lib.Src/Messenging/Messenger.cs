@@ -7,7 +7,7 @@ public delegate void MessageReceivedHandler(MessageThread messageThread);
 
 public interface IMessenger
 {
-    Task<SendMessageResponse> SendMessage(string content, string participantId, string? metadata = null);
+    Task<SendMessageResponse> SendMessageAsync(string content, string participantId, string? metadata = null);
     void RegisterAsyncHandler(MessageReceivedAsyncHandler handler);
     void RegisterHandler(MessageReceivedHandler handler);
     void UnregisterHandler(MessageReceivedHandler handler);
@@ -29,7 +29,7 @@ public class Messenger : IMessenger
         _workflowId = workflowId;
     }
 
-    public async Task<SendMessageResponse> SendMessage(string content, string participantId, string? metadata = null)
+    public async Task<SendMessageResponse> SendMessageAsync(string content, string participantId, string? metadata = null)
     {
 
         var outgoingMessage = new OutgoingMessage
