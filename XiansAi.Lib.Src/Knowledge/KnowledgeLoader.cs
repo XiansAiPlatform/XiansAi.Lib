@@ -2,30 +2,30 @@ using System.Net;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using XiansAi.Models;
-    
-namespace Server;
+using Server;
+
+namespace XiansAi.Knowledge;
 
 /// <summary>
 /// Defines a service for loading instructions from either a server or local filesystem.
 /// </summary>
-public interface IInstructionLoader
+public interface IKnowledgeLoader
 {
     /// <summary>
     /// Loads an instruction by name from the available sources.
     /// </summary>
     /// <param name="instructionName">The name of the instruction to load</param>
     /// <returns>The loaded instruction, or null if not found</returns>
-    Task<Instruction?> Load(string instructionName);
+    Task<Models.Knowledge?> Load(string instructionName);
 }
 
 /// <summary>
 /// Implementation of the instruction loader that can retrieve instructions
 /// from either an API server or local files based on configuration and availability.
 /// </summary>
-public class InstructionLoader : IInstructionLoader
+public class KnowledgeLoaderImpl : IKnowledgeLoader
 {
-    private readonly ILogger<InstructionLoader> _logger;
+    private readonly ILogger<KnowledgeLoaderImpl> _logger;
     private readonly ISecureApiClient _secureApi;
     // Path to local instructions folder, configured via environment variable
     private readonly string? _localInstructionsFolder = Environment.GetEnvironmentVariable("LOCAL_INSTRUCTIONS_FOLDER");
@@ -39,12 +39,10 @@ public class InstructionLoader : IInstructionLoader
     /// <param name="loggerFactory">Factory to create a logger instance</param>
     /// <param name="secureApi">Secure API client for server communication</param>
     /// <exception cref="ArgumentNullException">Thrown if secureApi is null</exception>
-    public InstructionLoader(
-        ILoggerFactory loggerFactory,
-        ISecureApiClient secureApi)
+    public KnowledgeLoaderImpl()
     {
-        _logger = loggerFactory.CreateLogger<InstructionLoader>();
-        _secureApi = secureApi ?? throw new ArgumentNullException(nameof(secureApi));
+        _logger = Globals.LogFactory.CreateLogger<KnowledgeLoaderImpl>();
+        _secureApi = SecureApi.Instance;
     }
 
     /// <summary>
@@ -53,7 +51,7 @@ public class InstructionLoader : IInstructionLoader
     /// <param name="instructionName">The name of the instruction to load</param>
     /// <returns>The loaded instruction, or null if not found</returns>
     /// <exception cref="ArgumentException">Thrown if instructionName is null or empty</exception>
-    public async Task<Instruction?> Load(string instructionName)
+    public async Task<Models.Knowledge?> Load(string instructionName)
     {
         if (string.IsNullOrEmpty(instructionName))
         {
@@ -77,7 +75,7 @@ public class InstructionLoader : IInstructionLoader
     /// <returns>The loaded instruction</returns>
     /// <exception cref="InvalidOperationException">Thrown if local instructions folder is not configured or multiple matching files found</exception>
     /// <exception cref="FileNotFoundException">Thrown if instruction file not found</exception>
-    private async Task<Instruction> LoadFromLocal(string instructionName)
+    private async Task<Models.Knowledge> LoadFromLocal(string instructionName)
     {
         if (string.IsNullOrEmpty(_localInstructionsFolder))
         {
@@ -107,7 +105,7 @@ public class InstructionLoader : IInstructionLoader
         }
 
         var instructionPath = matchingFiles[0];
-        return new Instruction
+        return new Models.Knowledge
         { 
             Content = await File.ReadAllTextAsync(instructionPath), 
             Name = instructionName,
@@ -121,7 +119,7 @@ public class InstructionLoader : IInstructionLoader
     /// <param name="instructionName">The name of the instruction to load</param>
     /// <returns>The loaded instruction, or null if not found on server</returns>
     /// <exception cref="InvalidOperationException">Thrown if server request fails</exception>
-    private async Task<Instruction?> LoadFromServer(string instructionName)
+    private async Task<Models.Knowledge?> LoadFromServer(string instructionName)
     {
         var url = BuildServerUrl(instructionName);
         
@@ -168,7 +166,7 @@ public class InstructionLoader : IInstructionLoader
     /// <param name="httpResult">The HTTP response from the server</param>
     /// <returns>The deserialized Instruction object</returns>
     /// <exception cref="InvalidOperationException">Thrown if deserialization fails or response is invalid</exception>
-    private async Task<Instruction> ParseServerResponse(HttpResponseMessage httpResult)
+    private async Task<Models.Knowledge> ParseServerResponse(HttpResponseMessage httpResult)
     {
         var response = await httpResult.Content.ReadAsStringAsync();
 
@@ -181,16 +179,16 @@ public class InstructionLoader : IInstructionLoader
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
             
-            var instruction = JsonSerializer.Deserialize<Instruction>(response, options);
+            var knowledge = JsonSerializer.Deserialize<Models.Knowledge>(response, options);
 
             // Validate that required properties are present
-            if (instruction?.Content == null || instruction.Name == null)
+            if (knowledge?.Content == null || knowledge.Name == null)
             {
                 _logger.LogError($"Failed to deserialize instruction from server: {response}");
                 throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}");
             }
             
-            return instruction;
+            return knowledge;
         } 
         catch (Exception e)
         {

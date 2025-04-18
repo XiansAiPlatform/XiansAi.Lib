@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Server;
+using XiansAi.Knowledge;
 
 namespace XiansAi.Activity;
 
@@ -57,16 +58,16 @@ public abstract class InstructionActivity : AbstractActivity
         throw new InvalidOperationException($"[{GetType().Name}.{methodInfo.Name}] Instructions attribute is missing or empty on interface methods");
     }
 
-    protected async Task<Instruction> LoadInstruction(int index = 1)
+    protected async Task<LocalInstruction> LoadInstruction(int index = 1)
     {
         var instructionName = FindInstructionName(index);
-        var instruction = await new InstructionLoader(Globals.LogFactory, SecureApi.Instance).Load(instructionName);
+        var instruction = await new KnowledgeLoaderImpl().Load(instructionName);
         if (instruction == null)
         {
             _logger.LogError($"[{GetType().Name}] Failed to load instruction: {instructionName}");
             throw new InvalidOperationException($"[{GetType().Name}] Failed to load instruction: {instructionName}");
         }
-        return new Instruction
+        return new LocalInstruction
         {
             Name = instruction.Name,
             Content = instruction.Content
@@ -165,7 +166,7 @@ public abstract class InstructionActivity : AbstractActivity
     {
         try
         {
-            var instruction = await new InstructionLoader(Globals.LogFactory, SecureApi.Instance).Load(instructionName);
+            var instruction = await new KnowledgeLoaderImpl().Load(instructionName);
 
             if (instruction == null)
             {
@@ -195,20 +196,20 @@ public abstract class InstructionActivity : AbstractActivity
 }
 
 
-public class Instruction
+public class LocalInstruction
 {
     public required string Name { get; set; }
     public string? Content { get; set; }
 
-    private readonly ILogger<Instruction> _logger;
+    private readonly ILogger<LocalInstruction> _logger;
 
-    public Instruction()
+    public LocalInstruction()
     {
-        _logger = Globals.LogFactory?.CreateLogger<Instruction>() 
+        _logger = Globals.LogFactory?.CreateLogger<LocalInstruction>() 
             ?? throw new InvalidOperationException($"[{GetType().Name}] LogFactory not initialized");
     }
 
-    public Instruction Append(string content)
+    public LocalInstruction Append(string content)
     {
         Content = $"{Content}\n{content}";
         return this;

@@ -1,4 +1,4 @@
-namespace XiansAi.Flow;
+namespace XiansAi.Messaging;
 
 public delegate Task MessageReceivedAsyncHandler(MessageThread messageThread);
 public delegate void MessageReceivedHandler(MessageThread messageThread);
@@ -9,6 +9,7 @@ public interface IMessenger
     void RegisterHandler(MessageReceivedHandler handler);
     void UnregisterHandler(MessageReceivedHandler handler);
     void UnregisterAsyncHandler(MessageReceivedAsyncHandler handler);
+    internal Task ReceiveMessage(MessageSignal messageSignal);
 }
 
 public class Messenger : IMessenger
@@ -71,7 +72,7 @@ public class Messenger : IMessenger
         }
     }
 
-    internal async Task ReceiveMessage(MessageSignal messageSignal)
+    public async Task ReceiveMessage(MessageSignal messageSignal)
     {
         var incomingMessage = new IncomingMessage {
             Content = messageSignal.Content,

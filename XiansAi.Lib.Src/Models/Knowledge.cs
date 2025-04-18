@@ -1,6 +1,6 @@
 namespace XiansAi.Models;
 
-public class Instruction
+public class Knowledge
 {
     public string? Id { get; set; }
     public required string Name { get; set; }

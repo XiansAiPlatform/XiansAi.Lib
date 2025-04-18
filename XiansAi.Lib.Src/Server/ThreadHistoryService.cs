@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Server;
-using XiansAi.Flow;
+using XiansAi.Messaging;
 
 public class ThreadHistoryService
 {

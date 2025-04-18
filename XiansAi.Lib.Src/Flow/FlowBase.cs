@@ -1,9 +1,10 @@
 using System.Linq.Expressions;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
-using System.Collections.Concurrent;
 using Server;
 using XiansAi.Router;
+using XiansAi.Knowledge;
+using XiansAi.Messaging;
 
 namespace XiansAi.Flow;
 
@@ -16,9 +17,11 @@ public abstract class FlowBase
     private readonly ObjectCacheManager _cacheManager;
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
-    public Messenger Messenger { get; }
+    public IMessenger Messenger { get; }
 
-    public SemanticRouter Router { get; }
+    public ISemanticRouter Router { get; }
+
+    public IKnowledgeManager KnowledgeManager { get; }
 
     [WorkflowSignal]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
@@ -38,6 +41,7 @@ public abstract class FlowBase
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
         Router = new SemanticRouter();
+        KnowledgeManager = new KnowledgeManager();
     }
     public ILogger GetLogger()
     {

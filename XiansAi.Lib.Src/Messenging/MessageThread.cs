@@ -1,6 +1,6 @@
 using Temporalio.Workflows;
 
-namespace XiansAi.Flow;
+namespace XiansAi.Messaging;
 
 public interface IMessageThread
 {
