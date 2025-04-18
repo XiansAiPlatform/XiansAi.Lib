@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace XiansAi.System;
+namespace XiansAi.Docker;
 
 public interface ISystemProcess
 {

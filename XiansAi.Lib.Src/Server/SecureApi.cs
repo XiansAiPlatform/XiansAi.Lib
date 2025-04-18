@@ -1,9 +1,7 @@
-using System;
-using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
 
-namespace Server.Http;
+namespace Server;
 
 /// <summary>
 /// Defines a client for secure API communications.

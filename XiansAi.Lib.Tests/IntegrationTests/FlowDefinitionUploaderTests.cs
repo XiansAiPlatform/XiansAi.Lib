@@ -1,6 +1,5 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
-using Server.Http;
 using Server;
 using DotNetEnv;
 using XiansAi.Flow;
@@ -40,7 +39,7 @@ public class FlowDefinitionUploaderTests : IDisposable
         var secureApiClient = SecureApi.Instance;
 
         // Create the flow definition uploader with real SecureApi
-        _flowDefinitionUploader = new FlowDefinitionUploader(_loggerFactory, secureApiClient);
+        _flowDefinitionUploader = new FlowDefinitionUploader();
     }
 
     /*
@@ -57,8 +56,19 @@ public class FlowDefinitionUploaderTests : IDisposable
 
         // Act & Assert
         // The test passes if no exception is thrown during upload
-        await _flowDefinitionUploader.UploadFlowDefinition(testFlow);
-        _logger.LogInformation("Successfully uploaded workflow with activities definition to server");
+        try {
+            await _flowDefinitionUploader.UploadFlowDefinition(testFlow);
+            _logger.LogInformation("Successfully uploaded workflow with activities definition to server");
+        }
+        catch (Exception ex)
+        {
+            if (ex is InvalidOperationException && ex.Message.Contains("Another user has already used this flow")) {
+                _logger.LogInformation("Flow already exists, skipping upload");
+            } else {
+                _logger.LogError(ex, "Failed to upload workflow with activities definition to server");
+                throw;
+            }
+        }
     }
 
     public void Dispose()
@@ -73,7 +83,6 @@ public class FlowDefinitionUploaderTests : IDisposable
 // Test workflows and activities for testing
 
 [Workflow("TestWorkflowWithActivities")]
-[XiansAi.Flow.Categories("IntegrationTest")]
 public class TestWorkflowWithActivities
 {
     [WorkflowRun]
