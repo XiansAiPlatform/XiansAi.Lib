@@ -31,8 +31,7 @@ public class SecureApi : ISecureApiClient, IDisposable
     private bool _disposed;
     
     // Lazy-loaded singleton instance that requires explicit initialization before use
-    private static Lazy<SecureApi> _instance = new Lazy<SecureApi>(
-        () => throw new InvalidOperationException("SecureApi must be initialized before use"));
+    private static SecureApi? _instance;
 
     /// <summary>
     /// Gets the configured HTTP client for making secure API requests.
@@ -43,7 +42,7 @@ public class SecureApi : ISecureApiClient, IDisposable
     /// Gets the singleton instance of the SecureApi client.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if accessed before initialization.</exception>
-    public static ISecureApiClient Instance => _instance.Value;
+    public static ISecureApiClient Instance => _instance ?? throw new InvalidOperationException("SecureApi must be initialized before use");
 
     /// <summary>
     /// Initializes a new instance of the SecureApi class.
@@ -103,8 +102,8 @@ public class SecureApi : ISecureApiClient, IDisposable
     public static HttpClient InitializeClient(string certificateBase64, string serverUrl)
     {
         var logger = Globals.LogFactory.CreateLogger<SecureApi>();
-        _instance = new Lazy<SecureApi>(() => new SecureApi(certificateBase64, serverUrl, logger));
-        return _instance.Value.Client;
+        _instance = new SecureApi(certificateBase64, serverUrl, logger);
+        return _instance.Client;
     }
 
     /// <summary>

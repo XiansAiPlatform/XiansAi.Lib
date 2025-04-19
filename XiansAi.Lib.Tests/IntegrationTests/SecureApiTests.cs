@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
-public class SecureApiTests : IDisposable
+public class SecureApiTests 
 {
     private readonly string _certificateBase64;
     private readonly string _serverUrl;
@@ -101,17 +101,5 @@ public class SecureApiTests : IDisposable
         _logger.LogInformation(responseContent);
         Assert.Contains("Agent API called by user", responseContent);
         Assert.Contains("From Tenant", responseContent);
-    }
-
-    public void Dispose()
-    {
-        // Reset static instance to ensure tests are independent
-        // Note: This is using reflection to reset a private static field
-        // In a real project, consider adding a Reset method to SecureApi for testing
-        var field = typeof(SecureApi).GetField("_instance", 
-            BindingFlags.Static | BindingFlags.NonPublic);
-        
-        field?.SetValue(null, new Lazy<SecureApi>(
-            () => throw new InvalidOperationException("SecureApi must be initialized before use")));
     }
 } 

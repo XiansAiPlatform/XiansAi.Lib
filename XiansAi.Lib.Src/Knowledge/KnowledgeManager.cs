@@ -1,3 +1,4 @@
+using Temporalio.Common;
 using Temporalio.Workflows;
 
 namespace XiansAi.Knowledge;
@@ -15,7 +16,7 @@ public class KnowledgeManager : IKnowledgeManager
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
             (SystemActivities a) => a.GetKnowledgeAsync(knowledgeName),
-            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+             new SystemActivityOptions());
 
         return response;
     }

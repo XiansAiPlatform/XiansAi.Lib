@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Server;
 using Temporalio.Activities;
+using Temporalio.Common;
+using Temporalio.Workflows;
 using XiansAi.Flow;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
@@ -14,6 +16,8 @@ public class SendMessageResponse {
 }
 
 public class SystemActivities {
+
+
     private readonly ILogger _logger;
 
     public SystemActivities()
@@ -56,5 +60,17 @@ public class SystemActivities {
             _logger.LogError(ex, "Error sending message: {Message}", message);
             throw new Exception($"Failed to send message: {ex.Message}");
         }
+    }
+}
+
+public class SystemActivityOptions : ActivityOptions {
+    public SystemActivityOptions() {
+        StartToCloseTimeout = TimeSpan.FromSeconds(60);
+        RetryPolicy = new RetryPolicy {
+            InitialInterval = TimeSpan.FromSeconds(1),
+            MaximumInterval = TimeSpan.FromSeconds(10),
+            MaximumAttempts = 5,
+            BackoffCoefficient = 2
+        };
     }
 }

@@ -29,6 +29,15 @@ public class Messenger : IMessenger
         _workflowId = workflowId;
     }
 
+    public static Messenger Instance { 
+        get {
+            if (!Workflow.InWorkflow) {
+                throw new InvalidOperationException("Messenger must be used only within a workflow execution context");
+            }
+            return new Messenger(Workflow.Info.WorkflowId);
+        } 
+    }
+
     public async Task<SendMessageResponse> SendMessageAsync(string content, string participantId, string? metadata = null)
     {
 
@@ -42,7 +51,7 @@ public class Messenger : IMessenger
 
         var success = await Workflow.ExecuteActivityAsync(
             (SystemActivities a) => a.SendMessage(outgoingMessage),
-            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+            new SystemActivityOptions());
 
         return success;
     }
@@ -106,7 +115,8 @@ public class Messenger : IMessenger
             ThreadId = messageSignal.ThreadId,
             ParticipantId = messageSignal.ParticipantId,
             IncomingMessage = incomingMessage,
-            WorkflowId = _workflowId
+            WorkflowId = _workflowId,
+            HandedOverBy = messageSignal.HandedOverBy
         };
         
         // Call all handlers uniformly

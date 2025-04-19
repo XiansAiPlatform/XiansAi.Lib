@@ -13,6 +13,7 @@ public class MessageThread : IMessageThread
     public required IncomingMessage IncomingMessage { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
+    public string? HandedOverBy { get; set; }
     
 
     public async Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
@@ -29,12 +30,36 @@ public class MessageThread : IMessageThread
             Content = content,
             Metadata = metadata ?? IncomingMessage.Metadata,
             ParticipantId = ParticipantId,
-            WorkflowId = WorkflowId
+            // if the message is handed over, we will use the handover workflow id
+            WorkflowId = string.IsNullOrEmpty(HandedOverBy) ? WorkflowId : HandedOverBy,
+            HandedOverTo = WorkflowId
         };
 
         var success = await Workflow.ExecuteActivityAsync(
             (SystemActivities a) => a.SendMessage(outgoingMessage),
-            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+            new SystemActivityOptions());
+
+        return success;
+    }
+
+
+    public async Task<SendMessageResponse> Handover(string handoverTo, string content, string participantId, string? metadata = null)
+    {
+
+        var outgoingMessage = new OutgoingMessage
+        {
+            ThreadId = ThreadId,
+            Content = content,
+            Metadata = metadata,
+            ParticipantId = participantId,
+            WorkflowId = WorkflowId,
+            // set the handover to the participant id of the new thread
+            HandedOverTo = handoverTo
+        };
+
+        var success = await Workflow.ExecuteActivityAsync(
+            (SystemActivities a) => a.SendMessage(outgoingMessage),
+            new SystemActivityOptions());
 
         return success;
     }
@@ -45,6 +70,7 @@ public class IncomingMessage {
     public required object Metadata { get; set; }
     public required string CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
+    public string? HandedOverBy { get; set; }
 }
 
 public class MessageSignal {
@@ -54,6 +80,7 @@ public class MessageSignal {
     public required object Metadata { get; set; }
     public required string CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
+    public string? HandedOverBy { get; set; }
 }
 
 public class OutgoingMessage
@@ -63,6 +90,7 @@ public class OutgoingMessage
     public object? Metadata { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
+    public string? HandedOverTo { get; set; }
 }
 
 

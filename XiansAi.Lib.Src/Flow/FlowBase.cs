@@ -36,7 +36,7 @@ public abstract class FlowBase
     /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
     protected FlowBase()
     {
-        Messenger = new Messenger(Workflow.Info.WorkflowId);
+        Messenger = Messaging.Messenger.Instance;
         _logger = Globals.LogFactory?.CreateLogger<FlowBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();

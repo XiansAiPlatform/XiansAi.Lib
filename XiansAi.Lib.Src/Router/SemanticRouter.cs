@@ -21,7 +21,7 @@ public class SemanticRouter : ISemanticRouter
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
             (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options),
-            new() { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+            new SystemActivityOptions());
 
         return response;
     }
