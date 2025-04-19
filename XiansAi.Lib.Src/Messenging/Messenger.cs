@@ -46,7 +46,7 @@ public class Messenger : IMessenger
             Content = content,
             Metadata = metadata,
             ParticipantId = participantId,
-            WorkflowId = _workflowId
+            WorkflowIds = [ _workflowId ]
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -112,7 +112,6 @@ public class Messenger : IMessenger
         };
 
         var messageThread = new MessageThread {
-            ThreadId = messageSignal.ThreadId,
             ParticipantId = messageSignal.ParticipantId,
             IncomingMessage = incomingMessage,
             WorkflowId = _workflowId,

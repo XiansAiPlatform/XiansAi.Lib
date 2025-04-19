@@ -4,15 +4,13 @@ using Server;
 using Temporalio.Activities;
 using Temporalio.Common;
 using Temporalio.Workflows;
-using XiansAi.Flow;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Router;
 
 public class SendMessageResponse {
-    public required string MessageId { get; set; }
-    public required string ThreadId { get; set; }
+    public required string[] MessageIds { get; set; }
 }
 
 public class SystemActivities {

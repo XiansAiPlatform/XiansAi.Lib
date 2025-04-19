@@ -57,7 +57,7 @@ public class SystemActivitiesTests
             Content = "Test message 1",
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
-            WorkflowId = "test-workflow"
+            WorkflowIds = ["test-workflow"]
         };
         
         var message2 = new OutgoingMessage 
@@ -65,28 +65,24 @@ public class SystemActivitiesTests
             Content = "Test message 2",
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
-            WorkflowId = "test-workflow"
+            WorkflowIds = ["test-workflow"]
         };
 
         // Act - Send messages
         var sendResult1 = await _systemActivities.SendMessage(message1);
         var sendResult2 = await _systemActivities.SendMessage(message2);
 
-        Assert.NotNull(sendResult1?.ThreadId);
-        Assert.NotNull(sendResult2?.ThreadId);
+        Assert.NotNull(sendResult1?.MessageIds[0]);
+        Assert.NotNull(sendResult2?.MessageIds[0]);
 
-        Assert.Equal(sendResult1?.ThreadId, sendResult2?.ThreadId);
-
-
-        
         // Give server time to process
         await Task.Delay(1000);
         
         // Get message history
-        var messages = await _threadHistoryService.GetMessageHistory(sendResult1!.ThreadId);
+        var messages = await _threadHistoryService.GetMessageHistory(message1.WorkflowIds[0], message1.ParticipantId);
 
         // Log what we received
-        _logger.LogInformation($"Retrieved {messages.Count} messages for thread {sendResult1!.ThreadId}");
+        _logger.LogInformation($"Retrieved {messages.Count} messages for thread {message1.WorkflowIds[0]} {message1.ParticipantId}");
         foreach (var msg in messages)
         {
             _logger.LogInformation($"Message: {msg.Content}");

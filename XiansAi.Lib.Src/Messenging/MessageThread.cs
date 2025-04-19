@@ -9,7 +9,6 @@ public interface IMessageThread
 
 public class MessageThread : IMessageThread
 {
-    public required string ThreadId { get; set; }
     public required IncomingMessage IncomingMessage { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
@@ -18,7 +17,7 @@ public class MessageThread : IMessageThread
 
     public async Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
     {
-        var history = await new ThreadHistoryService().GetMessageHistory(ThreadId, page, pageSize);
+        var history = await new ThreadHistoryService().GetMessageHistory(WorkflowId, ParticipantId, page, pageSize);
         return history;
     }
 
@@ -26,13 +25,11 @@ public class MessageThread : IMessageThread
     {
         var outgoingMessage = new OutgoingMessage
         {
-            ThreadId = ThreadId,
             Content = content,
             Metadata = metadata ?? IncomingMessage.Metadata,
             ParticipantId = ParticipantId,
             // if the message is handed over, we will use the handover workflow id
-            WorkflowId = string.IsNullOrEmpty(HandedOverBy) ? WorkflowId : HandedOverBy,
-            HandedOverTo = WorkflowId
+            WorkflowIds = string.IsNullOrEmpty(HandedOverBy) ? [WorkflowId] : [HandedOverBy, WorkflowId]
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -48,11 +45,10 @@ public class MessageThread : IMessageThread
 
         var outgoingMessage = new OutgoingMessage
         {
-            ThreadId = ThreadId,
             Content = content,
             Metadata = metadata,
             ParticipantId = participantId,
-            WorkflowId = WorkflowId,
+            WorkflowIds = [WorkflowId],
             // set the handover to the participant id of the new thread
             HandedOverTo = handoverTo
         };
@@ -74,7 +70,6 @@ public class IncomingMessage {
 }
 
 public class MessageSignal {
-    public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
     public required string Content { get; set; }
     public required object Metadata { get; set; }
@@ -85,11 +80,12 @@ public class MessageSignal {
 
 public class OutgoingMessage
 {
-    public string? ThreadId { get; set; }
     public required string Content { get; set; }
     public object? Metadata { get; set; }
     public required string ParticipantId { get; set; }
-    public required string WorkflowId { get; set; }
+
+    // if the message is handed over, we will use both the original and the handed over to workflow id
+    public required string[] WorkflowIds { get; set; }
     public string? HandedOverTo { get; set; }
 }
 

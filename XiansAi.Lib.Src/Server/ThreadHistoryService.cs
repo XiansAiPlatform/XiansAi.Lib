@@ -12,9 +12,9 @@ public class ThreadHistoryService
         _logger = Globals.LogFactory.CreateLogger<ThreadHistoryService>();
     }
 
-    public async Task<List<HistoricalMessage>> GetMessageHistory(string threadId, int page = 1, int pageSize = 10)
+    public async Task<List<HistoricalMessage>> GetMessageHistory(string workflowId, string participantId, int page = 1, int pageSize = 10)
     {
-        _logger.LogInformation("Getting message history for thread: {ThreadId}", threadId);
+        _logger.LogInformation("Getting message history for thread: {WorkflowId} {ParticipantId}", workflowId, participantId);
 
         if (!SecureApi.Instance.IsReady)
         {
@@ -25,7 +25,7 @@ public class ThreadHistoryService
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"api/agent/conversation/history?threadId={threadId}&page={page}&pageSize={pageSize}");
+            var response = await client.GetAsync($"api/agent/conversation/history?workflowId={workflowId}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();
@@ -33,7 +33,7 @@ public class ThreadHistoryService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching message history for thread: {ThreadId}", threadId);
+            _logger.LogError(ex, "Error fetching message history for thread: {WorkflowId} {ParticipantId}", workflowId, participantId);
             throw;
         }
     }
