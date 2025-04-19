@@ -8,7 +8,7 @@ using Temporalio.Workflows;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
-public class FlowDefinitionUploaderTests : IDisposable
+public class FlowDefinitionUploaderTests
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly FlowDefinitionUploader _flowDefinitionUploader;
@@ -71,13 +71,6 @@ public class FlowDefinitionUploaderTests : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        // Reset the SecureApi static instance
-        var field = typeof(SecureApi).GetField("_instance", BindingFlags.Static | BindingFlags.NonPublic);
-        field?.SetValue(null, new Lazy<SecureApi>(() => 
-            throw new InvalidOperationException("SecureApi must be initialized before use")));
-    }
 }
 
 // Test workflows and activities for testing

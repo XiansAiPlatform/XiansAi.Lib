@@ -1,4 +1,5 @@
 using XiansAi.Flow;
+using XiansAi.Messaging;
 
 namespace XiansAi.Lib.Tests.UnitTests.Flow
 {
@@ -10,7 +11,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         private readonly string _workflowId = "test-workflow-id";
 
         [Fact]
-        public void RegisterHandler_AddsHandlerToCollection()
+        public async Task RegisterHandler_AddsHandlerToCollection()
         {
             // Arrange
             var messenger = new Messenger(_workflowId);
@@ -23,10 +24,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
-            // Use the internal method to trigger the handler
-            messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(messenger, new object[] { messageSignal });
+            // Use the now public method to trigger the handler
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.True(handlerCalled);
@@ -50,19 +49,15 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
-            // Use the internal method to trigger the handler
-            var method = messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-                
-            var task = (Task)method.Invoke(messenger, new object[] { messageSignal })!;
-            await task;
+            // Use the now public method to trigger the handler
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.True(handlerCalled);
         }
 
         [Fact]
-        public void UnregisterHandler_RemovesHandlerFromCollection()
+        public async Task UnregisterHandler_RemovesHandlerFromCollection()
         {
             // Arrange
             var messenger = new Messenger(_workflowId);
@@ -77,17 +72,15 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
-            // Use the internal method to trigger the handler
-            messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(messenger, new object[] { messageSignal });
+            // Use the now public method to trigger the handler
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.False(handlerCalled);
         }
 
         [Fact]
-        public void UnregisterAsyncHandler_RemovesHandlerFromCollection()
+        public async Task UnregisterAsyncHandler_RemovesHandlerFromCollection()
         {
             // Arrange
             var messenger = new Messenger(_workflowId);
@@ -106,10 +99,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
-            // Use the internal method to trigger the handler
-            messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(messenger, new object[] { messageSignal });
+            // Use the now public method to trigger the handler
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.False(handlerCalled);
@@ -136,12 +127,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Act
             var messageSignal = CreateTestMessageSignal();
             
-            // Use reflection to access the internal method
-            var method = messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-                
-            var task = (Task)method.Invoke(messenger, new object[] { messageSignal })!;
-            await task;
+            // Use the now public method
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.True(syncHandlerCalled);
@@ -161,11 +148,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Act
             var messageSignal = CreateTestMessageSignal();
             
-            // Use reflection to access the internal method
-            var method = messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-                
-            await (Task)method.Invoke(messenger, new object[] { messageSignal })!;
+            // Use the now public method
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.NotNull(capturedMessageThread);
@@ -180,7 +164,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
-        public void RegisteringSameHandlerMultipleTimes_OnlyRegistersOnce()
+        public async Task RegisteringSameHandlerMultipleTimes_OnlyRegistersOnce()
         {
             // Arrange
             var messenger = new Messenger(_workflowId);
@@ -195,10 +179,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
-            // Use the internal method to trigger the handler
-            messenger.GetType()
-                .GetMethod("ReceiveMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(messenger, new object[] { messageSignal });
+            // Use the now public method to trigger the handler
+            await messenger.ReceiveMessage(messageSignal);
             
             // Assert
             Assert.Equal(1, handlerCallCount);

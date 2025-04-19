@@ -12,7 +12,7 @@ public interface IMessenger
     void RegisterHandler(MessageReceivedHandler handler);
     void UnregisterHandler(MessageReceivedHandler handler);
     void UnregisterAsyncHandler(MessageReceivedAsyncHandler handler);
-    internal Task ReceiveMessage(MessageSignal messageSignal);
+    Task ReceiveMessage(MessageSignal messageSignal);
 }
 
 public class Messenger : IMessenger

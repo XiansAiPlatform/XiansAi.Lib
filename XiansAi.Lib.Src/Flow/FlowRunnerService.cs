@@ -140,6 +140,13 @@ public class FlowRunnerService : IFlowRunnerService
         where TFlow : class
     {
 
+        if (cancellationToken == default) {
+            // Cancellation token cancelled on ctrl+c
+            var tokenSource = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, eventArgs) => { tokenSource.Cancel(); eventArgs.Cancel = true; };
+            cancellationToken = tokenSource.Token;
+        }
+
 
         // Upload the flow definition to the server
         await new FlowDefinitionUploader().UploadFlowDefinition(flow);
@@ -168,7 +175,7 @@ public class FlowRunnerService : IFlowRunnerService
             options
         );
         _logger.LogInformation("Worker to run `{FlowName}` on queue `{Queue}` created. Ready to run!", workFlowName, taskQueue);
-        await worker.ExecuteAsync(cancellationToken);
+        await worker.ExecuteAsync(cancellationToken!);
     }
 }
 

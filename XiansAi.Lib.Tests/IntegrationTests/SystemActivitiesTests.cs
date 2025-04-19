@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 using Server;
 using DotNetEnv;
 using XiansAi.Flow;
+using XiansAi.Messaging;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
-public class SystemActivitiesTests : IDisposable
+public class SystemActivitiesTests
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly SystemActivities _systemActivities;
@@ -103,11 +104,4 @@ public class SystemActivitiesTests : IDisposable
         Assert.Contains(testMessages, m => m.Content == message2.Content);
     }
 
-    public void Dispose()
-    {
-        // Reset the SecureApi static instance
-        var field = typeof(SecureApi).GetField("_instance", BindingFlags.Static | BindingFlags.NonPublic);
-        field?.SetValue(null, new Lazy<SecureApi>(() => 
-            throw new InvalidOperationException("SecureApi must be initialized before use")));
-    }
 } 

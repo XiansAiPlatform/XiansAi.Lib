@@ -3,13 +3,14 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Server;
 using DotNetEnv;
+using XiansAi.Knowledge;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
-public class InstructionLoaderTests : IDisposable
+public class InstructionLoaderTests
 {
     private readonly ILoggerFactory _loggerFactory;
-    private readonly InstructionLoader _instructionLoader;
+    private readonly KnowledgeLoaderImpl _knowledgeLoader;
     private readonly string _certificateBase64;
     private readonly string _serverUrl;
     private readonly ILogger<InstructionLoaderTests> _logger;
@@ -37,7 +38,7 @@ public class InstructionLoaderTests : IDisposable
         var secureApiClient = SecureApi.Instance;
 
         // Create the instruction loader with real SecureApi
-        _instructionLoader = new InstructionLoader(_loggerFactory, secureApiClient);
+        _knowledgeLoader = new KnowledgeLoaderImpl();
     }
 
     /*
@@ -50,7 +51,7 @@ public class InstructionLoaderTests : IDisposable
         string instructionName = "How To Collect Links"; // Assuming "system" instruction exists
 
         // Act
-        var result = await _instructionLoader.Load(instructionName);
+        var result = await _knowledgeLoader.Load(instructionName);
 
         _logger.LogInformation($"Loaded instruction: {result}");
 
@@ -71,7 +72,7 @@ public class InstructionLoaderTests : IDisposable
         string instructionName = "non-existent-instruction-" + Guid.NewGuid();
 
         // Act
-        var result = await _instructionLoader.Load(instructionName);
+        var result = await _knowledgeLoader.Load(instructionName);
 
         // Assert
         Assert.Null(result);
@@ -85,15 +86,8 @@ public class InstructionLoaderTests : IDisposable
     public async Task Load_ShouldThrowArgumentException_WhenInstructionNameIsEmpty()
     {
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => _instructionLoader.Load(string.Empty));
+        await Assert.ThrowsAsync<ArgumentException>(() => _knowledgeLoader.Load(string.Empty));
         _logger.LogInformation("Correctly threw ArgumentException for empty instruction name");
     }
 
-    public void Dispose()
-    {
-        // Reset the SecureApi static instance
-        var field = typeof(SecureApi).GetField("_instance", BindingFlags.Static | BindingFlags.NonPublic);
-        field?.SetValue(null, new Lazy<SecureApi>(() => 
-            throw new InvalidOperationException("SecureApi must be initialized before use")));
-    }
 } 
