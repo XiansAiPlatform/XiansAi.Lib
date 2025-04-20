@@ -9,12 +9,13 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
     public class MessengerTests
     {
         private readonly string _workflowId = "test-workflow-id";
+        private readonly string _workflowType = "test-workflow-type";
 
         [Fact]
         public async Task RegisterHandler_AddsHandlerToCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             var handlerCalled = false;
             
             // Act
@@ -35,7 +36,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task RegisterAsyncHandler_AddsHandlerToCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             var handlerCalled = false;
             
             // Act
@@ -60,7 +61,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task UnregisterHandler_RemovesHandlerFromCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             var handlerCalled = false;
             
             MessageReceivedHandler handler = _ => handlerCalled = true;
@@ -83,7 +84,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task UnregisterAsyncHandler_RemovesHandlerFromCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             var handlerCalled = false;
             
             MessageReceivedAsyncHandler handler = _ => 
@@ -110,7 +111,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task ReceiveMessage_CallsAllRegisteredHandlers()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             var syncHandlerCalled = false;
             var asyncHandlerCalled = false;
             
@@ -139,7 +140,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task ReceiveMessage_CreatesProperMessageThread()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             MessageThread capturedMessageThread = null!;
             
             MessageReceivedHandler handler = messageThread => capturedMessageThread = messageThread;
@@ -158,15 +159,13 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             Assert.NotNull(capturedMessageThread.IncomingMessage);
             Assert.Equal(messageSignal.Content, capturedMessageThread.IncomingMessage.Content);
             Assert.Equal(messageSignal.Metadata, capturedMessageThread.IncomingMessage.Metadata);
-            Assert.Equal(messageSignal.CreatedAt, capturedMessageThread.IncomingMessage.CreatedAt);
-            Assert.Equal(messageSignal.CreatedBy, capturedMessageThread.IncomingMessage.CreatedBy);
         }
 
         [Fact]
         public async Task RegisteringSameHandlerMultipleTimes_OnlyRegistersOnce()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             var handlerCallCount = 0;
             
             MessageReceivedHandler handler = _ => handlerCallCount++;
@@ -189,7 +188,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public void UnregisteringNonExistentHandler_DoesNotThrowException()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId);
+            var messenger = new Messenger(_workflowId, _workflowType, null);
             MessageReceivedHandler handler = _ => { };
             
             // Act & Assert
@@ -204,8 +203,6 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                 ParticipantId = "test-participant-id",
                 Content = "Test message content",
                 Metadata = new { Type = "test" },
-                CreatedAt = DateTime.UtcNow.ToString("o"),
-                CreatedBy = "test-user"
             };
         }
     }

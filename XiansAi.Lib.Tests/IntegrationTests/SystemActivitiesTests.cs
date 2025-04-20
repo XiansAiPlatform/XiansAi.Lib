@@ -57,7 +57,7 @@ public class SystemActivitiesTests
             Content = "Test message 1",
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
-            WorkflowIds = ["test-workflow"]
+            WorkflowId = "test-workflow"
         };
         
         var message2 = new OutgoingMessage 
@@ -65,7 +65,7 @@ public class SystemActivitiesTests
             Content = "Test message 2",
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
-            WorkflowIds = ["test-workflow"]
+            WorkflowId = "test-workflow"
         };
 
         // Act - Send messages
@@ -79,10 +79,10 @@ public class SystemActivitiesTests
         await Task.Delay(1000);
         
         // Get message history
-        var messages = await _threadHistoryService.GetMessageHistory(message1.WorkflowIds[0], message1.ParticipantId);
+        var messages = await _threadHistoryService.GetMessageHistory(message1.WorkflowId, message1.ParticipantId);
 
         // Log what we received
-        _logger.LogInformation($"Retrieved {messages.Count} messages for thread {message1.WorkflowIds[0]} {message1.ParticipantId}");
+        _logger.LogInformation($"Retrieved {messages.Count} messages for thread {message1.WorkflowId} {message1.ParticipantId}");
         foreach (var msg in messages)
         {
             _logger.LogInformation($"Message: {msg.Content}");
