@@ -40,7 +40,7 @@ class SemanticRouterImpl: ISemanticRouter
             throw new Exception("System prompt is required");
         }
         options = options ?? new RouterOptions();
-        var kernel = Initialize(options, capabilitiesPluginNames);
+        var kernel = Initialize(options, capabilitiesPluginNames, messageThread);
         var chatHistory = await ExtractHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
         var settings = new OpenAIPromptExecutionSettings
         {
@@ -54,7 +54,7 @@ class SemanticRouterImpl: ISemanticRouter
     }
 
 
-    private Kernel Initialize(RouterOptions options, string[] capabilitiesPluginNames)
+    private Kernel Initialize(RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
     {
         // Load environment variables from .env file
         var apiKey = PlatformConfig.OPENAI_API_KEY ?? string.Empty;
@@ -78,7 +78,7 @@ class SemanticRouterImpl: ISemanticRouter
         // add capabilities plugins
         foreach (var pluginName in capabilitiesPluginNames)
         {
-            kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), PluginReader.GetFunctions(pluginName));
+            kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), PluginReader.GetFunctions(pluginName, messageThread));
         }
 
         return kernel;

@@ -1,3 +1,6 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Temporalio.Converters;
 using Temporalio.Workflows;
 
 namespace XiansAi.Messaging;
@@ -19,14 +22,19 @@ public class Messenger : IMessenger
 {
     private readonly List<Func<MessageThread, Task>> _handlers = new List<Func<MessageThread, Task>>();
     private readonly string _workflowId;
-    
+    private readonly string _workflowType;
+    private readonly IReadOnlyDictionary<string, IRawValue>? _workflowMemo;
+    private readonly ILogger<Messenger> _logger;
     // Dictionary to keep track of handler references for unregistration
     private readonly Dictionary<Delegate, Func<MessageThread, Task>> _handlerMappings = 
         new Dictionary<Delegate, Func<MessageThread, Task>>();
 
-    public Messenger(string workflowId)
+    public Messenger(string workflowId, string workflowType, IReadOnlyDictionary<string, IRawValue>? workflowMemo)
     {
         _workflowId = workflowId;
+        _workflowType = workflowType;
+        _workflowMemo = workflowMemo;
+        _logger = Globals.LogFactory.CreateLogger<Messenger>();
     }
 
     public static Messenger Instance { 
@@ -34,7 +42,12 @@ public class Messenger : IMessenger
             if (!Workflow.InWorkflow) {
                 throw new InvalidOperationException("Messenger must be used only within a workflow execution context");
             }
-            return new Messenger(Workflow.Info.WorkflowId);
+
+            return new Messenger(
+                Workflow.Info.WorkflowId,
+                Workflow.Info.WorkflowType,
+                Workflow.Memo
+            );
         } 
     }
 
@@ -46,7 +59,7 @@ public class Messenger : IMessenger
             Content = content,
             Metadata = metadata,
             ParticipantId = participantId,
-            WorkflowIds = [ _workflowId ]
+            WorkflowId = _workflowId
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -106,22 +119,38 @@ public class Messenger : IMessenger
     {
         var incomingMessage = new IncomingMessage {
             Content = messageSignal.Content,
-            Metadata = messageSignal.Metadata,
-            CreatedAt = messageSignal.CreatedAt,
-            CreatedBy = messageSignal.CreatedBy
+            Metadata = messageSignal.Metadata
         };
 
         var messageThread = new MessageThread {
             ParticipantId = messageSignal.ParticipantId,
             IncomingMessage = incomingMessage,
             WorkflowId = _workflowId,
-            HandedOverBy = messageSignal.HandedOverBy
+            ParentWorkflowId = messageSignal.ParentWorkflowId,
+            // optional fields required for start and handover
+            Agent = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.AgentKey) : null,
+            QueueName = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.QueueNameKey) : null,
+            Assignment = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.AssignmentKey) : null
         };
+
+        _logger.LogInformation("Received Signal Message: {Message}", JsonSerializer.Serialize(messageThread));
         
         // Call all handlers uniformly
         foreach (var handler in _handlers.ToList())
         {
             await handler(messageThread);
         }
+    }
+
+    private string? ExtractMemoValue(IReadOnlyDictionary<string, IRawValue> memo, string key)
+    {
+        if (memo.TryGetValue(key, out var memoValue))
+        {
+            var value = memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
+            _logger.LogInformation("Memo value for key {Key} found: {Value}", key, memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", ""));
+            return memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
+        }
+        _logger.LogWarning("Memo value for key {Key} not found", key);
+        return null;
     }
 }

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 
 namespace XiansAi.Messaging;
@@ -12,8 +14,18 @@ public class MessageThread : IMessageThread
     public required IncomingMessage IncomingMessage { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
-    public string? HandedOverBy { get; set; }
-    
+    public string? ParentWorkflowId { get; set; }
+    public string? Agent { get; set; }
+    public string? QueueName { get; set; }
+    public string? Assignment { get; set; }
+
+    private readonly ILogger<MessageThread> _logger;
+
+    public MessageThread()
+    {
+        _logger = Globals.LogFactory.CreateLogger<MessageThread>();
+    }
+
 
     public async Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
     {
@@ -23,59 +35,94 @@ public class MessageThread : IMessageThread
 
     public async Task<SendMessageResponse?> Respond(string content, string? metadata = null)
     {
-        var outgoingMessage = new OutgoingMessage
+        if (ParentWorkflowId != null)
         {
-            Content = content,
-            Metadata = metadata ?? IncomingMessage.Metadata,
-            ParticipantId = ParticipantId,
-            // if the message is handed over, we will use the handover workflow id
-            WorkflowIds = string.IsNullOrEmpty(HandedOverBy) ? [WorkflowId] : [HandedOverBy, WorkflowId]
-        };
+            var outgoingMessage = new HandoverMessage
+            {
+                Content = content,
+                Metadata = metadata ?? IncomingMessage.Metadata,
+                ParticipantId = ParticipantId,
+                WorkflowId = WorkflowId,
+                ParentWorkflowId = ParentWorkflowId
+            };
+            var success = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.SendHandOverResponse(outgoingMessage),
+                new SystemActivityOptions());
 
-        var success = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.SendMessage(outgoingMessage),
-            new SystemActivityOptions());
+            return success;
+        }
+        else
+        {
+            var outgoingMessage = new OutgoingMessage
+            {
+                Content = content,
+                Metadata = metadata ?? IncomingMessage.Metadata,
+                ParticipantId = ParticipantId,
+                WorkflowId = WorkflowId
+            };
+            var success = await Workflow.ExecuteActivityAsync(
+             (SystemActivities a) => a.SendMessage(outgoingMessage),
+             new SystemActivityOptions());
 
-        return success;
+            return success;
+        }
     }
 
-
-    public async Task<SendMessageResponse> Handover(string handoverTo, string content, string participantId, string? metadata = null)
+    public async Task<SendMessageResponse> StartAndHandover(string handoverWorkflowType, string content, string participantId, object? metadata = null)
     {
 
-        var outgoingMessage = new OutgoingMessage
+        var outgoingMessage = new StartAndHandoverMessage
         {
             Content = content,
             Metadata = metadata,
             ParticipantId = participantId,
-            WorkflowIds = [WorkflowId],
-            // set the handover to the participant id of the new thread
-            HandedOverTo = handoverTo
+            WorkflowId = WorkflowId,
+            WorkflowTypeToStart = handoverWorkflowType,
+            ParentWorkflowId = WorkflowId, // same as the current workflow id
+            // optional fields
+            Agent = Agent,
+            QueueName = QueueName,
+            Assignment = Assignment
         };
 
-        var success = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.SendMessage(outgoingMessage),
-            new SystemActivityOptions());
+        _logger.LogInformation($"Start and handover message: {JsonSerializer.Serialize(outgoingMessage)}");
 
+        var success = await new SystemActivities().StartAndHandoverMessage(outgoingMessage);
+        return success;
+    }
+    public async Task<SendMessageResponse> Handover(string childWorkflowId, string content, string participantId, object? metadata = null)
+    {
+
+        var outgoingMessage = new HandoverMessage
+        {
+            Content = content,
+            Metadata = metadata,
+            ParticipantId = participantId,
+            WorkflowId = WorkflowId,
+            ChildWorkflowId = childWorkflowId,
+            ParentWorkflowId = WorkflowId // same as the current workflow id
+        };
+
+        _logger.LogInformation($"Handover message: {JsonSerializer.Serialize(outgoingMessage)}");
+
+        var success = await new SystemActivities().HandOverMessage(outgoingMessage);
         return success;
     }
 }
 
-public class IncomingMessage {
+public class IncomingMessage
+{
     public required string Content { get; set; }
     public required object Metadata { get; set; }
-    public required string CreatedAt { get; set; }
-    public required string CreatedBy { get; set; }
-    public string? HandedOverBy { get; set; }
+    //public string? ParentWorkflowId { get; set; }
 }
 
-public class MessageSignal {
+public class MessageSignal
+{
     public required string ParticipantId { get; set; }
     public required string Content { get; set; }
     public required object Metadata { get; set; }
-    public required string CreatedAt { get; set; }
-    public required string CreatedBy { get; set; }
-    public string? HandedOverBy { get; set; }
+    public string? ParentWorkflowId { get; set; }
 }
 
 public class OutgoingMessage
@@ -83,14 +130,31 @@ public class OutgoingMessage
     public required string Content { get; set; }
     public object? Metadata { get; set; }
     public required string ParticipantId { get; set; }
+    public required string WorkflowId { get; set; }
 
-    // if the message is handed over, we will use both the original and the handed over to workflow id
-    public required string[] WorkflowIds { get; set; }
-    public string? HandedOverTo { get; set; }
 }
 
+public class HandoverResponseMessage : OutgoingMessage
+{    
+    public string? ParentWorkflowId { get; set; }
+}
 
-public class HistoricalMessage {
+public class HandoverMessage : OutgoingMessage
+{    
+    public string? ChildWorkflowId { get; set; }
+    public required string ParentWorkflowId { get; set; }
+}
+
+public class StartAndHandoverMessage : HandoverMessage
+{
+    public required string WorkflowTypeToStart { get; set; }
+    public string? Agent { get; set; }
+    public string? QueueName { get; set; }
+    public string? Assignment { get; set; }
+}
+
+public class HistoricalMessage
+{
     public string Id { get; set; } = null!;
     public required string ThreadId { get; set; }
     public required DateTime CreatedAt { get; set; }
@@ -106,8 +170,8 @@ public class HistoricalMessage {
 public class MessageLogEvent
 {
     public required DateTime Timestamp { get; set; }
-    
+
     public required string Event { get; set; }
-    
+
     public object? Details { get; set; }
 }

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Server;
 using Temporalio.Activities;
@@ -35,10 +36,67 @@ public class SystemActivities {
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options);
     }
 
+    [Activity ("SystemActivities.HandOverMessage")]
+    public async Task<SendMessageResponse> HandOverMessage(HandoverMessage message) {
+        _logger.LogInformation("Handing over message: {Message}", JsonSerializer.Serialize(message));
+        if (!SecureApi.Instance.IsReady)
+        {
+            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
+            throw new Exception("App server secure API is not ready, skipping message send operation");
+        }
+
+        if (string.IsNullOrEmpty(message.ChildWorkflowId)) {
+            throw new Exception("Child workflow id is required for handover");
+        }
+
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending message: {Message}", message);
+            throw new Exception($"Failed to send message: {ex.Message}");
+        }
+    }
+
+    [Activity ("SystemActivities.StartAndHandoverMessage")]
+    public async Task<SendMessageResponse> StartAndHandoverMessage(StartAndHandoverMessage message) {
+        _logger.LogInformation("Starting and handing over message: {Message}", message);
+        if (!SecureApi.Instance.IsReady)
+        {
+            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
+            throw new Exception("App server secure API is not ready, skipping message send operation");
+        }
+
+        if (string.IsNullOrEmpty(message.WorkflowTypeToStart)) {
+            throw new Exception("Workflow type is required");
+        }
+
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
+            response.EnsureSuccessStatusCode();
+
+            _logger.LogInformation("Handover response: {Response}", await response.Content.ReadAsStringAsync());
+            
+            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending message: {Message}", message);
+            throw new Exception($"Failed to send message: {ex.Message}");
+        }
+    }
 
     [Activity ("SystemActivities.SendMessage")]
     public async Task<SendMessageResponse> SendMessage(OutgoingMessage message) {
-        _logger.LogInformation("Sending message: {Message}", message);
+        _logger.LogInformation("Sending message: {Message}", JsonSerializer.Serialize(message));
         if (!SecureApi.Instance.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
@@ -48,7 +106,32 @@ public class SystemActivities {
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound", message);
+            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/send", message);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending message: {Message}", message);
+            throw new Exception($"Failed to send message: {ex.Message}");
+        }
+    }
+
+
+    [Activity ("SystemActivities.SendHandOverResponse")]
+    public async Task<SendMessageResponse> SendHandOverResponse(HandoverMessage message) {
+        _logger.LogInformation("Sending handover response: {Message}", JsonSerializer.Serialize(message));
+        if (!SecureApi.Instance.IsReady)
+        {
+            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
+            throw new Exception("App server secure API is not ready, skipping message send operation");
+        }
+
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover-response", message);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");

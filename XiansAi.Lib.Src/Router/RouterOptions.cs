@@ -26,7 +26,7 @@ public class RouterOptions
     /// <summary>
     /// Gets or sets the maximum number of tokens to generate in the response.
     /// </summary>
-    public int HistorySizeToFetch { get; set; } = 50;
+    public int HistorySizeToFetch { get; set; } = 20;
 
 }
 

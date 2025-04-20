@@ -1,10 +1,14 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using XiansAi.Messaging;
 
 namespace XiansAi.Router.Plugins;
+
+public class PluginReaderLogger {}
 
 /// <summary>
 /// Base class for all plugins that provides common functionality.
@@ -12,7 +16,9 @@ namespace XiansAi.Router.Plugins;
 public static class PluginReader
 {
 
-    public static IEnumerable<KernelFunction> GetFunctions(string pluginName)
+    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<PluginReaderLogger>();
+
+    public static IEnumerable<KernelFunction> GetFunctions(string pluginName, MessageThread messageThread)
     {
         // Try to get the type directly first
         var pluginType = Type.GetType(pluginName);
@@ -32,7 +38,17 @@ public static class PluginReader
         {
             throw new Exception($"Plugin type {pluginName} not found.");
         }
-        return GetFunctions(pluginType);
+        if (pluginType.IsAbstract && pluginType.IsSealed)
+        {
+            // static plugin
+            _logger.LogInformation("Getting functions from static type {PluginType}", pluginType.Name);
+            return GetFunctionsFromStaticType(pluginType);
+        }
+        else
+        {
+            _logger.LogInformation("Getting functions from instance type {PluginType}", pluginType.Name);
+            return GetFunctionsFromInstanceType(pluginType, messageThread);
+        }
     }
 
     /// <summary>
@@ -40,7 +56,7 @@ public static class PluginReader
     /// </summary>
     /// <param name="pluginType">The plugin type to extract functions from.</param>
     /// <returns>A collection of kernel functions.</returns>
-    public static IEnumerable<KernelFunction> GetFunctions(Type pluginType)
+    public static IEnumerable<KernelFunction> GetFunctionsFromStaticType(Type pluginType)
     {
         var functions = new List<KernelFunction>();
         var methods = GetCapabilityMethods(pluginType);
@@ -109,5 +125,46 @@ public static class PluginReader
         }
 
         return parameterMetadata;
+    }
+
+    /// <summary>
+    /// Gets all the kernel functions defined in a non-static plugin class.
+    /// </summary>
+    /// <param name="pluginType">The plugin type to extract functions from.</param>
+    /// <param name="messageThread">The message thread to pass to the plugin instance, if needed.</param>
+    /// <returns>A collection of kernel functions.</returns>
+    public static IEnumerable<KernelFunction> GetFunctionsFromInstanceType(Type pluginType, MessageThread messageThread)
+    {
+        var instance = Activator.CreateInstance(pluginType, messageThread) 
+            ?? throw new Exception($"Failed to create instance of {pluginType.Name}");
+                
+        var functions = new List<KernelFunction>();
+        var methods = pluginType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.GetCustomAttributes(typeof(CapabilityAttribute), false).Any());
+
+        foreach (var method in methods)
+        {
+            var parameterMetadata = CreateParameterMetadata(method);
+            var capabilityAttribute = method.GetCustomAttribute<CapabilityAttribute>()?.Description 
+                ?? throw new Exception($"Capability for method {method.Name} has no description.");
+            var returnParameter = new KernelReturnParameterMetadata {
+                Description = method.GetCustomAttribute<ReturnsAttribute>()?.Description 
+                    ?? throw new Exception($"Return parameter for method {method.Name} has no description."),
+                ParameterType = method.ReturnType
+            };
+            
+            var function = KernelFunctionFactory.CreateFromMethod(
+                method: method,
+                description: capabilityAttribute,
+                parameters: parameterMetadata,
+                returnParameter: returnParameter,
+                target: instance
+            );
+            
+            functions.Add(function);
+        }
+
+        return functions;
+    
     }
 } 

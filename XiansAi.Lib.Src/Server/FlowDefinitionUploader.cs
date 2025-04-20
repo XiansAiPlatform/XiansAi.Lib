@@ -111,7 +111,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation("Flow definition uploaded successfully: {ResponseBody}", responseBody);
+            _logger.LogInformation("Flow definition for {TypeName} uploaded successfully: {ResponseBody}", flowDefinition.TypeName, responseBody);
         }
         catch (HttpRequestException ex)
         {
