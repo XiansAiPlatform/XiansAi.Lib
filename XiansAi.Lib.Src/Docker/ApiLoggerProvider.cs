@@ -1,10 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Net.Http.Json;
-using Server.Http;
+using Server;
 using System.Net;
 using XiansAi.Models;
 using XiansAi.Flow;
+using XiansAi;
 
 public class ApiLoggerProvider : ILoggerProvider
 {
