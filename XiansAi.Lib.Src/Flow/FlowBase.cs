@@ -6,6 +6,7 @@ using XiansAi.Router;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 
+
 namespace XiansAi.Flow;
 
 /// <summary>
@@ -13,6 +14,7 @@ namespace XiansAi.Flow;
 /// </summary>
 public abstract class FlowBase
 {
+    private const int MaxLogLines = 100;
     private readonly ILogger _logger;
     private readonly ObjectCacheManager _cacheManager;
     private readonly Dictionary<Type, Type> _typeMappings = new();
@@ -247,5 +249,65 @@ public abstract class FlowBase
     {
         _logger.LogInformation("Deleting value from cache for key: {Key}", key);
         return await _cacheManager.DeleteValueAsync(key);
+    }
+
+
+    /// <summary>
+    /// Get the latest error logs from the activity error log file.
+    /// </summary>
+    /// <returns>The latest error logs as a string, or null if the file does not exist.</returns>
+    [WorkflowQuery]
+    public string? GetLogsFromFile()
+    {
+        var currentDateFileName = DateTime.Now.ToString("yyyyMMdd");
+        var errorFilePath = Path.Combine(Directory.GetCurrentDirectory(), $"logs/app{currentDateFileName}.log");
+
+        if (!File.Exists(errorFilePath))
+            return null;
+
+        try
+        {
+            // Open the file with shared read access
+            using var fs = new FileStream(errorFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var sr = new StreamReader(fs);
+
+            var lastLines = new LinkedList<string>();
+            string? line;
+
+            while ((line = sr.ReadLine()) != null)
+            {
+                lastLines.AddLast(line);
+                if (lastLines.Count > MaxLogLines)
+                    lastLines.RemoveFirst();
+            }
+
+            return string.Join(Environment.NewLine, lastLines);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to read logs: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Get the latest error logs from an Mongo DB collection.
+    /// </summary>
+    /// <returns>The latest error logs as a string, or null if the collection does not exist.</returns>
+    [WorkflowQuery]
+    public string? GetLogsFromMongo(string workflowId, string runId)
+    {
+
+        Console.WriteLine($"GetLogsFromMongo: workflowId: {workflowId}, runId: {runId}");
+
+        // Call the activity asynchronously using 'await'
+        var mongoDbActivity = new MongoDbActivity();
+        var logs = mongoDbActivity.GetLogsFromMongo(workflowId, runId);
+       
+        return string.Join(Environment.NewLine, logs.Select(log =>
+            $"Level: {log.GetValue("Level", "N/A")}\n" +
+            $"Timestamp: {log.GetValue("UtcTimeStamp", "N/A")}\n" +
+            $"Message: {log.GetValue("RenderedMessage", "N/A")}\n" +
+            "--------------------------------------------------"));
     }
 }
