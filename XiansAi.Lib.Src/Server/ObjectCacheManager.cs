@@ -12,7 +12,7 @@ public class ObjectCacheManager
         _logger = Globals.LogFactory.CreateLogger<ObjectCacheManager>();
     }
 
-    public async Task<T?> GetValueAsync<T>(string key)
+    public async virtual Task<T?> GetValueAsync<T>(string key)
     {
         _logger.LogInformation("Getting value from cache for key: {Key}", key);
         if (!SecureApi.Instance.IsReady)
@@ -37,7 +37,7 @@ public class ObjectCacheManager
         }
     }
 
-    public async Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null)
+    public async virtual Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null)
     {
         _logger.LogInformation("Setting value in cache for key: {Key}", key);
         if (!SecureApi.Instance.IsReady)
@@ -69,7 +69,7 @@ public class ObjectCacheManager
         }
     }
 
-    public async Task<bool> DeleteValueAsync(string key)
+    public async virtual Task<bool> DeleteValueAsync(string key)
     {
         _logger.LogInformation("Deleting value from cache for key: {Key}", key);
         if (!SecureApi.Instance.IsReady)
