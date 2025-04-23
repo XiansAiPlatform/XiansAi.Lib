@@ -6,6 +6,7 @@ using System.Net;
 using XiansAi.Models;
 using XiansAi.Flow;
 using XiansAi;
+using Temporalio.Activities;
 
 public class ApiLoggerProvider : ILoggerProvider
 {
@@ -59,6 +60,18 @@ public class ApiLogger : ILogger
 
     public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
+        // Only log when inside an activity context
+        if (ActivityExecutionContext.Current == null)
+        {
+            Console.WriteLine("No activity context, skipping log");
+            //print the log
+            Console.WriteLine(formatter(state, exception));
+
+            // write to file
+            File.AppendAllText("log.txt", formatter(state, exception));
+            return;
+        }
+
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
@@ -79,6 +92,9 @@ public class ApiLogger : ILogger
             Exception = exception?.ToString(),
             UpdatedAt = null
         };
+
+        // write to file
+        File.AppendAllText("log-in-activity.txt", logMessage);
 
         _ = Task.Run(async () =>
         {

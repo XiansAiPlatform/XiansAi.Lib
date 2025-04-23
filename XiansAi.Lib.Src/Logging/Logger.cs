@@ -7,27 +7,32 @@ namespace XiansAi.Logging;
 
 public class Logger<T>
 {
-    private readonly ILogger _logger;
+    private readonly Lazy<ILogger> _lazyLogger;
     private static readonly ConcurrentDictionary<Type, object> _loggers = new();
 
     private Logger()
     {
-        // Get the appropriate logger based on context
-        if (IsInActivity())
-        {
-            // In activity context, use ApiLoggerProvider
-            var logFactory = LoggerFactory.Create(builder =>
+        // Use lazy initialization to delay context detection until logging is actually needed
+        _lazyLogger = new Lazy<ILogger>(() => {
+            // Get the appropriate logger based on context
+            if (IsInActivity())
             {
-                builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
-            });
-            _logger = logFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
-        }
-        else
-        {
-            // In normal context, use the global logger factory
-            _logger = Globals.LogFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
-        }
+                // In activity context, use ApiLoggerProvider
+                var logFactory = LoggerFactory.Create(builder =>
+                {
+                    builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
+                });
+                return logFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
+            }
+            else
+            {
+                // In normal context, use the global logger factory
+                return Globals.LogFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
+            }
+        });
     }
+
+    private ILogger _logger => _lazyLogger.Value;
 
     public static Logger<TLogger> For<TLogger>()
     {
@@ -46,26 +51,42 @@ public class Logger<T>
 
     private bool IsInActivity()
     {
-        return ActivityExecutionContext.Current != null;
+        try
+        {
+            return ActivityExecutionContext.Current != null;
+        }
+        catch (InvalidOperationException)
+        {
+            // No current context, not in an activity
+            return false;
+        }
     }
 
     private Dictionary<string, object> GetContextData()
     {
         var contextData = new Dictionary<string, object>();
 
-        if (IsInActivity())
+        try
         {
-            var info = ActivityExecutionContext.Current!.Info;
-            contextData["TenantId"] = info.WorkflowNamespace;
-            contextData["WorkflowId"] = info.WorkflowId;
-            contextData["WorkflowRunId"] = info.WorkflowRunId;
+            if (IsInActivity())
+            {
+                var info = ActivityExecutionContext.Current!.Info;
+                contextData["TenantId"] = info.WorkflowNamespace;
+                contextData["WorkflowId"] = info.WorkflowId;
+                contextData["WorkflowRunId"] = info.WorkflowRunId;
+            }
+            else if (IsInWorkflow())
+            {
+                var info = Workflow.Info;
+                contextData["TenantId"] = info.Namespace;
+                contextData["WorkflowId"] = info.WorkflowId;
+                contextData["WorkflowRunId"] = info.RunId;
+            }
         }
-        else if (IsInWorkflow())
+        catch (Exception)
         {
-            var info = Workflow.Info;
-            contextData["TenantId"] = info.Namespace;
-            contextData["WorkflowId"] = info.WorkflowId;
-            contextData["WorkflowRunId"] = info.RunId;
+            Console.WriteLine("Error getting context data");
+            // If we can't get context data, return empty dictionary
         }
 
         return contextData;
