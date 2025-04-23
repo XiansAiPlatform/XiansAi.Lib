@@ -3,7 +3,6 @@ namespace XiansAi.Models
     public class Log
     {
         public string? Id { get; set; }
-        public required string TenantId { get; set; }
         public DateTime CreatedAt { get; set; }
         public required LogLevel Level { get; set; }
         public required string Message { get; set; }

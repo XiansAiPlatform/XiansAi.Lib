@@ -71,14 +71,12 @@ public class Logger<T>
             if (IsInActivity())
             {
                 var info = ActivityExecutionContext.Current!.Info;
-                contextData["TenantId"] = info.WorkflowNamespace;
                 contextData["WorkflowId"] = info.WorkflowId;
                 contextData["WorkflowRunId"] = info.WorkflowRunId;
             }
             else if (IsInWorkflow())
             {
                 var info = Workflow.Info;
-                contextData["TenantId"] = info.Namespace;
                 contextData["WorkflowId"] = info.WorkflowId;
                 contextData["WorkflowRunId"] = info.RunId;
             }

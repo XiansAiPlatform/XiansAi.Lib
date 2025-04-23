@@ -60,29 +60,20 @@ public class ApiLogger : ILogger
 
     public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        // Only log when inside an activity context
         if (ActivityExecutionContext.Current == null)
         {
-            Console.WriteLine("No activity context, skipping log");
-            //print the log
-            Console.WriteLine(formatter(state, exception));
-
-            // write to file
-            File.AppendAllText("log.txt", formatter(state, exception));
             return;
         }
 
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
-        var tenantId = context?.GetValueOrDefault("TenantId")?.ToString() ?? "defaultTenantId";
         var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
         var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() ?? "defaultWorkflowRunId";
 
         var log = new Log
         {
             Id = Guid.NewGuid().ToString(),
-            TenantId = tenantId,
             CreatedAt = DateTime.UtcNow,
             Level = (XiansAi.Models.LogLevel)logLevel,
             Message = logMessage,
@@ -92,9 +83,6 @@ public class ApiLogger : ILogger
             Exception = exception?.ToString(),
             UpdatedAt = null
         };
-
-        // write to file
-        File.AppendAllText("log-in-activity.txt", logMessage);
 
         _ = Task.Run(async () =>
         {
@@ -132,11 +120,4 @@ public class ApiLogger : ILogger
         public ScopeDisposable(Action onDispose) => _onDispose = onDispose;
         public void Dispose() => _onDispose();
     }
-}
-
-public class LogContext
-{
-    public required string TenantId { get; set; }
-    public required string WorkflowId { get; set; }
-    public required string RunId { get; set; }
 }
