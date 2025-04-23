@@ -1,43 +1,39 @@
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using System.Net.Http.Json;
-using Server;
-using System.Net;
 using XiansAi.Models;
-using XiansAi.Flow;
-using XiansAi;
+using XiansAi.Logging;
 using Temporalio.Activities;
 
 public class ApiLoggerProvider : ILoggerProvider
 {
-    private readonly string _logApiUrl;
+    private readonly LogQueue _logQueue;
+    private bool _isDisposed = false;
 
     public ApiLoggerProvider(string logApiUrl)
     {
-        _logApiUrl = logApiUrl;
+        _logQueue = LoggingServices.GetOrCreateLogQueue(logApiUrl);
     }
 
     public ILogger CreateLogger(string categoryName)
     {
-        return new ApiLogger(_logApiUrl, SecureApi.Instance);
+        return new ApiLogger(_logQueue);
     }
 
-    public void Dispose() { }
+    public void Dispose() 
+    {
+        if (_isDisposed) return;
+        _isDisposed = true;
+    }
 }
 
 public class ApiLogger : ILogger
 {
-    private readonly string _logApiUrl;
-
-    private readonly ISecureApiClient _secureApi;
+    private readonly LogQueue _logQueue;
     private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
     private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
 
-    public ApiLogger(string logApiUrl, ISecureApiClient secureApi)
+    public ApiLogger(LogQueue logQueue)
     {
-        _logApiUrl = PlatformConfig.APP_SERVER_URL + logApiUrl;
-        _secureApi = secureApi ??
-           throw new ArgumentNullException(nameof(secureApi));
+        _logQueue = logQueue ?? throw new ArgumentNullException(nameof(logQueue));
     }
 
     IDisposable ILogger.BeginScope<TState>(TState state)
@@ -84,34 +80,7 @@ public class ApiLogger : ILogger
             UpdatedAt = null
         };
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-
-                if (!_secureApi.IsReady)
-                {
-                    Console.Error.WriteLine("App server secure API is not available, upload of flow definition failed");
-                    throw new InvalidOperationException("App server secure API is not available");
-                }
-
-                var client = _secureApi.Client;
-                var response = await client.PostAsync(_logApiUrl, JsonContent.Create(log));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
-                }
-                else
-                {
-                    Console.WriteLine($"Logger API succeeded: {response.StatusCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Logger exception: {ex.Message}");
-            }
-        });
+        _logQueue.EnqueueLog(log);
     }
 
     private class ScopeDisposable : IDisposable
