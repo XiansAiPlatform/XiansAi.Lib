@@ -1,6 +1,5 @@
 using System.Reflection;
 using XiansAi.Activity;
-using Xunit;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Server;
@@ -141,7 +140,7 @@ public class ActivityBaseTest
                         {
                             // Simulate removal: Update mock so GetValueAsync returns null
                             _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
-                                            .ReturnsAsync((string)null);
+                                            .ReturnsAsync((string?)null);
                         });
 
         // Act
@@ -219,14 +218,14 @@ public class ActivityBaseTest
         var key = "null_value_key";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync<string>(prefixedKey, null, It.IsAny<CacheOptions?>()))
+        _mockCacheManager.Setup(m => m.SetValueAsync<string?>(prefixedKey, null, It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
         _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
-                         .ReturnsAsync((string)null);
+                         .ReturnsAsync((string?)null);
 
         // Act
-        var setResult = await activity.SetCachedValue<string>(key, null);
+        var setResult = await activity.SetCachedValue<string?>(key, null);
         var getResult = await activity.GetCachedValue<string>(key);
 
         // Assert
