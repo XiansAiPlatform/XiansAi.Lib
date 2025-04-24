@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace XiansAi.Logging;
 
@@ -9,26 +10,44 @@ public class Logger<T>
 {
     private readonly Lazy<ILogger> _lazyLogger;
     private static readonly ConcurrentDictionary<Type, object> _loggers = new();
+    private static bool _isInitialized = false;
+    private static readonly object _initLock = new object();
+
+    static Logger()
+    {
+        // Initialize logging services - will only happen once 
+        InitializeLoggingSystem();
+    }
+
+    private static void InitializeLoggingSystem()
+    {
+        lock (_initLock)
+        {
+            if (_isInitialized) return;
+            
+            // Initialize minimal logger for application startup
+            var services = new ServiceCollection()
+                .AddLogging()
+                .BuildServiceProvider();
+                
+            // Initialize the logging system
+            LoggingServices.Initialize(services);
+            
+            _isInitialized = true;
+        }
+    }
 
     private Logger()
     {
-        // Use lazy initialization to delay context detection until logging is actually needed
+        // Use lazy initialization to delay logger creation until needed
         _lazyLogger = new Lazy<ILogger>(() => {
-            // Get the appropriate logger based on context
-            if (IsInActivity())
+            // Create appropriate logger with ApiLoggerProvider
+            var logFactory = LoggerFactory.Create(builder =>
             {
-                // In activity context, use ApiLoggerProvider
-                var logFactory = LoggerFactory.Create(builder =>
-                {
-                    builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
-                });
-                return logFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
-            }
-            else
-            {
-                // In normal context, use the global logger factory
-                return Globals.LogFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
-            }
+                builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
+                builder.SetMinimumLevel(LogLevel.Trace); // Ensure Trace level is enabled
+            });
+            return logFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
         });
     }
 

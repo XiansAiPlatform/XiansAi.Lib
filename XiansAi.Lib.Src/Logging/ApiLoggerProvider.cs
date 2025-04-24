@@ -1,21 +1,19 @@
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
 using XiansAi.Logging;
-using Temporalio.Activities;
 
 public class ApiLoggerProvider : ILoggerProvider
 {
-    private readonly LogQueue _logQueue;
     private bool _isDisposed = false;
 
     public ApiLoggerProvider(string logApiUrl)
     {
-        _logQueue = LoggingServices.GetOrCreateLogQueue(logApiUrl);
+        // No need to create a LogQueue anymore
     }
 
     public ILogger CreateLogger(string categoryName)
     {
-        return new ApiLogger(_logQueue);
+        return new ApiLogger();
     }
 
     public void Dispose() 
@@ -27,13 +25,12 @@ public class ApiLoggerProvider : ILoggerProvider
 
 public class ApiLogger : ILogger
 {
-    private readonly LogQueue _logQueue;
     private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
     private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
 
-    public ApiLogger(LogQueue logQueue)
+    public ApiLogger()
     {
-        _logQueue = logQueue ?? throw new ArgumentNullException(nameof(logQueue));
+        // No dependencies needed
     }
 
     IDisposable ILogger.BeginScope<TState>(TState state)
@@ -49,18 +46,13 @@ public class ApiLogger : ILogger
         return disposable;
     }
 
-    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel)
+    public bool IsEnabled(LogLevel logLevel)
     {
         return true;
     }
 
-    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        if (ActivityExecutionContext.Current == null)
-        {
-            return;
-        }
-
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
@@ -71,7 +63,7 @@ public class ApiLogger : ILogger
         {
             Id = Guid.NewGuid().ToString(),
             CreatedAt = DateTime.UtcNow,
-            Level = (XiansAi.Models.LogLevel)logLevel,
+            Level = logLevel,
             Message = logMessage,
             WorkflowId = workflowId,
             WorkflowRunId = workflowRunId,
@@ -80,7 +72,8 @@ public class ApiLogger : ILogger
             UpdatedAt = null
         };
 
-        _logQueue.EnqueueLog(log);
+        // Use the static queue instead of a local queue
+        LoggingServices.EnqueueLog(log);
     }
 
     private class ScopeDisposable : IDisposable
