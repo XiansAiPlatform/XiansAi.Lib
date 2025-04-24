@@ -5,6 +5,7 @@ using Server;
 using Temporalio.Activities;
 using Temporalio.Common;
 using Temporalio.Workflows;
+using XiansAi.Events;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
@@ -22,6 +23,61 @@ public class SystemActivities {
     public SystemActivities()
     {
         _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
+    }
+
+    [Activity]
+    public async Task StartAndSendEventToWorkflowByType(StartAndSendEvent evt)
+    {
+        _logger.LogInformation("Starting and sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
+            evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowType);
+
+        var request = new {
+            WorkflowType = evt.TargetWorkflowType,
+            SignalName = Constants.EventSignalName,
+            Payload = evt,
+            QueueName = evt.SourceQueueName,
+            Agent = evt.SourceAgent,
+            Assignment = evt.SourceAssignment,
+        };
+        
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var response = await client.PostAsJsonAsync("api/agent/signal/with-start", request);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start and send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
+                evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowType);
+            throw;
+        }
+    }
+
+    [Activity]
+    public async Task SendEventToWorkflowById(Event evt)
+    {
+        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
+            evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
+
+        var request = new {
+            WorkflowId = evt.TargetWorkflowId,
+            SignalName = Constants.EventSignalName,
+            Payload = evt
+        };
+        
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var response = await client.PostAsJsonAsync("api/agent/signal", request);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
+                evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
+            throw;
+        }
     }
 
     [Activity ("SystemActivities.GetKnowledgeAsync")]
