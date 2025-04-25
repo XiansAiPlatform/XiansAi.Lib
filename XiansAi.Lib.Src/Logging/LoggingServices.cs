@@ -167,10 +167,6 @@ public static class LoggingServices
                 Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
                 RequeueLogBatch(logs);
             }
-            else
-            {
-                Console.WriteLine($"Logger API succeeded: {response.StatusCode}, sent {logs.Count} logs");
-            }
         }
         catch (Exception ex)
         {
