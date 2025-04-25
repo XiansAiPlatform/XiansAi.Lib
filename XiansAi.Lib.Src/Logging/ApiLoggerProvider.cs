@@ -57,7 +57,11 @@ public class ApiLogger : ILogger
         var context = _currentContext.Value;
 
         var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
-        var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() ?? "defaultWorkflowRunId";
+        
+        // Check for both "WorkflowRunId" and "RunId" keys
+        var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() 
+            ?? context?.GetValueOrDefault("RunId")?.ToString()
+            ?? "defaultWorkflowRunId";
 
         var log = new Log
         {

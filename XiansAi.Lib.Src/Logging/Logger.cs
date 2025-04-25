@@ -141,8 +141,49 @@ public class Logger<T>
 
     private void Log(LogLevel logLevel, string message, Exception? exception)
     {
-        var contextData = GetContextData();
+         var contextData = GetContextData();
+        // If in workflow context, use Workflow.Logger
+        if (IsInWorkflow())
+        {   
+            // Create a scope for Workflow.Logger with the appropriate context data
+            using (Workflow.Logger.BeginScope(contextData))
+            {
+                // Map the log level to appropriate Workflow.Logger methods
+                switch (logLevel)
+                {
+                    case LogLevel.Trace:
+                        Workflow.Logger.LogTrace(message);
+                        break;
+                    case LogLevel.Debug:
+                        Workflow.Logger.LogDebug(message);
+                        break;
+                    case LogLevel.Information:
+                        Workflow.Logger.LogInformation(message);
+                        break;
+                    case LogLevel.Warning:
+                        Workflow.Logger.LogWarning(message);
+                        break;
+                    case LogLevel.Error:
+                        if (exception != null)
+                            Workflow.Logger.LogError($"{message} Exception: {exception}");
+                        else
+                            Workflow.Logger.LogError(message);
+                        break;
+                    case LogLevel.Critical:
+                        if (exception != null)
+                            Workflow.Logger.LogError($"CRITICAL: {message} Exception: {exception}");
+                        else
+                            Workflow.Logger.LogError($"CRITICAL: {message}");
+                        break;
+                    default:
+                        Workflow.Logger.LogInformation(message);
+                        break;
+                }
+            }
+            return;
+        }
 
+        // For non-workflow context, use the normal logger
         if (contextData.Count > 0)
         {
             using (_logger.BeginScope(contextData))

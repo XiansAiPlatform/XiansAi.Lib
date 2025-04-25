@@ -159,7 +159,7 @@ public class FlowRunnerService : IFlowRunnerService
 
         var options = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
-            LoggerFactory = Globals.LogFactory,
+            LoggerFactory = CreateTemporalLoggerFactory(),
         };
         
         options.AddWorkflow<TFlow>();
@@ -176,6 +176,16 @@ public class FlowRunnerService : IFlowRunnerService
         );
         _logger.LogInformation("Worker to run `{FlowName}` on queue `{Queue}` created. Ready to run!", workFlowName, taskQueue);
         await worker.ExecuteAsync(cancellationToken!);
+    }
+
+    private ILoggerFactory CreateTemporalLoggerFactory()
+    {
+        // Create a logger factory with our ApiLoggerProvider to capture Temporal's logs
+        return LoggerFactory.Create(builder =>
+        {
+            builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
+            builder.SetMinimumLevel(LogLevel.Trace);
+        });
     }
 }
 
