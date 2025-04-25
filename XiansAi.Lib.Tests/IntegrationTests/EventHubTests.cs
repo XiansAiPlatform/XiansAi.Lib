@@ -60,12 +60,12 @@ public class EventHubTests
         };
         
         var evt = new Event {
-            EventType = "TestEvent",
-            SourceWorkflowId = sourceWorkflowId,
-            SourceWorkflowType = "TestWorkflow",
-            Payload = testPayload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowId = targetWorkflowId,
+            eventType = "TestEvent",
+            sourceWorkflowId = sourceWorkflowId,
+            sourceWorkflowType = "TestWorkflow",
+            payload = testPayload,
+            timestamp = DateTimeOffset.UtcNow,
+            targetWorkflowId = targetWorkflowId,
         };
 
         _logger.LogInformation("Sending event from {SourceWorkflow} to non-existent workflow {TargetWorkflow}", 
@@ -108,12 +108,12 @@ public class EventHubTests
         };
         
         var evt = new StartAndSendEvent {
-            EventType = "TestStartEvent",
-            SourceWorkflowId = sourceWorkflowId,
-            SourceWorkflowType = "TestWorkflow",
-            Payload = testPayload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowType = targetWorkflowType,
+            eventType = "TestStartEvent",
+            sourceWorkflowId = sourceWorkflowId,
+            sourceWorkflowType = "TestWorkflow",
+            payload = testPayload,
+            timestamp = DateTimeOffset.UtcNow,
+            targetWorkflowType = targetWorkflowType,
         };
 
         _logger.LogInformation("Starting and sending event from {SourceWorkflow} to workflow type {TargetWorkflowType}", 

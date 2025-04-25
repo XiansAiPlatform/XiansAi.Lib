@@ -53,16 +53,18 @@ public class EventHub : IEventHub
 
     public async void StartAndSendEventToWorkflowByType(string targetWorkflowType, string evtType, object? payload = null)
     {
+
+        Console.WriteLine($"Starting and sending event {evtType} from workflow {_workflowId} to workflow type {targetWorkflowType}");
         var evt = new StartAndSendEvent {
-            EventType = evtType,
-            SourceWorkflowId = _workflowId,
-            SourceWorkflowType = _workflowType,
-            SourceAgent = ExtractMemoValue(_workflowMemo, "agent"),
-            SourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
-            SourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
-            Payload = payload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowType = targetWorkflowType,
+            eventType = evtType,
+            sourceWorkflowId = _workflowId,
+            sourceWorkflowType = _workflowType,
+            sourceAgent = ExtractMemoValue(_workflowMemo, "agent"),
+            sourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
+            sourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
+            payload = payload,
+            timestamp = DateTimeOffset.UtcNow,
+            targetWorkflowType = targetWorkflowType,
         };
 
         await Workflow.ExecuteActivityAsync(
@@ -72,16 +74,17 @@ public class EventHub : IEventHub
 
     public async void SendEventToWorkflowAsync(string targetWorkflowId, string evtType, object? payload = null)
     {
+        Console.WriteLine($"--Sending event {evtType} from workflow {_workflowId} to workflow {targetWorkflowId}");
         var evt = new Event {
-            EventType = evtType,
-            SourceWorkflowId = _workflowId,
-            SourceWorkflowType = _workflowType,
-            SourceAgent = ExtractMemoValue(_workflowMemo, "agent"),
-            SourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
-            SourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
-            Payload = payload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowId = targetWorkflowId,
+            eventType = evtType,
+            sourceWorkflowId = _workflowId,
+            sourceWorkflowType = _workflowType,
+            sourceAgent = ExtractMemoValue(_workflowMemo, "agent"),
+            sourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
+            sourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
+            payload = payload,
+            timestamp = DateTimeOffset.UtcNow,
+            targetWorkflowId = targetWorkflowId,
         };
 
         try
@@ -94,7 +97,7 @@ public class EventHub : IEventHub
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
-                evt.EventType, _workflowId, targetWorkflowId);
+                evt.eventType, _workflowId, targetWorkflowId);
             throw;
         }
     }

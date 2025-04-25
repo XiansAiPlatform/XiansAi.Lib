@@ -28,9 +28,9 @@ public abstract class FlowBase
 
     // Signal method to receive events
     [WorkflowSignal("ReceiveEvent")]
-    public async Task ReceiveEventSignal(Event evt)
+    public async Task ReceiveEvent(Event evt)
     {
-        _logger.LogInformation("Received event: {EventType} from {WorkflowId}", evt.EventType, evt.SourceWorkflowId);
+        _logger.LogInformation("Received event: {EventType} from {WorkflowId}", evt.eventType, evt.sourceWorkflowId);
         await EventHub.ReceiveEvent(evt);
     }
 
