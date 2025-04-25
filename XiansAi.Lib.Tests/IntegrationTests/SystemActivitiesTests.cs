@@ -57,7 +57,8 @@ public class SystemActivitiesTests
             Content = "Test message 1",
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
-            WorkflowId = "test-workflow"
+            WorkflowId = "test-workflow",
+            WorkflowType = "test-workflow-type"
         };
         
         var message2 = new OutgoingMessage 
@@ -65,7 +66,8 @@ public class SystemActivitiesTests
             Content = "Test message 2",
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
-            WorkflowId = "test-workflow"
+            WorkflowId = "test-workflow",
+            WorkflowType = "test-workflow-type"
         };
 
         // Act - Send messages
