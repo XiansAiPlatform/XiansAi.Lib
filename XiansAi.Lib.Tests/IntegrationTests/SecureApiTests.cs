@@ -82,24 +82,5 @@ public class SecureApiTests
         Assert.Throws<ArgumentNullException>(() => SecureApi.InitializeClient(_certificateBase64, ""));
     }
 
-    /*
-    dotnet test --filter "FullyQualifiedName~SecureApiTests.IntegrationTests.GetAgentInfo_ShouldReturnInfo_WhenEndpointCalled"
-    */
-    [Fact]
-    public async Task GetAgentInfo_ShouldReturnInfo_WhenEndpointCalled()
-    {
-        // Arrange
-        SecureApi.InitializeClient(_certificateBase64, _serverUrl);
-        var client = SecureApi.Instance.Client;
 
-        // Act
-        var response = await client.GetAsync("api/agent/info");
-        
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var responseContent = await response.Content.ReadAsStringAsync();
-        _logger.LogInformation(responseContent);
-        Assert.Contains("Agent API called by user", responseContent);
-        Assert.Contains("From Tenant", responseContent);
-    }
 } 

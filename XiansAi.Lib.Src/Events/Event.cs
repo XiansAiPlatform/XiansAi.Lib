@@ -2,6 +2,7 @@ namespace XiansAi.Events;
 
 public class BaseEvent 
 {
+    
     public required string EventType { get; set; }
     public required string SourceWorkflowId { get; set; }
     public string? SourceWorkflowType { get; set; }
