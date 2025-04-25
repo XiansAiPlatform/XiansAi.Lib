@@ -5,8 +5,7 @@ using Server;
 using XiansAi.Router;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
-
-
+using XiansAi.Events;
 namespace XiansAi.Flow;
 
 /// <summary>
@@ -23,7 +22,17 @@ public abstract class FlowBase
 
     public ISemanticRouter Router { get; }
 
+    public IEventHub EventHub { get; }
+
     public IKnowledgeManager KnowledgeManager { get; }
+
+    // Signal method to receive events
+    [WorkflowSignal("ReceiveEvent")]
+    public async Task ReceiveEventSignal(Event evt)
+    {
+        _logger.LogInformation("Received event: {EventType} from {WorkflowId}", evt.EventType, evt.SourceWorkflowId);
+        await EventHub.ReceiveEvent(evt);
+    }
 
     [WorkflowSignal]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
@@ -44,6 +53,7 @@ public abstract class FlowBase
         _cacheManager = new ObjectCacheManager();
         Router = new SemanticRouter();
         KnowledgeManager = new KnowledgeManager();
+        EventHub = Events.EventHub.Instance;
     }
     public ILogger GetLogger()
     {
