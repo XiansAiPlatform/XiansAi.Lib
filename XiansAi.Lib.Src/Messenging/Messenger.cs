@@ -59,7 +59,8 @@ public class Messenger : IMessenger
             Content = content,
             Metadata = metadata,
             ParticipantId = participantId,
-            WorkflowId = _workflowId
+            WorkflowId = _workflowId,
+            WorkflowType = _workflowType
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -126,6 +127,7 @@ public class Messenger : IMessenger
             ParticipantId = messageSignal.ParticipantId,
             IncomingMessage = incomingMessage,
             WorkflowId = _workflowId,
+            WorkflowType = _workflowType,
             ParentWorkflowId = messageSignal.ParentWorkflowId,
             // optional fields required for start and handover
             Agent = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.AgentKey) : null,

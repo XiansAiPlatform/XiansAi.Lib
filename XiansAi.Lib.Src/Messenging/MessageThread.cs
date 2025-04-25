@@ -14,6 +14,7 @@ public class MessageThread : IMessageThread
     public required IncomingMessage IncomingMessage { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
+    public required string WorkflowType { get; set; }
     public string? ParentWorkflowId { get; set; }
     public string? Agent { get; set; }
     public string? QueueName { get; set; }
@@ -43,6 +44,7 @@ public class MessageThread : IMessageThread
                 Metadata = metadata ?? IncomingMessage.Metadata,
                 ParticipantId = ParticipantId,
                 WorkflowId = WorkflowId,
+                WorkflowType = WorkflowType,
                 ParentWorkflowId = ParentWorkflowId
             };
             var success = await Workflow.ExecuteActivityAsync(
@@ -58,7 +60,8 @@ public class MessageThread : IMessageThread
                 Content = content,
                 Metadata = metadata ?? IncomingMessage.Metadata,
                 ParticipantId = ParticipantId,
-                WorkflowId = WorkflowId
+                WorkflowId = WorkflowId,
+                WorkflowType = WorkflowType
             };
             var success = await Workflow.ExecuteActivityAsync(
              (SystemActivities a) => a.SendMessage(outgoingMessage),
@@ -77,6 +80,7 @@ public class MessageThread : IMessageThread
             Metadata = metadata,
             ParticipantId = participantId,
             WorkflowId = WorkflowId,
+            WorkflowType = WorkflowType,
             WorkflowTypeToStart = handoverWorkflowType,
             ParentWorkflowId = WorkflowId, // same as the current workflow id
             // optional fields
@@ -99,6 +103,7 @@ public class MessageThread : IMessageThread
             Metadata = metadata,
             ParticipantId = participantId,
             WorkflowId = WorkflowId,
+            WorkflowType = WorkflowType,
             ChildWorkflowId = childWorkflowId,
             ParentWorkflowId = WorkflowId // same as the current workflow id
         };
@@ -131,6 +136,7 @@ public class OutgoingMessage
     public object? Metadata { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
+    public required string WorkflowType { get; set; }
 
 }
 
