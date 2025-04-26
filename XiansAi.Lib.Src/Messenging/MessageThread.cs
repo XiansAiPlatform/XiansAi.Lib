@@ -11,7 +11,6 @@ public interface IMessageThread
 
 public class MessageThread : IMessageThread
 {
-    public required IncomingMessage IncomingMessage { get; set; }
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
@@ -41,7 +40,7 @@ public class MessageThread : IMessageThread
             var outgoingMessage = new HandoverMessage
             {
                 Content = content,
-                Metadata = metadata ?? IncomingMessage.Metadata,
+                Metadata = metadata,
                 ParticipantId = ParticipantId,
                 WorkflowId = WorkflowId,
                 WorkflowType = WorkflowType,
@@ -58,7 +57,7 @@ public class MessageThread : IMessageThread
             var outgoingMessage = new OutgoingMessage
             {
                 Content = content,
-                Metadata = metadata ?? IncomingMessage.Metadata,
+                Metadata = metadata,
                 ParticipantId = ParticipantId,
                 WorkflowId = WorkflowId,
                 WorkflowType = WorkflowType

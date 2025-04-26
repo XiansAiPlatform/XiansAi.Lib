@@ -125,7 +125,6 @@ public class Messenger : IMessenger
 
         var messageThread = new MessageThread {
             ParticipantId = messageSignal.ParticipantId,
-            IncomingMessage = incomingMessage,
             WorkflowId = _workflowId,
             WorkflowType = _workflowType,
             ParentWorkflowId = messageSignal.ParentWorkflowId,

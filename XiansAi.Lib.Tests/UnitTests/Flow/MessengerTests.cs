@@ -156,9 +156,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             Assert.NotNull(capturedMessageThread);
             Assert.Equal(messageSignal.ParticipantId, capturedMessageThread.ParticipantId);
             Assert.Equal(_workflowId, capturedMessageThread.WorkflowId);
-            Assert.NotNull(capturedMessageThread.IncomingMessage);
-            Assert.Equal(messageSignal.Content, capturedMessageThread.IncomingMessage.Content);
-            Assert.Equal(messageSignal.Metadata, capturedMessageThread.IncomingMessage.Metadata);
+
         }
 
         [Fact]
