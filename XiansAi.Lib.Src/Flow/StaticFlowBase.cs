@@ -29,13 +29,13 @@ public abstract class StaticFlowBase
 
     // Signal method to receive events
     [WorkflowSignal("ReceiveEvent")]
-    public async Task ReceiveEventSignal(Event evt)
+    public async Task ReceiveEvent(Event evt)
     {
         _logger.LogInformation("Received event: {EventType} from {WorkflowId}", evt.EventType, evt.SourceWorkflowId);
         await EventHub.ReceiveEvent(evt);
     }
 
-    [WorkflowSignal]
+    [WorkflowSignal("HandleInboundMessage")]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
     {
         _logger.LogInformation($"Received inbound message in base class: {messageSignal.Content}");

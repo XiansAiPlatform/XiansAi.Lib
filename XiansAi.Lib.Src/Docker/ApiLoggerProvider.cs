@@ -98,10 +98,6 @@ public class ApiLogger : ILogger
                 {
                     Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
                 }
-                else
-                {
-                    Console.WriteLine($"Logger API succeeded: {response.StatusCode}");
-                }
             }
             catch (Exception ex)
             {
