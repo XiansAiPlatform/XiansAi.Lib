@@ -16,7 +16,7 @@ public class ThreadHistoryService
     {
         _logger.LogInformation("Getting message history for thread: {WorkflowId} {ParticipantId}", workflowId, participantId);
 
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
             return new List<HistoricalMessage>();

@@ -5,32 +5,37 @@ namespace XiansAi.Knowledge;
 
 public interface IKnowledgeManager
 {
-    Task<Models.Knowledge> GetKnowledgeAsync(string knowledgeName);
+    Task<Models.Knowledge?> GetKnowledgeAsync(string knowledgeName);
 }
 
 public class KnowledgeManager : IKnowledgeManager
 {
 
-    public async Task<Models.Knowledge> GetKnowledgeAsync(string knowledgeName)
+    public async Task<Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
-        // Go through a Temporal activity to perform IO operations
-        var response = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.GetKnowledgeAsync(knowledgeName),
-             new SystemActivityOptions());
+        if (Workflow.InWorkflow) {
+            // Go through a Temporal activity to perform IO operations
+            var response = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.GetKnowledgeAsync(knowledgeName),
+                new SystemActivityOptions());
 
-        return response;
+            return response;
+        } else {
+            return await new SystemActivities().GetKnowledgeAsync(knowledgeName);
+        }
+
     }
 
 }
 
-class KnowledgeManagerImpl: IKnowledgeManager
-{
+// class KnowledgeManagerImpl: IKnowledgeManager
+// {
 
-    public async Task<Models.Knowledge> GetKnowledgeAsync(string knowledgeName)
-    {
-        var knowledgeLoader = new KnowledgeLoaderImpl();
-        var knowledge = await knowledgeLoader.Load(knowledgeName);
-        return knowledge ?? throw new InvalidOperationException($"Knowledge {knowledgeName} not found");
-    }
+//     public async Task<Models.Knowledge> GetKnowledgeAsync(string knowledgeName)
+//     {
+//         var knowledgeLoader = new KnowledgeLoaderImpl();
+//         var knowledge = await knowledgeLoader.Load(knowledgeName);
+//         return knowledge ?? throw new InvalidOperationException($"Knowledge {knowledgeName} not found");
+//     }
 
-}
+// }

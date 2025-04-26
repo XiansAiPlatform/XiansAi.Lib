@@ -81,9 +81,11 @@ public class SystemActivities {
     }
 
     [Activity ("SystemActivities.GetKnowledgeAsync")]
-    public async Task<Knowledge> GetKnowledgeAsync(string knowledgeName)
+    public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
-        return await new KnowledgeManagerImpl().GetKnowledgeAsync(knowledgeName);
+        var knowledgeLoader = new KnowledgeLoaderImpl();
+        var knowledge = await knowledgeLoader.Load(knowledgeName);
+        return knowledge ;
     }
 
     [Activity ("SystemActivities.RouteAsync")]
@@ -95,7 +97,7 @@ public class SystemActivities {
     [Activity ("SystemActivities.HandOverMessage")]
     public async Task<SendMessageResponse> HandOverMessage(HandoverMessage message) {
         _logger.LogInformation("Handing over message: {Message}", JsonSerializer.Serialize(message));
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new Exception("App server secure API is not ready, skipping message send operation");
@@ -123,7 +125,7 @@ public class SystemActivities {
     [Activity ("SystemActivities.StartAndHandoverMessage")]
     public async Task<SendMessageResponse> StartAndHandoverMessage(StartAndHandoverMessage message) {
         _logger.LogInformation("Starting and handing over message: {Message}", message);
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new Exception("App server secure API is not ready, skipping message send operation");
@@ -153,7 +155,7 @@ public class SystemActivities {
     [Activity ("SystemActivities.SendMessage")]
     public async Task<SendMessageResponse> SendMessage(OutgoingMessage message) {
         _logger.LogInformation("Sending message: {Message}", JsonSerializer.Serialize(message));
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new Exception("App server secure API is not ready, skipping message send operation");
@@ -178,7 +180,7 @@ public class SystemActivities {
     [Activity ("SystemActivities.SendHandOverResponse")]
     public async Task<SendMessageResponse> SendHandOverResponse(HandoverMessage message) {
         _logger.LogInformation("Sending handover response: {Message}", JsonSerializer.Serialize(message));
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new Exception("App server secure API is not ready, skipping message send operation");

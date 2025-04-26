@@ -46,7 +46,7 @@ public class ActivityBase : DockerActivity
     protected async Task<T?> GetCacheValueAsync<T>(string key, bool usePrefix = true)
     {
         var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
-        _logger.LogInformation("Getting value from cache for key: {Key}", prefixedKey);
+        _logger.LogDebug("Getting value from cache for key: {Key}", prefixedKey);
         return await _cacheManager.GetValueAsync<T>(prefixedKey);
     }
 
@@ -61,7 +61,7 @@ public class ActivityBase : DockerActivity
     protected async Task<bool> SetCacheValueAsync<T>(string key, T value, bool usePrefix = true)
     {
         var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
-        _logger.LogInformation("Setting value in cache for key: {Key}", prefixedKey);
+        _logger.LogDebug("Setting value in cache for key: {Key}", prefixedKey);
         return await _cacheManager.SetValueAsync(prefixedKey, value);
     }
 

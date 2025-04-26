@@ -25,7 +25,7 @@ public class Messenger : IMessenger
     private readonly string _workflowType;
     private readonly IReadOnlyDictionary<string, IRawValue>? _workflowMemo;
     private readonly ILogger<Messenger> _logger;
-    // Dictionary to keep track of handler references for unregistration
+
     private readonly Dictionary<Delegate, Func<MessageThread, Task>> _handlerMappings = 
         new Dictionary<Delegate, Func<MessageThread, Task>>();
 

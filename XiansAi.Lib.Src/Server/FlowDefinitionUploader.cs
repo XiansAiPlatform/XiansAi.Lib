@@ -91,7 +91,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <exception cref="InvalidOperationException">Thrown if server connection fails or returns an error</exception>
     private async Task UploadToServer(FlowDefinition flowDefinition)
     {
-        if (!_secureApi.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogError("App server secure API is not available, upload of flow definition failed");
             throw new InvalidOperationException("App server secure API is not available");

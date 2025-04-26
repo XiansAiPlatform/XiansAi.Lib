@@ -85,7 +85,7 @@ public class ApiLogger : ILogger
             try
             {
 
-                if (!_secureApi.IsReady)
+                if (!SecureApi.IsReady)
                 {
                     Console.Error.WriteLine("App server secure API is not available, upload of flow definition failed");
                     throw new InvalidOperationException("App server secure API is not available");
