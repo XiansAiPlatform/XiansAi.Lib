@@ -3,14 +3,17 @@ using XiansAi.Messaging;
 using System.Reflection;
 using XiansAi.Activity;
 using XiansAi.Knowledge;
+using Temporalio.Exceptions;
 
 namespace XiansAi.Flow;
+
+// Define delegate for message listening
+public delegate Task MessageListenerDelegate(MessageThread messageThread);
 
 public abstract class FlowBase : StaticFlowBase
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     protected List<Type> Capabilities { get; } = new List<Type>();
-    protected string SystemPrompt { get; set; } = "You are a helpful assistant.";
 
     private string? _systemPromptKey;
 
@@ -35,17 +38,12 @@ public abstract class FlowBase : StaticFlowBase
         }
     }
 
-    protected virtual async Task RunConversation()
+    protected virtual async Task RunConversation(MessageListenerDelegate? messageListener = null)
     {
 
         Console.WriteLine("Pre Consultation Flow started");
 
-        // Get the system prompt from the knowledge base
-        if (_systemPromptKey != null)
-        {
-            var knowledge = await new KnowledgeManager().GetKnowledgeAsync(_systemPromptKey);
-            SystemPrompt = knowledge?.Content ?? throw new Exception($"Knowledge with key {_systemPromptKey} not found");
-        }
+        var systemPrompt = await GetSystemPrompt();
 
         while (true)
         {
@@ -54,20 +52,36 @@ public abstract class FlowBase : StaticFlowBase
 
             // Get the message from the queue
             var thread = _messageQueue.Dequeue();
+            
+            // Invoke the message listener if provided
+            if (messageListener != null)
+            {
+                await messageListener(thread);
+            }
 
             // Asynchronously process the message
-            _ = ProcessMessage(thread);
+            _ = ProcessMessage(thread, systemPrompt);
 
         }
     }
 
-    private async Task ProcessMessage(MessageThread messageThread)
+    private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)
     {
         // Route the message to the appropriate flow
-        var response = await Router.RouteAsync(messageThread, SystemPrompt, Capabilities.Select(t => t.FullName!).ToArray());
+        var response = await Router.RouteAsync(messageThread, systemPrompt, Capabilities.Select(t => t.FullName!).ToArray());
 
         // Respond to the user
         await messageThread.Respond(response);
+    }
+
+    public async Task<string> GetSystemPrompt()
+    {
+        if (_systemPromptKey == null)
+        {
+            throw new Exception("System prompt key is not set");
+        }
+        var knowledge = await new KnowledgeManager().GetKnowledgeAsync(_systemPromptKey);
+        return knowledge?.Content ?? throw new ApplicationFailureException($"Knowledge with key {_systemPromptKey} not found");
     }
 }
 

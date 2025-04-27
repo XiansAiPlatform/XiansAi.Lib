@@ -58,7 +58,10 @@ public class SystemActivitiesTests
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
             WorkflowId = "test-workflow",
-            WorkflowType = "test-workflow-type"
+            WorkflowType = "test-workflow-type",
+            Agent = "test-agent",
+            QueueName = "test-queue-name",
+            Assignment = "test-assignment"
         };
         
         var message2 = new OutgoingMessage 
@@ -67,21 +70,24 @@ public class SystemActivitiesTests
             Metadata = new Dictionary<string, string>(),
             ParticipantId = "test-participant",
             WorkflowId = "test-workflow",
-            WorkflowType = "test-workflow-type"
+            WorkflowType = "test-workflow-type",
+            Agent = "test-agent",
+            QueueName = "test-queue-name",
+            Assignment = "test-assignment"
         };
 
         // Act - Send messages
         var sendResult1 = await _systemActivities.SendMessage(message1);
         var sendResult2 = await _systemActivities.SendMessage(message2);
 
-        Assert.NotNull(sendResult1?.MessageIds[0]);
-        Assert.NotNull(sendResult2?.MessageIds[0]);
+        Assert.NotNull(sendResult1);
+        Assert.NotNull(sendResult2);
 
         // Give server time to process
         await Task.Delay(1000);
         
         // Get message history
-        var messages = await _threadHistoryService.GetMessageHistory(message1.WorkflowId, message1.ParticipantId);
+        var messages = await _threadHistoryService.GetMessageHistory(message1.Agent, message1.ParticipantId);
 
         // Log what we received
         _logger.LogInformation($"Retrieved {messages.Count} messages for thread {message1.WorkflowId} {message1.ParticipantId}");

@@ -18,26 +18,9 @@ public static class PluginReader
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<PluginReaderLogger>();
 
-    public static IEnumerable<KernelFunction> GetFunctions(string pluginName, MessageThread messageThread)
+    public static IEnumerable<KernelFunction> GetFunctions(Type pluginType, object instance)
     {
-        // Try to get the type directly first
-        var pluginType = Type.GetType(pluginName);
 
-        // If not found, search through all loaded assemblies
-        if (pluginType == null)
-        {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                pluginType = assembly.GetType(pluginName);
-                if (pluginType != null)
-                    break;
-            }
-        }
-
-        if (pluginType == null)
-        {
-            throw new Exception($"Plugin type {pluginName} not found.");
-        }
         if (pluginType.IsAbstract && pluginType.IsSealed)
         {
             // static plugin
@@ -47,7 +30,7 @@ public static class PluginReader
         else
         {
             _logger.LogInformation("Getting functions from instance type {PluginType}", pluginType.Name);
-            return GetFunctionsFromInstanceType(pluginType, messageThread);
+            return GetFunctionsFromInstanceType(pluginType, instance);
         }
     }
 
@@ -204,16 +187,14 @@ public static class PluginReader
     /// Gets all the kernel functions defined in a non-static plugin class.
     /// </summary>
     /// <param name="pluginType">The plugin type to extract functions from.</param>
-    /// <param name="messageThread">The message thread to pass to the plugin instance, if needed.</param>
+    /// <param name="instance">The instance of the plugin to extract functions from.</param>
     /// <returns>A collection of kernel functions.</returns>
-    public static IEnumerable<KernelFunction> GetFunctionsFromInstanceType(Type pluginType, MessageThread messageThread)
+    public static IEnumerable<KernelFunction> GetFunctionsFromInstanceType(Type pluginType, object instance)
     {
         _logger.LogInformation("Getting functions from instance type {PluginType}", pluginType.Name);
 
         try
         {
-            var instance = Activator.CreateInstance(pluginType, messageThread);
-
             if (instance == null)
             {
                 throw new Exception($"Failed to create instance of {pluginType.Name}");

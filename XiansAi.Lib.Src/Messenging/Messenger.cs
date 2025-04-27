@@ -10,7 +10,7 @@ public delegate void MessageReceivedHandler(MessageThread messageThread);
 
 public interface IMessenger
 {
-    Task<SendMessageResponse> SendMessageAsync(string content, string participantId, string? metadata = null);
+    Task<string?> SendMessageAsync(string content, string participantId, string? metadata = null);
     void RegisterAsyncHandler(MessageReceivedAsyncHandler handler);
     void RegisterHandler(MessageReceivedHandler handler);
     void UnregisterHandler(MessageReceivedHandler handler);
@@ -23,13 +23,13 @@ public class Messenger : IMessenger
     private readonly List<Func<MessageThread, Task>> _handlers = new List<Func<MessageThread, Task>>();
     private readonly string _workflowId;
     private readonly string _workflowType;
-    private readonly IReadOnlyDictionary<string, IRawValue>? _workflowMemo;
+    private readonly IReadOnlyDictionary<string, IRawValue> _workflowMemo;
     private readonly ILogger<Messenger> _logger;
 
     private readonly Dictionary<Delegate, Func<MessageThread, Task>> _handlerMappings = 
         new Dictionary<Delegate, Func<MessageThread, Task>>();
 
-    public Messenger(string workflowId, string workflowType, IReadOnlyDictionary<string, IRawValue>? workflowMemo)
+    public Messenger(string workflowId, string workflowType, IReadOnlyDictionary<string, IRawValue> workflowMemo)
     {
         _workflowId = workflowId;
         _workflowType = workflowType;
@@ -51,7 +51,7 @@ public class Messenger : IMessenger
         } 
     }
 
-    public async Task<SendMessageResponse> SendMessageAsync(string content, string participantId, string? metadata = null)
+    public async Task<string?> SendMessageAsync(string content, string participantId, string? metadata = null)
     {
 
         var outgoingMessage = new OutgoingMessage
@@ -60,7 +60,10 @@ public class Messenger : IMessenger
             Metadata = metadata,
             ParticipantId = participantId,
             WorkflowId = _workflowId,
-            WorkflowType = _workflowType
+            WorkflowType = _workflowType,
+            Agent = ExtractMemoValue(_workflowMemo, Constants.AgentKey) ?? throw new Exception("Agent is required"),
+            QueueName = ExtractMemoValue(_workflowMemo, Constants.QueueNameKey) ?? "",
+            Assignment = ExtractMemoValue(_workflowMemo, Constants.AssignmentKey) ?? ""
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -118,23 +121,19 @@ public class Messenger : IMessenger
 
     public async Task ReceiveMessage(MessageSignal messageSignal)
     {
-        var incomingMessage = new IncomingMessage {
-            Content = messageSignal.Content,
-            Metadata = messageSignal.Metadata
-        };
+        _logger.LogInformation("Received Signal Message: {Message}", JsonSerializer.Serialize(messageSignal));
 
         var messageThread = new MessageThread {
             ParticipantId = messageSignal.ParticipantId,
             WorkflowId = _workflowId,
             WorkflowType = _workflowType,
-            ParentWorkflowId = messageSignal.ParentWorkflowId,
+            ThreadId = messageSignal.ThreadId,
             // optional fields required for start and handover
-            Agent = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.AgentKey) : null,
-            QueueName = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.QueueNameKey) : null,
-            Assignment = _workflowMemo != null ? ExtractMemoValue(_workflowMemo, Constants.AssignmentKey) : null
+            Agent = ExtractMemoValue(_workflowMemo, Constants.AgentKey) ?? throw new Exception("Agent is required"),
+            QueueName = ExtractMemoValue(_workflowMemo, Constants.QueueNameKey) ?? "",
+            Assignment = ExtractMemoValue(_workflowMemo, Constants.AssignmentKey) ?? ""
         };
 
-        _logger.LogInformation("Received Signal Message: {Message}", JsonSerializer.Serialize(messageThread));
         
         // Call all handlers uniformly
         foreach (var handler in _handlers.ToList())
@@ -148,10 +147,8 @@ public class Messenger : IMessenger
         if (memo.TryGetValue(key, out var memoValue))
         {
             var value = memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
-            _logger.LogInformation("Memo value for key {Key} found: {Value}", key, memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", ""));
             return memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
         }
-        _logger.LogWarning("Memo value for key {Key} not found", key);
         return null;
     }
 }

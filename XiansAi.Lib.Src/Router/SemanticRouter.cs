@@ -1,8 +1,9 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Temporalio.Workflows;
-using XiansAi.Flow;
 using XiansAi.Messaging;
 using XiansAi.Router.Plugins;
 
@@ -32,6 +33,16 @@ class SemanticRouterImpl: ISemanticRouter
 {
 
     static readonly string INCOMING_MESSAGE = "incoming";
+    static readonly string OUTGOING_MESSAGE = "outgoing";
+    // Static dictionary to cache kernels by workflow type
+    private static readonly Dictionary<string, Kernel> _kernelCache = new Dictionary<string, Kernel>();
+    private static readonly object _kernelCacheLock = new object();
+    private readonly ILogger _logger;
+
+    public SemanticRouterImpl()
+    {
+        _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
+    }
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions? options)
     {
@@ -40,8 +51,12 @@ class SemanticRouterImpl: ISemanticRouter
             throw new Exception("System prompt is required");
         }
         options = options ?? new RouterOptions();
+
+        var workflowType = messageThread.WorkflowType;
+        //var kernel = GetOrCreateKernel(workflowType, options, capabilitiesPluginNames, messageThread);
         var kernel = Initialize(options, capabilitiesPluginNames, messageThread);
-        var chatHistory = await ExtractHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
+        
+        var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
         var settings = new OpenAIPromptExecutionSettings
         {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
@@ -53,6 +68,27 @@ class SemanticRouterImpl: ISemanticRouter
         return result.Content ?? string.Empty;
     }
 
+    private Kernel GetOrCreateKernel(string workflowType, RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
+    {
+        workflowType = "";
+        if (string.IsNullOrEmpty(workflowType))
+        {
+            // If no workflow type, create a new non-cached kernel
+            return Initialize(options, capabilitiesPluginNames, messageThread);
+        }
+
+        lock (_kernelCacheLock)
+        {
+            if (_kernelCache.TryGetValue(workflowType, out var cachedKernel))
+            {
+                return cachedKernel;
+            }
+
+            var newKernel = Initialize(options, capabilitiesPluginNames, messageThread);
+            _kernelCache[workflowType] = newKernel;
+            return newKernel;
+        }
+    }
 
     private Kernel Initialize(RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
     {
@@ -78,10 +114,36 @@ class SemanticRouterImpl: ISemanticRouter
         // add capabilities plugins
         foreach (var pluginName in capabilitiesPluginNames)
         {
-            kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), PluginReader.GetFunctions(pluginName, messageThread));
+            var type = GetPluginType(pluginName);
+            var instance = Activator.CreateInstance(type, messageThread) ?? throw new Exception($"Failed to create instance of {pluginName}");
+            kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), PluginReader.GetFunctions(type, instance));
         }
 
         return kernel;
+    }
+
+    private Type GetPluginType(string pluginName)
+    {
+        // Try to get the type directly first
+        var pluginType = Type.GetType(pluginName);
+
+        // If not found, search through all loaded assemblies
+        if (pluginType == null)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                pluginType = assembly.GetType(pluginName);
+                if (pluginType != null)
+                    break;
+            }
+        }
+
+        if (pluginType == null)
+        {
+            throw new Exception($"Plugin type {pluginName} not found.");
+        }
+
+        return pluginType;
     }
 
     private string GetPluginName(string input)
@@ -89,10 +151,15 @@ class SemanticRouterImpl: ISemanticRouter
         return input.Split('.').Last();
     }
 
-    private async Task<ChatHistory> ExtractHistory(IMessageThread messageThread, string systemPrompt, int historySizeToFetch)
+    private async Task<ChatHistory> ConstructHistory(IMessageThread messageThread, string systemPrompt, int historySizeToFetch)
     {
 
         var chatHistory = new ChatHistory(systemPrompt);
+        chatHistory.AddSystemMessage(@"First evaluate if you can accomplish the user request 
+        through your primary capabilities. If you can, respond with the answer. 
+        If you cannot, check if you can Handover to another bot. If you can, handover to another workflow.
+        If you cannot accomplish the user request through your primary capabilities, or handover to another bot,
+        respond with a message indicating that you cannot accomplish the user request.");
 
         var historyFromServer = await messageThread.GetThreadHistory(1, historySizeToFetch);
         // Reverse the history to put the most recent messages last
@@ -100,16 +167,45 @@ class SemanticRouterImpl: ISemanticRouter
 
         foreach (var message in historyFromServer)
         {
-            if (message.Direction == INCOMING_MESSAGE)
+            if (message.Direction.Equals(INCOMING_MESSAGE, StringComparison.OrdinalIgnoreCase))
             {
-                chatHistory.AddUserMessage(message.Content);
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+                chatHistory.Add(
+                    new() {
+                        Role = AuthorRole.User,
+                        Content = message.Content,
+                        AuthorName = SanitizeName(message.ParticipantId)
+                    }
+                );
+                _logger.LogInformation("Adding incoming message to history: {Message}", message.Content);
             }
-            else
+            else if (message.Direction.Equals(OUTGOING_MESSAGE, StringComparison.OrdinalIgnoreCase))
             {
-                chatHistory.AddAssistantMessage(message.Content);
+                chatHistory.Add(
+                    new() {
+                        Role = AuthorRole.Assistant,
+                        Content = message.Content,
+                        AuthorName = SanitizeName(message.WorkflowType)
+                    }
+                );
+                _logger.LogInformation("Adding outgoing message to history: {Message}", message.Content);
+            } else {
+                // skip the messages such as "Handovers"
+                continue;
             }
+#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
         }
 
         return chatHistory;
+    }
+
+    private string SanitizeName(string? name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "user";
+            
+        // Replace spaces with underscores and remove any disallowed characters
+        return System.Text.RegularExpressions.Regex.Replace(name, @"[\s<|\\/>]", "_");
     }
 }

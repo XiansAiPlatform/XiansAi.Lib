@@ -1,6 +1,5 @@
-using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
-using Server;
+using Temporalio.Workflows;
 using XiansAi.Messaging;
 
 public class ThreadHistoryService
@@ -12,29 +11,14 @@ public class ThreadHistoryService
         _logger = Globals.LogFactory.CreateLogger<ThreadHistoryService>();
     }
 
-    public async Task<List<HistoricalMessage>> GetMessageHistory(string workflowId, string participantId, int page = 1, int pageSize = 10)
+    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string participantId, int page = 1, int pageSize = 10)
     {
-        _logger.LogInformation("Getting message history for thread: {WorkflowId} {ParticipantId}", workflowId, participantId);
-
-        if (!SecureApi.IsReady)
-        {
-            _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
-            return new List<HistoricalMessage>();
-        }
-
-        try
-        {
-            var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"api/agent/conversation/history?workflowId={workflowId}&participantId={participantId}&page={page}&pageSize={pageSize}");
-            response.EnsureSuccessStatusCode();
-
-            var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();
-            return messages ?? new List<HistoricalMessage>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching message history for thread: {WorkflowId} {ParticipantId}", workflowId, participantId);
-            throw;
+        if (Workflow.InWorkflow) {
+            return await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.GetMessageHistory(agent, participantId, page, pageSize),
+                new SystemActivityOptions());
+        } else {
+            return await new SystemActivities().GetMessageHistory(agent, participantId, page, pageSize);
         }
     }
 

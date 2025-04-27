@@ -94,17 +94,12 @@ public class SystemActivities {
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options);
     }
 
-    [Activity ("SystemActivities.HandOverMessage")]
-    public async Task<SendMessageResponse> HandOverMessage(HandoverMessage message) {
-        _logger.LogInformation("Handing over message: {Message}", JsonSerializer.Serialize(message));
+    [Activity ("SystemActivities.HandOverThread")]
+    public async Task<string?> HandOverThread(HandoverMessage message) {
+
         if (!SecureApi.IsReady)
         {
-            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new Exception("App server secure API is not ready, skipping message send operation");
-        }
-
-        if (string.IsNullOrEmpty(message.ChildWorkflowId)) {
-            throw new Exception("Child workflow id is required for handover");
         }
 
         try
@@ -113,7 +108,7 @@ public class SystemActivities {
             var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
             response.EnsureSuccessStatusCode();
             
-            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
+            return await response.Content.ReadAsStringAsync();
         }
         catch (Exception ex)
         {
@@ -122,39 +117,10 @@ public class SystemActivities {
         }
     }
 
-    [Activity ("SystemActivities.StartAndHandoverMessage")]
-    public async Task<SendMessageResponse> StartAndHandoverMessage(StartAndHandoverMessage message) {
-        _logger.LogInformation("Starting and handing over message: {Message}", message);
-        if (!SecureApi.IsReady)
-        {
-            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
-            throw new Exception("App server secure API is not ready, skipping message send operation");
-        }
-
-        if (string.IsNullOrEmpty(message.WorkflowTypeToStart)) {
-            throw new Exception("Workflow type is required");
-        }
-
-        try
-        {
-            var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
-            response.EnsureSuccessStatusCode();
-
-            _logger.LogInformation("Handover response: {Response}", await response.Content.ReadAsStringAsync());
-            
-            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error sending message: {Message}", message);
-            throw new Exception($"Failed to send message: {ex.Message}");
-        }
-    }
 
     [Activity ("SystemActivities.SendMessage")]
-    public async Task<SendMessageResponse> SendMessage(OutgoingMessage message) {
-        _logger.LogInformation("Sending message: {Message}", JsonSerializer.Serialize(message));
+    public async Task<string> SendMessage(OutgoingMessage message) {
+
         if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
@@ -167,7 +133,7 @@ public class SystemActivities {
             var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/send", message);
             response.EnsureSuccessStatusCode();
             
-            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
+            return await response.Content.ReadAsStringAsync();
         }
         catch (Exception ex)
         {
@@ -177,27 +143,30 @@ public class SystemActivities {
     }
 
 
-    [Activity ("SystemActivities.SendHandOverResponse")]
-    public async Task<SendMessageResponse> SendHandOverResponse(HandoverMessage message) {
-        _logger.LogInformation("Sending handover response: {Message}", JsonSerializer.Serialize(message));
+    [Activity ("SystemActivities.GetMessageHistory")]
+    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string participantId, int page = 1, int pageSize = 10)
+    {
+        _logger.LogInformation("Getting message history for thread: {Agent} {ParticipantId}", agent, participantId);
+
         if (!SecureApi.IsReady)
         {
-            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
-            throw new Exception("App server secure API is not ready, skipping message send operation");
+            _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
+            return new List<HistoricalMessage>();
         }
-
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover-response", message);
+            var response = await client.GetAsync($"api/agent/conversation/history?agent={agent}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
-            
-            return await response.Content.ReadFromJsonAsync<SendMessageResponse>() ?? throw new Exception($"Failed to parse response {await response.Content.ReadAsStringAsync()}");
+
+            var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();
+            _logger.LogInformation("Message history: {Messages}", JsonSerializer.Serialize(messages));
+            return messages ?? new List<HistoricalMessage>();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message: {Message}", message);
-            throw new Exception($"Failed to send message: {ex.Message}");
+            _logger.LogError(ex, "Error fetching message history for thread: {Agent} {ParticipantId}", agent, participantId);
+            throw;
         }
     }
 }
