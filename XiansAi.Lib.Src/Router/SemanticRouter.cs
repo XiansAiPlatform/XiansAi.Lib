@@ -29,7 +29,7 @@ public class SemanticRouter : ISemanticRouter
 
 }
 
-class SemanticRouterImpl: ISemanticRouter
+class SemanticRouterImpl : ISemanticRouter
 {
 
     static readonly string INCOMING_MESSAGE = "incoming";
@@ -52,10 +52,8 @@ class SemanticRouterImpl: ISemanticRouter
         }
         options = options ?? new RouterOptions();
 
-        var workflowType = messageThread.WorkflowType;
-        //var kernel = GetOrCreateKernel(workflowType, options, capabilitiesPluginNames, messageThread);
-        var kernel = Initialize(options, capabilitiesPluginNames, messageThread);
-        
+        var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginNames, messageThread);
+
         var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
         var settings = new OpenAIPromptExecutionSettings
         {
@@ -68,13 +66,13 @@ class SemanticRouterImpl: ISemanticRouter
         return result.Content ?? string.Empty;
     }
 
-    private Kernel GetOrCreateKernel(string workflowType, RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
+    private Kernel GetOrCreateCacheableKernel(string workflowType, RouterOptions options, string[] capabilitiesPluginNames)
     {
-        workflowType = "";
+        
         if (string.IsNullOrEmpty(workflowType))
         {
             // If no workflow type, create a new non-cached kernel
-            return Initialize(options, capabilitiesPluginNames, messageThread);
+            return InitializeCacheable(options, capabilitiesPluginNames);
         }
 
         lock (_kernelCacheLock)
@@ -84,14 +82,40 @@ class SemanticRouterImpl: ISemanticRouter
                 return cachedKernel;
             }
 
-            var newKernel = Initialize(options, capabilitiesPluginNames, messageThread);
+            var newKernel = InitializeCacheable(options, capabilitiesPluginNames);
             _kernelCache[workflowType] = newKernel;
             return newKernel;
         }
     }
 
-    private Kernel Initialize(RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
+    private Kernel Initialize(string workflowType, RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
     {
+        var kernel = GetOrCreateCacheableKernel(workflowType, options, capabilitiesPluginNames);
+        // add capabilities plugins
+        foreach (var pluginName in capabilitiesPluginNames)
+        {
+            var type = GetPluginType(pluginName);
+
+            if (!(type.IsAbstract && type.IsSealed))
+            {
+                _logger.LogInformation("Getting functions from instance type {PluginType}", type.Name);
+                var instance = Activator.CreateInstance(type, messageThread) ?? throw new Exception($"Failed to create instance of {pluginName}");
+                var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
+                kernel.Plugins.TryGetPlugin(GetPluginName(pluginName), out var plugin);
+                if (plugin != null)
+                {
+                    kernel.Plugins.Remove(plugin);
+                }
+                kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), functions);
+            }
+        }
+
+        return kernel;
+    }
+
+    private Kernel InitializeCacheable(RouterOptions options, string[] capabilitiesPluginNames)
+    {
+
         // Load environment variables from .env file
         var apiKey = PlatformConfig.OPENAI_API_KEY ?? string.Empty;
 
@@ -115,8 +139,14 @@ class SemanticRouterImpl: ISemanticRouter
         foreach (var pluginName in capabilitiesPluginNames)
         {
             var type = GetPluginType(pluginName);
-            var instance = Activator.CreateInstance(type, messageThread) ?? throw new Exception($"Failed to create instance of {pluginName}");
-            kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), PluginReader.GetFunctions(type, instance));
+
+            if (type.IsAbstract && type.IsSealed)
+            {
+                // static plugin
+                _logger.LogInformation("Getting functions from static type {PluginType}", type.Name);
+                var functions = PluginReader.GetFunctionsFromStaticType(type);
+                kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), functions);
+            }
         }
 
         return kernel;
@@ -171,25 +201,27 @@ class SemanticRouterImpl: ISemanticRouter
             {
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                 chatHistory.Add(
-                    new() {
+                    new()
+                    {
                         Role = AuthorRole.User,
                         Content = message.Content,
                         AuthorName = SanitizeName(message.ParticipantId)
                     }
                 );
-                _logger.LogInformation("Adding incoming message to history: {Message}", message.Content);
             }
             else if (message.Direction.Equals(OUTGOING_MESSAGE, StringComparison.OrdinalIgnoreCase))
             {
                 chatHistory.Add(
-                    new() {
+                    new()
+                    {
                         Role = AuthorRole.Assistant,
                         Content = message.Content,
                         AuthorName = SanitizeName(message.WorkflowType)
                     }
                 );
-                _logger.LogInformation("Adding outgoing message to history: {Message}", message.Content);
-            } else {
+            }
+            else
+            {
                 // skip the messages such as "Handovers"
                 continue;
             }
@@ -204,7 +236,7 @@ class SemanticRouterImpl: ISemanticRouter
     {
         if (string.IsNullOrEmpty(name))
             return "user";
-            
+
         // Replace spaces with underscores and remove any disallowed characters
         return System.Text.RegularExpressions.Regex.Replace(name, @"[\s<|\\/>]", "_");
     }

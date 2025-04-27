@@ -160,7 +160,6 @@ public class SystemActivities {
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();
-            _logger.LogInformation("Message history: {Messages}", JsonSerializer.Serialize(messages));
             return messages ?? new List<HistoricalMessage>();
         }
         catch (Exception ex)

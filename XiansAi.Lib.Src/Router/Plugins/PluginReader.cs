@@ -18,21 +18,6 @@ public static class PluginReader
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<PluginReaderLogger>();
 
-    public static IEnumerable<KernelFunction> GetFunctions(Type pluginType, object instance)
-    {
-
-        if (pluginType.IsAbstract && pluginType.IsSealed)
-        {
-            // static plugin
-            _logger.LogInformation("Getting functions from static type {PluginType}", pluginType.Name);
-            return GetFunctionsFromStaticType(pluginType);
-        }
-        else
-        {
-            _logger.LogInformation("Getting functions from instance type {PluginType}", pluginType.Name);
-            return GetFunctionsFromInstanceType(pluginType, instance);
-        }
-    }
 
     /// <summary>
     /// Gets all the kernel functions defined in a plugin class.
