@@ -12,10 +12,10 @@ public class BaseEvent
     public required string SourceWorkflowId { get; set; }
 
     [JsonPropertyName("SourceWorkflowType")]
-    public string? SourceWorkflowType { get; set; }
+    public required string SourceWorkflowType { get; set; }
 
     [JsonPropertyName("SourceAgent")]
-    public string? SourceAgent { get; set; }
+    public required string SourceAgent { get; set; }
 
     [JsonPropertyName("SourceQueueName")]
     public string? SourceQueueName { get; set; }
