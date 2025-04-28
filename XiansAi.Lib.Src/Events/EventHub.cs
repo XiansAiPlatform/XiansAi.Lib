@@ -57,7 +57,7 @@ public class EventHub : IEventHub
             EventType = evtType,
             SourceWorkflowId = _workflowId,
             SourceWorkflowType = _workflowType,
-            SourceAgent = ExtractMemoValue(_workflowMemo, "agent"),
+            SourceAgent = ExtractMemoValue(_workflowMemo, "agent") ?? throw new Exception("Agent not found in memo"),
             SourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
             SourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
             Payload = payload,
@@ -76,7 +76,7 @@ public class EventHub : IEventHub
             EventType = evtType,
             SourceWorkflowId = _workflowId,
             SourceWorkflowType = _workflowType,
-            SourceAgent = ExtractMemoValue(_workflowMemo, "agent"),
+            SourceAgent = ExtractMemoValue(_workflowMemo, "agent") ?? throw new Exception("Agent not found in memo"),
             SourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
             SourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
             Payload = payload,
@@ -151,17 +151,15 @@ public class EventHub : IEventHub
         if (memo.TryGetValue(key, out var memoValue))
         {
             var value = memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
-            _logger.LogInformation("Memo value for key {Key} found: {Value}", key, memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", ""));
             return memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
         }
-        _logger.LogWarning("Memo value for key {Key} not found", key);
         return null;
     }
 
 
     public async Task ReceiveEvent(Event evt)
     {
-        _logger.LogInformation("Received Signal Message: {Message}", JsonSerializer.Serialize(evt));
+        _logger.LogInformation($"Received Event: {JsonSerializer.Serialize(evt)}");
         
         // Call all handlers uniformly
         foreach (var handler in _handlers.ToList())

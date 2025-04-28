@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
-using XiansAi.Logging;
 
+namespace XiansAi.Logging;
 public class ApiLoggerProvider : ILoggerProvider
 {
     private bool _isDisposed = false;

@@ -58,7 +58,6 @@ public class SecureApiTests
 
         // Assert
         Assert.NotNull(instance);
-        Assert.True(instance.IsReady);
         Assert.NotNull(instance.Client);
     }
 

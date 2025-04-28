@@ -1,0 +1,8 @@
+{
+    "description": "Test capability description",
+    "returns": "Returns a test result",
+    "parameters": {
+        "param1": "First parameter description",
+        "param2": "Second parameter description"
+    }
+} 

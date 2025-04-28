@@ -15,7 +15,7 @@ public class ObjectCacheManager
     public async virtual Task<T?> GetValueAsync<T>(string key)
     {
         _logger.LogInformation("Getting value from cache for key: {Key}", key);
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache get operation");
             return default;
@@ -40,7 +40,7 @@ public class ObjectCacheManager
     public async virtual Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null)
     {
         _logger.LogInformation("Setting value in cache for key: {Key}", key);
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache set operation");
             return false;
@@ -72,7 +72,7 @@ public class ObjectCacheManager
     public async virtual Task<bool> DeleteValueAsync(string key)
     {
         _logger.LogInformation("Deleting value from cache for key: {Key}", key);
-        if (!SecureApi.Instance.IsReady)
+        if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping cache delete operation");
             return false;

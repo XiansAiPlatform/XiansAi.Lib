@@ -149,7 +149,7 @@ public static class LoggingServices
     /// </summary>
     private static async Task SendLogBatchAsync(List<Log> logs)
     {
-        if (_secureApiClient == null || !_secureApiClient.IsReady)
+        if (_secureApiClient == null )
         {
             Console.Error.WriteLine("App server secure API is not available, log upload failed");
             RequeueLogBatch(logs);

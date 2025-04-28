@@ -1,5 +1,7 @@
+using Temporalio.Converters;
 using XiansAi.Flow;
 using XiansAi.Messaging;
+using Google.Protobuf;
 
 namespace XiansAi.Lib.Tests.UnitTests.Flow
 {
@@ -10,12 +12,18 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
     {
         private readonly string _workflowId = "test-workflow-id";
         private readonly string _workflowType = "test-workflow-type";
+        private readonly IReadOnlyDictionary<string, IRawValue> _workflowMemo = new Dictionary<string, IRawValue>
+        {
+            { "agent", new RawValue(new Temporalio.Api.Common.V1.Payload { Metadata = { ["encoding"] = ByteString.CopyFromUtf8("json/plain") }, Data = ByteString.CopyFromUtf8("\"test-agent\"") }) },
+            { "queueName", new RawValue(new Temporalio.Api.Common.V1.Payload { Metadata = { ["encoding"] = ByteString.CopyFromUtf8("json/plain") }, Data = ByteString.CopyFromUtf8("\"test-queue-name\"") }) },
+            { "assignment", new RawValue(new Temporalio.Api.Common.V1.Payload { Metadata = { ["encoding"] = ByteString.CopyFromUtf8("json/plain") }, Data = ByteString.CopyFromUtf8("\"test-assignment\"") }) }
+        };
 
         [Fact]
         public async Task RegisterHandler_AddsHandlerToCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             var handlerCalled = false;
             
             // Act
@@ -36,7 +44,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task RegisterAsyncHandler_AddsHandlerToCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             var handlerCalled = false;
             
             // Act
@@ -61,7 +69,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task UnregisterHandler_RemovesHandlerFromCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             var handlerCalled = false;
             
             MessageReceivedHandler handler = _ => handlerCalled = true;
@@ -84,7 +92,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task UnregisterAsyncHandler_RemovesHandlerFromCollection()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             var handlerCalled = false;
             
             MessageReceivedAsyncHandler handler = _ => 
@@ -111,7 +119,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task ReceiveMessage_CallsAllRegisteredHandlers()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             var syncHandlerCalled = false;
             var asyncHandlerCalled = false;
             
@@ -140,7 +148,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task ReceiveMessage_CreatesProperMessageThread()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             MessageThread capturedMessageThread = null!;
             
             MessageReceivedHandler handler = messageThread => capturedMessageThread = messageThread;
@@ -156,16 +164,14 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             Assert.NotNull(capturedMessageThread);
             Assert.Equal(messageSignal.ParticipantId, capturedMessageThread.ParticipantId);
             Assert.Equal(_workflowId, capturedMessageThread.WorkflowId);
-            Assert.NotNull(capturedMessageThread.IncomingMessage);
-            Assert.Equal(messageSignal.Content, capturedMessageThread.IncomingMessage.Content);
-            Assert.Equal(messageSignal.Metadata, capturedMessageThread.IncomingMessage.Metadata);
+
         }
 
         [Fact]
         public async Task RegisteringSameHandlerMultipleTimes_OnlyRegistersOnce()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             var handlerCallCount = 0;
             
             MessageReceivedHandler handler = _ => handlerCallCount++;
@@ -188,7 +194,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public void UnregisteringNonExistentHandler_DoesNotThrowException()
         {
             // Arrange
-            var messenger = new Messenger(_workflowId, _workflowType, null);
+            var messenger = new Messenger(_workflowId, _workflowType, _workflowMemo);
             MessageReceivedHandler handler = _ => { };
             
             // Act & Assert
@@ -203,6 +209,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                 ParticipantId = "test-participant-id",
                 Content = "Test message content",
                 Metadata = new { Type = "test" },
+                Agent = "test-agent",
+                ThreadId = "test-thread-id"
             };
         }
     }

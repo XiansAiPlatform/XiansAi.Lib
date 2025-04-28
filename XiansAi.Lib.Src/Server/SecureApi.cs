@@ -12,11 +12,6 @@ public interface ISecureApiClient
     /// Gets the underlying HTTP client configured with security settings.
     /// </summary>
     HttpClient Client { get; }
-    
-    /// <summary>
-    /// Indicates whether the secure client is properly initialized and ready to use.
-    /// </summary>
-    bool IsReady { get; }
 }
 
 /// <summary>
@@ -90,7 +85,7 @@ public class SecureApi : ISecureApiClient, IDisposable
     /// <summary>
     /// Indicates whether the client is properly initialized and ready to use.
     /// </summary>
-    public bool IsReady => _client != null;
+    public static bool IsReady => _instance?.Client != null;
 
     /// <summary>
     /// Initializes the singleton instance of the SecureApi client.
