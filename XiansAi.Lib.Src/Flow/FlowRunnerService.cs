@@ -181,10 +181,9 @@ public class FlowRunnerService : IFlowRunnerService
 
     private ILoggerFactory CreateTemporalLoggerFactory()
     {
-        // Create a logger factory with our ApiLoggerProvider to capture Temporal's logs
         return LoggerFactory.Create(builder =>
         {
-            builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
+            builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
             builder.SetMinimumLevel(LogLevel.Trace);
         });
     }

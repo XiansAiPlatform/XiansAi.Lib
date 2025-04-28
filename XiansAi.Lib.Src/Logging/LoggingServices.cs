@@ -30,7 +30,7 @@ public static class LoggingServices
 
     // Client for sending logs to API
     private static ISecureApiClient? _secureApiClient;
-    private static string _logApiEndpoint = "/api/client/logs";
+    private static string _logApiEndpoint = "/api/agent/logs";
     private static int _batchSize = 10;
     private static int _processingIntervalMs = 5000;
 
@@ -50,7 +50,7 @@ public static class LoggingServices
     /// <summary>
     /// Initializes the logging services and starts the background processor
     /// </summary>
-    public static void Initialize(IServiceProvider services, string logApiEndpoint = "/api/client/logs", int batchSize = 10, int processingIntervalMs = 5000)
+    public static void Initialize(IServiceProvider services, string logApiEndpoint = "/api/agent/logs", int batchSize = 10, int processingIntervalMs = 5000)
     {
         if (_isInitialized) return;
 

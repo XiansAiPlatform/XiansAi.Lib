@@ -39,13 +39,12 @@ public class Logger<T>
 
     private Logger()
     {
-        // Use lazy initialization to delay logger creation until needed
         _lazyLogger = new Lazy<ILogger>(() => {
-            // Create appropriate logger with ApiLoggerProvider
+
             var logFactory = LoggerFactory.Create(builder =>
             {
-                builder.AddProvider(new ApiLoggerProvider("/api/client/logs"));
-                builder.SetMinimumLevel(LogLevel.Trace); // Ensure Trace level is enabled
+                builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
+                builder.SetMinimumLevel(LogLevel.Trace); 
             });
             return logFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
         });
