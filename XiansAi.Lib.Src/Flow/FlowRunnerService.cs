@@ -4,6 +4,7 @@ using Temporalio.Worker;
 using Temporalio.Workflows;
 using Server;
 using Temporal;
+using XiansAi.Logging;
 
 namespace XiansAi.Flow;
 
@@ -159,7 +160,7 @@ public class FlowRunnerService : IFlowRunnerService
 
         var options = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
-            LoggerFactory = Globals.LogFactory,
+            LoggerFactory = CreateTemporalLoggerFactory(),
         };
         
         options.AddWorkflow<TFlow>();
@@ -176,6 +177,15 @@ public class FlowRunnerService : IFlowRunnerService
         );
         _logger.LogInformation("Worker to run `{FlowName}` on queue `{Queue}` created. Ready to run!", workFlowName, taskQueue);
         await worker.ExecuteAsync(cancellationToken!);
+    }
+
+    private ILoggerFactory CreateTemporalLoggerFactory()
+    {
+        return LoggerFactory.Create(builder =>
+        {
+            builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
+            builder.SetMinimumLevel(LogLevel.Trace);
+        });
     }
 }
 

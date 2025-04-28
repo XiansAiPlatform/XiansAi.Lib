@@ -2,12 +2,14 @@ using System.Reflection;
 using System.Text.Json;
 using Temporalio.Activities;
 using Server;
+using XiansAi.Logging;
 
 namespace XiansAi.Activity;
 
 class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 {
     private T? _target;
+    private static readonly Logger<ActivityTrackerProxy<I, T>> _logger = Logger<ActivityTrackerProxy<I, T>>.For();
 
     public static I Create(T target)
     {
@@ -50,15 +52,15 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         }
         catch (TargetInvocationException ex)
         {
-            // Replace _logger with ActivityLogger for error logging
-            ActivityLogger.LogError($"Error in activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}", ex.InnerException ?? ex);
+            // Use new Logger instead of ActivityLogger
+            _logger.LogError($"Error in activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}", ex.InnerException ?? ex);
             throw;
         }
 
         // Handle the result
         if (result is not Task task)
         {
-            ActivityLogger.LogInformation($"Activity result is not a task, uploading result: {result}");
+            _logger.LogInformation($"Activity result is not a task, uploading result: {result}");
             UploadActivityResult(activityName, inputs, result).ConfigureAwait(false);
         }
         else
@@ -67,7 +69,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
             {
                 var resultProperty = t.GetType().GetProperty("Result");
                 var resultValue = resultProperty?.GetValue(t);
-                ActivityLogger.LogInformation($"Activity result is a task, uploading result: {resultValue}");
+                _logger.LogInformation($"Activity result is a task, uploading result: {resultValue}");
                 UploadActivityResult(activityName, inputs, resultValue).ConfigureAwait(false);
                 return t;
             });
@@ -93,16 +95,16 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
                 // Upload to server
                 await new ActivityUploader().UploadActivity(activity);
 
-                ActivityLogger.LogInformation($"Activity Completed: {activityName}");
+                _logger.LogInformation($"Activity Completed: {activityName}");
             }
             else
             {
-                ActivityLogger.LogInformation("No current activity found, skipping activity result upload, ignore this warning if you are not running in a flow");
+                _logger.LogInformation("No current activity found, skipping activity result upload, ignore this warning if you are not running in a flow");
             }
         }
         catch (Exception e)
         {
-            ActivityLogger.LogError("Failed to upload activity result", e);
+            _logger.LogError("Failed to upload activity result", e);
             throw;
         }
     }

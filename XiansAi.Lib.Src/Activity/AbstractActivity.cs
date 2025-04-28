@@ -1,20 +1,19 @@
 using Temporalio.Activities;
-using Microsoft.Extensions.Logging;
 using XiansAi.Models;
 using System.Reflection;
 using System.Diagnostics;
+using XiansAi.Logging;
 
 namespace XiansAi.Activity;
 public class AbstractActivity
 {
-    private readonly ILogger<AbstractActivity> _logger;
+    private static readonly Logger<AbstractActivity> _logger = Logger<AbstractActivity>.For();
     private FlowActivityHistory? _currentActivity;
     public MethodInfo? _currentActivityMethod { get; internal set; }
     public Type? _currentActivityInterfaceType { get; internal set; }
 
     public AbstractActivity()
     {
-        _logger = Globals.LogFactory.CreateLogger<AbstractActivity>();
     }
 
     public bool IsInWorkflow()
@@ -57,7 +56,7 @@ public class AbstractActivity
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create new activity");
+            _logger.LogError("Failed to create new activity", ex);
             throw;
         }
     }
@@ -69,7 +68,7 @@ public class AbstractActivity
             _logger.LogWarning("Attempted to log empty or null message");
             return;
         }
-        ActivityLogger.LogInformation(message);
+        _logger.LogInformation(message);
     }
 
     public void LogError(string message, Exception exception)
@@ -82,7 +81,7 @@ public class AbstractActivity
         {
             message = "An error occurred";
         }
-        ActivityLogger.LogError(message, exception);
+        _logger.LogError(message, exception);
     }
 
     public virtual FlowActivityHistory? GetCurrentActivity()
@@ -127,7 +126,7 @@ public class AbstractActivity
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to create activity");
+            _logger.LogError("Failed to create activity", e);
             throw;
         }
     }

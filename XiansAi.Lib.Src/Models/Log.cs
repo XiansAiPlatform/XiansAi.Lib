@@ -1,9 +1,10 @@
+using Microsoft.Extensions.Logging;
+
 namespace XiansAi.Models
 {
     public class Log
     {
         public string? Id { get; set; }
-        public required string TenantId { get; set; }
         public DateTime CreatedAt { get; set; }
         public required LogLevel Level { get; set; }
         public required string Message { get; set; }
@@ -14,12 +15,4 @@ namespace XiansAi.Models
         public DateTime? UpdatedAt { get; set; }
     }
 
-    public enum LogLevel
-    {
-        Information,
-        Warning,
-        Error,
-        Debug,
-        Critical
-    }
 }
