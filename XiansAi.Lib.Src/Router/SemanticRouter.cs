@@ -46,29 +46,37 @@ class SemanticRouterImpl : ISemanticRouter
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions? options)
     {
-        if (string.IsNullOrWhiteSpace(systemPrompt))
+        try
         {
-            throw new Exception("System prompt is required");
+            if (string.IsNullOrWhiteSpace(systemPrompt))
+            {
+                throw new Exception("System prompt is required");
+            }
+            options = options ?? new RouterOptions();
+
+            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginNames, messageThread);
+
+            var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
+            var settings = new OpenAIPromptExecutionSettings
+            {
+                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
+                MaxTokens = options.MaxTokens,
+                Temperature = options.Temperature
+            };
+            var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+            var result = await chatCompletionService.GetChatMessageContentAsync(chatHistory, settings, kernel);
+            return result.Content ?? string.Empty;
         }
-        options = options ?? new RouterOptions();
-
-        var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginNames, messageThread);
-
-        var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
-        var settings = new OpenAIPromptExecutionSettings
+        catch (Exception e)
         {
-            FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-            MaxTokens = options.MaxTokens,
-            Temperature = options.Temperature
-        };
-        var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-        var result = await chatCompletionService.GetChatMessageContentAsync(chatHistory, settings, kernel);
-        return result.Content ?? string.Empty;
+            _logger.LogError(e, "Error routing message");
+            throw;
+        }
     }
 
     private Kernel GetOrCreateCacheableKernel(string workflowType, RouterOptions options, string[] capabilitiesPluginNames)
     {
-        
+
         if (string.IsNullOrEmpty(workflowType))
         {
             // If no workflow type, create a new non-cached kernel

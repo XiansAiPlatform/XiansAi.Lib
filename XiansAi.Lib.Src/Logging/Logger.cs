@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
@@ -37,14 +38,43 @@ public class Logger<T>
         }
     }
 
+    private static LogLevel GetConsoleLogLevel()
+    {
+        var consoleLogLevel = Environment.GetEnvironmentVariable("CONSOLE_LOG_LEVEL")?.ToUpper();
+        return consoleLogLevel switch
+        {
+            "TRACE" => LogLevel.Trace,
+            "DEBUG" => LogLevel.Debug,
+            "INFORMATION" => LogLevel.Information,
+            "WARNING" => LogLevel.Warning,
+            "ERROR" => LogLevel.Error,
+            "CRITICAL" => LogLevel.Critical,
+            _ => LogLevel.Debug // Default to Debug if not set or invalid
+        };
+    }
+
     private Logger()
     {
         _lazyLogger = new Lazy<ILogger>(() => {
 
             var logFactory = LoggerFactory.Create(builder =>
             {
+                // Configure API logger with Trace level
                 builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
-                builder.SetMinimumLevel(LogLevel.Trace); 
+                
+                // Configure console logger with level from environment variable
+                var consoleLogLevel = GetConsoleLogLevel();
+                builder.AddConsole(options => {
+                    options.LogToStandardErrorThreshold = consoleLogLevel;
+                });
+                
+                // Set the default minimum level to Trace to ensure API logger gets all logs
+                builder.SetMinimumLevel(LogLevel.Trace);
+                
+                // Configure console logger to respect the environment variable level
+                builder.AddFilter("Microsoft", consoleLogLevel)
+                       .AddFilter("System", consoleLogLevel)
+                       .AddFilter((category, level) => level >= consoleLogLevel);
             });
             return logFactory.CreateLogger(typeof(T).FullName ?? "Unknown");
         });

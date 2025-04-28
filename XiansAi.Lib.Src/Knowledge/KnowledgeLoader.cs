@@ -64,7 +64,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
             _logger.LogWarning("Loading instruction locally - {instructionName}", instructionName);
             return await LoadFromLocal(instructionName);
         }
-        _logger.LogWarning("Loading instruction from server - {instructionName}", instructionName);
+        _logger.LogDebug("Loading instruction from server - {instructionName}", instructionName);
         return await LoadFromServer(instructionName);
     }
 

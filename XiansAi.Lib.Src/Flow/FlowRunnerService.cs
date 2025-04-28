@@ -22,7 +22,7 @@ public class FlowRunnerOptions
 
 public class FlowRunnerService : IFlowRunnerService
 {
-    private readonly ILogger<FlowRunnerService> _logger;
+    private readonly Logging.Logger<FlowRunnerService> _logger;
     private readonly string? _priorityQueue;
     private readonly Lazy<Task>? _initializationTask;
     
@@ -37,7 +37,6 @@ public class FlowRunnerService : IFlowRunnerService
         {
             Globals.LogFactory = options.LoggerFactory;
         }
-        _logger = Globals.LogFactory.CreateLogger<FlowRunnerService>();
 
         ValidateConfig();
 
@@ -52,6 +51,8 @@ public class FlowRunnerService : IFlowRunnerService
             // Force initialization
             _ = _initializationTask.Value;
         }
+
+        _logger = Logging.Logger<FlowRunnerService>.For();
     }
     
     private void ValidateConfig()
@@ -85,7 +86,7 @@ public class FlowRunnerService : IFlowRunnerService
 
     public async Task TestMe()
     {
-        _logger.LogInformation("Trying to connect to flow server at: {FlowServerUrl}", PlatformConfig.FLOW_SERVER_URL);
+        _logger.LogInformation($"Trying to connect to flow server at: {PlatformConfig.FLOW_SERVER_URL}");
         var temporalClient = await new TemporalClientService().GetClientAsync();
         if (temporalClient == null)
         {
@@ -97,7 +98,7 @@ public class FlowRunnerService : IFlowRunnerService
             _logger.LogInformation("Flow server is successfully connected");
         }
 
-        _logger.LogInformation("Trying to connect to app server at: {AppServerUrl}", PlatformConfig.APP_SERVER_URL);
+        _logger.LogInformation($"Trying to connect to app server at: {PlatformConfig.APP_SERVER_URL}");
         HttpClient? client = null;
 
 
@@ -175,7 +176,7 @@ public class FlowRunnerService : IFlowRunnerService
             client,
             options
         );
-        _logger.LogInformation("Worker to run `{FlowName}` on queue `{Queue}` created. Ready to run!", workFlowName, taskQueue);
+        _logger.LogInformation($"Worker to run `{workFlowName}` on queue `{taskQueue}` created. Ready to run!!");
         await worker.ExecuteAsync(cancellationToken!);
     }
 

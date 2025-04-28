@@ -176,8 +176,6 @@ public static class PluginReader
     /// <returns>A collection of kernel functions.</returns>
     public static IEnumerable<KernelFunction> GetFunctionsFromInstanceType(Type pluginType, object instance)
     {
-        _logger.LogInformation("Getting functions from instance type {PluginType}", pluginType.Name);
-
         try
         {
             if (instance == null)

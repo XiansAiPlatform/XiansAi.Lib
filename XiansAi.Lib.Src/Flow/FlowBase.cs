@@ -4,6 +4,7 @@ using System.Reflection;
 using XiansAi.Activity;
 using XiansAi.Knowledge;
 using Temporalio.Exceptions;
+using XiansAi.Logging;
 
 namespace XiansAi.Flow;
 
@@ -14,8 +15,11 @@ public abstract class FlowBase : StaticFlowBase
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     protected List<Type> Capabilities { get; } = new List<Type>();
+    protected List<string> _capabilities { get; } = new List<string>();
+
 
     private string? _systemPromptKey;
+    private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
 
     public FlowBase() : base()  
     {
@@ -41,12 +45,15 @@ public abstract class FlowBase : StaticFlowBase
     protected virtual async Task RunConversation(MessageListenerDelegate? messageListener = null)
     {
 
-        Console.WriteLine("Pre Consultation Flow started");
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
 
         var systemPrompt = await GetSystemPrompt();
 
+        _capabilities.AddRange(Capabilities.Select(t => t.FullName!));
+
         while (true)
         {
+            _logger.LogDebug($"{GetType().Name} Flow is waiting for a message");
             // Wait for a message to be added to the queue
             await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0);
 
@@ -67,8 +74,11 @@ public abstract class FlowBase : StaticFlowBase
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)
     {
+        _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
-        var response = await Router.RouteAsync(messageThread, systemPrompt, Capabilities.Select(t => t.FullName!).ToArray());
+        var response = await Router.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray());
+
+        _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
         // Respond to the user
         await messageThread.Respond(response);
