@@ -4,6 +4,7 @@ using Temporalio.Worker;
 using Temporalio.Workflows;
 using Server;
 using Temporal;
+using XiansAi.Logging;
 
 namespace XiansAi.Flow;
 
