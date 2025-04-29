@@ -11,13 +11,13 @@ namespace XiansAi.Router;
 
 public interface ISemanticRouter
 {
-    Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions? options = null);
+    Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options);
 }
 
 public class SemanticRouter : ISemanticRouter
 {
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions? options = null)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
@@ -44,7 +44,7 @@ class SemanticRouterImpl : ISemanticRouter
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
     }
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions? options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
     {
         try
         {
@@ -52,7 +52,6 @@ class SemanticRouterImpl : ISemanticRouter
             {
                 throw new Exception("System prompt is required");
             }
-            options = options ?? new RouterOptions();
 
             var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginNames, messageThread);
 
@@ -99,7 +98,16 @@ class SemanticRouterImpl : ISemanticRouter
     private Kernel Initialize(string workflowType, RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
     {
         var kernel = GetOrCreateCacheableKernel(workflowType, options, capabilitiesPluginNames);
-        // add capabilities plugins
+        // add instance capabilities plugins
+
+        var routeContext = new RouteContext {
+            Agent = options.Agent,
+            QueueName = options.QueueName,
+            AssignmentId = options.AssignmentId,
+            WorkflowId = options.WorkflowId,
+            WorkflowType = options.WorkflowType
+        };
+
         foreach (var pluginName in capabilitiesPluginNames)
         {
             var type = GetPluginType(pluginName);
@@ -107,7 +115,7 @@ class SemanticRouterImpl : ISemanticRouter
             if (!(type.IsAbstract && type.IsSealed))
             {
                 _logger.LogInformation("Getting functions from instance type {PluginType}", type.Name);
-                var instance = Activator.CreateInstance(type, messageThread) ?? throw new Exception($"Failed to create instance of {pluginName}");
+                var instance = Activator.CreateInstance(type, new object[] { messageThread, routeContext }) ?? throw new Exception($"Failed to create instance of {pluginName}");
                 var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
                 kernel.Plugins.TryGetPlugin(GetPluginName(pluginName), out var plugin);
                 if (plugin != null)

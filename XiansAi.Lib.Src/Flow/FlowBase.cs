@@ -5,6 +5,7 @@ using XiansAi.Activity;
 using XiansAi.Knowledge;
 using Temporalio.Exceptions;
 using XiansAi.Logging;
+using XiansAi.Router;
 
 namespace XiansAi.Flow;
 
@@ -74,9 +75,18 @@ public abstract class FlowBase : StaticFlowBase
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)
     {
+        var memoUtil = new MemoUtil(Workflow.Memo);
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
-        var response = await Router.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray());
+
+        var routerOptions = new RouterOptions {
+            Agent = memoUtil.GetAgent(),
+            QueueName = memoUtil.GetQueueName(),
+            AssignmentId = memoUtil.GetAssignment(),
+            WorkflowId = Workflow.Info.WorkflowId,
+            WorkflowType = Workflow.Info.WorkflowType
+        };
+        var response = await Router.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), routerOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

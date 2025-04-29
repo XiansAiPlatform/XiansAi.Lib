@@ -1,4 +1,3 @@
-using XiansAi.Router.Plugins;
 
 namespace XiansAi.Router;
 
@@ -27,6 +26,31 @@ public class RouterOptions
     /// Gets or sets the maximum number of tokens to generate in the response.
     /// </summary>
     public int HistorySizeToFetch { get; set; } = 20;
+
+    /// <summary>  
+    /// Gets or sets the agent for the router.
+    /// </summary>
+    public required string Agent { get; set; }
+
+    /// <summary>
+    /// Gets or sets the queue name for the router.
+    /// </summary>
+    public string? QueueName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the assignment id for the router.
+    /// </summary>
+    public string? AssignmentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the workflow id for the router.
+    /// </summary>
+    public required string WorkflowId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the workflow type for the router.
+    /// </summary>
+    public required string WorkflowType { get; set; }
 
 }
 

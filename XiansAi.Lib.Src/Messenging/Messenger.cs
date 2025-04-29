@@ -53,7 +53,7 @@ public class Messenger : IMessenger
 
     public async Task<string?> SendMessageAsync(string content, string participantId, string? metadata = null)
     {
-
+        var memoUtil = new MemoUtil(_workflowMemo);
         var outgoingMessage = new OutgoingMessage
         {
             Content = content,
@@ -61,9 +61,9 @@ public class Messenger : IMessenger
             ParticipantId = participantId,
             WorkflowId = _workflowId,
             WorkflowType = _workflowType,
-            Agent = ExtractMemoValue(_workflowMemo, Constants.AgentKey) ?? throw new Exception("Agent is required"),
-            QueueName = ExtractMemoValue(_workflowMemo, Constants.QueueNameKey) ?? "",
-            Assignment = ExtractMemoValue(_workflowMemo, Constants.AssignmentKey) ?? ""
+            Agent = memoUtil.GetAgent(),
+            QueueName = memoUtil.GetQueueName(),
+            Assignment = memoUtil.GetAssignment()
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -123,15 +123,17 @@ public class Messenger : IMessenger
     {
         _logger.LogInformation("Received Signal Message: {Message}", JsonSerializer.Serialize(messageSignal));
 
+        var memoUtil = new MemoUtil(_workflowMemo);
+
         var messageThread = new MessageThread {
             ParticipantId = messageSignal.ParticipantId,
             WorkflowId = _workflowId,
             WorkflowType = _workflowType,
             ThreadId = messageSignal.ThreadId,
             // optional fields required for start and handover
-            Agent = ExtractMemoValue(_workflowMemo, Constants.AgentKey) ?? throw new Exception("Agent is required"),
-            QueueName = ExtractMemoValue(_workflowMemo, Constants.QueueNameKey) ?? "",
-            Assignment = ExtractMemoValue(_workflowMemo, Constants.AssignmentKey) ?? ""
+            Agent = memoUtil.GetAgent(),
+            QueueName = memoUtil.GetQueueName(),
+            Assignment = memoUtil.GetAssignment()
         };
 
         
@@ -142,13 +144,4 @@ public class Messenger : IMessenger
         }
     }
 
-    private string? ExtractMemoValue(IReadOnlyDictionary<string, IRawValue> memo, string key)
-    {
-        if (memo.TryGetValue(key, out var memoValue))
-        {
-            var value = memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
-            return memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
-        }
-        return null;
-    }
 }
