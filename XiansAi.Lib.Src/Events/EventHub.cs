@@ -65,9 +65,14 @@ public class EventHub : IEventHub
             TargetWorkflowType = targetWorkflowType,
         };
 
-        await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.StartAndSendEventToWorkflowByType(evt),
-            new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
+        if(Workflow.InWorkflow) {
+            await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.StartAndSendEventToWorkflowByType(evt),
+                new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
+        }
+        else {
+            await new SystemActivities().StartAndSendEventToWorkflowByType(evt);
+        }
     }
 
     public async void SendEventToWorkflowAsync(string targetWorkflowId, string evtType, object? payload = null)
