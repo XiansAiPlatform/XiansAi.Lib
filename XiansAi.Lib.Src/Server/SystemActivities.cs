@@ -26,7 +26,7 @@ public class SystemActivities {
     }
 
     [Activity]
-    public async Task StartAndSendEventToWorkflowByType(StartAndSendEvent evt)
+    public async Task StartAndSendEventToWorkflowByType(Event evt)
     {
         _logger.LogInformation("Starting and sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
             evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowType);

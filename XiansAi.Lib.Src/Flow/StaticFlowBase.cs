@@ -54,7 +54,15 @@ public abstract class StaticFlowBase
         _cacheManager = new ObjectCacheManager();
         Router = new SemanticRouter();
         KnowledgeManager = new KnowledgeManager();
-        EventHub = Events.EventHub.Instance;
+
+        var memoUtil = new MemoUtil(Workflow.Memo);
+        EventHub = new EventHub(new RouteContext {
+            Agent = memoUtil.GetAgent(),
+            QueueName = memoUtil.GetQueueName(),
+            AssignmentId = memoUtil.GetAssignment(),
+            WorkflowId = Workflow.Info.WorkflowId,
+            WorkflowType = Workflow.Info.WorkflowType,
+        });
     }
     public ILogger GetLogger()
     {

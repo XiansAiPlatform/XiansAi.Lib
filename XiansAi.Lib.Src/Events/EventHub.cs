@@ -22,116 +22,44 @@ public interface IEventHub
 public class EventHub : IEventHub
 {
     private readonly List<Func<Event, Task>> _handlers = new List<Func<Event, Task>>();
-
+    private readonly RouteContext _routeContext;
     private readonly ILogger<EventHub> _logger;
     // Dictionary to keep track of handler references for unregistration
     private readonly Dictionary<Delegate, Func<Event, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<Event, Task>>();
 
-    public EventHub()
+    public EventHub(RouteContext routeContext)
     {
         _logger = Globals.LogFactory.CreateLogger<EventHub>();
+        _routeContext = routeContext;
     }
-
-    public static EventHub Instance
-    {
-        get
-        {
-            if (!Workflow.InWorkflow)
-            {
-                throw new InvalidOperationException("EventHub must be used only within a workflow execution context");
-            }
-
-            return new EventHub();
-        }
-    }
-
-
 
     public async void SendEvent(string targetWorkflowType, string evtType, object? payload = null)
     {
+        var evt = new Event
+        {
+            EventType = evtType,
+            SourceWorkflowId = _routeContext.WorkflowId,
+            SourceWorkflowType = _routeContext.WorkflowType,
+            SourceAgent = _routeContext.Agent,
+            SourceQueueName = _routeContext.QueueName,
+            SourceAssignment = _routeContext.AssignmentId,
+            Payload = payload,
+            Timestamp = DateTimeOffset.UtcNow,
+            TargetWorkflowType = targetWorkflowType,
+        };
+
         if (Workflow.InWorkflow)
         {
-            var memoUtil = new MemoUtil(Workflow.Memo);
-            var evt = new StartAndSendEvent
-            {
-                EventType = evtType,
-                SourceWorkflowId = Workflow.Info.WorkflowId,
-                SourceWorkflowType = Workflow.Info.WorkflowType,
-                SourceAgent = memoUtil.GetAgent(),
-                SourceQueueName = memoUtil.GetQueueName(),
-                SourceAssignment = memoUtil.GetAssignment(),
-                Payload = payload,
-                Timestamp = DateTimeOffset.UtcNow,
-                TargetWorkflowType = targetWorkflowType,
-            };
-
             await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.StartAndSendEventToWorkflowByType(evt),
                 new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
         }
         else
         {
-            var context = ActivityExecutionContext.Current;
-            var evt = new StartAndSendEvent
-            {
-                EventType = evtType,
-                SourceWorkflowId = context.Info.WorkflowId,
-                SourceWorkflowType = context.Info.WorkflowType,
-                SourceAgent = "EventHub",
-                // SourceQueueName = ExtractMemoValue(context.Info., "queue"),
-                // SourceAssignment = ExtractMemoValue(context.Info., "assignment"),
-                Payload = payload,
-                Timestamp = DateTimeOffset.UtcNow,
-                TargetWorkflowType = targetWorkflowType,
-            };
             await new SystemActivities().StartAndSendEventToWorkflowByType(evt);
         }
     }
-
-    public async Task<string> GetWorkflowMemo()
-    {
-        var context = ActivityExecutionContext.Current;
-        var workflowId = context.Info.WorkflowId;
-        var workflowType = context.Info.WorkflowType;
-
-        var temporalClient = await new TemporalClientService().GetClientAsync();
-        var workflowHandle = temporalClient.GetWorkflowHandle(workflowId);
-        //var workflowMemo = await workflowHandle.
-
-        return $"{workflowId}:{workflowType}";
-    }
-
-    // public async void SendEventToWorkflowAsync(string targetWorkflowId, string evtType, object? payload = null)
-    // {
-    //     var evt = new Event
-    //     {
-    //         EventType = evtType,
-    //         SourceWorkflowId = _workflowId,
-    //         SourceWorkflowType = _workflowType,
-    //         SourceAgent = ExtractMemoValue(_workflowMemo, "agent") ?? throw new Exception("Agent not found in memo"),
-    //         SourceQueueName = ExtractMemoValue(_workflowMemo, "queue"),
-    //         SourceAssignment = ExtractMemoValue(_workflowMemo, "assignment"),
-    //         Payload = payload,
-    //         Timestamp = DateTimeOffset.UtcNow,
-    //         TargetWorkflowId = targetWorkflowId,
-    //     };
-
-    //     try
-    //     {
-    //         // From workflow to workflow
-    //         await Workflow.ExecuteActivityAsync(
-    //             (SystemActivities a) => a.SendEventToWorkflowById(evt),
-    //             new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         _logger.LogError(ex, "Failed to send event {EventType} from {SourceWorkflow} to {TargetWorkflow}",
-    //             evt.EventType, _workflowId, targetWorkflowId);
-    //         throw;
-    //     }
-    // }
-
 
     public void RegisterAsyncHandler(EventReceivedAsyncHandler handler)
     {

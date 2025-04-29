@@ -67,6 +67,7 @@ public class EventHubTests
             Payload = testPayload,
             Timestamp = DateTimeOffset.UtcNow,
             TargetWorkflowId = targetWorkflowId,
+            TargetWorkflowType = "TestWorkflow",
         };
 
         _logger.LogInformation("Sending event from {SourceWorkflow} to non-existent workflow {TargetWorkflow}", 
@@ -108,7 +109,7 @@ public class EventHubTests
             Timestamp = DateTime.UtcNow
         };
         
-        var evt = new StartAndSendEvent {
+        var evt = new Event {
             EventType = "TestStartEvent",
             SourceWorkflowId = sourceWorkflowId,
             SourceWorkflowType = "TestWorkflow",
