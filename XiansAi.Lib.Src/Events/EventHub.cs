@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Temporal;
-using Temporalio.Activities;
+
 using Temporalio.Workflows;
 
 namespace XiansAi.Events;
