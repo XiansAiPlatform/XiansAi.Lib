@@ -28,8 +28,8 @@ public class MemoUtil
         return ExtractMemoValue(_memo, Constants.TenantIdKey) ?? throw new Exception("TenantId value not found in workflow memo");
     }
 
-    public string? GetUserId() {
-        return ExtractMemoValue(_memo, Constants.UserIdKey);
+    public string GetUserId() {
+        return ExtractMemoValue(_memo, Constants.UserIdKey) ?? throw new Exception("UserId value not found in workflow memo");
     }
 
     private string? ExtractMemoValue(IReadOnlyDictionary<string, IRawValue> memo, string key)

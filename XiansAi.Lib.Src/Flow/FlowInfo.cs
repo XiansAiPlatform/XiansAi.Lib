@@ -46,6 +46,7 @@ public class FlowInfo<TClass>
 
         try
         {
+            activity.SetAgentName(AgentInfo?.Name ?? GetWorkflowName());
             _stubs.Add(activity);
             
             var activityType = activity.GetType();
