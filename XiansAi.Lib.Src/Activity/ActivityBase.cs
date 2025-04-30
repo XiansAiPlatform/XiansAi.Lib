@@ -7,17 +7,11 @@ public class ActivityBase : DockerActivity
 {
     private readonly ILogger _logger;
     private readonly ObjectCacheManager _cacheManager;
-    private string? _agentName;
     protected ActivityBase()
     {
         _logger = Globals.LogFactory?.CreateLogger<ActivityBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
         _cacheManager = new ObjectCacheManager();
-    }
-
-    public void SetAgentName(string agentName)
-    {
-        _agentName = agentName;
     }
 
     protected virtual string GetWorkflowPrefixedKey(string key, bool usePrefix = true)

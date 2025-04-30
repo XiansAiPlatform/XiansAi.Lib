@@ -47,7 +47,7 @@ public class FlowRunnerService : IFlowRunnerService
 
         if (bool.TryParse(Environment.GetEnvironmentVariable("TEST_CONFIGURATION"), out var testConfiguration) && testConfiguration)
         {
-            _initializationTask = new Lazy<Task>(() => TestMe());
+            _initializationTask = new Lazy<Task>(() => Task.Run(TestMe));
             // Force initialization
             _ = _initializationTask.Value;
         }
@@ -84,10 +84,10 @@ public class FlowRunnerService : IFlowRunnerService
         }
     }
 
-    public async Task TestMe()
+    public void TestMe()
     {
         _logger.LogInformation($"Trying to connect to flow server at: {PlatformConfig.FLOW_SERVER_URL}");
-        var temporalClient = await new TemporalClientService().GetClientAsync();
+        var temporalClient = TemporalClientService.Instance.GetClientAsync();
         if (temporalClient == null)
         {
             _logger.LogError("Flow server connection failed");
@@ -154,7 +154,7 @@ public class FlowRunnerService : IFlowRunnerService
         await new FlowDefinitionUploader().UploadFlowDefinition(flow);
 
         // Run the worker for the flow
-        var client = await new TemporalClientService().GetClientAsync();
+        var client = TemporalClientService.Instance.GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
 
         var taskQueue = string.IsNullOrEmpty(_priorityQueue) ? workFlowName : _priorityQueue + "--" + workFlowName;

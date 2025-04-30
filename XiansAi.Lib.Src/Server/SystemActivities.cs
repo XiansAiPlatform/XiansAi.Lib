@@ -55,31 +55,6 @@ public class SystemActivities {
         }
     }
 
-    // [Activity]
-    // public async Task SendEventToWorkflowById(Event evt)
-    // {
-    //     _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
-    //         evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
-
-    //     var request = new {
-    //         WorkflowId = evt.TargetWorkflowId,
-    //         SignalName = Constants.EventSignalName,
-    //         Payload = evt
-    //     };
-        
-    //     try
-    //     {
-    //         var client = SecureApi.Instance.Client;
-    //         var response = await client.PostAsJsonAsync("api/agent/signal", request);
-    //         response.EnsureSuccessStatusCode();
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         _logger.LogError(ex, "Failed to send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
-    //             evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
-    //         throw;
-    //     }
-    // }
 
     [Activity ("SystemActivities.GetKnowledgeAsync")]
     public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
@@ -90,8 +65,11 @@ public class SystemActivities {
     }
 
     [Activity ("SystemActivities.RouteAsync")]
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, AgentContext agentContext, RouterOptions options)
     {
+        // To improve performance, we set the agent context explicitly here
+        AgentContext.SetExplicitInstance(agentContext);
+        // do the routing
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options);
     }
 

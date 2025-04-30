@@ -17,15 +17,13 @@ public abstract class FlowBase : StaticFlowBase
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     protected List<Type> Capabilities { get; } = new List<Type>();
     protected List<string> _capabilities { get; } = new List<string>();
-
-
     private string? _systemPromptKey;
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
 
     public FlowBase() : base()  
     {
         // Register the message handler
-        Messenger.RegisterHandler(_messageQueue.Enqueue);
+        _messenger.RegisterHandler(_messageQueue.Enqueue);
         
         // Get the constructor of the derived class
         var derivedType = GetType();
@@ -79,15 +77,16 @@ public abstract class FlowBase : StaticFlowBase
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
 
-        var routerOptions = new RouterOptions {
+        var agentContext = new AgentContext {
             TenantId = memoUtil.GetTenantId(),
             Agent = memoUtil.GetAgent(),
             QueueName = memoUtil.GetQueueName(),
-            AssignmentId = memoUtil.GetAssignment(),
+            Assignment = memoUtil.GetAssignment(),
+            UserId = memoUtil.GetUserId(),
             WorkflowId = Workflow.Info.WorkflowId,
             WorkflowType = Workflow.Info.WorkflowType
         };
-        var response = await Router.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), routerOptions);
+        var response = await _router.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), agentContext, new RouterOptions());
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

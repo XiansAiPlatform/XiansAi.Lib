@@ -10,8 +10,6 @@ public delegate void EventReceivedHandler(Event evt);
 
 public interface IEventHub
 {
-    //void StartAndSendEvent(string targetWorkflowType, string evtType, object? payload = null);
-    void SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null);
     void RegisterAsyncHandler(EventReceivedAsyncHandler handler);
     void RegisterHandler(EventReceivedHandler handler);
     void UnregisterHandler(EventReceivedHandler handler);
@@ -22,55 +20,25 @@ public interface IEventHub
 public class EventHub : IEventHub
 {
     private readonly List<Func<Event, Task>> _handlers = new List<Func<Event, Task>>();
-    private readonly RouteContext _routeContext;
     private readonly ILogger<EventHub> _logger;
     // Dictionary to keep track of handler references for unregistration
     private readonly Dictionary<Delegate, Func<Event, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<Event, Task>>();
 
-    public EventHub(RouteContext routeContext)
+    public EventHub()
     {
         _logger = Globals.LogFactory.CreateLogger<EventHub>();
-        _routeContext = routeContext;
     }
 
-    // public async void StartAndSendEvent(string targetWorkflowType, string evtType, object? payload = null)
-    // {
-    //     var evt = new Event
-    //     {
-    //         EventType = evtType,
-    //         SourceWorkflowId = _routeContext.WorkflowId,
-    //         SourceWorkflowType = _routeContext.WorkflowType,
-    //         SourceAgent = _routeContext.Agent,
-    //         SourceQueueName = _routeContext.QueueName,
-    //         SourceAssignment = _routeContext.AssignmentId,
-    //         Payload = payload,
-    //         Timestamp = DateTimeOffset.UtcNow,
-    //         TargetWorkflowType = targetWorkflowType
-    //     };
-
-    //     if (Workflow.InWorkflow)
-    //     {
-    //         await Workflow.ExecuteActivityAsync(
-    //             (SystemActivities a) => a.StartAndSendEventToWorkflowByType(evt),
-    //             new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
-    //     }
-    //     else
-    //     {
-    //         await new SystemActivities().StartAndSendEventToWorkflowByType(evt);
-    //     }
-    // }
-
-    public async void SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
+    public static async void SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
     {
+        var agentContext = AgentContext.Instance;
         var evt = new Event
         {
             EventType = evtType,
-            SourceWorkflowId = _routeContext.WorkflowId,
-            SourceWorkflowType = _routeContext.WorkflowType,
-            SourceAgent = _routeContext.Agent,
-            SourceQueueName = _routeContext.QueueName,
-            SourceAssignment = _routeContext.AssignmentId,
+            SourceWorkflowId = agentContext.WorkflowId,
+            SourceWorkflowType = agentContext.WorkflowType,
+            SourceAgent = agentContext.Agent,
             Payload = payload,
             Timestamp = DateTimeOffset.UtcNow,
             TargetWorkflowType = targetWorkflowType,

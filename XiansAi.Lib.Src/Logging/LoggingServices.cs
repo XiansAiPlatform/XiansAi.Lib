@@ -61,7 +61,7 @@ public static class LoggingServices
             _logApiEndpoint = logApiEndpoint;
             _batchSize = batchSize;
             _processingIntervalMs = processingIntervalMs;
-            _secureApiClient = SecureApi.Instance;
+            _secureApiClient = SecureApi.IsReady? SecureApi.Instance : null;
 
             // Start the background processor
             StartLogProcessor();

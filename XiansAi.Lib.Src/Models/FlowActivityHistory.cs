@@ -4,6 +4,9 @@ namespace XiansAi.Models;
 
 public class FlowActivityHistory
 {
+    [JsonPropertyName("agent")]
+    public required string Agent { get; set; }
+
     [JsonPropertyName("activityId")]
     public required string ActivityId { get; set; }
 

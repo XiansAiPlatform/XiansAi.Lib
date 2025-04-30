@@ -11,10 +11,7 @@ public class AbstractActivity
     private FlowActivityHistory? _currentActivity;
     public MethodInfo? _currentActivityMethod { get; internal set; }
     public Type? _currentActivityInterfaceType { get; internal set; }
-
-    public AbstractActivity()
-    {
-    }
+    internal string? Agent { get; set; }
 
     public bool IsInWorkflow()
     {
@@ -113,6 +110,7 @@ public class AbstractActivity
             var context = ActivityExecutionContext.Current;
             return new FlowActivityHistory
             {
+                Agent = Agent ?? throw new InvalidOperationException("Agent is null"),
                 ActivityId = context.Info.ActivityId ?? throw new InvalidOperationException("ActivityId is null"),
                 ActivityName = context.Info.ActivityType ?? throw new InvalidOperationException("ActivityType is null"),
                 StartedTime = context.Info.StartedTime,

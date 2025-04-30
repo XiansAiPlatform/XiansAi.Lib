@@ -46,7 +46,7 @@ public class FlowInfo<TClass>
 
         try
         {
-            activity.SetAgentName(AgentInfo?.Name ?? GetWorkflowName());
+            activity.Agent = AgentInfo?.Name ?? GetWorkflowName();
             _stubs.Add(activity);
             
             var activityType = activity.GetType();
@@ -129,6 +129,14 @@ public class FlowInfo<TClass>
         var workflowClass = typeof(TClass);
         var categoriesAttr = workflowClass.GetCustomAttribute<CategoriesAttribute>();
         return categoriesAttr?.Categories ?? [];
+    }
+
+    public string[] GetKnowledgeIds()
+    {
+        var workflowClass = typeof(TClass);
+        var constructor = workflowClass.GetConstructors().FirstOrDefault();
+        var knowledgeIdsAttr = constructor?.GetCustomAttribute<KnowledgeAttribute>();
+        return knowledgeIdsAttr?.Knowledge ?? [];
     }
 
     /// <summary>

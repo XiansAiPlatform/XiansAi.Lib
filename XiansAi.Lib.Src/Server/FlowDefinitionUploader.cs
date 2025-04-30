@@ -74,12 +74,13 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         where TFlow : class
     {
         return new FlowDefinition {
-            TypeName = flow.GetWorkflowName(),
-            AgentName = flow.GetAgentName(),
-            Parameters = flow.GetParameters(),
-            Activities = GetAllActivities(flow.GetObjects()).ToArray(),
+            WorkflowType = flow.GetWorkflowName(),
+            Agent = flow.GetAgentName(),
+            ParameterDefinitions = flow.GetParameters(),
+            ActivityDefinitions = GetAllActivities(flow.GetObjects()).ToArray(),
             Source = source ?? ReadSource(typeof(TFlow)),
-            Categories = flow.GetCategories()
+            Categories = flow.GetCategories(),
+            KnowledgeIds = flow.GetKnowledgeIds()
         };
     }
 
@@ -111,7 +112,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation("Flow definition for {TypeName} uploaded successfully: {ResponseBody}", flowDefinition.TypeName, responseBody);
+            _logger.LogInformation("Flow definition for {TypeName} uploaded successfully: {ResponseBody}", flowDefinition.WorkflowType, responseBody);
         }
         catch (HttpRequestException ex)
         {
@@ -203,8 +204,8 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             activities.Add(new ActivityDefinition 
             {
                 ActivityName = activityName,
-                Parameters = parameters,
-                Instructions = knowledgeAttribute?.Knowledge.ToList() ?? [],
+                ParameterDefinitions = parameters,
+                KnowledgeIds = knowledgeAttribute?.Knowledge.ToList() ?? [],
                 AgentToolNames = agentNames
             });
         }

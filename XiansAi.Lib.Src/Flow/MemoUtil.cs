@@ -4,9 +4,14 @@ public class MemoUtil
 {
     private readonly IReadOnlyDictionary<string, IRawValue> _memo;
 
-    public MemoUtil(IReadOnlyDictionary<string, IRawValue> memo)
+    internal MemoUtil(IReadOnlyDictionary<string, IRawValue> memo)
     {
         _memo = memo;
+    }
+
+    public MemoUtil(IReadOnlyDictionary<string, IEncodedRawValue> memo)
+    {
+        _memo = memo.ToDictionary(kvp => kvp.Key, kvp => (IRawValue)kvp.Value);
     }
 
     public string GetAgent()
@@ -33,6 +38,15 @@ public class MemoUtil
     }
 
     private string? ExtractMemoValue(IReadOnlyDictionary<string, IRawValue> memo, string key)
+    {
+        if (memo.TryGetValue(key, out var memoValue))
+        {
+            return memoValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
+        }
+        return null;
+    }
+
+    private string? ExtractMemoValue(IReadOnlyDictionary<string, IEncodedRawValue> memo, string key)
     {
         if (memo.TryGetValue(key, out var memoValue))
         {

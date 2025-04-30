@@ -1,11 +1,11 @@
 using System.Linq.Expressions;
-using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Server;
 using XiansAi.Router;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Events;
+using XiansAi.Logging;
 
 namespace XiansAi.Flow;
 
@@ -15,31 +15,31 @@ namespace XiansAi.Flow;
 public abstract class StaticFlowBase
 {
     private const int MaxLogLines = 100;
-    private readonly ILogger _logger;
+    private readonly Logger<StaticFlowBase> _logger = Logger<StaticFlowBase>.For();
     private readonly ObjectCacheManager _cacheManager;
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
-    public IMessenger Messenger { get; }
+    public Messenger _messenger;
 
-    public ISemanticRouter Router { get; }
+    public ISemanticRouter _router;
 
-    public IEventHub EventHub { get; }
+    public EventHub _eventHub;
 
-    public IKnowledgeManager KnowledgeManager { get; }
+    public IKnowledgeManager _knowledgeManager;
 
     // Signal method to receive events
     [WorkflowSignal("ReceiveEvent")]
     public async Task ReceiveEvent(Event evt)
     {
-        _logger.LogInformation("Received event: {EventType} from {WorkflowId}", evt.EventType, evt.SourceWorkflowId);
-        await EventHub.ReceiveEvent(evt);
+        _logger.LogInformation($"Received event: {evt.EventType} from {evt.SourceWorkflowId}");
+        await _eventHub.ReceiveEvent(evt);
     }
 
     [WorkflowSignal("HandleInboundMessage")]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
     {
         _logger.LogInformation($"Received inbound message in base class: {messageSignal.Content}");
-        await Messenger.ReceiveMessage(messageSignal);
+        await _messenger.ReceiveMessage(messageSignal);
     }
 
     /// <summary>
@@ -48,30 +48,12 @@ public abstract class StaticFlowBase
     /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
     protected StaticFlowBase()
     {
-        Messenger = Messaging.Messenger.Instance;
-        _logger = Globals.LogFactory?.CreateLogger<StaticFlowBase>()
-            ?? throw new InvalidOperationException("LogFactory not initialized");
-        _cacheManager = new ObjectCacheManager();
-        Router = new SemanticRouter();
-        KnowledgeManager = new KnowledgeManager();
+        _messenger = new Messenger();
 
-        var memoUtil = new MemoUtil(Workflow.Memo);
-        EventHub = new EventHub(new RouteContext {
-            TenantId = memoUtil.GetTenantId(),
-            Agent = memoUtil.GetAgent(),
-            QueueName = memoUtil.GetQueueName(),
-            AssignmentId = memoUtil.GetAssignment(),
-            WorkflowId = Workflow.Info.WorkflowId,
-            WorkflowType = Workflow.Info.WorkflowType,
-        });
-    }
-    public ILogger GetLogger()
-    {
-        if (IsInWorkflow())
-        {
-            return Workflow.Logger;
-        }
-        return _logger;
+        _cacheManager = new ObjectCacheManager();
+        _router = new SemanticRouter();
+        _knowledgeManager = new KnowledgeManager();
+        _eventHub = new EventHub();
     }
 
     public void SetActivityTypeMapping<TInterface, TImplementation>()
@@ -149,9 +131,8 @@ public abstract class StaticFlowBase
         catch (Exception ex)
         {
             _logger.LogError(
-                ex,
-                "Failed to execute activity {ActivityType}",
-                typeof(TActivityInstance).Name);
+                $"Failed to execute activity {typeof(TActivityInstance).Name}",
+                ex);
             throw;
         }
     }
@@ -164,7 +145,7 @@ public abstract class StaticFlowBase
     /// <returns>A task that completes after the delay</returns>
     protected virtual async Task DelayAsync(TimeSpan timeSpan, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Delaying for {TimeSpan}", timeSpan);
+        _logger.LogInformation($"Delaying for {timeSpan}");
         if (IsInWorkflow())
         {
             await Workflow.DelayAsync(timeSpan, cancellationToken);
@@ -196,9 +177,7 @@ public abstract class StaticFlowBase
 
         try
         {
-            _logger.LogInformation("Executing activity '{ActivityMethod}' at '{ActivityType}'",
-                methodName,
-                typeof(TActivityInstance).Name);
+            _logger.LogInformation($"Executing activity '{methodName}' at '{typeof(TActivityInstance).Name}'");
 
             TResult result;
             if (IsInWorkflow())
@@ -211,19 +190,15 @@ public abstract class StaticFlowBase
             }
 
             _logger.LogInformation(
-                "Successfully completed activity '{ActivityMethod}' at '{ActivityType}' with result: {Result}",
-                methodName,
-                typeof(TActivityInstance).Name,
-                result?.ToString());
+                $"Successfully completed activity '{methodName}' at '{typeof(TActivityInstance).Name}' with result: {result?.ToString()}");
 
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(
-                ex,
-                "Failed to execute activity {ActivityType}",
-                typeof(TActivityInstance).Name);
+                $"Failed to execute activity {typeof(TActivityInstance).Name}",
+                ex);
             throw;
         }
     }
@@ -231,7 +206,7 @@ public abstract class StaticFlowBase
     public bool IsInWorkflow()
     {
         var isInWorkflow = Workflow.InWorkflow;
-        _logger.LogDebug("IsInWorkflow: {IsInWorkflow}", isInWorkflow);
+        _logger.LogDebug($"IsInWorkflow: {isInWorkflow}");
         return isInWorkflow;
     }
 
@@ -243,7 +218,7 @@ public abstract class StaticFlowBase
     /// <returns>The cached value if found, otherwise null</returns>
     protected async Task<T?> GetCacheValueAsync<T>(string key)
     {
-        _logger.LogInformation("Getting value from cache for key: {Key}", key);
+        _logger.LogInformation($"Getting value from cache for key: {key}");
         return await _cacheManager.GetValueAsync<T>(key);
     }
 
@@ -256,7 +231,7 @@ public abstract class StaticFlowBase
     /// <returns>True if the operation was successful, false otherwise</returns>
     protected async Task<bool> SetCacheValueAsync<T>(string key, T value)
     {
-        _logger.LogInformation("Setting value in cache for key: {Key}", key);
+        _logger.LogInformation($"Setting value in cache for key: {key}");
         return await _cacheManager.SetValueAsync(key, value);
     }
 
@@ -267,7 +242,7 @@ public abstract class StaticFlowBase
     /// <returns>True if the operation was successful, false otherwise</returns>
     protected async Task<bool> DeleteCacheValueAsync(string key)
     {
-        _logger.LogInformation("Deleting value from cache for key: {Key}", key);
+        _logger.LogInformation($"Deleting value from cache for key: {key}");
         return await _cacheManager.DeleteValueAsync(key);
     }
 
