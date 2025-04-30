@@ -77,7 +77,7 @@ public class EventHubTests
         // The test should receive a Not Found response
         try
         {
-            await _systemActivities.SendEventToWorkflowById(evt);
+            await _systemActivities.StartAndSendEventToWorkflowByType(evt);
             Assert.Fail("Expected HttpRequestException with NotFound status, but no exception was thrown");
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
@@ -90,7 +90,7 @@ public class EventHubTests
         {
             _logger.LogError(ex, "Received unexpected exception: {Error}", ex.Message);
             // If we get a different exception, it should at least contain "not found" in the message
-            Assert.Contains("not found", ex.Message.ToLower());
+            Assert.Contains("notfound", ex.Message.ToLower());
         }
     }
     
