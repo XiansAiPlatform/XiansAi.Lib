@@ -101,6 +101,7 @@ class SemanticRouterImpl : ISemanticRouter
         // add instance capabilities plugins
 
         var routeContext = new RouteContext {
+            TenantId = options.TenantId,
             Agent = options.Agent,
             QueueName = options.QueueName,
             AssignmentId = options.AssignmentId,

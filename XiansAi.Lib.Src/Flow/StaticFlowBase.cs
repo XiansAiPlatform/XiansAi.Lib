@@ -57,6 +57,7 @@ public abstract class StaticFlowBase
 
         var memoUtil = new MemoUtil(Workflow.Memo);
         EventHub = new EventHub(new RouteContext {
+            TenantId = memoUtil.GetTenantId(),
             Agent = memoUtil.GetAgent(),
             QueueName = memoUtil.GetQueueName(),
             AssignmentId = memoUtil.GetAssignment(),

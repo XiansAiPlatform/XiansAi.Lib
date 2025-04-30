@@ -4,4 +4,5 @@ public class RouteContext {
     public string? AssignmentId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
+    public required string TenantId { get; set; }
 }

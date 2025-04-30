@@ -24,8 +24,8 @@ public class MemoUtil
         return ExtractMemoValue(_memo, Constants.QueueNameKey);
     }
 
-    public string? GetTenantId() {
-        return ExtractMemoValue(_memo, Constants.TenantIdKey);
+    public string GetTenantId() {
+        return ExtractMemoValue(_memo, Constants.TenantIdKey) ?? throw new Exception("TenantId value not found in workflow memo");
     }
 
     public string? GetUserId() {

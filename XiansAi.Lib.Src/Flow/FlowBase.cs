@@ -80,6 +80,7 @@ public abstract class FlowBase : StaticFlowBase
         // Route the message to the appropriate flow
 
         var routerOptions = new RouterOptions {
+            TenantId = memoUtil.GetTenantId(),
             Agent = memoUtil.GetAgent(),
             QueueName = memoUtil.GetQueueName(),
             AssignmentId = memoUtil.GetAssignment(),

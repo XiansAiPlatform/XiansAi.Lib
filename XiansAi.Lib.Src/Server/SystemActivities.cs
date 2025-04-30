@@ -33,6 +33,7 @@ public class SystemActivities {
 
         var request = new {
             WorkflowType = evt.TargetWorkflowType,
+            WorkflowId = evt.TargetWorkflowId,
             SignalName = Constants.EventSignalName,
             Payload = evt,
             QueueName = evt.SourceQueueName,
@@ -54,31 +55,31 @@ public class SystemActivities {
         }
     }
 
-    [Activity]
-    public async Task SendEventToWorkflowById(Event evt)
-    {
-        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
-            evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
+    // [Activity]
+    // public async Task SendEventToWorkflowById(Event evt)
+    // {
+    //     _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
+    //         evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
 
-        var request = new {
-            WorkflowId = evt.TargetWorkflowId,
-            SignalName = Constants.EventSignalName,
-            Payload = evt
-        };
+    //     var request = new {
+    //         WorkflowId = evt.TargetWorkflowId,
+    //         SignalName = Constants.EventSignalName,
+    //         Payload = evt
+    //     };
         
-        try
-        {
-            var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/signal", request);
-            response.EnsureSuccessStatusCode();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
-                evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
-            throw;
-        }
-    }
+    //     try
+    //     {
+    //         var client = SecureApi.Instance.Client;
+    //         var response = await client.PostAsJsonAsync("api/agent/signal", request);
+    //         response.EnsureSuccessStatusCode();
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         _logger.LogError(ex, "Failed to send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
+    //             evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowId);
+    //         throw;
+    //     }
+    // }
 
     [Activity ("SystemActivities.GetKnowledgeAsync")]
     public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)

@@ -52,5 +52,10 @@ public class RouterOptions
     /// </summary>
     public required string WorkflowType { get; set; }
 
+    /// <summary>
+    /// Gets or sets the tenant id for the router.
+    /// </summary>
+    public required string TenantId { get; set; }
+
 }
 
