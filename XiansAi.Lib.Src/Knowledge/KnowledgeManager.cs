@@ -27,15 +27,3 @@ public class KnowledgeManager : IKnowledgeManager
     }
 
 }
-
-// class KnowledgeManagerImpl: IKnowledgeManager
-// {
-
-//     public async Task<Models.Knowledge> GetKnowledgeAsync(string knowledgeName)
-//     {
-//         var knowledgeLoader = new KnowledgeLoaderImpl();
-//         var knowledge = await knowledgeLoader.Load(knowledgeName);
-//         return knowledge ?? throw new InvalidOperationException($"Knowledge {knowledgeName} not found");
-//     }
-
-// }

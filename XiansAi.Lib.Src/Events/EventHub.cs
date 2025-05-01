@@ -4,8 +4,8 @@ using XiansAi.Logging;
 
 namespace XiansAi.Events;
 
-public delegate Task EventReceivedAsyncHandler(Event evt);
-public delegate void EventReceivedHandler(Event evt);
+public delegate Task EventReceivedAsyncHandler(object obj);
+public delegate void EventReceivedHandler(object obj);
 
 public interface IEventHub
 {
@@ -13,22 +13,22 @@ public interface IEventHub
     void RegisterHandler(EventReceivedHandler handler);
     void UnregisterHandler(EventReceivedHandler handler);
     void UnregisterAsyncHandler(EventReceivedAsyncHandler handler);
-    internal Task ReceiveEvent(Event evt);
+    internal Task EventListener(object obj);
 }
 
 public class EventHub : IEventHub
 {
-    private readonly List<Func<Event, Task>> _handlers = new List<Func<Event, Task>>();
+    private readonly List<Func<object, Task>> _handlers = new List<Func<object, Task>>();
     private readonly Logger<EventHub> _logger = Logger<EventHub>.For();
     // Dictionary to keep track of handler references for unregistration
-    private readonly Dictionary<Delegate, Func<Event, Task>> _handlerMappings =
-        new Dictionary<Delegate, Func<Event, Task>>();
+    private readonly Dictionary<Delegate, Func<object, Task>> _handlerMappings =
+        new Dictionary<Delegate, Func<object, Task>>();
 
-    public static async void SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
+    public static async Task SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
     {
         try {
             var agentContext = AgentContext.Instance;
-            var evt = new Event
+            var eventDto = new EventDto
             {
                 EventType = evtType,
                 SourceWorkflowId = agentContext.WorkflowId,
@@ -40,17 +40,15 @@ public class EventHub : IEventHub
                 TargetWorkflowId = targetWorkflowId
             };
 
-            Console.WriteLine($"Sending event: {JsonSerializer.Serialize(evt)}");
-
             if (Workflow.InWorkflow)
             {
                 await Workflow.ExecuteActivityAsync(
-                    (SystemActivities a) => a.SendEvent(evt),
+                    (SystemActivities a) => a.SendEvent(eventDto),
                     new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
             }
             else
             {
-                await new SystemActivities().SendEvent(evt);
+                await new SystemActivities().SendEvent(eventDto);
             }
         }
         catch (Exception e)
@@ -63,7 +61,7 @@ public class EventHub : IEventHub
     public void RegisterAsyncHandler(EventReceivedAsyncHandler handler)
     {
         // Convert the delegate type
-        Func<Event, Task> funcHandler = evt => handler(evt);
+        Func<object, Task> funcHandler = (obj) => handler(obj);
 
         if (!_handlerMappings.ContainsKey(handler))
         {
@@ -75,9 +73,9 @@ public class EventHub : IEventHub
     public void RegisterHandler(EventReceivedHandler handler)
     {
         // Wrap the synchronous handler to return a completed task
-        Func<Event, Task> funcHandler = evt =>
+        Func<object, Task> funcHandler = (obj) =>
         {
-            handler(evt);
+            handler(obj);
             return Task.CompletedTask;
         };
 
@@ -106,14 +104,27 @@ public class EventHub : IEventHub
         }
     }
 
-    public async Task ReceiveEvent(Event evt)
+    public async Task EventListener(object obj)
     {
-        _logger.LogInformation($"Received Event: {JsonSerializer.Serialize(evt)}");
-
         // Call all handlers uniformly
         foreach (var handler in _handlers.ToList())
         {
-            await handler(evt);
+            await handler(obj);
+        }
+    }
+
+    public static T CastPayload<T>(object obj)
+    {
+        if (obj == null)
+        {
+            return default!;
+        }
+        try {
+            return JsonSerializer.Deserialize<T>(obj.ToString()!)!;
+        }
+        catch (Exception)
+        {
+            throw new InvalidOperationException($"Failed to cast event payload to {typeof(T).Name}");
         }
     }
 

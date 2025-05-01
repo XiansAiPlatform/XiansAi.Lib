@@ -34,7 +34,6 @@ public class FlowInfo<TClass>
     public FlowInfo<TClass> AddActivities<IActivity>(ActivityBase activity) 
         where IActivity : class
     {
-        Console.WriteLine($"Adding activities for {activity.GetType().Name}");
         _logger.LogDebug($"Adding activities for {activity.GetType().Name}");
         ArgumentNullException.ThrowIfNull(activity, nameof(activity));
 
@@ -57,8 +56,6 @@ public class FlowInfo<TClass>
 
             var stubProxy = proxyCreateMethod.Invoke(null, new[] { activity })
                 ?? throw new InvalidOperationException("Failed to create activity proxy");
-
-            Console.WriteLine($"Activity proxy created: {stubProxy} for interface {interfaceType.Name}");
 
             _stubProxies[interfaceType] = stubProxy;
 

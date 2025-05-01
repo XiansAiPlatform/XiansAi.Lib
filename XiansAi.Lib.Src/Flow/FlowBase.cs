@@ -41,7 +41,7 @@ public abstract class FlowBase : StaticFlowBase
         }
     }
 
-    protected virtual async Task RunConversation(MessageListenerDelegate? messageListener = null)
+    protected async Task InitUserConversation(MessageListenerDelegate? messageListener = null)
     {
 
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
@@ -50,6 +50,11 @@ public abstract class FlowBase : StaticFlowBase
 
         _capabilities.AddRange(Capabilities.Select(t => t.FullName!));
 
+        _ = ListenToUserMessages(messageListener, systemPrompt);
+    }
+
+    private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, string systemPrompt)
+    {
         while (true)
         {
             _logger.LogDebug($"{GetType().Name} Flow is waiting for a message");
@@ -66,7 +71,7 @@ public abstract class FlowBase : StaticFlowBase
             }
 
             // Asynchronously process the message
-            _ = ProcessMessage(thread, systemPrompt);
+            await ProcessMessage(thread, systemPrompt);
 
         }
     }

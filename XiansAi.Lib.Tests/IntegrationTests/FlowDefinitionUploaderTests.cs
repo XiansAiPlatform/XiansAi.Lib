@@ -8,6 +8,7 @@ using Temporalio.Workflows;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
+[Collection("SecureApi Tests")]
 public class FlowDefinitionUploaderTests
 {
     private readonly ILoggerFactory _loggerFactory;
@@ -21,6 +22,9 @@ public class FlowDefinitionUploaderTests
     */
     public FlowDefinitionUploaderTests()
     {
+        // Reset SecureApi to ensure clean state
+        SecureApi.Reset();
+
         // Load environment variables
         Env.Load();
 
@@ -35,7 +39,7 @@ public class FlowDefinitionUploaderTests
         _logger = _loggerFactory.CreateLogger<FlowDefinitionUploaderTests>();
 
         // Initialize SecureApi with real credentials
-        SecureApi.InitializeClient(_certificateBase64, _serverUrl);
+        SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
         var secureApiClient = SecureApi.Instance;
 
         // Create the flow definition uploader with real SecureApi

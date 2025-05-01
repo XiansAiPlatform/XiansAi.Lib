@@ -29,10 +29,9 @@ public abstract class StaticFlowBase
 
     // Signal method to receive events
     [WorkflowSignal("ReceiveEvent")]
-    public async Task ReceiveEvent(Event evt)
+    public async Task ReceiveEvent(object eventDto)
     {
-        _logger.LogInformation($"Received event: {evt.EventType} from `{evt.SourceWorkflowId}` to `{Workflow.Info.WorkflowId}`");
-        await _eventHub.ReceiveEvent(evt);
+        await _eventHub.EventListener(eventDto);
     }
 
     [WorkflowSignal("HandleInboundMessage")]
@@ -280,7 +279,7 @@ public abstract class StaticFlowBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to read logs: {ex.Message}");
+            Console.Error.WriteLine($"Failed to read logs: {ex.Message}");
             return null;
         }
     }
@@ -292,9 +291,6 @@ public abstract class StaticFlowBase
     [WorkflowQuery]
     public string? GetLogsFromMongo(string workflowId, string runId)
     {
-
-        Console.WriteLine($"GetLogsFromMongo: workflowId: {workflowId}, runId: {runId}");
-
         // Call the activity asynchronously using 'await'
         var mongoDbActivity = new MongoDbActivity();
         var logs = mongoDbActivity.GetLogsFromMongo(workflowId, runId);

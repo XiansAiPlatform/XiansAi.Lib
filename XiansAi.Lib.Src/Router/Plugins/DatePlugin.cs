@@ -17,14 +17,12 @@ public class DatePlugin : PluginBase<DatePlugin>
     [Capability("Get the current date.")]
     public static string GetCurrentDate()
     {
-        Console.WriteLine("Plugin: GetCurrentDate called.");
         return DateTime.Now.ToString("yyyy-MM-dd");
     }
 
     [Capability("Get the current date and time.")]
     public static string GetCurrentDateTime()
     {
-        Console.WriteLine("Plugin: GetCurrentDateTime called.");
         return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
@@ -32,7 +30,6 @@ public class DatePlugin : PluginBase<DatePlugin>
     [Parameter("format", "The format of the time to return.")]
     public static string GetCurrentTime(string format)
     {
-        Console.WriteLine("Plugin: GetCurrentTime called.");
         return DateTime.Now.ToString(format);
     }
 

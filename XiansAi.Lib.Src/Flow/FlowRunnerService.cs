@@ -40,10 +40,14 @@ public class FlowRunnerService : IFlowRunnerService
 
         ValidateConfig();
 
-        SecureApi.InitializeClient(
-            PlatformConfig.APP_SERVER_API_KEY!,
-            PlatformConfig.APP_SERVER_URL!
-        );
+        // Initialize SecureApi first
+        if (!SecureApi.IsReady)
+        {
+            SecureApi.InitializeClient(
+                PlatformConfig.APP_SERVER_API_KEY!,
+                PlatformConfig.APP_SERVER_URL!
+            );
+        }
 
         if (bool.TryParse(Environment.GetEnvironmentVariable("TEST_CONFIGURATION"), out var testConfiguration) && testConfiguration)
         {
@@ -101,13 +105,14 @@ public class FlowRunnerService : IFlowRunnerService
         _logger.LogInformation($"Trying to connect to app server at: {PlatformConfig.APP_SERVER_URL}");
         HttpClient? client = null;
 
-
         if (PlatformConfig.APP_SERVER_API_KEY != null)
         {
-            client = SecureApi.InitializeClient(
-                PlatformConfig.APP_SERVER_API_KEY,
-                PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is not set")
-            );
+            if (!SecureApi.IsReady)
+            {
+                _logger.LogError("App server connection failed because SecureApi is not ready");
+                throw new InvalidOperationException("App server connection failed because SecureApi is not ready");
+            }
+            client = SecureApi.Instance.Client;
         }
         else
         {

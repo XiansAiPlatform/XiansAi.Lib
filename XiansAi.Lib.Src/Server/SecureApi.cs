@@ -27,17 +27,50 @@ public class SecureApi : ISecureApiClient, IDisposable
     
     // Lazy-loaded singleton instance that requires explicit initialization before use
     private static SecureApi? _instance;
+    private static readonly object _lock = new object();
+    private static string? _currentServerUrl;
+    private static string? _currentCertificate;
 
     /// <summary>
     /// Gets the configured HTTP client for making secure API requests.
     /// </summary>
-    public HttpClient Client => _client;
+    public HttpClient Client
+    {
+        get
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(SecureApi), "The SecureApi instance has been disposed. Please reinitialize the client.");
+            }
+            return _client;
+        }
+    }
     
     /// <summary>
     /// Gets the singleton instance of the SecureApi client.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if accessed before initialization.</exception>
-    public static ISecureApiClient Instance => _instance ?? throw new InvalidOperationException("SecureApi must be initialized before use");
+    /// <exception cref="ObjectDisposedException">Thrown if the instance has been disposed.</exception>
+    public static ISecureApiClient Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                throw new InvalidOperationException("SecureApi must be initialized before use");
+            }
+            if (_instance._disposed)
+            {
+                throw new ObjectDisposedException(nameof(SecureApi), "The SecureApi instance has been disposed. Please reinitialize the client.");
+            }
+            return _instance;
+        }
+    }
+
+    /// <summary>
+    /// Indicates whether the client is properly initialized and ready to use.
+    /// </summary>
+    public static bool IsReady => _instance?.Client != null && !_instance._disposed;
 
     /// <summary>
     /// Initializes a new instance of the SecureApi class.
@@ -56,7 +89,10 @@ public class SecureApi : ISecureApiClient, IDisposable
         if (string.IsNullOrEmpty(serverUrl))
             throw new ArgumentNullException(nameof(serverUrl));
 
-        _client = new HttpClient { BaseAddress = new Uri(serverUrl) };
+        _client = new HttpClient { 
+            BaseAddress = new Uri(serverUrl),
+            Timeout = TimeSpan.FromSeconds(30) // Increase timeout to 30 seconds
+        };
 
         try
         {
@@ -83,22 +119,62 @@ public class SecureApi : ISecureApiClient, IDisposable
     }
 
     /// <summary>
-    /// Indicates whether the client is properly initialized and ready to use.
-    /// </summary>
-    public static bool IsReady => _instance?.Client != null;
-
-    /// <summary>
     /// Initializes the singleton instance of the SecureApi client.
     /// This method must be called before using the Instance property.
     /// </summary>
     /// <param name="certificateBase64">The client certificate in Base64 encoded format.</param>
     /// <param name="serverUrl">The base URL of the server API.</param>
+    /// <param name="forceReinitialize">Whether to force reinitialization even if already initialized.</param>
     /// <returns>The configured HTTP client instance.</returns>
-    public static HttpClient InitializeClient(string certificateBase64, string serverUrl)
+    /// <exception cref="InvalidOperationException">Thrown if already initialized with different parameters.</exception>
+    public static HttpClient InitializeClient(string certificateBase64, string serverUrl, bool forceReinitialize = false)
     {
-        var logger = Globals.LogFactory.CreateLogger<SecureApi>();
-        _instance = new SecureApi(certificateBase64, serverUrl, logger);
-        return _instance.Client;
+        // Validate parameters first
+        if (string.IsNullOrEmpty(certificateBase64))
+            throw new ArgumentNullException(nameof(certificateBase64));
+            
+        if (string.IsNullOrEmpty(serverUrl))
+            throw new ArgumentNullException(nameof(serverUrl));
+
+        lock (_lock)
+        {
+            if (_instance != null && !forceReinitialize)
+            {
+                // Check if the existing instance has the same configuration
+                if (_currentServerUrl == serverUrl && _currentCertificate == certificateBase64)
+                {
+                    return _instance.Client;
+                }
+                throw new InvalidOperationException("SecureApi is already initialized with different parameters");
+            }
+
+            // Reset existing instance if forcing reinitialization
+            if (forceReinitialize)
+            {
+                _instance?.Dispose();
+                _instance = null;
+            }
+
+            var logger = Globals.LogFactory.CreateLogger<SecureApi>();
+            _instance = new SecureApi(certificateBase64, serverUrl, logger);
+            _currentServerUrl = serverUrl;
+            _currentCertificate = certificateBase64;
+            return _instance.Client;
+        }
+    }
+
+    /// <summary>
+    /// Resets the singleton instance. This is primarily for testing purposes.
+    /// </summary>
+    public static void Reset()
+    {
+        lock (_lock)
+        {
+            _instance?.Dispose();
+            _instance = null;
+            _currentServerUrl = null;
+            _currentCertificate = null;
+        }
     }
 
     /// <summary>

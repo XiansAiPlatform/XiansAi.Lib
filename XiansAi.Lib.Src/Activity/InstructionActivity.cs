@@ -25,7 +25,6 @@ public abstract class InstructionActivity : AbstractActivity
     /// <exception cref="InvalidOperationException">Thrown when instructions are missing or empty</exception>
     protected string[] GetDependingInstructions()
     {
-        Console.WriteLine($"Getting instructions for {CurrentActivityMethod?.Name}");
         var methodInfo = CurrentActivityMethod;
         if (methodInfo == null)
         {

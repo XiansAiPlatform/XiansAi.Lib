@@ -205,8 +205,6 @@ public static class LoggingServices
             ProcessLogBatch();
             Thread.Sleep(100);
         }
-        
-        Console.WriteLine("All logs flushed successfully.");
     }
     
     /// <summary>

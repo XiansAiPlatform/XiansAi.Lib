@@ -5,6 +5,7 @@ using System.Reflection;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
+[Collection("SecureApi Tests")]
 public class SecureApiTests 
 {
     private readonly string _certificateBase64;
@@ -16,6 +17,9 @@ public class SecureApiTests
     */
     public SecureApiTests()
     {
+        // Reset SecureApi to ensure clean state
+        SecureApi.Reset();
+
         _logger = LoggerFactory.Create(builder => builder.AddConsole())
             .CreateLogger<SecureApiTests>();
             
@@ -36,7 +40,7 @@ public class SecureApiTests
     public void InitializeClient_ShouldReturnHttpClient_WhenValidParametersProvided()
     {
         // Act
-        var client = SecureApi.InitializeClient(_certificateBase64, _serverUrl);
+        var client = SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
 
         // Assert
         Assert.NotNull(client);
@@ -82,4 +86,26 @@ public class SecureApiTests
     }
 
 
+}
+
+[CollectionDefinition("SecureApi Tests")]
+public class SecureApiTestCollection : ICollectionFixture<SecureApiTestFixture>
+{
+    // This class has no code, and is never created.
+    // Its purpose is to be the place to apply [CollectionDefinition] and all the
+    // ICollectionFixture<> interfaces.
+}
+
+public class SecureApiTestFixture : IDisposable
+{
+    public SecureApiTestFixture()
+    {
+        // Reset SecureApi to ensure clean state
+        SecureApi.Reset();
+    }
+
+    public void Dispose()
+    {
+        SecureApi.Reset();
+    }
 } 

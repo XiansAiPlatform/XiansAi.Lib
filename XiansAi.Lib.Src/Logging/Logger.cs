@@ -131,7 +131,7 @@ public class Logger<T>
         }
         catch (Exception)
         {
-            Console.WriteLine("Error getting context data");
+            Console.Error.WriteLine("Error getting context data");
             // If we can't get context data, return empty dictionary
         }
 

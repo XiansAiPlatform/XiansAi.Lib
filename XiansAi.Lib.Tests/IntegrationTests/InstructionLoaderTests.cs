@@ -7,6 +7,7 @@ using XiansAi.Knowledge;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
+[Collection("SecureApi Tests")]
 public class InstructionLoaderTests
 {
     private readonly ILoggerFactory _loggerFactory;
@@ -20,6 +21,9 @@ public class InstructionLoaderTests
     */
     public InstructionLoaderTests()
     {
+        // Reset SecureApi to ensure clean state
+        SecureApi.Reset();
+
         // Load environment variables
         Env.Load();
 
@@ -34,7 +38,7 @@ public class InstructionLoaderTests
         _logger = _loggerFactory.CreateLogger<InstructionLoaderTests>();
 
         // Initialize SecureApi with real credentials
-        SecureApi.InitializeClient(_certificateBase64, _serverUrl);
+        SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
         var secureApiClient = SecureApi.Instance;
 
         // Create the instruction loader with real SecureApi
