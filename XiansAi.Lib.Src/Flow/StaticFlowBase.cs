@@ -31,7 +31,7 @@ public abstract class StaticFlowBase
     [WorkflowSignal("ReceiveEvent")]
     public async Task ReceiveEvent(Event evt)
     {
-        _logger.LogInformation($"Received event: {evt.EventType} from {evt.SourceWorkflowId}");
+        _logger.LogInformation($"Received event: {evt.EventType} from `{evt.SourceWorkflowId}` to `{Workflow.Info.WorkflowId}`");
         await _eventHub.ReceiveEvent(evt);
     }
 

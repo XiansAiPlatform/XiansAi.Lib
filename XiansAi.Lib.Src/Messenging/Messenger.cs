@@ -27,7 +27,7 @@ public class Messenger: IMessenger
     private readonly Dictionary<Delegate, Func<MessageThread, Task>> _handlerMappings = 
         new Dictionary<Delegate, Func<MessageThread, Task>>();
 
-    public static async Task<string?> SendMessageAsync(string content, string participantId, string? metadata = null)
+    public static async Task<string?> SendMessageAsync(string content, string participantId, object? metadata = null)
     {
         var agentContext = AgentContext.Instance;
         var outgoingMessage = new OutgoingMessage
@@ -106,11 +106,14 @@ public class Messenger: IMessenger
             WorkflowId = agentContext.WorkflowId,
             WorkflowType = agentContext.WorkflowType,
             ThreadId = messageSignal.ThreadId,
-            // optional fields required for start and handover
             Agent = agentContext.Agent,
             QueueName = agentContext.QueueName,
-            Assignment = agentContext.Assignment
+            Assignment = agentContext.Assignment,
+            Metadata = messageSignal.Metadata,
+            LatestContent = messageSignal.Content
         };
+
+        _logger.LogInformation($"New MessageThread created: {JsonSerializer.Serialize(messageThread)}");
 
         
         // Call all handlers uniformly

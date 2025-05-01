@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace XiansAi.Events;
@@ -34,4 +35,15 @@ public class Event
 
     [JsonPropertyName("TargetWorkflowType")]
     public required string TargetWorkflowType { get; set; }
+
+
+    public T CastPayload<T>()
+    {
+        if (Payload == null)
+        {
+            throw new InvalidOperationException("Payload is null");
+        }
+
+        return JsonSerializer.Deserialize<T>(Payload.ToString()!)!;
+    }
 }

@@ -1,7 +1,6 @@
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-
 using Temporalio.Workflows;
+using XiansAi.Logging;
 
 namespace XiansAi.Events;
 
@@ -20,40 +19,44 @@ public interface IEventHub
 public class EventHub : IEventHub
 {
     private readonly List<Func<Event, Task>> _handlers = new List<Func<Event, Task>>();
-    private readonly ILogger<EventHub> _logger;
+    private readonly Logger<EventHub> _logger = Logger<EventHub>.For();
     // Dictionary to keep track of handler references for unregistration
     private readonly Dictionary<Delegate, Func<Event, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<Event, Task>>();
 
-    public EventHub()
-    {
-        _logger = Globals.LogFactory.CreateLogger<EventHub>();
-    }
-
     public static async void SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
     {
-        var agentContext = AgentContext.Instance;
-        var evt = new Event
-        {
-            EventType = evtType,
-            SourceWorkflowId = agentContext.WorkflowId,
-            SourceWorkflowType = agentContext.WorkflowType,
-            SourceAgent = agentContext.Agent,
-            Payload = payload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowType = targetWorkflowType,
-            TargetWorkflowId = targetWorkflowId
-        };
+        try {
+            var agentContext = AgentContext.Instance;
+            var evt = new Event
+            {
+                EventType = evtType,
+                SourceWorkflowId = agentContext.WorkflowId,
+                SourceWorkflowType = agentContext.WorkflowType,
+                SourceAgent = agentContext.Agent,
+                Payload = payload,
+                Timestamp = DateTimeOffset.UtcNow,
+                TargetWorkflowType = targetWorkflowType,
+                TargetWorkflowId = targetWorkflowId
+            };
 
-        if (Workflow.InWorkflow)
-        {
-            await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.StartAndSendEventToWorkflowByType(evt),
-                new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
+            Console.WriteLine($"Sending event: {JsonSerializer.Serialize(evt)}");
+
+            if (Workflow.InWorkflow)
+            {
+                await Workflow.ExecuteActivityAsync(
+                    (SystemActivities a) => a.SendEvent(evt),
+                    new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
+            }
+            else
+            {
+                await new SystemActivities().SendEvent(evt);
+            }
         }
-        else
+        catch (Exception e)
         {
-            await new SystemActivities().StartAndSendEventToWorkflowByType(evt);
+            Console.Error.WriteLine(e);
+            throw;
         }
     }
 

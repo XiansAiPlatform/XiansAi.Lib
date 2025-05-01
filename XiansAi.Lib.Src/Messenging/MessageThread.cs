@@ -20,6 +20,8 @@ public class MessageThread : IMessageThread
     public string? QueueName { get; set; }
     public string? Assignment { get; set; }
     public string? ThreadId { get; set; }
+    public object? Metadata { get; set; }
+    public string? LatestContent { get; set; }
 
     private readonly ILogger<MessageThread> _logger;
 

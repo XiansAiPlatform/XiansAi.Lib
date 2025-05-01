@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using Server;
+using XiansAi.Logging;
 
 namespace XiansAi.Knowledge;
 
@@ -25,7 +25,7 @@ public interface IKnowledgeLoader
 /// </summary>
 public class KnowledgeLoaderImpl : IKnowledgeLoader
 {
-    private readonly ILogger<KnowledgeLoaderImpl> _logger;
+    private readonly Logger<KnowledgeLoaderImpl> _logger = Logger<KnowledgeLoaderImpl>.For();
 
     // Path to local instructions folder, configured via environment variable
     private readonly string? _localInstructionsFolder = Environment.GetEnvironmentVariable("LOCAL_INSTRUCTIONS_FOLDER");
@@ -33,16 +33,6 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     // API endpoint for retrieving instructions by name
     private const string URL = "api/agent/knowledge/latest?name=";
 
-    /// <summary>
-    /// Initializes a new instance of the InstructionLoader class.
-    /// </summary>
-    /// <param name="loggerFactory">Factory to create a logger instance</param>
-    /// <param name="secureApi">Secure API client for server communication</param>
-    /// <exception cref="ArgumentNullException">Thrown if secureApi is null</exception>
-    public KnowledgeLoaderImpl()
-    {
-        _logger = Globals.LogFactory.CreateLogger<KnowledgeLoaderImpl>();
-    }
 
     /// <summary>
     /// Loads an instruction by name from either the server or local filesystem.
@@ -60,11 +50,11 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
         // Fall back to local loading if server connection isn't available
         if (!string.IsNullOrEmpty(_localInstructionsFolder))
         { 
-            _logger.LogWarning("App server connection not ready, loading instruction locally from {_localInstructionsFolder}", _localInstructionsFolder);
-            _logger.LogWarning("Loading instruction locally - {instructionName}", instructionName);
+            _logger.LogWarning($"App server connection not ready, loading instruction locally from {_localInstructionsFolder}");
+            _logger.LogWarning($"Loading instruction locally - {instructionName}");
             return await LoadFromLocal(instructionName);
         }
-        _logger.LogDebug("Loading instruction from server - {instructionName}", instructionName);
+        _logger.LogDebug($"Loading instruction from server - {instructionName}");
         return await LoadFromServer(instructionName);
     }
 
@@ -122,6 +112,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     private async Task<Models.Knowledge?> LoadFromServer(string instructionName)
     {
         var url = BuildServerUrl(instructionName);
+        _logger.LogInformation($"Loading instruction from server: {url}");
         
         try
         {
@@ -145,7 +136,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
         }
         catch (Exception e)
         {
-            _logger.LogError(e, $"Failed to load instruction from server: {instructionName}");
+            _logger.LogError($"Failed to load instruction from server: {instructionName}");
             throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. Error: {e.Message}", e);
         }
     }
@@ -192,7 +183,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
         } 
         catch (Exception e)
         {
-            _logger.LogError(e, $"Failed to deserialize instruction from server: {response}");
+            _logger.LogError($"Failed to deserialize instruction from server: {response}");
             throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}. Error: {e.Message}", e);
         }
     }

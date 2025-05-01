@@ -26,20 +26,22 @@ public class SystemActivities {
     }
 
     [Activity]
-    public async Task StartAndSendEventToWorkflowByType(Event evt)
+    public async Task SendEvent(Event evt)
     {
-        _logger.LogInformation("Starting and sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
+        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
             evt.EventType, evt.SourceWorkflowId, evt.TargetWorkflowType);
 
         var request = new {
             WorkflowType = evt.TargetWorkflowType,
             WorkflowId = evt.TargetWorkflowId,
             SignalName = Constants.EventSignalName,
-            Payload = evt,
+            evt.Payload,
             QueueName = evt.SourceQueueName,
             Agent = evt.SourceAgent,
             Assignment = evt.SourceAssignment,
         };
+
+        Console.WriteLine($"Sending event: {JsonSerializer.Serialize(request)}");
         
         try
         {
