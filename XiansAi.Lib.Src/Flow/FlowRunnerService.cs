@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using Temporalio.Worker;
 using Temporalio.Workflows;
 using Server;
@@ -185,12 +186,40 @@ public class FlowRunnerService : IFlowRunnerService
         await worker.ExecuteAsync(cancellationToken!);
     }
 
+    private LogLevel GetConsoleLogLevel()
+    {
+        var consoleLogLevel = Environment.GetEnvironmentVariable("CONSOLE_LOG_LEVEL")?.ToUpper();
+        return consoleLogLevel switch
+        {
+            "TRACE" => LogLevel.Trace,
+            "DEBUG" => LogLevel.Debug,
+            "INFORMATION" => LogLevel.Information,
+            "WARNING" => LogLevel.Warning,
+            "ERROR" => LogLevel.Error,
+            "CRITICAL" => LogLevel.Critical,
+            _ => LogLevel.Information // Default to Information if not set or invalid
+        };
+    }
+
     private ILoggerFactory CreateTemporalLoggerFactory()
     {
         return LoggerFactory.Create(builder =>
         {
             builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
+            var consoleLogLevel = GetConsoleLogLevel();
+            _logger.LogInformation($"Console log level: {consoleLogLevel}");
+            
+            // Set global minimum level to capture everything
             builder.SetMinimumLevel(LogLevel.Trace);
+            
+            // Configure console with specific filtering for Temporalio
+            builder.AddConsole(options => 
+            {
+                options.LogToStandardErrorThreshold = consoleLogLevel;
+            });
+            
+            // Explicitly filter Temporalio category to Information level for the console
+            builder.AddFilter<ConsoleLoggerProvider>("Temporalio", consoleLogLevel);
         });
     }
 }
