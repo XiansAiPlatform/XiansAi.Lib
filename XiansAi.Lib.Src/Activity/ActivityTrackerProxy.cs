@@ -6,12 +6,15 @@ using XiansAi.Logging;
 
 namespace XiansAi.Activity;
 
-class ActivityTrackerProxyLogger {}
+// Simple class for less verbose logging
+internal class ActivityProxy { }
 
 class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 {
     private T? _target;
-    private static readonly Logger<ActivityTrackerProxyLogger> _logger = Logger<ActivityTrackerProxyLogger>.For();
+    
+    // Use a simpler type parameter for the logger
+    private static readonly Logger<ActivityProxy> _logger = Logger<ActivityProxy>.For();
 
     public static I Create(T target)
     {
@@ -58,7 +61,6 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         }
         catch (TargetInvocationException ex)
         {
-            // Use new Logger instead of ActivityLogger
             _logger.LogError($"Error in activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}", ex.InnerException ?? ex);
             throw;
         }
@@ -127,5 +129,4 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
             throw new Exception($"Activity name does not match {normalizedActivityName} != {normalizedActivityType}");
         }
     }
-
 }
