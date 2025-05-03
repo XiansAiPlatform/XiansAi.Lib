@@ -5,6 +5,7 @@ using Temporalio.Workflows;
 using Server;
 using Temporal;
 using XiansAi.Logging;
+using XiansAi.Knowledge;
 
 namespace XiansAi.Flow;
 
@@ -154,9 +155,11 @@ public class FlowRunnerService : IFlowRunnerService
             cancellationToken = tokenSource.Token;
         }
 
-
         // Upload the flow definition to the server
         await new FlowDefinitionUploader().UploadFlowDefinition(flow);
+
+        // Sync the knowledge base to the server
+        await new KnowledgeSync(flow.AgentInfo.Name).SyncAllKnowledgeToServerAsync();
 
         // Run the worker for the flow
         var client = TemporalClientService.Instance.GetClientAsync();
@@ -190,7 +193,12 @@ public class FlowRunnerService : IFlowRunnerService
         return LoggerFactory.Create(builder =>
         {
             builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
-            builder.SetMinimumLevel(LogLevel.Trace);
+            // add console logger
+            // builder.AddConsole(options => {
+            //     options.LogToStandardErrorThreshold = LogLevel.Information;
+            // });
+            builder.AddConsole();
+            builder.SetMinimumLevel(LogLevel.Information);
         });
     }
 }

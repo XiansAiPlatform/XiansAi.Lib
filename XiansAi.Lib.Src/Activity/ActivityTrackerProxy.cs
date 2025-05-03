@@ -6,10 +6,12 @@ using XiansAi.Logging;
 
 namespace XiansAi.Activity;
 
+class ActivityTrackerProxyLogger {}
+
 class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 {
     private T? _target;
-    private static readonly Logger<ActivityTrackerProxy<I, T>> _logger = Logger<ActivityTrackerProxy<I, T>>.For();
+    private static readonly Logger<ActivityTrackerProxyLogger> _logger = Logger<ActivityTrackerProxyLogger>.For();
 
     public static I Create(T target)
     {
@@ -49,6 +51,8 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
 
         try
         {
+            _logger.LogInformation($"Calling activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}");
+
             // Call the activity
             result = method.Invoke(_target, args);
         }
@@ -59,10 +63,10 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
             throw;
         }
 
-        // Handle the result
+        // TODO: Upload the activity result to mongoDB
         if (result is not Task task)
         {
-            _logger.LogInformation($"Activity result is not a task, uploading result: {result}");
+            _logger.LogInformation($"Uploading activity result: {result}");
             UploadActivityResult(activityName, inputs, result).ConfigureAwait(false);
         }
         else
@@ -71,7 +75,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
             {
                 var resultProperty = t.GetType().GetProperty("Result");
                 var resultValue = resultProperty?.GetValue(t);
-                _logger.LogInformation($"Activity result is a task, uploading result: {resultValue}");
+                _logger.LogInformation($"Uploading async activity result: {resultValue}");
                 UploadActivityResult(activityName, inputs, resultValue).ConfigureAwait(false);
                 return t;
             });

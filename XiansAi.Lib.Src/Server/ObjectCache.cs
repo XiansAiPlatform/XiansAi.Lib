@@ -3,13 +3,20 @@ using System.Net.Http.Json;
 
 namespace Server;
 
-public class ObjectCacheManager
+public interface IObjectCache
+{
+    Task<T?> GetValueAsync<T>(string key);
+    Task<bool> SetValueAsync<T>(string key, T value, CacheOptions? options = null);
+    Task<bool> DeleteValueAsync(string key);
+}
+
+public class ObjectCache : IObjectCache
 {
     private readonly ILogger _logger;
 
-    public ObjectCacheManager()
+    public ObjectCache()
     {
-        _logger = Globals.LogFactory.CreateLogger<ObjectCacheManager>();
+        _logger = Globals.LogFactory.CreateLogger<ObjectCache>();
     }
 
     public async virtual Task<T?> GetValueAsync<T>(string key)

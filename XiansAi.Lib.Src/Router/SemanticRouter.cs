@@ -9,12 +9,12 @@ using XiansAi.Router.Plugins;
 
 namespace XiansAi.Router;
 
-public interface ISemanticRouter
+public interface IRouteHub
 {
     Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, AgentContext agentContext, RouterOptions options);
 }
 
-public class SemanticRouter : ISemanticRouter
+public class RouteHub : IRouteHub
 {
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, AgentContext agentContext, RouterOptions options)

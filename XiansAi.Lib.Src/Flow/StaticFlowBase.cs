@@ -6,6 +6,7 @@ using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Events;
 using XiansAi.Logging;
+using XiansAi.Memory;
 
 namespace XiansAi.Flow;
 
@@ -16,16 +17,13 @@ public abstract class StaticFlowBase
 {
     private const int MaxLogLines = 100;
     private readonly Logger<StaticFlowBase> _logger = Logger<StaticFlowBase>.For();
-    private readonly ObjectCacheManager _cacheManager;
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
-    public Messenger _messenger;
-
-    public ISemanticRouter _router;
-
-    public EventHub _eventHub;
-
-    public IKnowledgeManager _knowledgeManager;
+    private readonly IMemoryHub _memoryHub;
+    protected readonly IMessageHub _messageHub;
+    protected readonly IRouteHub _routeHub;
+    protected readonly IEventHub _eventHub;
+    protected readonly IKnowledgeHub _knowledgeHub;
 
     // Signal method to receive events
     [WorkflowSignal("ReceiveEvent")]
@@ -38,7 +36,7 @@ public abstract class StaticFlowBase
     public async Task HandleInboundMessage(MessageSignal messageSignal)
     {
         _logger.LogInformation($"Received inbound message in base class: {messageSignal.Content}");
-        await _messenger.ReceiveMessage(messageSignal);
+        await _messageHub.ReceiveMessage(messageSignal);
     }
 
     /// <summary>
@@ -47,11 +45,10 @@ public abstract class StaticFlowBase
     /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
     protected StaticFlowBase()
     {
-        _messenger = new Messenger();
-
-        _cacheManager = new ObjectCacheManager();
-        _router = new SemanticRouter();
-        _knowledgeManager = new KnowledgeManager();
+        _messageHub = new MessageHub();
+        _memoryHub = new MemoryHub();
+        _routeHub = new RouteHub();
+        _knowledgeHub = new KnowledgeHub();
         _eventHub = new EventHub();
     }
 
@@ -208,43 +205,6 @@ public abstract class StaticFlowBase
         _logger.LogDebug($"IsInWorkflow: {isInWorkflow}");
         return isInWorkflow;
     }
-
-    /// <summary>
-    /// Gets a value from the cache for the specified key.
-    /// </summary>
-    /// <typeparam name="T">The type of the value to retrieve</typeparam>
-    /// <param name="key">The key to look up</param>
-    /// <returns>The cached value if found, otherwise null</returns>
-    protected async Task<T?> GetCacheValueAsync<T>(string key)
-    {
-        _logger.LogInformation($"Getting value from cache for key: {key}");
-        return await _cacheManager.GetValueAsync<T>(key);
-    }
-
-    /// <summary>
-    /// Sets a value in the cache for the specified key.
-    /// </summary>
-    /// <typeparam name="T">The type of the value to store</typeparam>
-    /// <param name="key">The key to store the value under</param>
-    /// <param name="value">The value to store</param>
-    /// <returns>True if the operation was successful, false otherwise</returns>
-    protected async Task<bool> SetCacheValueAsync<T>(string key, T value)
-    {
-        _logger.LogInformation($"Setting value in cache for key: {key}");
-        return await _cacheManager.SetValueAsync(key, value);
-    }
-
-    /// <summary>
-    /// Deletes a value from the cache for the specified key.
-    /// </summary>
-    /// <param name="key">The key to delete</param>
-    /// <returns>True if the operation was successful, false otherwise</returns>
-    protected async Task<bool> DeleteCacheValueAsync(string key)
-    {
-        _logger.LogInformation($"Deleting value from cache for key: {key}");
-        return await _cacheManager.DeleteValueAsync(key);
-    }
-
 
     /// <summary>
     /// Get the latest error logs from the activity error log file.

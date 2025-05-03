@@ -4,6 +4,7 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using XiansAi.Activity;
 using XiansAi.Flow;
+using XiansAi.Knowledge;
 using XiansAi.Models;
 
 namespace Server;

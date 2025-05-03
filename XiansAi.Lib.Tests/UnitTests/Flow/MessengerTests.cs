@@ -26,7 +26,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                 UserId = "test-user-id"
             });
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             var handlerCalled = false;
             
             // Act
@@ -47,7 +47,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task RegisterAsyncHandler_AddsHandlerToCollection()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             var handlerCalled = false;
             
             // Act
@@ -72,7 +72,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task UnregisterHandler_RemovesHandlerFromCollection()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             var handlerCalled = false;
             
             MessageReceivedHandler handler = _ => handlerCalled = true;
@@ -95,7 +95,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task UnregisterAsyncHandler_RemovesHandlerFromCollection()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             var handlerCalled = false;
             
             MessageReceivedAsyncHandler handler = _ => 
@@ -122,7 +122,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task ReceiveMessage_CallsAllRegisteredHandlers()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             var syncHandlerCalled = false;
             var asyncHandlerCalled = false;
             
@@ -151,7 +151,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task ReceiveMessage_CreatesProperMessageThread()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             MessageThread capturedMessageThread = null!;
             
             MessageReceivedHandler handler = messageThread => capturedMessageThread = messageThread;
@@ -174,7 +174,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         public async Task RegisteringSameHandlerMultipleTimes_OnlyRegistersOnce()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             var handlerCallCount = 0;
             
             MessageReceivedHandler handler = _ => handlerCallCount++;
@@ -194,14 +194,14 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
-        public void UnregisteringNonExistentHandler_DoesNotThrowException()
+        public async Task UnregisteringNonExistentHandler_DoesNotThrowException()
         {
             // Arrange
-            var messenger = new Messenger();
+            var messenger = new MessageHub();
             MessageReceivedHandler handler = _ => { };
             
             // Act & Assert
-            var exception = Record.Exception(() => messenger.UnregisterHandler(handler));
+            var exception = await Record.ExceptionAsync(() => Task.Run(() => messenger.UnregisterHandler(handler)));
             Assert.Null(exception);
         }
 

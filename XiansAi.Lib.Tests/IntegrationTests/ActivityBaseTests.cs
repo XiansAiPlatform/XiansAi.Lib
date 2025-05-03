@@ -3,6 +3,7 @@ using XiansAi.Activity;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Server;
+using XiansAi.Memory;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
@@ -12,13 +13,13 @@ public class ActivityBaseTest
     {
         private readonly string _mockWorkflowId;
 
-        public TestActivity(Mock<ObjectCacheManager> mockCacheManager, string mockWorkflowId = "mock-workflow-id")
+        public TestActivity(Mock<IMemoryHub> mockMemoryHub, string mockWorkflowId = "mock-workflow-id")
         {
             _mockWorkflowId = mockWorkflowId;
 
             // Use reflection to replace the internal _cacheManager with the mock
-            var field = typeof(ActivityBase).GetField("_cacheManager", BindingFlags.NonPublic | BindingFlags.Instance);
-            field?.SetValue(this, mockCacheManager.Object);
+            var field = typeof(ActivityBase).GetField("_memoryHub", BindingFlags.NonPublic | BindingFlags.Instance);
+            field?.SetValue(this, mockMemoryHub.Object);
         }
 
         protected override string GetWorkflowPrefixedKey(string key, bool usePrefix = true)
@@ -56,7 +57,7 @@ public class ActivityBaseTest
         }
     }
 
-    private readonly Mock<ObjectCacheManager> _mockCacheManager;
+    private readonly Mock<IMemoryHub> _mockMemoryHub;
 
     public ActivityBaseTest()
     {
@@ -67,7 +68,7 @@ public class ActivityBaseTest
         });
 
         // Create a mock cache manager
-        _mockCacheManager = new Mock<ObjectCacheManager>();
+        _mockMemoryHub = new Mock<IMemoryHub>();
     }
 
     [Fact]
@@ -76,11 +77,11 @@ public class ActivityBaseTest
         // Test: Verifies that retrieving a non-existent key from the cache returns null.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "non_existent_key";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                          .ReturnsAsync((string?)null);
 
         // Act
@@ -96,15 +97,15 @@ public class ActivityBaseTest
         // Test: Ensures that a value can be set and retrieved correctly from the cache.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "test_key";
         var value = "test_value";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                          .ReturnsAsync(value);
 
         // Act
@@ -123,23 +124,23 @@ public class ActivityBaseTest
         // Test: Confirms that deleting a value from the cache removes it successfully.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "test_key";
         var value = "test_value";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
                         .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                         .ReturnsAsync(value);
 
-        _mockCacheManager.Setup(m => m.DeleteValueAsync(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.DeleteValueAsync(prefixedKey))
                         .ReturnsAsync(true)
                         .Callback(() =>
                         {
                             // Simulate removal: Update mock so GetValueAsync returns null
-                            _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+                            _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                                             .ReturnsAsync((string?)null);
                         });
 
@@ -160,7 +161,7 @@ public class ActivityBaseTest
         // Test: Checks that the GetLogger method returns a valid ILogger instance.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
 
         // Act
         var logger = activity.GetTestLogger();
@@ -176,22 +177,22 @@ public class ActivityBaseTest
         // Test: Validates that the cache can handle various data types (string, int, bool, DateTime).
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>($"{mockWorkflowId}:string_key"))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>($"{mockWorkflowId}:string_key"))
                          .ReturnsAsync("test");
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<int>($"{mockWorkflowId}:int_key"))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<int>($"{mockWorkflowId}:int_key"))
                          .ReturnsAsync(42);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<bool>($"{mockWorkflowId}:bool_key"))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<bool>($"{mockWorkflowId}:bool_key"))
                          .ReturnsAsync(true);
 
         var date = DateTime.Now;
-        _mockCacheManager.Setup(m => m.GetValueAsync<DateTime>($"{mockWorkflowId}:date_key"))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<DateTime>($"{mockWorkflowId}:date_key"))
                          .ReturnsAsync(date);
 
         // Act & Assert
@@ -214,14 +215,14 @@ public class ActivityBaseTest
         // Test: Ensures that the cache can handle null values correctly.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "null_value_key";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync<string?>(prefixedKey, null, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync<string?>(prefixedKey, null, It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                          .ReturnsAsync((string?)null);
 
         // Act
@@ -239,15 +240,15 @@ public class ActivityBaseTest
         // Test: Verifies that the cache can handle empty string keys.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var emptyKey = "";
         var value = "test_value";
         var prefixedKey = $"{mockWorkflowId}:{emptyKey}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                          .ReturnsAsync(value);
 
         // Act
@@ -265,15 +266,15 @@ public class ActivityBaseTest
         // Test: Confirms that keys with special characters can be used in the cache.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var specialKey = "test!@#$%^&*()_+-=[]{}|;:'\",.<>?/\\\\"; 
         var value = "test_value";
         var prefixedKey = $"{mockWorkflowId}:{specialKey}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                          .ReturnsAsync(value);
 
         // Act
@@ -291,15 +292,15 @@ public class ActivityBaseTest
         // Test: Ensures that the cache can handle large values (e.g., 10KB strings).
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "long_value_key";
         var longValue = new string('a', 10000); // 10KB string
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, longValue, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, longValue, It.IsAny<CacheOptions?>()))
                          .ReturnsAsync(true);
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                          .ReturnsAsync(longValue);
 
         // Act
@@ -317,7 +318,7 @@ public class ActivityBaseTest
         // Test: Validates that concurrent cache operations work without conflicts or data corruption.
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var keyPrefix = "concurrent_key_";
         var valuePrefix = "concurrent_value_";
 
@@ -329,10 +330,10 @@ public class ActivityBaseTest
             var value = valuePrefix + i;
             var prefixedKey = $"{mockWorkflowId}:{key}";
 
-            _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
+            _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, value, It.IsAny<CacheOptions?>()))
                              .ReturnsAsync(true);
 
-            _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+            _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                              .ReturnsAsync(value);
 
             tasks.Add(activity.SetCachedValue(key, value));
@@ -360,12 +361,12 @@ public class ActivityBaseTest
 
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "read_concurrent_key";
         var value = "consistent_value";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                         .ReturnsAsync(value);
 
         var tasks = Enumerable.Range(0, 100)
@@ -388,17 +389,17 @@ public class ActivityBaseTest
 
         // Arrange
         var mockWorkflowId = "test-workflow-id";
-        var activity = new TestActivity(_mockCacheManager, mockWorkflowId);
+        var activity = new TestActivity(_mockMemoryHub, mockWorkflowId);
         var key = "overwrite_key";
         var initialValue = "initial_value";
         var newValue = "new_value";
         var prefixedKey = $"{mockWorkflowId}:{key}";
 
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, initialValue, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, initialValue, It.IsAny<CacheOptions?>()))
                         .ReturnsAsync(true);
-        _mockCacheManager.Setup(m => m.SetValueAsync(prefixedKey, newValue, It.IsAny<CacheOptions?>()))
+        _mockMemoryHub.Setup(m => m.Cache.SetValueAsync(prefixedKey, newValue, It.IsAny<CacheOptions?>()))
                         .ReturnsAsync(true);
-        _mockCacheManager.Setup(m => m.GetValueAsync<string>(prefixedKey))
+        _mockMemoryHub.Setup(m => m.Cache.GetValueAsync<string>(prefixedKey))
                         .ReturnsAsync(newValue);
 
         // Act

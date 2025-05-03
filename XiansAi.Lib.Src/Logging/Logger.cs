@@ -45,8 +45,8 @@ public class Logger<T>
         {
             "TRACE" => LogLevel.Trace,
             "DEBUG" => LogLevel.Debug,
-            "INFORMATION" => LogLevel.Information,
-            "WARNING" => LogLevel.Warning,
+            "INFORMATION" or "INFO" => LogLevel.Information,
+            "WARNING" or "WARN" => LogLevel.Warning,
             "ERROR" => LogLevel.Error,
             "CRITICAL" => LogLevel.Critical,
             _ => LogLevel.Debug // Default to Debug if not set or invalid

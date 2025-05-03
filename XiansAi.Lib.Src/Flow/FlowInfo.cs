@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using XiansAi.Activity;
+using XiansAi.Knowledge;
 using XiansAi.Models;
 
 namespace XiansAi.Flow;
@@ -16,9 +17,9 @@ public class FlowInfo<TClass>
     private readonly List<ActivityBase> _stubs = new();
     private readonly List<(Type @interface, object stub, object proxy)> _objects = new();
     private readonly ILogger<FlowInfo<TClass>> _logger = Globals.LogFactory.CreateLogger<FlowInfo<TClass>>();
-    public AgentInfo? AgentInfo { get; private set; }
+    public AgentInfo AgentInfo { get; private set; }
 
-    public FlowInfo(AgentInfo? agentInfo = null)
+    public FlowInfo(AgentInfo agentInfo)
     {
         AgentInfo = agentInfo;
     }
@@ -131,8 +132,7 @@ public class FlowInfo<TClass>
     public string[] GetKnowledgeIds()
     {
         var workflowClass = typeof(TClass);
-        var constructor = workflowClass.GetConstructors().FirstOrDefault();
-        var knowledgeIdsAttr = constructor?.GetCustomAttribute<KnowledgeAttribute>();
+        var knowledgeIdsAttr = workflowClass.GetCustomAttribute<KnowledgeAttribute>();
         return knowledgeIdsAttr?.Knowledge ?? [];
     }
 

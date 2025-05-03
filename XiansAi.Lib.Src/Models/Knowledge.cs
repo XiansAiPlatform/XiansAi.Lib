@@ -8,4 +8,6 @@ public class Knowledge
     public required string Content { get; set; }
     public string? Type { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? Agent { get; set; }
+    public string? TenantId { get; set; }
 }

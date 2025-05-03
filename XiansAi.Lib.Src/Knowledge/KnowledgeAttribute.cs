@@ -1,6 +1,6 @@
-namespace XiansAi.Activity;
+namespace XiansAi.Knowledge;
 
-[AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, Inherited = false)]
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, Inherited = false)]
 public sealed class KnowledgeAttribute: Attribute
 {
     public string[] Knowledge { get; private set; } = [];

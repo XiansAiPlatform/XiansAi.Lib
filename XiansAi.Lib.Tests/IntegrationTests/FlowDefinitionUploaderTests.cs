@@ -5,6 +5,7 @@ using DotNetEnv;
 using XiansAi.Flow;
 using XiansAi.Activity;
 using Temporalio.Workflows;
+using XiansAi.Knowledge;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
@@ -53,7 +54,11 @@ public class FlowDefinitionUploaderTests
     public async Task UploadFlowDefinition_ShouldUploadWithActivities_WhenFlowWithActivitiesProvided()
     {
         // Arrange - Create a test workflow with test activities
-        var testFlow = new FlowInfo<TestWorkflowWithActivities>();
+        var testFlow = new FlowInfo<TestWorkflowWithActivities>(new AgentInfo {
+            Name = "Test Agent",
+            Description = "Test Agent Description",
+            SvgIcon = "Test Agent Icon"
+        });
         
         // Add activities stub
         testFlow.AddActivities<ITestActivities>(new TestActivitiesImpl());

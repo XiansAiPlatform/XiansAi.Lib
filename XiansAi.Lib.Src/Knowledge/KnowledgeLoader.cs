@@ -1,6 +1,3 @@
-using System.Net;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using Server;
 using XiansAi.Logging;
 
@@ -26,13 +23,10 @@ public interface IKnowledgeLoader
 public class KnowledgeLoaderImpl : IKnowledgeLoader
 {
     private readonly Logger<KnowledgeLoaderImpl> _logger = Logger<KnowledgeLoaderImpl>.For();
+    private readonly KnowledgeService _knowledgeService = new KnowledgeService();
 
     // Path to local instructions folder, configured via environment variable
     private readonly string? _localInstructionsFolder = Environment.GetEnvironmentVariable("LOCAL_INSTRUCTIONS_FOLDER");
-
-    // API endpoint for retrieving instructions by name
-    private const string URL = "api/agent/knowledge/latest?name=";
-
 
     /// <summary>
     /// Loads an instruction by name from either the server or local filesystem.
@@ -108,83 +102,10 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     /// </summary>
     /// <param name="instructionName">The name of the instruction to load</param>
     /// <returns>The loaded instruction, or null if not found on server</returns>
-    /// <exception cref="InvalidOperationException">Thrown if server request fails</exception>
-    private async Task<Models.Knowledge?> LoadFromServer(string instructionName)
+    public async Task<Models.Knowledge?> LoadFromServer(string instructionName)
     {
-        var url = BuildServerUrl(instructionName);
-        _logger.LogInformation($"Loading instruction from server: {url}");
-        
-        try
-        {
-            var client = SecureApi.Instance.Client;
-            var httpResult = await client.GetAsync(url);
-
-            // Handle specific HTTP status codes with appropriate responses
-            if (httpResult.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogError($"Instruction not found on server: {instructionName}");
-                return null;
-            }
-            
-            if (httpResult.StatusCode != HttpStatusCode.OK)
-            {
-                _logger.LogError($"Failed to get instruction from server. Status code: {httpResult.StatusCode}");
-                throw new InvalidOperationException($"Failed to get instruction from server: {await httpResult.Content.ReadAsStringAsync()}");
-            }
-
-            return await ParseServerResponse(httpResult);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError($"Failed to load instruction from server: {instructionName}");
-            throw new InvalidOperationException($"Failed to load instruction from server: {instructionName}. Error: {e.Message}", e);
-        }
-    }
-
-    /// <summary>
-    /// Builds the server URL for retrieving an instruction.
-    /// </summary>
-    /// <param name="instructionName">The name of the instruction to load</param>
-    /// <returns>The fully qualified URL for the instruction API endpoint</returns>
-    private string BuildServerUrl(string instructionName)
-    {
-        return URL + UrlEncoder.Default.Encode(instructionName);
-    }
-
-    /// <summary>
-    /// Parses the server response into an Instruction object.
-    /// </summary>
-    /// <param name="httpResult">The HTTP response from the server</param>
-    /// <returns>The deserialized Instruction object</returns>
-    /// <exception cref="InvalidOperationException">Thrown if deserialization fails or response is invalid</exception>
-    private async Task<Models.Knowledge> ParseServerResponse(HttpResponseMessage httpResult)
-    {
-        var response = await httpResult.Content.ReadAsStringAsync();
-
-        try
-        {
-            // Configure JSON deserialization options for server response
-            var options = new JsonSerializerOptions
-            { 
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-            
-            var knowledge = JsonSerializer.Deserialize<Models.Knowledge>(response, options);
-
-            // Validate that required properties are present
-            if (knowledge?.Content == null || knowledge.Name == null)
-            {
-                _logger.LogError($"Failed to deserialize instruction from server: {response}");
-                throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}");
-            }
-            
-            return knowledge;
-        } 
-        catch (Exception e)
-        {
-            _logger.LogError($"Failed to deserialize instruction from server: {response}");
-            throw new InvalidOperationException($"Failed to deserialize instruction from server: {response}. Error: {e.Message}", e);
-        }
+        var agent = AgentContext.Instance.Agent;
+        _logger.LogInformation($"Loading instruction from server: {instructionName} for agent: {agent}");
+        return await _knowledgeService.GetKnowledgeFromServer(instructionName, agent);
     }
 }

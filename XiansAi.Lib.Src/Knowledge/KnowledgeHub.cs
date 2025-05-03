@@ -1,14 +1,13 @@
-using Temporalio.Common;
 using Temporalio.Workflows;
 
 namespace XiansAi.Knowledge;
 
-public interface IKnowledgeManager
+public interface IKnowledgeHub
 {
     Task<Models.Knowledge?> GetKnowledgeAsync(string knowledgeName);
 }
 
-public class KnowledgeManager : IKnowledgeManager
+public class KnowledgeHub : IKnowledgeHub
 {
 
     public async Task<Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)

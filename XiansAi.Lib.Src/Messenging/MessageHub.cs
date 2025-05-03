@@ -7,7 +7,7 @@ namespace XiansAi.Messaging;
 public delegate Task MessageReceivedAsyncHandler(MessageThread messageThread);
 public delegate void MessageReceivedHandler(MessageThread messageThread);
 
-public interface IMessenger
+public interface IMessageHub
 {
     void RegisterAsyncHandler(MessageReceivedAsyncHandler handler);
     void RegisterHandler(MessageReceivedHandler handler);
@@ -18,7 +18,7 @@ public interface IMessenger
 
 class MessengerLog {}
 
-public class Messenger: IMessenger
+public class MessageHub: IMessageHub
 {
     private readonly List<Func<MessageThread, Task>> _handlers = new List<Func<MessageThread, Task>>();
     

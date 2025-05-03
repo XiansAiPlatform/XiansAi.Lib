@@ -1,17 +1,17 @@
 using Microsoft.Extensions.Logging;
-using Server;
+using XiansAi.Memory;
 
 namespace XiansAi.Activity;
 
 public class ActivityBase : DockerActivity
 {
     private readonly ILogger _logger;
-    private readonly ObjectCacheManager _cacheManager;
+    private readonly IMemoryHub _memoryHub;
     protected ActivityBase()
     {
         _logger = Globals.LogFactory?.CreateLogger<ActivityBase>()
             ?? throw new InvalidOperationException("LogFactory not initialized");
-        _cacheManager = new ObjectCacheManager();
+        _memoryHub = new MemoryHub();
     }
 
     protected virtual string GetWorkflowPrefixedKey(string key, bool usePrefix = true)
@@ -46,7 +46,7 @@ public class ActivityBase : DockerActivity
     {
         var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
         _logger.LogDebug("Getting value from cache for key: {Key}", prefixedKey);
-        return await _cacheManager.GetValueAsync<T>(prefixedKey);
+        return await _memoryHub.Cache.GetValueAsync<T>(prefixedKey);
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public class ActivityBase : DockerActivity
     {
         var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
         _logger.LogDebug("Setting value in cache for key: {Key}", prefixedKey);
-        return await _cacheManager.SetValueAsync(prefixedKey, value);
+        return await _memoryHub.Cache.SetValueAsync(prefixedKey, value);
     }
 
     /// <summary>
@@ -74,6 +74,6 @@ public class ActivityBase : DockerActivity
     {
         var prefixedKey = GetWorkflowPrefixedKey(key, usePrefix);
         _logger.LogInformation("Deleting value from cache for key: {Key}", prefixedKey);
-        return await _cacheManager.DeleteValueAsync(prefixedKey);
+        return await _memoryHub.Cache.DeleteValueAsync(prefixedKey);
     }
 }

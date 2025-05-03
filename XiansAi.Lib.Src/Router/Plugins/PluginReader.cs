@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using XiansAi.Activity;
+using XiansAi.Knowledge;
 using XiansAi.Messaging;
 
 namespace XiansAi.Router.Plugins;

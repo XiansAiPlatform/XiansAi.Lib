@@ -1,11 +1,8 @@
 using Temporalio.Workflows;
 using XiansAi.Messaging;
-using System.Reflection;
-using XiansAi.Activity;
-using XiansAi.Knowledge;
-using Temporalio.Exceptions;
 using XiansAi.Logging;
 using XiansAi.Router;
+using XiansAi.Knowledge;
 
 namespace XiansAi.Flow;
 
@@ -17,36 +14,17 @@ public abstract class FlowBase : StaticFlowBase
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     protected List<Type> Capabilities { get; } = new List<Type>();
     protected List<string> _capabilities { get; } = new List<string>();
-    private string? _systemPromptKey;
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
 
     public FlowBase() : base()  
     {
         // Register the message handler
-        _messenger.RegisterHandler(_messageQueue.Enqueue);
-        
-        // Get the constructor of the derived class
-        var derivedType = GetType();
-        var constructor = derivedType.GetConstructors().FirstOrDefault();
-        
-        if (constructor != null)
-        {
-            // Check if the constructor has KnowledgeAttribute
-            var knowledgeAttr = constructor.GetCustomAttribute<KnowledgeAttribute>();
-            if (knowledgeAttr != null && knowledgeAttr.Knowledge.Length > 0)
-            {
-
-                _systemPromptKey = knowledgeAttr.Knowledge[0];
-            }
-        }
+        _messageHub.RegisterHandler(_messageQueue.Enqueue);
     }
 
-    protected async Task InitUserConversation(MessageListenerDelegate? messageListener = null)
+    protected void InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
     {
-
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-
-        var systemPrompt = await GetSystemPrompt();
 
         _capabilities.AddRange(Capabilities.Select(t => t.FullName!));
 
@@ -91,22 +69,12 @@ public abstract class FlowBase : StaticFlowBase
             WorkflowId = Workflow.Info.WorkflowId,
             WorkflowType = Workflow.Info.WorkflowType
         };
-        var response = await _router.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), agentContext, new RouterOptions());
+        var response = await _routeHub.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), agentContext, new RouterOptions());
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
         // Respond to the user
         await messageThread.Respond(response);
-    }
-
-    public async Task<string> GetSystemPrompt()
-    {
-        if (_systemPromptKey == null)
-        {
-            throw new Exception("System prompt key is not set");
-        }
-        var knowledge = await new KnowledgeManager().GetKnowledgeAsync(_systemPromptKey);
-        return knowledge?.Content ?? throw new ApplicationFailureException($"Knowledge with key {_systemPromptKey} not found");
     }
 }
 
