@@ -29,17 +29,14 @@ public class MessageHub: IMessageHub
 
     public static async Task<string?> SendMessageAsync(string content, string participantId, object? metadata = null)
     {
-        var agentContext = AgentContext.Instance;
         var outgoingMessage = new OutgoingMessage
         {
             Content = content,
             Metadata = metadata,
             ParticipantId = participantId,
-            WorkflowId = agentContext.WorkflowId,
-            WorkflowType = agentContext.WorkflowType,
-            Agent = agentContext.Agent,
-            QueueName = agentContext.QueueName,
-            Assignment = agentContext.Assignment
+            WorkflowId = AgentContext.WorkflowId,
+            WorkflowType = AgentContext.WorkflowType,
+            Agent = AgentContext.Agent
         };
 
         var success = await Workflow.ExecuteActivityAsync(
@@ -99,16 +96,12 @@ public class MessageHub: IMessageHub
     {
         _logger.LogInformation($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
 
-        var agentContext = AgentContext.Instance;
-
         var messageThread = new MessageThread {
             ParticipantId = messageSignal.ParticipantId,
-            WorkflowId = agentContext.WorkflowId,
-            WorkflowType = agentContext.WorkflowType,
+            WorkflowId = AgentContext.WorkflowId,
+            WorkflowType = AgentContext.WorkflowType,
             ThreadId = messageSignal.ThreadId,
-            Agent = agentContext.Agent,
-            QueueName = agentContext.QueueName,
-            Assignment = agentContext.Assignment,
+            Agent = AgentContext.Agent,
             Metadata = messageSignal.Metadata,
             LatestContent = messageSignal.Content
         };

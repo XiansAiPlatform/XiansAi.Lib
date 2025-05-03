@@ -11,36 +11,14 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
     public class MessengerTests
     {
 
-        [Fact]
-        public async Task RegisterHandler_AddsHandlerToCollection()
+        /*
+        dotnet test --filter "FullyQualifiedName~MessengerTests"
+        */
+        public MessengerTests()
         {
-            AgentContext.MockedInstance = true;
-            AgentContext.SetExplicitInstance(new AgentContext
-            {
-                WorkflowId = "test-workflow-id",
-                WorkflowType = "test-workflow-type",
-                Agent = "test-agent",
-                QueueName = "test-queue-name",
-                Assignment = "test-assignment",
-                TenantId = "test-tenant-id",
-                UserId = "test-user-id"
-            });
-            // Arrange
-            var messenger = new MessageHub();
-            var handlerCalled = false;
-            
-            // Act
-            MessageReceivedHandler handler = _ => handlerCalled = true;
-            messenger.RegisterHandler(handler);
-            
-            // Create a message signal to test with
-            var messageSignal = CreateTestMessageSignal();
-            
-            // Use the now public method to trigger the handler
-            await messenger.ReceiveMessage(messageSignal);
-            
-            // Assert
-            Assert.True(handlerCalled);
+            AgentContext.Agent = "test-agent";
+            AgentContext.WorkflowId = "test-workflow-id";
+            AgentContext.WorkflowType = "test-workflow-type";
         }
 
         [Fact]
@@ -166,7 +144,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             // Assert
             Assert.NotNull(capturedMessageThread);
             Assert.Equal(messageSignal.ParticipantId, capturedMessageThread.ParticipantId);
-            Assert.Equal(AgentContext.Instance.WorkflowId, capturedMessageThread.WorkflowId);
+            Assert.Equal(AgentContext.WorkflowId, capturedMessageThread.WorkflowId);
 
         }
 

@@ -34,8 +34,7 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         if (attribute == null || !_target.IsInWorkflow())
             return method.Invoke(_target, args);
 
-        // Clear the explicit instance of the agent context, if it exists
-        AgentContext.ClearExplicitInstance();
+
         // Create a new activity 
         _target.NewCurrentActivity();
         _target.CurrentActivityMethod = method;

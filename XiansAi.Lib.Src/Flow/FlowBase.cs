@@ -22,54 +22,50 @@ public abstract class FlowBase : StaticFlowBase
         _messageHub.RegisterHandler(_messageQueue.Enqueue);
     }
 
-    protected void InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
+    protected async Task<bool> InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
 
         _capabilities.AddRange(Capabilities.Select(t => t.FullName!));
 
-        _ = ListenToUserMessages(messageListener, systemPrompt);
+        await ListenToUserMessages(messageListener, systemPrompt);
+
+        return true;
     }
 
     private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, string systemPrompt)
     {
         while (true)
         {
-            _logger.LogDebug($"{GetType().Name} Flow is waiting for a message");
-            // Wait for a message to be added to the queue
-            await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0);
+            try {
+                _logger.LogDebug($"{GetType().Name} Flow is waiting for a message");
+                // Wait for a message to be added to the queue
+                await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0);
 
-            // Get the message from the queue
-            var thread = _messageQueue.Dequeue();
-            
-            // Invoke the message listener if provided
-            if (messageListener != null)
-            {
-                await messageListener(thread);
+                // Get the message from the queue
+                var thread = _messageQueue.Dequeue();
+                
+                // Invoke the message listener if provided
+                if (messageListener != null)
+                {
+                    await messageListener(thread);
+                }
+
+                // Asynchronously process the message
+                await ProcessMessage(thread, systemPrompt);
             }
-
-            // Asynchronously process the message
-            await ProcessMessage(thread, systemPrompt);
-
+            catch (Exception ex)
+            {
+                _logger.LogError("Error processing message", ex);
+            }
         }
     }
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)
     {
-        var memoUtil = new MemoUtil(Workflow.Memo);
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
-
-        var agentContext = new AgentContext {
-            TenantId = memoUtil.GetTenantId(),
-            Agent = memoUtil.GetAgent(),
-            QueueName = memoUtil.GetQueueName(),
-            Assignment = memoUtil.GetAssignment(),
-            UserId = memoUtil.GetUserId(),
-            WorkflowId = Workflow.Info.WorkflowId,
-            WorkflowType = Workflow.Info.WorkflowType
-        };
-        var response = await _routeHub.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), agentContext, new RouterOptions());
+        var response = await _routeHub.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), new RouterOptions());
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

@@ -104,7 +104,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     /// <returns>The loaded instruction, or null if not found on server</returns>
     public async Task<Models.Knowledge?> LoadFromServer(string instructionName)
     {
-        var agent = AgentContext.Instance.Agent;
+        var agent = AgentContext.Agent;
         _logger.LogInformation($"Loading instruction from server: {instructionName} for agent: {agent}");
         return await _knowledgeService.GetKnowledgeFromServer(instructionName, agent);
     }

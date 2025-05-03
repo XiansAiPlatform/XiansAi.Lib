@@ -11,8 +11,7 @@ public class KnowledgeService
 {
     private readonly ILogger _logger;
     private const string KNOWLEDGE_URL = "api/agent/knowledge/latest?name={name}&agent={agent}";
-    private const string CHECK_KNOWLEDGE_URL = "api/agent/knowledge/check";
-    private const string UPLOAD_KNOWLEDGE_URL = "api/agent/knowledge/upload";
+    private const string UPLOAD_KNOWLEDGE_URL = "api/agent/knowledge";
 
     public KnowledgeService()
     {
@@ -42,7 +41,7 @@ public class KnowledgeService
 
             if (httpResult.StatusCode == HttpStatusCode.NotFound)
             {
-                _logger.LogError($"Knowledge not found on server: {knowledgeName}");
+                _logger.LogInformation($"Knowledge not found on server: {knowledgeName}");
                 return null;
             }
             

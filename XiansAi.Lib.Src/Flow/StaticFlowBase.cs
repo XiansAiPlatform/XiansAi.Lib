@@ -19,7 +19,7 @@ public abstract class StaticFlowBase
     private readonly Logger<StaticFlowBase> _logger = Logger<StaticFlowBase>.For();
     private readonly Dictionary<Type, Type> _typeMappings = new();
 
-    private readonly IMemoryHub _memoryHub;
+    protected readonly IMemoryHub _memoryHub;
     protected readonly IMessageHub _messageHub;
     protected readonly IRouteHub _routeHub;
     protected readonly IEventHub _eventHub;

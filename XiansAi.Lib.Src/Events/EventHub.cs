@@ -27,13 +27,12 @@ public class EventHub : IEventHub
     public static async Task SendEvent(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
     {
         try {
-            var agentContext = AgentContext.Instance;
             var eventDto = new EventDto
             {
                 EventType = evtType,
-                SourceWorkflowId = agentContext.WorkflowId,
-                SourceWorkflowType = agentContext.WorkflowType,
-                SourceAgent = agentContext.Agent,
+                SourceWorkflowId = AgentContext.WorkflowId,
+                SourceWorkflowType = AgentContext.WorkflowType,
+                SourceAgent = AgentContext.Agent,
                 Payload = payload,
                 Timestamp = DateTimeOffset.UtcNow,
                 TargetWorkflowType = targetWorkflowType,

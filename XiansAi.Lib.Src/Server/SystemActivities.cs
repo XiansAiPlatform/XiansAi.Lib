@@ -83,10 +83,8 @@ public class SystemActivities {
     }
 
     [Activity ("System Activities: Route Message")]
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, AgentContext agentContext, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
     {
-        // To improve performance, we set the agent context explicitly here
-        AgentContext.SetExplicitInstance(agentContext);
         // do the routing
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options);
     }

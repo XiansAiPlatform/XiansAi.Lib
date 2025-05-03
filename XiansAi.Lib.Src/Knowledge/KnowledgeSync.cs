@@ -76,6 +76,8 @@ public class KnowledgeSync
                     Agent = _agent
                 };
 
+                _logger.LogInformation($"Uploading knowledge to server: {knowledge}");
+
                 // Upload knowledge to server
                 await _knowledgeService.UploadKnowledgeToServer(knowledge);
             }

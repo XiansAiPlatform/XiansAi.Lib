@@ -11,17 +11,17 @@ namespace XiansAi.Router;
 
 public interface IRouteHub
 {
-    Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, AgentContext agentContext, RouterOptions options);
+    Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options);
 }
 
 public class RouteHub : IRouteHub
 {
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, AgentContext agentContext, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, agentContext, options),
+            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options),
             new SystemActivityOptions());
 
         return response;

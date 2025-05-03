@@ -148,6 +148,8 @@ public class FlowRunnerService : IFlowRunnerService
     public async Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken = default)
         where TFlow : class
     {
+        // Set the agent name to Agent Context
+        AgentContext.Agent = flow.AgentInfo.Name;
 
         if (cancellationToken == default) {
             // Cancellation token cancelled on ctrl+c
@@ -160,7 +162,7 @@ public class FlowRunnerService : IFlowRunnerService
         await new FlowDefinitionUploader().UploadFlowDefinition(flow);
 
         // Sync the knowledge base to the server
-        await new KnowledgeSync(flow.AgentInfo.Name).SyncAllKnowledgeToServerAsync();
+        // await new KnowledgeSync(flow.AgentInfo.Name).SyncAllKnowledgeToServerAsync();
 
         // Run the worker for the flow
         var client = TemporalClientService.Instance.GetClientAsync();
