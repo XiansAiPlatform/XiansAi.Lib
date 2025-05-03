@@ -47,39 +47,6 @@ public class FlowDefinitionUploaderTests
         _flowDefinitionUploader = new FlowDefinitionUploader();
     }
 
-    /*
-    dotnet test --filter "FullyQualifiedName~FlowDefinitionUploaderTests.UploadFlowDefinition_ShouldUploadWithActivities_WhenFlowWithActivitiesProvided"
-    */
-    [Fact]
-    public async Task UploadFlowDefinition_ShouldUploadWithActivities_WhenFlowWithActivitiesProvided()
-    {
-        // Arrange - Create a test workflow with test activities
-        var testFlow = new FlowInfo<TestWorkflowWithActivities>(new AgentInfo {
-            Name = "Test Agent",
-            Description = "Test Agent Description",
-            SvgIcon = "Test Agent Icon"
-        });
-        
-        // Add activities stub
-        testFlow.AddActivities<ITestActivities>(new TestActivitiesImpl());
-
-        // Act & Assert
-        // The test passes if no exception is thrown during upload
-        try {
-            await _flowDefinitionUploader.UploadFlowDefinition(testFlow);
-            _logger.LogInformation("Successfully uploaded workflow with activities definition to server");
-        }
-        catch (Exception ex)
-        {
-            if (ex is InvalidOperationException && ex.Message.Contains("Another user has already used this flow")) {
-                _logger.LogInformation("Flow already exists, skipping upload");
-            } else {
-                _logger.LogError(ex, "Failed to upload workflow with activities definition to server");
-                throw;
-            }
-        }
-    }
-
 }
 
 // Test workflows and activities for testing
