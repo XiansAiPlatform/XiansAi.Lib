@@ -64,6 +64,10 @@ public class ApiLogger : ILogger
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "defaultWorkflowRunId";
 
+        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString() ?? "defaultWorkflowType";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? "defaultAgent";
+        var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
+
         var log = new Log
         {
             Id = Guid.NewGuid().ToString(),
@@ -72,6 +76,9 @@ public class ApiLogger : ILogger
             Message = logMessage,
             WorkflowId = workflowId,
             WorkflowRunId = workflowRunId,
+            WorkflowType = workflowType,
+            Agent = agent,
+            ParticipantId = participantId,
             Properties = null,
             Exception = exception?.ToString(),
             UpdatedAt = null

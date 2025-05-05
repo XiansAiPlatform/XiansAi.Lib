@@ -25,15 +25,15 @@ public class Logger<T>
         lock (_initLock)
         {
             if (_isInitialized) return;
-            
+
             // Initialize minimal logger for application startup
             var services = new ServiceCollection()
                 .AddLogging()
                 .BuildServiceProvider();
-                
+
             // Initialize the logging system
             LoggingServices.Initialize(services);
-            
+
             _isInitialized = true;
         }
     }
@@ -55,22 +55,24 @@ public class Logger<T>
 
     private Logger()
     {
-        _lazyLogger = new Lazy<ILogger>(() => {
+        _lazyLogger = new Lazy<ILogger>(() =>
+        {
 
             var logFactory = LoggerFactory.Create(builder =>
             {
                 // Configure API logger with Trace level
                 builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
-                
+
                 // Configure console logger with level from environment variable
                 var consoleLogLevel = GetConsoleLogLevel();
-                builder.AddConsole(options => {
+                builder.AddConsole(options =>
+                {
                     options.LogToStandardErrorThreshold = consoleLogLevel;
                 });
-                
+
                 // Set the default minimum level to Trace to ensure API logger gets all logs
                 builder.SetMinimumLevel(LogLevel.Trace);
-                
+
                 // Configure console logger to respect the environment variable level
                 builder.AddFilter("Microsoft", consoleLogLevel)
                        .AddFilter("System", consoleLogLevel)
@@ -119,14 +121,24 @@ public class Logger<T>
             if (IsInActivity())
             {
                 var info = ActivityExecutionContext.Current!.Info;
-                contextData["WorkflowId"] = info.WorkflowId;
+                contextData["WorkflowId"] = AgentContext.WorkflowId;
                 contextData["WorkflowRunId"] = info.WorkflowRunId;
+                contextData["WorkflowType"] = AgentContext.WorkflowType;
+                contextData["Agent"] = AgentContext.Agent;
+                // participant id
+                contextData["ParticipantId"] = "TODO";
             }
             else if (IsInWorkflow())
             {
+
                 var info = Workflow.Info;
-                contextData["WorkflowId"] = info.WorkflowId;
                 contextData["WorkflowRunId"] = info.RunId;
+                contextData["WorkflowId"] = AgentContext.WorkflowId;
+                contextData["WorkflowType"] = AgentContext.WorkflowType;
+                contextData["Agent"] = AgentContext.Agent;
+                //participant id
+                contextData["ParticipantId"] = "TODO";
+
             }
         }
         catch (Exception)
@@ -170,10 +182,10 @@ public class Logger<T>
 
     private void Log(LogLevel logLevel, string message, Exception? exception)
     {
-         var contextData = GetContextData();
+        var contextData = GetContextData();
         // If in workflow context, use Workflow.Logger
         if (IsInWorkflow())
-        {   
+        {
             // Create a scope for Workflow.Logger with the appropriate context data
             using (Workflow.Logger.BeginScope(contextData))
             {
@@ -239,4 +251,4 @@ public class Logger<T>
             }
         }
     }
-} 
+}
