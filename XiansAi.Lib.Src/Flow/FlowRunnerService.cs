@@ -168,7 +168,10 @@ public class FlowRunnerService : IFlowRunnerService
         var client = TemporalClientService.Instance.GetClientAsync();
         var workFlowName = GetWorkflowName<TFlow>();
 
-        var taskQueue = string.IsNullOrEmpty(_priorityQueue) ? workFlowName : _priorityQueue + "--" + workFlowName;
+        //var taskQueue = "xians";// string.IsNullOrEmpty(_priorityQueue) ? workFlowName : _priorityQueue + "--" + workFlowName;
+        var taskQueue = workFlowName.ToLower().Replace(" ", "").Replace("-", "").Trim();
+
+        _logger.LogInformation($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
 
         var options = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
