@@ -140,6 +140,10 @@ public class SystemActivitiesTests
         }
     }
 
+
+    /*
+    dotnet test --filter "FullyQualifiedName~SystemActivitiesTests.SendEvent_ShouldSendEventSuccessfully"
+    */
     [Fact]
     public async Task SendEvent_ShouldSendEventSuccessfully()
     {
