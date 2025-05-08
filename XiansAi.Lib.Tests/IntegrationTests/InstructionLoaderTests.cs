@@ -43,6 +43,8 @@ public class InstructionLoaderTests
 
         // Create the instruction loader with real SecureApi
         _knowledgeLoader = new KnowledgeLoaderImpl();
+
+        AgentContext.Agent = "test-agent";
     }
 
     /*
@@ -57,7 +59,7 @@ public class InstructionLoaderTests
         // Act
         var result = await _knowledgeLoader.Load(instructionName);
 
-        _logger.LogInformation($"Loaded instruction: {result}");
+        _logger.LogInformation($"Loaded instruction: {result?.Content}");
 
         // Assert
         Assert.NotNull(result);
