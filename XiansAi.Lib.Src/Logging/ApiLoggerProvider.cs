@@ -31,11 +31,19 @@ public class ApiLogger : ILogger
 
     private LogLevel ProcessTemporalMessage(string message, LogLevel originalLevel)
     {
+      
+         // Check for Temporal exceptions
+        if (originalLevel == LogLevel.Error && message.Contains("Temporalio.Exceptions.ActivityFailureException"))
+        {
+            return LogLevel.Critical;
+        }
+
         if (originalLevel != LogLevel.Trace && originalLevel != LogLevel.Debug)
         {
             return originalLevel;
         }
 
+       
         if (!message.Contains("Sending activity completion"))
         {
             return originalLevel;
