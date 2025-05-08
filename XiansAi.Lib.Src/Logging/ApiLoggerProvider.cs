@@ -57,15 +57,15 @@ public class ApiLogger : ILogger
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
-        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
+        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? AgentContext.WorkflowId ?? "defaultWorkflowId";
         
         // Check for both "WorkflowRunId" and "RunId" keys
         var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() 
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "defaultWorkflowRunId";
 
-        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString() ?? "defaultWorkflowType";
-        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? "defaultAgent";
+        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString() ?? AgentContext.WorkflowType ?? "defaultWorkflowType";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent";
         var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
 
         var log = new Log
