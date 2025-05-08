@@ -29,6 +29,63 @@ public class ApiLogger : ILogger
     private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
     private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
 
+    private (LogLevel level, string? exceptionMessage) ProcessTemporalMessage(string message, LogLevel originalLevel)
+    {
+        if (originalLevel != LogLevel.Trace && originalLevel != LogLevel.Debug)
+        {
+            return (originalLevel, null);
+        }
+
+        if (!message.Contains("Sending activity completion"))
+        {
+            return (originalLevel, null);
+        }
+
+        try
+        {
+            // Extract the JSON part after "Sending activity completion: "
+            var jsonStart = message.IndexOf("{");
+            if (jsonStart == -1) return (LogLevel.Error, null);
+
+            var jsonPart = message.Substring(jsonStart);
+            
+            // Look for the failure message
+            var failureStart = jsonPart.IndexOf("\"failure\"");
+            if (failureStart == -1) return (LogLevel.Error, null);
+
+            // Get the main error message
+            var messageStart = jsonPart.IndexOf("\"message\"", failureStart);
+            if (messageStart == -1) return (LogLevel.Error, null);
+
+            var messageValueStart = jsonPart.IndexOf("\"", messageStart + 8) + 1;
+            var messageValueEnd = jsonPart.IndexOf("\"", messageValueStart);
+            var mainError = jsonPart.Substring(messageValueStart, messageValueEnd - messageValueStart);
+
+            // Look for the cause message
+            var causeStart = jsonPart.IndexOf("\"cause\"", failureStart);
+            if (causeStart != -1)
+            {
+                var causeMessageStart = jsonPart.IndexOf("\"message\"", causeStart);
+                if (causeMessageStart != -1)
+                {
+                    var causeValueStart = jsonPart.IndexOf("\"", causeMessageStart + 8) + 1;
+                    var causeValueEnd = jsonPart.IndexOf("\"", causeValueStart);
+                    var causeMessage = jsonPart.Substring(causeValueStart, causeValueEnd - causeValueStart);
+                    
+                    // Combine both messages for better context
+                    return (LogLevel.Error, $"Main Error: {mainError}\nCause: {causeMessage}");
+                }
+            }
+
+            return (LogLevel.Error, mainError);
+        }
+        catch
+        {
+            // If we can't parse the message properly, just return Error level
+            return (LogLevel.Error, null);
+        }
+    }
+
     public ApiLogger()
     {
         // No dependencies needed
@@ -57,15 +114,19 @@ public class ApiLogger : ILogger
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
-        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? AgentContext.WorkflowId ?? "defaultWorkflowId";
+        // Process the message to check for Temporal errors and extract exception
+        var (processedLevel, temporalException) = ProcessTemporalMessage(logMessage, logLevel);
+        logLevel = processedLevel;
+
+        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
         
         // Check for both "WorkflowRunId" and "RunId" keys
         var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() 
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "defaultWorkflowRunId";
 
-        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString() ?? AgentContext.WorkflowType ?? "defaultWorkflowType";
-        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent";
+        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString() ?? "defaultWorkflowType";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent"; // if we dont include AgentContext here for the agent, we're unable to get the agent for temporal logs
         var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
 
         var log = new Log
@@ -80,7 +141,7 @@ public class ApiLogger : ILogger
             Agent = agent,
             ParticipantId = participantId,
             Properties = null,
-            Exception = exception?.ToString(),
+            Exception = temporalException ?? exception?.ToString(),
             UpdatedAt = null
         };
 
