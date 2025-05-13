@@ -13,10 +13,11 @@ public class ActivityBaseTest
     {
         private readonly string _mockWorkflowId;
 
-        public TestActivity(Mock<IMemoryHub> mockMemoryHub, string mockWorkflowId = "mock-workflow-id")
+
+
+        public TestActivity(Mock<IMemoryHub> mockMemoryHub, string mockWorkflowId = "mock-workflow-id", string agentName = "mock-agent-name")
         {
             _mockWorkflowId = mockWorkflowId;
-
             // Use reflection to replace the internal _cacheManager with the mock
             var field = typeof(ActivityBase).GetField("_memoryHub", BindingFlags.NonPublic | BindingFlags.Instance);
             field?.SetValue(this, mockMemoryHub.Object);

@@ -21,7 +21,7 @@ public interface IFlowDefinitionUploader
     /// <param name="flow">The flow information</param>
     /// <param name="source">Optional source code of the flow</param>
     /// <returns>A task representing the upload operation</returns>
-    Task UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source = null) 
+    Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow, string? source = null) 
         where TFlow : class;
 }
 
@@ -55,7 +55,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="source">Optional source code of the flow</param>
     /// <returns>A task representing the upload operation</returns>
     /// <exception cref="InvalidOperationException">Thrown if upload fails</exception>
-    public async Task UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source = null)
+    public async Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow, string? source = null)
         where TFlow : class
     {
         var flowDefinition = CreateFlowDefinition(flow, source);
@@ -71,17 +71,15 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="flow">The flow information</param>
     /// <param name="source">Optional source code</param>
     /// <returns>A flow definition ready to be uploaded</returns>
-    private FlowDefinition CreateFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source)
+    private FlowDefinition CreateFlowDefinition<TFlow>(Runner<TFlow> flow, string? source)
         where TFlow : class
     {
         return new FlowDefinition {
-            WorkflowType = flow.GetWorkflowName(),
-            Agent = flow.GetAgentName(),
-            ParameterDefinitions = flow.GetParameters(),
-            ActivityDefinitions = GetAllActivities(flow.GetObjects()).ToArray(),
-            Source = source ?? ReadSource(typeof(TFlow)),
-            Categories = flow.GetCategories(),
-            KnowledgeIds = flow.GetKnowledgeIds()
+            WorkflowType = flow.WorkflowName,
+            Agent = flow.AgentName,
+            ParameterDefinitions = flow.Parameters,
+            ActivityDefinitions = GetAllActivities(flow.ActivityObjects).ToArray(),
+            Source = source ?? ReadSource(typeof(TFlow))
         };
     }
 

@@ -75,6 +75,10 @@ public interface ITestActivities
 
 public class TestActivitiesImpl : ActivityBase, ITestActivities
 {
+    public TestActivitiesImpl()
+    {
+    }
+
     public Task<string> DoSomethingAsync(string input)
     {
         return Task.FromResult($"Activity processed: {input}");

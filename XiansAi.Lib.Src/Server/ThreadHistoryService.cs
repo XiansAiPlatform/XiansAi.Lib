@@ -18,7 +18,7 @@ public class ThreadHistoryService
                 (SystemActivities a) => a.GetMessageHistory(agent, participantId, page, pageSize),
                 new SystemActivityOptions());
         } else {
-            return await new SystemActivities().GetMessageHistory(agent, participantId, page, pageSize);
+            return await SystemActivities.GetMessageHistoryStatic(agent, participantId, page, pageSize);
         }
     }
 

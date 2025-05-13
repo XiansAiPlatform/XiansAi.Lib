@@ -2,7 +2,6 @@ using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Logging;
 using XiansAi.Router;
-using XiansAi.Knowledge;
 
 namespace XiansAi.Flow;
 
@@ -12,8 +11,6 @@ public delegate Task MessageListenerDelegate(MessageThread messageThread);
 public abstract class FlowBase : StaticFlowBase
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
-    protected List<Type> Capabilities { get; } = new List<Type>();
-    protected List<string> _capabilities { get; } = new List<string>();
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
 
     public FlowBase() : base()  
@@ -25,8 +22,6 @@ public abstract class FlowBase : StaticFlowBase
     protected async Task<bool> InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-
-        _capabilities.AddRange(Capabilities.Select(t => t.FullName!));
 
         await ListenToUserMessages(messageListener, systemPrompt);
 
@@ -65,7 +60,7 @@ public abstract class FlowBase : StaticFlowBase
     {
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
-        var response = await _routeHub.RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), new RouterOptions());
+        var response = await _routeHub.RouteAsync(messageThread, systemPrompt, new RouterOptions());
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

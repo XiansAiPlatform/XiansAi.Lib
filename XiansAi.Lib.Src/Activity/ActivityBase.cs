@@ -7,6 +7,9 @@ public class ActivityBase : DockerActivity
 {
     private readonly ILogger _logger;
     private readonly IMemoryHub _memoryHub;
+
+    protected string? AgentName;
+    
     protected ActivityBase()
     {
         _logger = Globals.LogFactory?.CreateLogger<ActivityBase>()

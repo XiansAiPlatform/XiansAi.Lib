@@ -47,7 +47,7 @@ public class EventHub : IEventHub
             }
             else
             {
-                await new SystemActivities().SendEvent(eventDto);
+                await SystemActivities.SendEventStatic(eventDto);
             }
         }
         catch (Exception e)

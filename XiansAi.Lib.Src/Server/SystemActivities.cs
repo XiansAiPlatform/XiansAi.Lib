@@ -18,15 +18,22 @@ public class SendMessageResponse {
 public class SystemActivities {
 
 
-    private readonly ILogger _logger;
+    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
 
-    public SystemActivities()
+    private readonly List<Type> _capabilities = new();
+
+    public SystemActivities(List<Type> capabilities)
     {
-        _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
+        _capabilities = capabilities;
     }
 
     [Activity("System Activities: Send Event")]
     public async Task SendEvent(EventDto eventDto)
+    {
+        await SendEventStatic(eventDto);
+    }
+
+    public static async Task SendEventStatic(EventDto eventDto)
     {
         _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
             eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
@@ -70,6 +77,11 @@ public class SystemActivities {
     [Activity ("System Activities: Get Knowledge")]
     public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
+        return await GetKnowledgeAsyncStatic(knowledgeName);
+    }
+
+    public static async Task<Knowledge?> GetKnowledgeAsyncStatic(string knowledgeName)
+    {
         try {
             var knowledgeLoader = new KnowledgeLoaderImpl();
             var knowledge = await knowledgeLoader.Load(knowledgeName);
@@ -83,14 +95,18 @@ public class SystemActivities {
     }
 
     [Activity ("System Activities: Route Message")]
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options);
+        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options);
     }
 
     [Activity ("System Activities: Hand Over message Thread")]
     public async Task<string?> HandOverThread(HandoverMessage message) {
+        return await HandOverThreadStatic(message);
+    }
+
+    public static async Task<string?> HandOverThreadStatic(HandoverMessage message) {
 
         if (!SecureApi.IsReady)
         {
@@ -115,6 +131,10 @@ public class SystemActivities {
 
     [Activity ("System Activities: Send Message")]
     public async Task<string> SendMessage(OutgoingMessage message) {
+        return await SendMessageStatic(message);
+    }
+
+    public static async Task<string> SendMessageStatic(OutgoingMessage message) {
 
         if (!SecureApi.IsReady)
         {
@@ -145,6 +165,11 @@ public class SystemActivities {
 
     [Activity ("System Activities: Get Message Thread History")]
     public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string participantId, int page = 1, int pageSize = 10)
+    {
+        return await GetMessageHistoryStatic(agent, participantId, page, pageSize);
+    }
+
+    public static async Task<List<HistoricalMessage>> GetMessageHistoryStatic(string agent, string participantId, int page = 1, int pageSize = 10)
     {
         _logger.LogInformation("Getting message history for thread: {Agent} {ParticipantId}", agent, participantId);
 

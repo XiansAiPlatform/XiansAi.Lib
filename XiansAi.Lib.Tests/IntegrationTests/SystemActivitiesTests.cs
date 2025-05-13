@@ -11,7 +11,7 @@ namespace XiansAi.Lib.Tests.IntegrationTests;
 public class SystemActivitiesTests
 {
     private readonly ILoggerFactory _loggerFactory;
-    private readonly SystemActivities _systemActivities;
+    //private readonly SystemActivities _systemActivities;
     private readonly ThreadHistoryService _threadHistoryService;
     private readonly string _certificateBase64;
     private readonly string _serverUrl;
@@ -46,7 +46,7 @@ public class SystemActivitiesTests
 
         // Create the system activities instance
         _threadHistoryService = new ThreadHistoryService();
-        _systemActivities = new SystemActivities();
+        //_systemActivities = new SystemActivities();
     }
 
     /*
@@ -83,8 +83,8 @@ public class SystemActivitiesTests
         // Act - Send messages
         try
         {
-            var sendResult1 = await _systemActivities.SendMessage(message1);
-            var sendResult2 = await _systemActivities.SendMessage(message2);
+            var sendResult1 = await SystemActivities.SendMessageStatic(message1);
+            var sendResult2 = await SystemActivities.SendMessageStatic(message2);
 
             Assert.NotNull(sendResult1);
             Assert.NotNull(sendResult2);
@@ -168,7 +168,7 @@ public class SystemActivitiesTests
         };
 
         // Act
-        await _systemActivities.SendEvent(testEvent);
+        await SystemActivities.SendEventStatic(testEvent);
 
         // Assert
         // Since this is an integration test with a real server, we can't directly verify

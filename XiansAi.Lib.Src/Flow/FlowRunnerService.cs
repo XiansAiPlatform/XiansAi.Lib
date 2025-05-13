@@ -12,7 +12,7 @@ namespace XiansAi.Flow;
 
 public interface IFlowRunnerService
 {
-    Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken)
+    Task RunFlowAsync<TFlow>(Runner<TFlow> flow, CancellationToken cancellationToken)
         where TFlow : class;
 }
 
@@ -22,7 +22,7 @@ public class FlowRunnerOptions
     public string? PriorityQueue { get; set; }
 }
 
-public class FlowRunnerService : IFlowRunnerService
+internal class FlowRunnerService : IFlowRunnerService
 {
     private readonly Logging.Logger<FlowRunnerService> _logger;
     private readonly string? _priorityQueue;
@@ -145,7 +145,7 @@ public class FlowRunnerService : IFlowRunnerService
         return workflowAttr.Name ?? typeof(TFlow).Name;
     }
 
-    public async Task RunFlowAsync<TFlow>(FlowInfo<TFlow> flow, CancellationToken cancellationToken = default)
+    public async Task RunFlowAsync<TFlow>(Runner<TFlow> flow, CancellationToken cancellationToken = default)
         where TFlow : class
     {
         // Set the agent name to Agent Context
@@ -179,12 +179,12 @@ public class FlowRunnerService : IFlowRunnerService
         };
         
         options.AddWorkflow<TFlow>();
-        foreach (var stub in flow.GetStubProxies())
+        foreach (var stub in flow.StubProxies)
         {
             options.AddAllActivities(stub.Key, stub.Value);
         }
         // Add all activities from the SystemActivities class
-        options.AddAllActivities(new SystemActivities());
+        options.AddAllActivities(new SystemActivities(flow.Capabilities));
 
         var worker = new TemporalWorker(
             client,

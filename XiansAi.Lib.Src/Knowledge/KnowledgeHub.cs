@@ -20,7 +20,7 @@ public class KnowledgeHub : IKnowledgeHub
 
             return response;
         } else {
-            return await new SystemActivities().GetKnowledgeAsync(knowledgeName);
+            return await SystemActivities.GetKnowledgeAsyncStatic(knowledgeName);
         }
 
     }

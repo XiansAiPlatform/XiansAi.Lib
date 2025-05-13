@@ -57,7 +57,7 @@ public class MessageThread : IMessageThread
                 new SystemActivityOptions());
             return success;
         } else {
-            var success = await new SystemActivities().SendMessage(outgoingMessage);
+            var success = await SystemActivities.SendMessageStatic(outgoingMessage);
             return success;
         }
     }
@@ -91,7 +91,7 @@ public class MessageThread : IMessageThread
                 new SystemActivityOptions());
             return success;
         } else {
-            var success = await new SystemActivities().HandOverThread(outgoingMessage);
+            var success = await SystemActivities.HandOverThreadStatic(outgoingMessage);
             return success;
         }
     }
