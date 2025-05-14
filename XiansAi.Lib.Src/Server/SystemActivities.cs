@@ -11,11 +11,13 @@ using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Router;
 
-public class SendMessageResponse {
+public class SendMessageResponse
+{
     public required string[] MessageIds { get; set; }
 }
 
-public class SystemActivities {
+public class SystemActivities
+{
 
 
     private readonly ILogger _logger;
@@ -28,10 +30,11 @@ public class SystemActivities {
     [Activity("System Activities: Send Event")]
     public async Task SendEvent(EventDto eventDto)
     {
-        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
+        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}",
             eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
 
-        var request = new {
+        var request = new
+        {
             WorkflowType = eventDto.TargetWorkflowType,
             WorkflowId = eventDto.TargetWorkflowId,
             SignalName = Constants.EventSignalName,
@@ -40,7 +43,7 @@ public class SystemActivities {
             Agent = eventDto.SourceAgent,
             Assignment = eventDto.SourceAssignment,
         };
-        
+
         try
         {
             if (!SecureApi.IsReady)
@@ -60,20 +63,21 @@ public class SystemActivities {
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            _logger.LogError(ex, "Failed to start and send event {EventType} from {SourceWorkflow} to {TargetWorkflow}", 
+            _logger.LogError(ex, "Failed to start and send event {EventType} from {SourceWorkflow} to {TargetWorkflow}",
                 eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
             throw;
         }
     }
 
 
-    [Activity ("System Activities: Get Knowledge")]
+    [Activity("System Activities: Get Knowledge")]
     public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
-        try {
+        try
+        {
             var knowledgeLoader = new KnowledgeLoaderImpl();
             var knowledge = await knowledgeLoader.Load(knowledgeName);
-            return knowledge ;
+            return knowledge;
         }
         catch (Exception ex)
         {
@@ -82,15 +86,33 @@ public class SystemActivities {
         }
     }
 
-    [Activity ("System Activities: Route Message")]
+    [Activity("System Activities: Update Knowledge")]
+    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string knowledgeType, string knowledgeContent)
+    {
+        try
+        {
+            var knowledgeUpdater = new KnowledgeUpdaterImpl();
+            var response = await knowledgeUpdater.Update(knowledgeName, knowledgeType, knowledgeContent);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating knowledge: {InstructionName}", knowledgeName);
+            throw;
+        }
+
+    }
+
+    [Activity("System Activities: Route Message")]
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
     {
         // do the routing
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options);
     }
 
-    [Activity ("System Activities: Hand Over message Thread")]
-    public async Task<string?> HandOverThread(HandoverMessage message) {
+    [Activity("System Activities: Hand Over message Thread")]
+    public async Task<string?> HandOverThread(HandoverMessage message)
+    {
 
         if (!SecureApi.IsReady)
         {
@@ -102,7 +124,7 @@ public class SystemActivities {
             var client = SecureApi.Instance.Client;
             var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
             response.EnsureSuccessStatusCode();
-            
+
             return await response.Content.ReadAsStringAsync();
         }
         catch (Exception ex)
@@ -113,8 +135,9 @@ public class SystemActivities {
     }
 
 
-    [Activity ("System Activities: Send Message")]
-    public async Task<string> SendMessage(OutgoingMessage message) {
+    [Activity("System Activities: Send Message")]
+    public async Task<string> SendMessage(OutgoingMessage message)
+    {
 
         if (!SecureApi.IsReady)
         {
@@ -127,7 +150,7 @@ public class SystemActivities {
             var client = SecureApi.Instance.Client;
             var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/send", message);
             response.EnsureSuccessStatusCode();
-            
+
             return await response.Content.ReadAsStringAsync();
         }
         catch (ObjectDisposedException ex)
@@ -143,7 +166,7 @@ public class SystemActivities {
     }
 
 
-    [Activity ("System Activities: Get Message Thread History")]
+    [Activity("System Activities: Get Message Thread History")]
     public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string participantId, int page = 1, int pageSize = 10)
     {
         _logger.LogInformation("Getting message history for thread: {Agent} {ParticipantId}", agent, participantId);
@@ -175,10 +198,13 @@ public class SystemActivities {
     }
 }
 
-public class SystemActivityOptions : ActivityOptions {
-    public SystemActivityOptions() {
+public class SystemActivityOptions : ActivityOptions
+{
+    public SystemActivityOptions()
+    {
         StartToCloseTimeout = TimeSpan.FromSeconds(60);
-        RetryPolicy = new RetryPolicy {
+        RetryPolicy = new RetryPolicy
+        {
             InitialInterval = TimeSpan.FromSeconds(1),
             MaximumInterval = TimeSpan.FromSeconds(10),
             MaximumAttempts = 5,
