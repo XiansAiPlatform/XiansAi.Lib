@@ -39,7 +39,7 @@ public class KnowledgeHub : IKnowledgeHub
 
             return response;
         } else {
-            return await new SystemActivities().UpdateKnowledgeAsync(knowledgeName, knowledgeType, knowledgeContent);
+            return await SystemActivities.UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
         }
         }
         catch (Exception)

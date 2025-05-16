@@ -97,6 +97,12 @@ public class SystemActivities
         }
     }
 
+
+    public static async Task<bool> UpdateKnowledgeAsyncStatic(string knowledgeName, string knowledgeType, string knowledgeContent)
+    {
+        return await UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
+    }
+
     [Activity("System Activities: Update Knowledge")]
     public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string knowledgeType, string knowledgeContent)
     {
@@ -115,7 +121,7 @@ public class SystemActivities
     }
 
     [Activity("System Activities: Route Message")]
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options);
