@@ -10,7 +10,7 @@ internal class ActivityProxyLogger { }
 /// <summary>
 /// Provides utilities for activity proxy creation and logging
 /// </summary>
-public static class ActivityProxyFactory 
+internal static class ActivityProxyFactory 
 {
     /// <summary>
     /// Creates a logger for activity tracking
@@ -27,7 +27,7 @@ public static class ActivityProxyFactory
     /// <param name="activityInstance">The activity instance</param>
     /// <returns>A proxy instance of the specified interface type</returns>
     /// <exception cref="InvalidOperationException">Thrown when proxy creation fails</exception>
-    public static object CreateProxyFor(Type interfaceType, ActivityBase activityInstance)
+    public static object CreateProxyFor(Type interfaceType, object activityInstance)
     {
         if (!interfaceType.IsInterface)
         {
@@ -37,7 +37,7 @@ public static class ActivityProxyFactory
         var activityType = activityInstance.GetType();
         
         // Get the generic proxy type for the specified interface and activity
-        var proxyType = typeof(ActivityTracker<,>).MakeGenericType(interfaceType, activityType);
+        var proxyType = typeof(ActivityProxy<,>).MakeGenericType(interfaceType, activityType);
         
         // Get the Create method from the proxy type
         var createMethod = proxyType.GetMethod("Create") 

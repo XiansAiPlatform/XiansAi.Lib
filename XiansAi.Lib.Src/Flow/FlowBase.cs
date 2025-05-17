@@ -8,7 +8,7 @@ namespace XiansAi.Flow;
 // Define delegate for message listening
 public delegate Task MessageListenerDelegate(MessageThread messageThread);
 
-public abstract class FlowBase : StaticFlowBase
+public abstract class FlowBase : AbstractFlow
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
@@ -19,13 +19,11 @@ public abstract class FlowBase : StaticFlowBase
         _messageHub.RegisterHandler(_messageQueue.Enqueue);
     }
 
-    protected async Task<bool> InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
+    protected async Task InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
 
         await ListenToUserMessages(messageListener, systemPrompt);
-
-        return true;
     }
 
     private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, string systemPrompt)
@@ -60,20 +58,11 @@ public abstract class FlowBase : StaticFlowBase
     {
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
-        var response = await _routeHub.RouteAsync(messageThread, systemPrompt, new RouterOptions());
+        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt, new RouterOptions());
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
         // Respond to the user
         await messageThread.Respond(response);
-    }
-}
-
-public static class TypeListExtensions
-{
-    public static List<Type> Add(this List<Type> list, Type type)
-    {
-        list.Add(type);
-        return list;
     }
 }

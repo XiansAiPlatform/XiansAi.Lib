@@ -9,7 +9,7 @@ namespace XiansAi.Activity;
 /// <summary>
 /// Activity tracker proxy that intercepts activity method calls to track and log them
 /// </summary>
-public class ActivityProxy<I, T> : DispatchProxy where T : ActivityBase, I
+internal class ActivityProxy<I, T> : DispatchProxy where T : I
 {
     private T? _target;
     private static readonly Logger<ActivityProxyLogger> _logger = ActivityProxyFactory.CreateLogger();
@@ -35,17 +35,10 @@ public class ActivityProxy<I, T> : DispatchProxy where T : ActivityBase, I
         if (method == null || _target == null)
             throw new Exception("Method not found or target is null");
 
-        // Check if the method is an activity and if we are in a workflow
+        // Check if the method is not an activity, if not, just call the method
         var attribute = method.GetCustomAttribute<ActivityAttribute>();
-        if (attribute == null || !_target.IsInWorkflow())
+        if (attribute == null)
             return method.Invoke(_target, args);
-
-        // Create a new activity 
-        _target.NewCurrentActivity();
-        _target.CurrentActivityMethod = method;
-        _target.CurrentActivityClass = _target.GetType();
-        _target.CurrentActivityInterfaceType = typeof(I);
-
         // Get the activity name
         var activityName = attribute.Name ?? method.Name;
 
@@ -107,7 +100,7 @@ public class ActivityProxy<I, T> : DispatchProxy where T : ActivityBase, I
         {
             if (ActivityExecutionContext.Current == null) throw new Exception("ActivityExecutionContext.Current is null");
 
-            var activity = _target?.GetCurrentActivity();
+            var activity = ActivityContext.GetCurrentActivity();
             if (activity != null)
             {
                 // Set the activity properties

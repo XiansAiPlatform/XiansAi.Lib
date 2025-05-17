@@ -163,9 +163,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         
         foreach (var interfaceType in interfaceTypes) 
         {
-            var agentToolsAttribute = interfaceType.GetCustomAttributes<AgentToolAttribute>();
-            var agentToolNames = agentToolsAttribute?.Select(a => a.ToString() ?? "").ToList() ?? [];
-            activities.AddRange(GetActivities(interfaceType, agentToolNames));
+            activities.AddRange(GetActivities(interfaceType));
         }
         
         return activities;
@@ -177,7 +175,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="stubType">The type to extract activities from</param>
     /// <param name="agentNames">List of agent tool names</param>
     /// <returns>List of activity definitions</returns>
-    private List<ActivityDefinition> GetActivities(Type stubType, List<string> agentNames) 
+    private List<ActivityDefinition> GetActivities(Type stubType) 
     {
         var activityMethods = stubType.GetMethods()
             .Where(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null)
@@ -205,7 +203,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
                 ActivityName = activityName,
                 ParameterDefinitions = parameters,
                 KnowledgeIds = knowledgeAttribute?.Knowledge.ToList() ?? [],
-                AgentToolNames = agentNames
+                AgentToolNames = new List<string>()
             });
         }
         

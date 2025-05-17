@@ -9,15 +9,11 @@ using XiansAi.Router.Plugins;
 
 namespace XiansAi.Router;
 
-public interface IRouteHub
-{
-    Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options);
-}
 
-public class RouteHub : IRouteHub
+public static class SemanticRouter
 {
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
+    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using XiansAi.Activity;
 using XiansAi.Models;
@@ -18,11 +19,13 @@ public class Runner<TClass> where TClass : class
     public Runner(AgentInfo agentInfo)
     {
         AgentInfo = agentInfo;
+        // Set the agent name to Agent Context
+        AgentContext.Agent = agentInfo.Name;
     }
 
     public async Task RunAsync(FlowRunnerOptions? options = null)
     {
-        var runner = new FlowRunnerService(options);
+        var runner = new WorkerService(options);
         await runner.RunFlowAsync(this);
     }
 
@@ -38,14 +41,14 @@ public class Runner<TClass> where TClass : class
 
     public Runner<TClass> AddFlowActivities<IActivity, TActivity>() 
         where IActivity : class
-        where TActivity : ActivityBase
+        where TActivity : class
     {
         return AddFlowActivities<IActivity, TActivity>(new object[] { });
     }
 
     public Runner<TClass> AddFlowActivities<IActivity, TActivity>(params object[] args) 
         where IActivity : class
-        where TActivity : ActivityBase
+        where TActivity : class
     {
         
         var activity = Activator.CreateInstance(typeof(TActivity), args);
@@ -55,15 +58,6 @@ public class Runner<TClass> where TClass : class
             throw new InvalidOperationException($"Failed to create activity instance for {typeof(TActivity).Name}");
         }
 
-        // check if inherits from ActivityBase
-        if (typeof(TActivity).BaseType != typeof(ActivityBase))
-        {
-            throw new InvalidOperationException($"Type parameter {typeof(TActivity).Name} must inherit from ActivityBase");
-        }
-
-        ActivityBase activityBase = (TActivity)activity as ActivityBase;
-        activityBase.Agent = AgentName;
-
         var interfaceType = typeof(IActivity);
         if (!interfaceType.IsInterface)
         {
@@ -72,12 +66,9 @@ public class Runner<TClass> where TClass : class
 
         try
         {
-            
             // Use the ActivityProxy's CreateProxyFor method instead of direct reflection
-            var stubProxy = ActivityProxyFactory.CreateProxyFor(interfaceType, activityBase);
-
+            var stubProxy = ActivityProxyFactory.CreateProxyFor(interfaceType, activity);
             _activityProxies[interfaceType] = stubProxy;
-
             return this;
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -167,4 +158,11 @@ public class Runner<TClass> where TClass : class
                 }).ToList() ?? [];
         }
     }
+}
+
+
+public class FlowRunnerOptions
+{
+    public ILoggerFactory? LoggerFactory { get; set; }
+    public string? PriorityQueue { get; set; }
 }
