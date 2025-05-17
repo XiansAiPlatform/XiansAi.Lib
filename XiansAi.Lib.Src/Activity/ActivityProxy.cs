@@ -6,24 +6,30 @@ using XiansAi.Logging;
 
 namespace XiansAi.Activity;
 
-// Simple class for less verbose logging
-internal class ActivityProxy { }
-
-class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
+/// <summary>
+/// Activity tracker proxy that intercepts activity method calls to track and log them
+/// </summary>
+public class ActivityProxy<I, T> : DispatchProxy where T : ActivityBase, I
 {
     private T? _target;
-    
-    // Use a simpler type parameter for the logger
-    private static readonly Logger<ActivityProxy> _logger = Logger<ActivityProxy>.For();
+    private static readonly Logger<ActivityProxyLogger> _logger = ActivityProxyFactory.CreateLogger();
 
+    /// <summary>
+    /// Creates a proxy instance for the specified target
+    /// </summary>
+    /// <param name="target">The target activity instance</param>
+    /// <returns>A proxy wrapping the target activity</returns>
     public static I Create(T target)
     {
-        object proxy = Create<I, ActivityTrackerProxy<I, T>>()
+        object proxy = Create<I, ActivityProxy<I, T>>()
             ?? throw new InvalidOperationException("Failed to create proxy");
-        ((ActivityTrackerProxy<I, T>)proxy)._target = target;
+        ((ActivityProxy<I, T>)proxy)._target = target;
         return (I)proxy;
     }
 
+    /// <summary>
+    /// Invokes the method with activity tracking
+    /// </summary>
     protected override object? Invoke(MethodInfo? method, object?[]? args)
     {
         if (method == null || _target == null)
@@ -33,7 +39,6 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         var attribute = method.GetCustomAttribute<ActivityAttribute>();
         if (attribute == null || !_target.IsInWorkflow())
             return method.Invoke(_target, args);
-
 
         // Create a new activity 
         _target.NewCurrentActivity();
@@ -64,7 +69,17 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
             throw;
         }
 
-        // TODO: Upload the activity result to mongoDB
+        // Handle activity result upload
+        HandleActivityResultUpload(activityName, inputs, result);
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Handles the upload of activity results
+    /// </summary>
+    private void HandleActivityResultUpload(string activityName, Dictionary<string, object?> inputs, object? result)
+    {
         if (result is not Task task)
         {
             _logger.LogInformation($"Uploading activity result: {result}");
@@ -81,15 +96,16 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
                 return t;
             });
         }
-        return result;
     }
 
+    /// <summary>
+    /// Uploads the activity result to MongoDB
+    /// </summary>
     private async Task UploadActivityResult(string activityName, Dictionary<string, object?> inputs, object? result)
     {
         try
         {
             if (ActivityExecutionContext.Current == null) throw new Exception("ActivityExecutionContext.Current is null");
-            ValidateActivityName(activityName);
 
             var activity = _target?.GetCurrentActivity();
             if (activity != null)
@@ -116,16 +132,4 @@ class ActivityTrackerProxy<I, T> : DispatchProxy where T : ActivityBase, I
         }
     }
 
-    private void ValidateActivityName(string activityName)
-    {
-        string normalizedActivityName = activityName.EndsWith("Async") ? activityName[..^5] : activityName;
-        string normalizedActivityType = ActivityExecutionContext.Current.Info.ActivityType.EndsWith("Async")
-            ? ActivityExecutionContext.Current.Info.ActivityType[..^5]
-            : ActivityExecutionContext.Current.Info.ActivityType;
-
-        if (!normalizedActivityName.Equals(normalizedActivityType))
-        {
-            throw new Exception($"Activity name does not match {normalizedActivityName} != {normalizedActivityType}");
-        }
-    }
 }

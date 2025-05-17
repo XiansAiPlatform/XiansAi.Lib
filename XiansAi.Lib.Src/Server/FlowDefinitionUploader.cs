@@ -77,8 +77,8 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         return new FlowDefinition {
             WorkflowType = flow.WorkflowName,
             Agent = flow.AgentName,
-            ParameterDefinitions = flow.Parameters,
-            ActivityDefinitions = GetAllActivities(flow.ActivityObjects).ToArray(),
+            ParameterDefinitions = flow.WorkflowParameters,
+            ActivityDefinitions = GetAllActivities(flow.ActivityInterfaces).ToArray(),
             Source = source ?? ReadSource(typeof(TFlow))
         };
     }
@@ -155,13 +155,13 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <summary>
     /// Gets all activities from a list of flow objects.
     /// </summary>
-    /// <param name="objects">List of flow objects</param>
+    /// <param name="interfaceTypes">List of interface types</param>
     /// <returns>List of activity definitions</returns>
-    private List<ActivityDefinition> GetAllActivities(List<(Type interfaceType, object stub, object proxy)> objects) 
+    private List<ActivityDefinition> GetAllActivities(List<Type> interfaceTypes) 
     {
         var activities = new List<ActivityDefinition>();
         
-        foreach (var (interfaceType, _, _) in objects) 
+        foreach (var interfaceType in interfaceTypes) 
         {
             var agentToolsAttribute = interfaceType.GetCustomAttributes<AgentToolAttribute>();
             var agentToolNames = agentToolsAttribute?.Select(a => a.ToString() ?? "").ToList() ?? [];

@@ -179,7 +179,7 @@ internal class FlowRunnerService : IFlowRunnerService
         };
         
         options.AddWorkflow<TFlow>();
-        foreach (var stub in flow.StubProxies)
+        foreach (var stub in flow.ActivityProxies)
         {
             options.AddAllActivities(stub.Key, stub.Value);
         }

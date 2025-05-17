@@ -1,8 +1,6 @@
 using System.Reflection;
-using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using XiansAi.Activity;
-using XiansAi.Knowledge;
 using XiansAi.Models;
 
 namespace XiansAi.Flow;
@@ -13,12 +11,8 @@ namespace XiansAi.Flow;
 /// <typeparam name="TClass">The workflow class type</typeparam>
 public class Runner<TClass> where TClass : class
 {
-    private readonly Dictionary<Type, object> _stubProxies = new();
-    private readonly List<ActivityBase> _stubs = new();
-
+    private readonly Dictionary<Type, object> _activityProxies = new();
     private readonly List<Type> _capabilities = new();
-    private readonly List<(Type @interface, object stub, object proxy)> _objects = new();
-    private readonly ILogger<Runner<TClass>> _logger = Globals.LogFactory.CreateLogger<Runner<TClass>>();
     public AgentInfo AgentInfo { get; private set; }
 
     public Runner(AgentInfo agentInfo)
@@ -37,7 +31,6 @@ public class Runner<TClass> where TClass : class
         return this;
     }
 
-
     public Runner<TClass> AddBotCapabilities<TCapability>() {
         _capabilities.Add(typeof(TCapability));
         return this;
@@ -54,7 +47,6 @@ public class Runner<TClass> where TClass : class
         where IActivity : class
         where TActivity : ActivityBase
     {
-        string agentName = AgentName;
         
         var activity = Activator.CreateInstance(typeof(TActivity), args);
 
@@ -63,16 +55,14 @@ public class Runner<TClass> where TClass : class
             throw new InvalidOperationException($"Failed to create activity instance for {typeof(TActivity).Name}");
         }
 
-        var activityBase = (TActivity)activity as ActivityBase;
-        activityBase.Agent = agentName;
+        // check if inherits from ActivityBase
+        if (typeof(TActivity).BaseType != typeof(ActivityBase))
+        {
+            throw new InvalidOperationException($"Type parameter {typeof(TActivity).Name} must inherit from ActivityBase");
+        }
 
-        return AddFlowActivities<IActivity>(activityBase);
-    }
-    private Runner<TClass> AddFlowActivities<IActivity>(ActivityBase activity) 
-        where IActivity : class
-    {
-        _logger.LogDebug($"Adding activities for {activity.GetType().Name}");
-        ArgumentNullException.ThrowIfNull(activity, nameof(activity));
+        ActivityBase activityBase = (TActivity)activity as ActivityBase;
+        activityBase.Agent = AgentName;
 
         var interfaceType = typeof(IActivity);
         if (!interfaceType.IsInterface)
@@ -82,20 +72,12 @@ public class Runner<TClass> where TClass : class
 
         try
         {
-            _stubs.Add(activity);
             
-            var activityType = activity.GetType();
-            var proxyCreateMethod = typeof(ActivityTrackerProxy<,>)
-                .MakeGenericType(interfaceType, activityType)
-                .GetMethod("Create") 
-                ?? throw new InvalidOperationException("Failed to find Create method on ActivityTrackerProxy");
+            // Use the ActivityProxy's CreateProxyFor method instead of direct reflection
+            var stubProxy = ActivityProxyFactory.CreateProxyFor(interfaceType, activityBase);
 
-            var stubProxy = proxyCreateMethod.Invoke(null, new[] { activity })
-                ?? throw new InvalidOperationException("Failed to create activity proxy");
+            _activityProxies[interfaceType] = stubProxy;
 
-            _stubProxies[interfaceType] = stubProxy;
-
-            _objects.Add((interfaceType, activity, stubProxy));
             return this;
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -108,19 +90,19 @@ public class Runner<TClass> where TClass : class
     /// Gets the registered activity proxies.
     /// </summary>
     /// <returns>Dictionary of interface types to activity proxies</returns>
-    internal IReadOnlyDictionary<Type, object> StubProxies
+    internal IReadOnlyDictionary<Type, object> ActivityProxies
     {
         get
         {
-            return _stubProxies;
+            return _activityProxies;
         }
     }
 
-    internal List<(Type @interface, object stub, object proxy)> ActivityObjects
+    internal List<Type> ActivityInterfaces
     {
         get
         {
-            return _objects;
+            return _activityProxies.Keys.ToList();
         }
     }
 
@@ -142,7 +124,6 @@ public class Runner<TClass> where TClass : class
                 throw new InvalidOperationException(
                     $"Workflow {workflowClass.Name} is missing required WorkflowAttribute");
             }
-            _logger.LogDebug($"Workflow name: {workflowAttr.Name ?? workflowClass.Name}");
 
             return workflowAttr.Name ?? workflowClass.Name;
         }
@@ -172,7 +153,7 @@ public class Runner<TClass> where TClass : class
     /// Gets the parameters of the workflow's run method.
     /// </summary>
     /// <returns>List of parameter information for the workflow run method</returns>
-    internal List<ParameterDefinition> Parameters
+    internal List<ParameterDefinition> WorkflowParameters
     {
         get
         {
