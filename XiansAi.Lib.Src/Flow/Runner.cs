@@ -1,7 +1,7 @@
 using System.Reflection;
-using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using XiansAi.Activity;
+using XiansAi.Logging;
 using XiansAi.Models;
 
 namespace XiansAi.Flow;
@@ -16,6 +16,8 @@ public class Runner<TClass> where TClass : class
     private readonly List<Type> _capabilities = new();
     public AgentInfo AgentInfo { get; private set; }
 
+    private readonly Logger<Runner<TClass>> _logger = Logger<Runner<TClass>>.For();
+
     public Runner(AgentInfo agentInfo)
     {
         AgentInfo = agentInfo;
@@ -25,32 +27,41 @@ public class Runner<TClass> where TClass : class
 
     public async Task RunAsync(FlowRunnerOptions? options = null)
     {
-        var runner = new WorkerService(options);
-        await runner.RunFlowAsync(this);
+        try
+        {
+            var runner = new WorkerService(options);
+            await runner.RunFlowAsync(this);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Application shutdown requested. Shutting down gracefully...");
+        }
     }
 
-    public Runner<TClass> AddBotCapabilities(Type capabilityClass) {
+    public Runner<TClass> AddBotCapabilities(Type capabilityClass)
+    {
         _capabilities.Add(capabilityClass);
         return this;
     }
 
-    public Runner<TClass> AddBotCapabilities<TCapability>() {
+    public Runner<TClass> AddBotCapabilities<TCapability>()
+    {
         _capabilities.Add(typeof(TCapability));
         return this;
     }
 
-    public Runner<TClass> AddFlowActivities<IActivity, TActivity>() 
+    public Runner<TClass> AddFlowActivities<IActivity, TActivity>()
         where IActivity : class
         where TActivity : class
     {
         return AddFlowActivities<IActivity, TActivity>(new object[] { });
     }
 
-    public Runner<TClass> AddFlowActivities<IActivity, TActivity>(params object[] args) 
+    public Runner<TClass> AddFlowActivities<IActivity, TActivity>(params object[] args)
         where IActivity : class
         where TActivity : class
     {
-        
+
         var activity = Activator.CreateInstance(typeof(TActivity), args);
 
         if (activity == null)
@@ -59,10 +70,6 @@ public class Runner<TClass> where TClass : class
         }
 
         var interfaceType = typeof(IActivity);
-        if (!interfaceType.IsInterface)
-        {
-            throw new InvalidOperationException($"Type parameter {interfaceType.Name} must be an interface");
-        }
 
         try
         {
@@ -109,7 +116,7 @@ public class Runner<TClass> where TClass : class
         {
             var workflowClass = typeof(TClass);
             var workflowAttr = workflowClass.GetCustomAttribute<WorkflowAttribute>();
-        
+
             if (workflowAttr == null)
             {
                 throw new InvalidOperationException(
@@ -152,10 +159,11 @@ public class Runner<TClass> where TClass : class
             var workflowRunMethod = workflowType.GetMethods()
             .FirstOrDefault(m => m.GetCustomAttribute<WorkflowRunAttribute>() != null);
 
-            return workflowRunMethod?.GetParameters().Select(p => new ParameterDefinition {
-                    Name = p.Name,
-                    Type = p.ParameterType.Name
-                }).ToList() ?? [];
+            return workflowRunMethod?.GetParameters().Select(p => new ParameterDefinition
+            {
+                Name = p.Name,
+                Type = p.ParameterType.Name
+            }).ToList() ?? [];
         }
     }
 }
@@ -163,6 +171,5 @@ public class Runner<TClass> where TClass : class
 
 public class FlowRunnerOptions
 {
-    public ILoggerFactory? LoggerFactory { get; set; }
-    public string? PriorityQueue { get; set; }
+        public string? PriorityQueue { get; set; }
 }

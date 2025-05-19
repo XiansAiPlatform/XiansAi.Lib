@@ -4,19 +4,17 @@ using XiansAi.Models;
 namespace XiansAi.Activity;
 public static class ActivityContext
 {
-    internal static string? Agent { get; set; }
-
     internal static bool IsInWorkflow() 
     {
         return ActivityExecutionContext.HasCurrent;
     }
 
-    internal static FlowActivityHistory GetCurrentActivity()
+    internal static ActivityHistory GetCurrentActivity()
     {
         var context = ActivityExecutionContext.Current ?? throw new InvalidOperationException("ActivityExecutionContext is null");
-        return new FlowActivityHistory
+        return new ActivityHistory
         {
-            Agent = Agent ?? throw new InvalidOperationException("Agent is null"),
+            Agent = AgentContext.Agent ?? throw new InvalidOperationException("Agent can not be null, set the agent first"),
             ActivityId = context.Info.ActivityId ?? throw new InvalidOperationException("ActivityId is null"),
             ActivityName = context.Info.ActivityType ?? throw new InvalidOperationException("ActivityType is null"),
             StartedTime = context.Info.StartedTime,

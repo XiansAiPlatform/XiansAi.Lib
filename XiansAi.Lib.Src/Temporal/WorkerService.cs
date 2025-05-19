@@ -13,11 +13,6 @@ internal class WorkerService
     public WorkerService(FlowRunnerOptions? options = null)
     {
 
-        if (options?.LoggerFactory != null)
-        {
-            Globals.LogFactory = options.LoggerFactory;
-        }
-
         ValidateConfig();
 
         // Initialize SecureApi first
@@ -128,9 +123,10 @@ internal class WorkerService
 
         _logger.LogInformation($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
 
-        var options = new TemporalWorkerOptions(taskQueue: taskQueue)
+        var options = new TemporalWorkerOptions()
         {
             LoggerFactory = CreateTemporalLoggerFactory(),
+            TaskQueue = taskQueue
         };
         
         options.AddWorkflow<TFlow>();

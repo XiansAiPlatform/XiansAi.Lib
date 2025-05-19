@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace XiansAi.Models;
 
-public class FlowActivityHistory
+public class ActivityHistory
 {
     [JsonPropertyName("agent")]
     public required string Agent { get; set; }

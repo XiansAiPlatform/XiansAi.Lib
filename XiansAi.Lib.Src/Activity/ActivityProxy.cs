@@ -62,8 +62,8 @@ internal class ActivityProxy<I, T> : DispatchProxy where T : I
             throw;
         }
 
-        // Handle activity result upload
-        HandleActivityResultUpload(activityName, inputs, result);
+        // Handle activity result upload asynchronously
+        _ = Task.Run(() => HandleActivityResultUpload(activityName, inputs, result));
         
         return result;
     }

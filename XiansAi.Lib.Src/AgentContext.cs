@@ -29,12 +29,17 @@ public class AgentContext
             if (Workflow.InWorkflow) 
             {
                 var memo = new MemoUtil(Workflow.Memo);
-                return memo.GetAgent();
+                var agent = memo.GetAgent();
+                if (agent == null)
+                {
+                    throw new InvalidOperationException("Agent is not set, workflow Memo is missing agent info");
+                }
+                return agent;
             }
             else {
                 if (_agent == null)
                 {
-                    throw new InvalidOperationException("Agent is not set");
+                    throw new InvalidOperationException("Agent is not set, create a agent runner first");
                 }
                 return _agent;
             }
