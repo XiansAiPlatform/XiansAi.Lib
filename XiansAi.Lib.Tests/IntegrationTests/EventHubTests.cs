@@ -63,7 +63,7 @@ public class EventHubTests
             Timestamp = DateTime.UtcNow
         };
         
-        var evt = new EventDto {
+        var evt = new EventSignal {
             EventType = "TestEvent",
             SourceWorkflowId = sourceWorkflowId,
             SourceWorkflowType = "TestWorkflow",
@@ -113,7 +113,7 @@ public class EventHubTests
             Timestamp = DateTime.UtcNow
         };
         
-        var evt = new EventDto {
+        var evt = new EventSignal {
             EventType = "TestStartEvent",
             SourceWorkflowId = sourceWorkflowId,
             SourceWorkflowType = "TestWorkflow",

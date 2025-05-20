@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using XiansAi.Knowledge;
 
-namespace XiansAi.Router.Plugins;
+namespace XiansAi.Flow.Router.Plugins;
 
 /// <summary>
 /// Provides functionality to load capability knowledge from JSON content via the KnowledgeLoader.

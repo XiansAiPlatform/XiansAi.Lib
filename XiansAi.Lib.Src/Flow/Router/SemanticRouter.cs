@@ -5,9 +5,9 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Temporalio.Workflows;
 using XiansAi.Messaging;
-using XiansAi.Router.Plugins;
+using XiansAi.Flow.Router.Plugins;
 
-namespace XiansAi.Router;
+namespace XiansAi.Flow.Router;
 
 
 public static class SemanticRouter

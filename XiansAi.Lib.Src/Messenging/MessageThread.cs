@@ -18,7 +18,6 @@ public class MessageThread : IMessageThread
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public string? QueueName { get; set; }
-    public string? Assignment { get; set; }
     public string? ThreadId { get; set; }
     public object? Metadata { get; set; }
     public string? LatestContent { get; set; }
@@ -47,8 +46,7 @@ public class MessageThread : IMessageThread
             WorkflowId = WorkflowId,
             WorkflowType = WorkflowType,
             Agent = Agent,
-            QueueName = QueueName,
-            Assignment = Assignment
+            QueueName = QueueName
         };
 
         if(Workflow.InWorkflow) {
@@ -99,6 +97,14 @@ public class MessageThread : IMessageThread
 
 public class MessageSignal
 {
+    public required MessagePayload Payload { get; set; }
+    public required string TargetWorkflowId { get; set; }
+    public required string TargetWorkflowType { get; set; }
+    public required string SourceAgent { get; set; }
+}
+
+public class MessagePayload
+{
     public required string Agent { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
@@ -113,7 +119,6 @@ public class OutgoingMessage
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public string? QueueName { get; set; }
-    public string? Assignment { get; set; }
     public required string Content { get; set; }
     public object? Metadata { get; set; }
     public string? ThreadId { get; set; }

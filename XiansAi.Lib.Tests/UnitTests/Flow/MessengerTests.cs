@@ -1,7 +1,4 @@
-using Temporalio.Converters;
-using XiansAi.Flow;
 using XiansAi.Messaging;
-using Google.Protobuf;
 
 namespace XiansAi.Lib.Tests.UnitTests.Flow
 {
@@ -143,9 +140,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             
             // Assert
             Assert.NotNull(capturedMessageThread);
-            Assert.Equal(messageSignal.ParticipantId, capturedMessageThread.ParticipantId);
+            Assert.Equal(messageSignal.Payload.ParticipantId, capturedMessageThread.ParticipantId);
             Assert.Equal(AgentContext.WorkflowId, capturedMessageThread.WorkflowId);
-
         }
 
         [Fact]
@@ -187,11 +183,17 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         {
             return new MessageSignal
             {
-                ParticipantId = "test-participant-id",
-                Content = "Test message content",
-                Metadata = new { Type = "test" },
-                Agent = "test-agent",
-                ThreadId = "test-thread-id"
+                Payload = new MessagePayload
+                {
+                    ParticipantId = "test-participant-id",
+                    Content = "Test message content",
+                    Metadata = new { Type = "test" },
+                    Agent = "test-agent",
+                    ThreadId = "test-thread-id"
+                },
+                TargetWorkflowId = "test-workflow-id",
+                TargetWorkflowType = "test-workflow-type",
+                SourceAgent = "test-agent"
             };
         }
     }

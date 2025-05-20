@@ -65,7 +65,6 @@ public class SystemActivitiesTests
             WorkflowType = "test-workflow-type",
             Agent = "test-agent",
             QueueName = "test-queue-name",
-            Assignment = "test-assignment"
         };
         
         var message2 = new OutgoingMessage 
@@ -77,7 +76,6 @@ public class SystemActivitiesTests
             WorkflowType = "test-workflow-type",
             Agent = "test-agent",
             QueueName = "test-queue-name",
-            Assignment = "test-assignment"
         };
 
         // Act - Send messages
@@ -148,7 +146,7 @@ public class SystemActivitiesTests
     public async Task SendEvent_ShouldSendEventSuccessfully()
     {
         // Arrange
-        var testEvent = new EventDto
+        var testEvent = new EventSignal
         {
             EventType = "tender-notification",
             SourceWorkflowId = "test-source-workflow",
@@ -162,9 +160,7 @@ public class SystemActivitiesTests
                 { "pointOfContact", "hasithy@99x.io" },
                 { "tenderLink", "https://www.globaltenders.com/freetenders-detail/Calcined-metallurgical-grade-sandy-alumina-procurement-GTF027652" }
             },
-            SourceQueueName = null,
-            SourceAgent = "Hayleys Agent",
-            SourceAssignment = null
+            SourceAgent = "Hayleys Agent"
         };
 
         // Act

@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Server;
 using Temporalio.Activities;
@@ -9,8 +8,7 @@ using XiansAi.Events;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
-using XiansAi.Router;
-
+using XiansAi.Flow.Router;
 public class SendMessageResponse
 {
     public required string[] MessageIds { get; set; }
@@ -18,8 +16,6 @@ public class SendMessageResponse
 
 public class SystemActivities
 {
-
-
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
 
     private readonly List<Type> _capabilities = new();
@@ -30,26 +26,15 @@ public class SystemActivities
     }
 
     [Activity("System Activities: Send Event")]
-    public async Task SendEvent(EventDto eventDto)
+    public async Task SendEvent(EventSignal eventDto)
     {
         await SendEventStatic(eventDto);
     }
 
-    public static async Task SendEventStatic(EventDto eventDto)
+    public static async Task SendEventStatic(EventSignal eventDto)
     {
         _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
             eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
-
-        var request = new
-        {
-            WorkflowType = eventDto.TargetWorkflowType,
-            WorkflowId = eventDto.TargetWorkflowId,
-            SignalName = Constants.EventSignalName,
-            eventDto.Payload,
-            QueueName = eventDto.SourceQueueName,
-            Agent = eventDto.SourceAgent,
-            Assignment = eventDto.SourceAssignment,
-        };
 
         try
         {
@@ -59,7 +44,7 @@ public class SystemActivities
             }
 
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/signal/with-start", request);
+            var response = await client.PostAsJsonAsync("api/agent/events/with-start", eventDto);
             response.EnsureSuccessStatusCode();
         }
         catch (ObjectDisposedException ex)

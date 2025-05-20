@@ -2,13 +2,13 @@ using Microsoft.SemanticKernel;
 using System;
 using System.Collections.Generic;
 
-namespace XiansAi.Router.Plugins;
+namespace XiansAi.Flow.Router.Plugins;
 
 /// <summary>
 /// A plugin that provides date and time functionalities. 
 /// When defining a plugin, name it with Plugin at the end.
 /// </summary>
-public class DatePlugin : PluginBase<DatePlugin>
+internal class DatePlugin : PluginBase<DatePlugin>
 {
     /// <summary>
     /// Returns today's date in the format "yyyy-MM-dd".

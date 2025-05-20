@@ -97,13 +97,13 @@ public class MessageHub: IMessageHub
         _logger.LogInformation($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
 
         var messageThread = new MessageThread {
-            ParticipantId = messageSignal.ParticipantId,
             WorkflowId = AgentContext.WorkflowId,
             WorkflowType = AgentContext.WorkflowType,
-            ThreadId = messageSignal.ThreadId,
             Agent = AgentContext.Agent,
-            Metadata = messageSignal.Metadata,
-            LatestContent = messageSignal.Content
+            ThreadId = messageSignal.Payload.ThreadId,
+            ParticipantId = messageSignal.Payload.ParticipantId,
+            Metadata = messageSignal.Payload.Metadata,
+            LatestContent = messageSignal.Payload.Content
         };
 
         _logger.LogInformation($"New MessageThread created: {JsonSerializer.Serialize(messageThread)}");

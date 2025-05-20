@@ -1,5 +1,4 @@
 using Temporalio.Workflows;
-using XiansAi.Router;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Events;
@@ -19,8 +18,8 @@ public abstract class AbstractFlow
     protected readonly IKnowledgeHub _knowledgeHub;
 
     // Signal method to receive events
-    [WorkflowSignal("ReceiveEvent")]
-    public async Task ReceiveEvent(object eventDto)
+    [WorkflowSignal("HandleInboundEvent")]
+    public async Task HandleInboundEvent(EventSignal eventDto)
     {
         await _eventHub.EventListener(eventDto);
     }
