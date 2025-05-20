@@ -15,7 +15,6 @@ public abstract class AbstractFlow
     protected readonly IMemoryHub _memoryHub;
     protected readonly IMessageHub _messageHub;
     protected readonly IEventHub _eventHub;
-    protected readonly IKnowledgeHub _knowledgeHub;
 
     // Signal method to receive events
     [WorkflowSignal("HandleInboundEvent")]
@@ -38,7 +37,6 @@ public abstract class AbstractFlow
     {
         _messageHub = new MessageHub();
         _memoryHub = new MemoryHub();
-        _knowledgeHub = new KnowledgeHub();
         _eventHub = new EventHub();
     }
 

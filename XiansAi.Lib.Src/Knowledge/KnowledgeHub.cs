@@ -1,18 +1,10 @@
 using Temporalio.Workflows;
-using XiansAi.Logging;
 
 namespace XiansAi.Knowledge;
 
-public interface IKnowledgeHub
+public static class KnowledgeHub
 {
-    Task<Models.Knowledge?> GetKnowledgeAsync(string knowledgeName);
-}
-
-public class KnowledgeHub : IKnowledgeHub
-{
-    private readonly Logger<KnowledgeHub> _logger = Logger<KnowledgeHub>.For();
-
-    public async Task<Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
+    public static async Task<Models.Knowledge?> Fetch(string knowledgeName)
     {
         if (Workflow.InWorkflow) {
             // Go through a Temporal activity to perform IO operations
@@ -27,7 +19,7 @@ public class KnowledgeHub : IKnowledgeHub
 
     }
 
-    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string knowledgeType,  string knowledgeContent)
+    public static async Task<bool> Update(string knowledgeName, string knowledgeType,  string knowledgeContent)
     {
         try
         {
@@ -42,10 +34,9 @@ public class KnowledgeHub : IKnowledgeHub
             return await SystemActivities.UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
         }
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            _logger.LogError($"Failed to update knowledge: {knowledgeName}");
-            return false;
+            throw new Exception($"Failed to update knowledge: {knowledgeName}", e);
         }
     }
 

@@ -33,13 +33,13 @@ public class EventHub : IEventHub
         new Dictionary<Delegate, Func<EventMetadata, object?, Task>>();
 
 
-    public static async Task Send(Type flowClassType, string evtType, object? payload = null)
+    public static async Task Publish(Type flowClassType, string evtType, object? payload = null)
     {
         var targetWorkflowType = AgentContext.GetWorkflowTypeFor(flowClassType);
         var targetWorkflowId = AgentContext.GetSingletonWorkflowIdFor(flowClassType);
-        await Send(targetWorkflowId, targetWorkflowType, evtType, payload);
+        await Publish(targetWorkflowId, targetWorkflowType, evtType, payload);
     }
-    public static async Task Send(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
+    public static async Task Publish(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
     {
         try {
             var eventDto = new EventSignal

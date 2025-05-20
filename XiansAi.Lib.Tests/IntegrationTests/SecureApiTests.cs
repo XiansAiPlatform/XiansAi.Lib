@@ -98,10 +98,25 @@ public class SecureApiTestCollection : ICollectionFixture<SecureApiTestFixture>
 
 public class SecureApiTestFixture : IDisposable
 {
+    private readonly string _certificateBase64;
+    private readonly string _serverUrl;
+
     public SecureApiTestFixture()
     {
         // Reset SecureApi to ensure clean state
         SecureApi.Reset();
+
+        // Load environment variables
+        Env.Load();
+
+        // Get values from environment
+        _certificateBase64 = Environment.GetEnvironmentVariable("APP_SERVER_API_KEY") ?? 
+            throw new InvalidOperationException("APP_SERVER_API_KEY environment variable is not set");
+        _serverUrl = Environment.GetEnvironmentVariable("APP_SERVER_URL") ?? 
+            throw new InvalidOperationException("APP_SERVER_URL environment variable is not set");
+
+        // Initialize SecureApi with real credentials
+        SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
     }
 
     public void Dispose()

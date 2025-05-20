@@ -1,24 +1,6 @@
-using System;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace XiansAi.Events;
-
-
-public class EventArgs
-{
-    public required EventSignal EventDto { get; set; }
-
-    public T CastPayload<T>()
-    {
-        if (EventDto.Payload == null)
-        {
-            throw new InvalidOperationException("Payload is null");
-        }
-
-        return JsonSerializer.Deserialize<T>(EventDto.Payload.ToString()!)!;
-    }
-}
 
 public class EventSignal
 {

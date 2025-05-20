@@ -8,6 +8,7 @@ using XiansAi.Events;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
+[Collection("SecureApi Tests")]
 public class SystemActivitiesTests
 {
     private readonly ILoggerFactory _loggerFactory;

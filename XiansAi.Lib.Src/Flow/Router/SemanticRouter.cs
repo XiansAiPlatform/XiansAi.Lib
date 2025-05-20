@@ -153,7 +153,7 @@ class SemanticRouterImpl
         return kernel;
     }
 
-    private async Task<ChatHistory> ConstructHistory(IMessageThread messageThread, string systemPrompt, int historySizeToFetch)
+    private async Task<ChatHistory> ConstructHistory(MessageThread messageThread, string systemPrompt, int historySizeToFetch)
     {
 
         var chatHistory = new ChatHistory(systemPrompt);
