@@ -102,7 +102,7 @@ internal class WorkerService
         var client = TemporalClientService.Instance.GetClientAsync();
         var workFlowName = flow.WorkflowName;
 
-        var taskQueue = workFlowName.ToLower().Replace(" ", "").Replace("-", "").Trim();
+        var taskQueue = workFlowName; 
 
         _logger.LogInformation($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
 
