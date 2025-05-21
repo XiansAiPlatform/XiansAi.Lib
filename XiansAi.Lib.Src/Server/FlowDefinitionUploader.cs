@@ -109,6 +109,15 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
                 throw new InvalidOperationException(errorMessage);
             }
             
+            // Handle permission warning (403 Forbidden)
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                var warningJson = await response.Content.ReadAsStringAsync();
+                var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
+                _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
+                throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
+            }
+            
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
             _logger.LogInformation("Flow definition for {TypeName} uploaded successfully: {ResponseBody}", flowDefinition.WorkflowType, responseBody);
@@ -208,5 +217,13 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         }
         
         return activities;
+    }
+    
+    /// <summary>
+    /// Class to deserialize warning messages from the server
+    /// </summary>
+    internal class WarningResponse
+    {
+        public string? message { get; set; }
     }
 }

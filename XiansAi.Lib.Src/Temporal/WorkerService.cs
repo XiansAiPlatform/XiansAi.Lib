@@ -12,6 +12,7 @@ internal class WorkerService
     private readonly Logging.Logger<WorkerService> _logger;    
     public WorkerService(FlowRunnerOptions? options = null)
     {
+        _logger = Logging.Logger<WorkerService>.For();
 
         ValidateConfig();
 
@@ -23,8 +24,6 @@ internal class WorkerService
                 PlatformConfig.APP_SERVER_URL!
             );
         }
-
-        _logger = Logging.Logger<WorkerService>.For();
     }
     
     private void ValidateConfig()
