@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Server;
 using Temporalio.Client;
-using XiansAi;
 
 namespace Temporal;
 
@@ -31,10 +31,13 @@ public class TemporalClientService
 
     private static async Task<ITemporalClient> CreateClientAsync()
     {
-        return await TemporalClient.ConnectAsync(new(PlatformConfig.FLOW_SERVER_URL ?? throw new InvalidOperationException("FLOW_SERVER_URL is not set"))
+        var settings = await SettingsService.GetSettingsFromServer();
+
+
+        return await TemporalClient.ConnectAsync(new(settings.FlowServerUrl)
         {
-            Namespace = PlatformConfig.FLOW_SERVER_NAMESPACE ?? throw new InvalidOperationException("FLOW_SERVER_NAMESPACE is not set"),
-            Tls = getTlsConfig(), 
+            Namespace = settings.FlowServerNamespace,
+            Tls = getTlsConfig(settings), 
             LoggerFactory = LoggerFactory.Create(builder =>
                 builder.
                     AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ").
@@ -42,12 +45,11 @@ public class TemporalClientService
         });
     }
 
-    private static TlsOptions getTlsConfig()
+    private static TlsOptions getTlsConfig(FlowServerSettings settings)
     {
-        var apiKey = PlatformConfig.FLOW_SERVER_API_KEY ?? throw new InvalidOperationException("FLOW_SERVER_API_KEY is not set");
-        var certBase64 = apiKey.Split(':')[0];
+        var certBase64 = settings.FlowServerCertBase64;
         var cert = Convert.FromBase64String(certBase64);
-        var privateKeyBase64 = apiKey.Split(':')[1];
+        var privateKeyBase64 = settings.FlowServerPrivateKeyBase64;
         var privateKey = Convert.FromBase64String(privateKeyBase64);
         return new()
         {

@@ -38,26 +38,10 @@ internal class WorkerService
             _logger.LogError("App server connection failed because of missing configuration");
             throw new InvalidOperationException("App server connection failed because of missing APP_SERVER_URL");
         }
-        if (string.IsNullOrEmpty(PlatformConfig.FLOW_SERVER_URL))
-        {
-            _logger.LogError("Flow server connection failed because of missing configuration");
-            throw new InvalidOperationException("Flow server connection failed because of missing FLOW_SERVER_URL");
-        }
-        if (string.IsNullOrEmpty(PlatformConfig.FLOW_SERVER_NAMESPACE))
-        {   
-            _logger.LogError("Flow server connection failed because of missing configuration");
-            throw new InvalidOperationException("Flow server connection failed because of missing FLOW_SERVER_NAMESPACE");
-        }
-        if (string.IsNullOrEmpty(PlatformConfig.FLOW_SERVER_API_KEY))
-        {
-            _logger.LogError("Flow server connection failed because of missing configuration");
-            throw new InvalidOperationException("Flow server connection failed because of missing FLOW_SERVER_API_KEY");
-        }
     }
 
     public void TestMe()
     {
-        _logger.LogInformation($"Trying to connect to flow server at: {PlatformConfig.FLOW_SERVER_URL}");
         var temporalClient = TemporalClientService.Instance.GetClientAsync();
         if (temporalClient == null)
         {

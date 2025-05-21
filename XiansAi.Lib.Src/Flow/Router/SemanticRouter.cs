@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -6,6 +5,7 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
+using Server;
 
 namespace XiansAi.Flow.Router;
 
@@ -34,10 +34,12 @@ class SemanticRouterImpl
     private static readonly Dictionary<string, Kernel> _kernelCache = new Dictionary<string, Kernel>();
     private static readonly object _kernelCacheLock = new object();
     private readonly ILogger _logger;
+    private readonly FlowServerSettings _settings;
 
     public SemanticRouterImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
+        _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
     }
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options)
@@ -119,12 +121,8 @@ class SemanticRouterImpl
     {
 
         // Load environment variables from .env file
-        var apiKey = PlatformConfig.OPENAI_API_KEY ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new Exception("OPENAI_API_KEY is not defined in the environment.");
-        }
+        var apiKey = _settings.OpenAIApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
+        
 
         var builder = Kernel.CreateBuilder();
 
