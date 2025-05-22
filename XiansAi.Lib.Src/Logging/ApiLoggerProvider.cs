@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
-
 namespace XiansAi.Logging;
 
 public class ApiLoggerProvider : ILoggerProvider
@@ -27,9 +26,13 @@ public class ApiLogger : ILogger
 
     private LogLevel ProcessTemporalMessage(string message, LogLevel originalLevel)
     {
-      
-         // Check for Temporal exceptions
+    
         if (originalLevel == LogLevel.Error && message.Contains("Temporalio.Exceptions.ActivityFailureException"))
+        {
+            return LogLevel.Critical;
+        }
+
+        if (originalLevel == LogLevel.Trace && message.Contains("Activity task failed"))
         {
             return LogLevel.Critical;
         }
@@ -39,24 +42,17 @@ public class ApiLogger : ILogger
             return originalLevel;
         }
 
-       
         if (!message.Contains("Sending activity completion"))
         {
             return originalLevel;
         }
-
-        // If we find a failure in the message, change the level to Error
+   
         if (message.Contains("\"failed\""))
         {
             return LogLevel.Error;
         }
 
         return originalLevel;
-    }
-
-    public ApiLogger()
-    {
-        // No dependencies needed
     }
 
     IDisposable ILogger.BeginScope<TState>(TState state)
@@ -82,18 +78,14 @@ public class ApiLogger : ILogger
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
-        // Process the message to check for Temporal errors and extract exception
         logLevel = ProcessTemporalMessage(logMessage, logLevel);
 
         var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
-        
-        // Check for both "WorkflowRunId" and "RunId" keys
         var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() 
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "defaultWorkflowRunId";
-
-        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString() ?? "defaultWorkflowType";
-        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent"; // if we dont include AgentContext here for the agent, we're unable to get the agent for temporal logs
+        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString()  ?? "defaultWorkflowType";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent";
         var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
 
         var log = new Log
@@ -112,7 +104,6 @@ public class ApiLogger : ILogger
             UpdatedAt = null
         };
 
-        // Use the static queue instead of a local queue
         LoggingServices.EnqueueLog(log);
     }
 

@@ -1,10 +1,8 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
-
 namespace XiansAi.Logging;
 
 public class Logger<T>
@@ -16,7 +14,6 @@ public class Logger<T>
 
     static Logger()
     {
-        // Initialize logging services - will only happen once 
         InitializeLoggingSystem();
     }
 
@@ -118,33 +115,15 @@ public class Logger<T>
 
         try
         {
-            if (IsInActivity())
-            {
-                var info = ActivityExecutionContext.Current!.Info;
-                contextData["WorkflowId"] = AgentContext.WorkflowId;
-                contextData["WorkflowRunId"] = info.WorkflowRunId;
-                contextData["WorkflowType"] = AgentContext.WorkflowType;
-                contextData["Agent"] = AgentContext.Agent;
-                // participant id
-                contextData["ParticipantId"] = "TODO";
-            }
-            else if (IsInWorkflow())
-            {
-
-                var info = Workflow.Info;
-                contextData["WorkflowRunId"] = info.RunId;
-                contextData["WorkflowId"] = AgentContext.WorkflowId;
-                contextData["WorkflowType"] = AgentContext.WorkflowType;
-                contextData["Agent"] = AgentContext.Agent;
-                //participant id
-                contextData["ParticipantId"] = "TODO";
-
-            }
+            contextData["WorkflowId"] = AgentContext.WorkflowId;
+            contextData["WorkflowRunId"] = AgentContext.WorkflowRunId;
+            contextData["WorkflowType"] = AgentContext.WorkflowType;
+            contextData["Agent"] = AgentContext.Agent;
+            contextData["ParticipantId"] = "TODO";
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            Console.Error.WriteLine("Error getting context data");
-            // If we can't get context data, return empty dictionary
+            Console.Error.WriteLine("Error getting context data: " + e.Message);
         }
 
         return contextData;
