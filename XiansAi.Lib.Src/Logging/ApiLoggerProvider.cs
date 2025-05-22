@@ -7,10 +7,6 @@ public class ApiLoggerProvider : ILoggerProvider
 {
     private bool _isDisposed = false;
 
-    public ApiLoggerProvider(string logApiUrl)
-    {
-        // No need to create a LogQueue anymore
-    }
 
     public ILogger CreateLogger(string categoryName)
     {

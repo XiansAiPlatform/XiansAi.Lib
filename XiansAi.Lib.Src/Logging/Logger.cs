@@ -61,7 +61,7 @@ public class Logger<T>
             var logFactory = LoggerFactory.Create(builder =>
             {
                 // Configure API logger with Trace level
-                builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
+                builder.AddProvider(new ApiLoggerProvider());
 
                 // Configure console logger with level from environment variable
                 var consoleLogLevel = GetConsoleLogLevel();
