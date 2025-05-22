@@ -6,9 +6,9 @@ namespace XiansAi.Messaging;
 
 public interface IMessageThread
 {
-    Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10);
     Task<string?> Respond(string content, string? metadata = null);
-    Task<string?> HandoverTo(string userRequest, string workflowType, string workflowId);
+    Task<string?> Handoff(string userRequest, string workflowType, string workflowId);
+    Task<string?> Handoff(string userRequest, Type workflowType);
 }
 
 public class MessageThread : IMessageThread
@@ -18,7 +18,6 @@ public class MessageThread : IMessageThread
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public string? QueueName { get; set; }
-    public string? Assignment { get; set; }
     public string? ThreadId { get; set; }
     public object? Metadata { get; set; }
     public string? LatestContent { get; set; }
@@ -47,8 +46,7 @@ public class MessageThread : IMessageThread
             WorkflowId = WorkflowId,
             WorkflowType = WorkflowType,
             Agent = Agent,
-            QueueName = QueueName,
-            Assignment = Assignment
+            QueueName = QueueName
         };
 
         if(Workflow.InWorkflow) {
@@ -57,24 +55,23 @@ public class MessageThread : IMessageThread
                 new SystemActivityOptions());
             return success;
         } else {
-            var success = await new SystemActivities().SendMessage(outgoingMessage);
+            var success = await SystemActivities.SendMessageStatic(outgoingMessage);
             return success;
         }
     }
 
-    /// <summary>
-    /// Handover the thread to another workflow.
-    /// </summary>
-    /// <param name="userRequest">The user request.</param>
-    /// <param name="workflowType">The workflow type.</param>
-    /// <param name="workflowIdwithoutTenantPortion">The workflow id without the tenant portion.
-    /// e.g. if "tenant:workflow-1234567890" is the workflow id, 
-    /// then "workflow-1234567890" is the workflow id without the tenant portion.</param>
-    public async Task<string?> HandoverTo(string userRequest, string workflowType, string workflowIdwithoutTenantPortion)
+    public async Task<string?> Handoff(string userRequest, Type workflowType)
+    {
+        var workflowId = AgentContext.GetSingletonWorkflowIdFor(workflowType);
+        var workflowTypeString = AgentContext.GetWorkflowTypeFor(workflowType);
+        return await Handoff(userRequest, workflowTypeString, workflowId);
+    }
+
+    public async Task<string?> Handoff(string userRequest, string workflowType, string workflowId)
     {
         var outgoingMessage = new HandoverMessage
         {
-            WorkflowId = workflowIdwithoutTenantPortion,
+            WorkflowId = workflowId,
             WorkflowType = workflowType,
             Agent = Agent,
             ThreadId = ThreadId ?? throw new Exception("ThreadId is required for handover"),
@@ -91,58 +88,8 @@ public class MessageThread : IMessageThread
                 new SystemActivityOptions());
             return success;
         } else {
-            var success = await new SystemActivities().HandOverThread(outgoingMessage);
+            var success = await SystemActivities.HandOverThreadStatic(outgoingMessage);
             return success;
         }
     }
-}
-
-public class MessageSignal
-{
-    public required string Agent { get; set; }
-    public required string ThreadId { get; set; }
-    public required string ParticipantId { get; set; }
-    public required string Content { get; set; }
-    public required object Metadata { get; set; }
-}
-
-public class OutgoingMessage
-{
-    public required string ParticipantId { get; set; }
-    public required string WorkflowId { get; set; }
-    public required string WorkflowType { get; set; }
-    public required string Agent { get; set; }
-    public string? QueueName { get; set; }
-    public string? Assignment { get; set; }
-    public required string Content { get; set; }
-    public object? Metadata { get; set; }
-    public string? ThreadId { get; set; }
-}
-
-
-public class HandoverMessage 
-{    
-    public string? WorkflowId { get; set; }
-    public required string WorkflowType { get; set; }
-    public required string Agent { get; set; }
-    public required string ThreadId { get; set; }
-    public required string ParticipantId { get; set; }
-    public required string FromWorkflowType { get; set; }
-    public string? UserRequest { get; set; }
-}
-
-
-public class HistoricalMessage
-{
-    public string Id { get; set; } = null!;
-    public required string ThreadId { get; set; }
-    public required DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-    public required string Direction { get; set; }
-    public required string Content { get; set; }
-    public string? Status { get; set; }
-    public object? Metadata { get; set; }
-    public required string ParticipantId { get; set; }
-    public required string WorkflowId { get; set; }
-    public required string WorkflowType { get; set; }
 }

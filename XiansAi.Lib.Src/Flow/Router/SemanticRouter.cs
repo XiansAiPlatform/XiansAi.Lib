@@ -1,27 +1,23 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Temporalio.Workflows;
 using XiansAi.Messaging;
-using XiansAi.Router.Plugins;
+using XiansAi.Flow.Router.Plugins;
+using Server;
 
-namespace XiansAi.Router;
+namespace XiansAi.Flow.Router;
 
-public interface IRouteHub
-{
-    Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options);
-}
 
-public class RouteHub : IRouteHub
+public static class SemanticRouter
 {
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
+    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, capabilitiesPluginNames, options),
+            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
             new SystemActivityOptions());
 
         return response;
@@ -38,13 +34,15 @@ class SemanticRouterImpl
     private static readonly Dictionary<string, Kernel> _kernelCache = new Dictionary<string, Kernel>();
     private static readonly object _kernelCacheLock = new object();
     private readonly ILogger _logger;
+    private readonly FlowServerSettings _settings;
 
     public SemanticRouterImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
+        _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
     }
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, string[] capabilitiesPluginNames, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options)
     {
         try
         {
@@ -53,7 +51,7 @@ class SemanticRouterImpl
                 throw new Exception("System prompt is required");
             }
 
-            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginNames, messageThread);
+            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
 
             var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
             var settings = new OpenAIPromptExecutionSettings
@@ -73,13 +71,13 @@ class SemanticRouterImpl
         }
     }
 
-    private Kernel GetOrCreateCacheableKernel(string workflowType, RouterOptions options, string[] capabilitiesPluginNames)
+    private Kernel GetOrCreateCacheableKernel(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes)
     {
 
         if (string.IsNullOrEmpty(workflowType))
         {
             // If no workflow type, create a new non-cached kernel
-            return InitializeCacheable(options, capabilitiesPluginNames);
+            return InitializeCacheable(options, capabilitiesPluginTypes);
         }
 
         lock (_kernelCacheLock)
@@ -89,47 +87,42 @@ class SemanticRouterImpl
                 return cachedKernel;
             }
 
-            var newKernel = InitializeCacheable(options, capabilitiesPluginNames);
+            var newKernel = InitializeCacheable(options, capabilitiesPluginTypes);
             _kernelCache[workflowType] = newKernel;
             return newKernel;
         }
     }
 
-    private Kernel Initialize(string workflowType, RouterOptions options, string[] capabilitiesPluginNames, MessageThread messageThread)
+    private Kernel Initialize(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes, MessageThread messageThread)
     {
-        var kernel = GetOrCreateCacheableKernel(workflowType, options, capabilitiesPluginNames);
+        var kernel = GetOrCreateCacheableKernel(workflowType, options, capabilitiesPluginTypes);
 
-        foreach (var pluginName in capabilitiesPluginNames)
+        foreach (var type in capabilitiesPluginTypes)
         {
-            var type = GetPluginType(pluginName);
 
             if (!(type.IsAbstract && type.IsSealed))
             {
                 _logger.LogInformation("Getting functions from instance type {PluginType}", type.Name);
-                var instance = Activator.CreateInstance(type, new object[] { messageThread }) ?? throw new Exception($"Failed to create instance of {pluginName}");
+                var instance = Activator.CreateInstance(type, new object[] { messageThread }) ?? throw new Exception($"Failed to create instance of {type.Name}");
                 var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
-                kernel.Plugins.TryGetPlugin(GetPluginName(pluginName), out var plugin);
+                kernel.Plugins.TryGetPlugin(type.Name, out var plugin);
                 if (plugin != null)
                 {
                     kernel.Plugins.Remove(plugin);
                 }
-                kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), functions);
+                kernel.Plugins.AddFromFunctions(type.Name, functions);
             }
         }
 
         return kernel;
     }
 
-    private Kernel InitializeCacheable(RouterOptions options, string[] capabilitiesPluginNames)
+    private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
 
         // Load environment variables from .env file
-        var apiKey = PlatformConfig.OPENAI_API_KEY ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new Exception("OPENAI_API_KEY is not defined in the environment.");
-        }
+        var apiKey = _settings.OpenAIApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
+        
 
         var builder = Kernel.CreateBuilder();
 
@@ -143,52 +136,22 @@ class SemanticRouterImpl
         kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
 
         // add capabilities plugins
-        foreach (var pluginName in capabilitiesPluginNames)
+        foreach (var type in capabilitiesPluginTypes)
         {
-            var type = GetPluginType(pluginName);
 
             if (type.IsAbstract && type.IsSealed)
             {
                 // static plugin
                 _logger.LogInformation("Getting functions from static type {PluginType}", type.Name);
                 var functions = PluginReader.GetFunctionsFromStaticType(type);
-                kernel.Plugins.AddFromFunctions(GetPluginName(pluginName), functions);
+                kernel.Plugins.AddFromFunctions(type.Name, functions);
             }
         }
 
         return kernel;
     }
 
-    private Type GetPluginType(string pluginName)
-    {
-        // Try to get the type directly first
-        var pluginType = Type.GetType(pluginName);
-
-        // If not found, search through all loaded assemblies
-        if (pluginType == null)
-        {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                pluginType = assembly.GetType(pluginName);
-                if (pluginType != null)
-                    break;
-            }
-        }
-
-        if (pluginType == null)
-        {
-            throw new Exception($"Plugin type {pluginName} not found.");
-        }
-
-        return pluginType;
-    }
-
-    private string GetPluginName(string input)
-    {
-        return input.Split('.').Last();
-    }
-
-    private async Task<ChatHistory> ConstructHistory(IMessageThread messageThread, string systemPrompt, int historySizeToFetch)
+    private async Task<ChatHistory> ConstructHistory(MessageThread messageThread, string systemPrompt, int historySizeToFetch)
     {
 
         var chatHistory = new ChatHistory(systemPrompt);

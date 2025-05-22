@@ -13,7 +13,7 @@ public class ActivityUploader
         _logger = Globals.LogFactory.CreateLogger<ActivityUploader>();
     }
 
-    public async Task UploadActivity(FlowActivityHistory activityHistory)
+    public async Task UploadActivity(ActivityHistory activityHistory)
     {
         if (SecureApi.IsReady)
         {

@@ -21,7 +21,7 @@ public interface IFlowDefinitionUploader
     /// <param name="flow">The flow information</param>
     /// <param name="source">Optional source code of the flow</param>
     /// <returns>A task representing the upload operation</returns>
-    Task UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source = null) 
+    Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow, string? source = null) 
         where TFlow : class;
 }
 
@@ -55,7 +55,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="source">Optional source code of the flow</param>
     /// <returns>A task representing the upload operation</returns>
     /// <exception cref="InvalidOperationException">Thrown if upload fails</exception>
-    public async Task UploadFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source = null)
+    public async Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow, string? source = null)
         where TFlow : class
     {
         var flowDefinition = CreateFlowDefinition(flow, source);
@@ -71,17 +71,15 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="flow">The flow information</param>
     /// <param name="source">Optional source code</param>
     /// <returns>A flow definition ready to be uploaded</returns>
-    private FlowDefinition CreateFlowDefinition<TFlow>(FlowInfo<TFlow> flow, string? source)
+    private FlowDefinition CreateFlowDefinition<TFlow>(Runner<TFlow> flow, string? source)
         where TFlow : class
     {
         return new FlowDefinition {
-            WorkflowType = flow.GetWorkflowName(),
-            Agent = flow.GetAgentName(),
-            ParameterDefinitions = flow.GetParameters(),
-            ActivityDefinitions = GetAllActivities(flow.GetObjects()).ToArray(),
-            Source = source ?? ReadSource(typeof(TFlow)),
-            Categories = flow.GetCategories(),
-            KnowledgeIds = flow.GetKnowledgeIds()
+            WorkflowType = flow.WorkflowName,
+            Agent = flow.AgentName,
+            ParameterDefinitions = flow.WorkflowParameters,
+            ActivityDefinitions = GetAllActivities(flow.ActivityInterfaces).ToArray(),
+            Source = source ?? ReadSource(typeof(TFlow))
         };
     }
 
@@ -109,6 +107,15 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
                 var errorMessage = await response.Content.ReadAsStringAsync();
                 _logger.LogError("Bad Request: {ErrorMessage}", errorMessage);
                 throw new InvalidOperationException(errorMessage);
+            }
+            
+            // Handle permission warning (403 Forbidden)
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                var warningJson = await response.Content.ReadAsStringAsync();
+                var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
+                _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
+                throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
             }
             
             response.EnsureSuccessStatusCode();
@@ -157,17 +164,15 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <summary>
     /// Gets all activities from a list of flow objects.
     /// </summary>
-    /// <param name="objects">List of flow objects</param>
+    /// <param name="interfaceTypes">List of interface types</param>
     /// <returns>List of activity definitions</returns>
-    private List<ActivityDefinition> GetAllActivities(List<(Type interfaceType, object stub, object proxy)> objects) 
+    private List<ActivityDefinition> GetAllActivities(List<Type> interfaceTypes) 
     {
         var activities = new List<ActivityDefinition>();
         
-        foreach (var (interfaceType, _, _) in objects) 
+        foreach (var interfaceType in interfaceTypes) 
         {
-            var agentToolsAttribute = interfaceType.GetCustomAttributes<AgentToolAttribute>();
-            var agentToolNames = agentToolsAttribute?.Select(a => a.ToString() ?? "").ToList() ?? [];
-            activities.AddRange(GetActivities(interfaceType, agentToolNames));
+            activities.AddRange(GetActivities(interfaceType));
         }
         
         return activities;
@@ -179,7 +184,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="stubType">The type to extract activities from</param>
     /// <param name="agentNames">List of agent tool names</param>
     /// <returns>List of activity definitions</returns>
-    private List<ActivityDefinition> GetActivities(Type stubType, List<string> agentNames) 
+    private List<ActivityDefinition> GetActivities(Type stubType) 
     {
         var activityMethods = stubType.GetMethods()
             .Where(m => m.GetCustomAttribute<Temporalio.Activities.ActivityAttribute>() != null)
@@ -207,10 +212,18 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
                 ActivityName = activityName,
                 ParameterDefinitions = parameters,
                 KnowledgeIds = knowledgeAttribute?.Knowledge.ToList() ?? [],
-                AgentToolNames = agentNames
+                AgentToolNames = new List<string>()
             });
         }
         
         return activities;
+    }
+    
+    /// <summary>
+    /// Class to deserialize warning messages from the server
+    /// </summary>
+    internal class WarningResponse
+    {
+        public string? message { get; set; }
     }
 }

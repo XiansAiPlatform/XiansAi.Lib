@@ -8,10 +8,11 @@ using XiansAi.Events;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 
+[Collection("SecureApi Tests")]
 public class SystemActivitiesTests
 {
     private readonly ILoggerFactory _loggerFactory;
-    private readonly SystemActivities _systemActivities;
+    //private readonly SystemActivities _systemActivities;
     private readonly ThreadHistoryService _threadHistoryService;
     private readonly string _certificateBase64;
     private readonly string _serverUrl;
@@ -46,7 +47,7 @@ public class SystemActivitiesTests
 
         // Create the system activities instance
         _threadHistoryService = new ThreadHistoryService();
-        _systemActivities = new SystemActivities();
+        //_systemActivities = new SystemActivities();
     }
 
     /*
@@ -65,7 +66,6 @@ public class SystemActivitiesTests
             WorkflowType = "test-workflow-type",
             Agent = "test-agent",
             QueueName = "test-queue-name",
-            Assignment = "test-assignment"
         };
         
         var message2 = new OutgoingMessage 
@@ -77,14 +77,13 @@ public class SystemActivitiesTests
             WorkflowType = "test-workflow-type",
             Agent = "test-agent",
             QueueName = "test-queue-name",
-            Assignment = "test-assignment"
         };
 
         // Act - Send messages
         try
         {
-            var sendResult1 = await _systemActivities.SendMessage(message1);
-            var sendResult2 = await _systemActivities.SendMessage(message2);
+            var sendResult1 = await SystemActivities.SendMessageStatic(message1);
+            var sendResult2 = await SystemActivities.SendMessageStatic(message2);
 
             Assert.NotNull(sendResult1);
             Assert.NotNull(sendResult2);
@@ -148,7 +147,7 @@ public class SystemActivitiesTests
     public async Task SendEvent_ShouldSendEventSuccessfully()
     {
         // Arrange
-        var testEvent = new EventDto
+        var testEvent = new EventSignal
         {
             EventType = "tender-notification",
             SourceWorkflowId = "test-source-workflow",
@@ -162,13 +161,11 @@ public class SystemActivitiesTests
                 { "pointOfContact", "hasithy@99x.io" },
                 { "tenderLink", "https://www.globaltenders.com/freetenders-detail/Calcined-metallurgical-grade-sandy-alumina-procurement-GTF027652" }
             },
-            SourceQueueName = null,
-            SourceAgent = "Hayleys Agent",
-            SourceAssignment = null
+            SourceAgent = "Hayleys Agent"
         };
 
         // Act
-        await _systemActivities.SendEvent(testEvent);
+        await SystemActivities.SendEventStatic(testEvent);
 
         // Assert
         // Since this is an integration test with a real server, we can't directly verify

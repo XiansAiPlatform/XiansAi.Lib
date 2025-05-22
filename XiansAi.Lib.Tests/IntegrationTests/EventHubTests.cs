@@ -15,7 +15,7 @@ public class EventHubTests
     private readonly string _certificateBase64;
     private readonly string _serverUrl;
     private readonly ILogger<EventHubTests> _logger;
-    private readonly SystemActivities _systemActivities;
+    //private readonly SystemActivities _systemActivities;
 
     /*
     dotnet test --filter "FullyQualifiedName~EventHubTests"
@@ -45,7 +45,7 @@ public class EventHubTests
         SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
         
         // Create SystemActivities instance
-        _systemActivities = new SystemActivities();
+        //_systemActivities = new SystemActivities();
     }
 
     /*
@@ -63,7 +63,7 @@ public class EventHubTests
             Timestamp = DateTime.UtcNow
         };
         
-        var evt = new EventDto {
+        var evt = new EventSignal {
             EventType = "TestEvent",
             SourceWorkflowId = sourceWorkflowId,
             SourceWorkflowType = "TestWorkflow",
@@ -81,7 +81,7 @@ public class EventHubTests
         // The test should receive a Not Found response
         try
         {
-            await _systemActivities.SendEvent(evt);
+            await SystemActivities.SendEventStatic(evt);
             Assert.Fail("Expected HttpRequestException with NotFound status, but no exception was thrown");
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
@@ -113,7 +113,7 @@ public class EventHubTests
             Timestamp = DateTime.UtcNow
         };
         
-        var evt = new EventDto {
+        var evt = new EventSignal {
             EventType = "TestStartEvent",
             SourceWorkflowId = sourceWorkflowId,
             SourceWorkflowType = "TestWorkflow",
@@ -132,7 +132,7 @@ public class EventHubTests
         // 2. A TaskCanceledException is thrown (which can happen due to network issues)
         try
         {
-            await _systemActivities.SendEvent(evt);
+            await SystemActivities.SendEventStatic(evt);
             _logger.LogInformation("Successfully started workflow and sent event");
         }
         catch (TaskCanceledException ex)

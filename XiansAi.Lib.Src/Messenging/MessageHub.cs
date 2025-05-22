@@ -27,7 +27,7 @@ public class MessageHub: IMessageHub
     private readonly Dictionary<Delegate, Func<MessageThread, Task>> _handlerMappings = 
         new Dictionary<Delegate, Func<MessageThread, Task>>();
 
-    public static async Task<string?> SendMessageAsync(string content, string participantId, object? metadata = null)
+    public static async Task<string?> Send(string content, string participantId, object? metadata = null)
     {
         var outgoingMessage = new OutgoingMessage
         {
@@ -39,11 +39,19 @@ public class MessageHub: IMessageHub
             Agent = AgentContext.Agent
         };
 
-        var success = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.SendMessage(outgoingMessage),
-            new SystemActivityOptions());
+        if (Workflow.InWorkflow)
+        {
+            var success = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.SendMessage(outgoingMessage),
+                new SystemActivityOptions());
+            return success;
+        }
+        else
+        {
+            var success = await SystemActivities.SendMessageStatic(outgoingMessage);
+            return success;
+        }
 
-        return success;
     }
 
     public void RegisterAsyncHandler(MessageReceivedAsyncHandler handler)
@@ -97,13 +105,13 @@ public class MessageHub: IMessageHub
         _logger.LogInformation($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
 
         var messageThread = new MessageThread {
-            ParticipantId = messageSignal.ParticipantId,
             WorkflowId = AgentContext.WorkflowId,
             WorkflowType = AgentContext.WorkflowType,
-            ThreadId = messageSignal.ThreadId,
             Agent = AgentContext.Agent,
-            Metadata = messageSignal.Metadata,
-            LatestContent = messageSignal.Content
+            ThreadId = messageSignal.Payload.ThreadId,
+            ParticipantId = messageSignal.Payload.ParticipantId,
+            Metadata = messageSignal.Payload.Metadata,
+            LatestContent = messageSignal.Payload.Content
         };
 
         _logger.LogInformation($"New MessageThread created: {JsonSerializer.Serialize(messageThread)}");

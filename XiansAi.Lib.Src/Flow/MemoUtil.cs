@@ -18,12 +18,6 @@ public class MemoUtil
     {
         return ExtractMemoValue(_memo, Constants.AgentKey) ?? throw new Exception("Agent value not found in workflow memo");
     }
-
-    public string? GetAssignment()
-    {
-        return ExtractMemoValue(_memo, Constants.AssignmentKey);
-    }
-
     public string? GetQueueName()
     {
         return ExtractMemoValue(_memo, Constants.QueueNameKey);

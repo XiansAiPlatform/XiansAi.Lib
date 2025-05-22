@@ -1,0 +1,98 @@
+using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Text.Json;
+
+namespace Server;
+
+
+public class FlowServerSettings
+{
+    public required string FlowServerUrl { get; set; }
+    public required string FlowServerNamespace { get; set; }
+    public required string FlowServerCertBase64 { get; set; }
+    public required string FlowServerPrivateKeyBase64 { get; set; }
+    public required string OpenAIApiKey { get; set; }
+}
+
+public static class SettingsService
+{
+    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<FlowServerSettings>();
+    private const string SETTINGS_URL = "api/agent/settings/flowserver";
+
+    private static FlowServerSettings? _settings;
+
+
+    /// <summary>
+    /// Loads settings from the server. Caches the settings after the first fetch.
+    /// </summary>
+    /// <returns>The flow server settings</returns>
+    public static async Task<FlowServerSettings> GetSettingsFromServer()
+    {
+        // Return cached settings if available
+        if (_settings != null)
+        {
+            return _settings;
+        }
+
+        if (!SecureApi.IsReady)
+        {
+            _logger.LogWarning("App server secure API is not ready, cannot load settings from server");
+            throw new Exception("App server secure API is not ready, cannot load settings from server");
+        }
+
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var httpResult = await client.GetAsync(SETTINGS_URL);
+
+            
+            if (httpResult.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"Failed to get settings from server. Status code: {httpResult.StatusCode}");
+            }
+
+            _settings = await ParseSettingsResponse(httpResult);
+            return _settings;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError($"Failed to load settings from server {e.Message}");
+            throw new Exception($"Failed to load settings from server {e.Message}", e);
+        }
+    }
+
+
+    /// <summary>
+    /// Parses the server response into a Knowledge object
+    /// </summary>
+    private static async Task<FlowServerSettings> ParseSettingsResponse(HttpResponseMessage httpResult)
+    {
+        var response = await httpResult.Content.ReadAsStringAsync();
+
+        try
+        {
+            var options = new JsonSerializerOptions
+            { 
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            
+            var settings = JsonSerializer.Deserialize<FlowServerSettings>(response, options);
+
+            if (settings == null)
+            {
+                _logger.LogError($"Failed to deserialize settings from server: {response}");
+                throw new Exception($"Failed to deserialize settings from server: {response}");
+            }
+
+            _logger.LogInformation($"Settings loaded from server: {settings.FlowServerUrl}");
+            
+            return settings;
+        } 
+        catch (Exception e)
+        {
+            _logger.LogError($"Failed to deserialize settings from server: {response}", e);
+            throw new Exception($"Failed to deserialize settings from server: {response}", e);
+        }
+    }
+}

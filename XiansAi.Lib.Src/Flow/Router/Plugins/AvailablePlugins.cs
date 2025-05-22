@@ -1,13 +1,10 @@
-using System;
-using System.Collections.Generic;
-
-namespace XiansAi.Router.Plugins;
+namespace XiansAi.Flow.Router.Plugins;
 
 /// <summary>
 /// Provides a list of predefined plugins that are available for use with the DynamicOrchestrator.
 /// Only the plugins defined within this class can be added to the orchestrator.
 /// </summary>
-public static class AvailablePlugins
+internal static class AvailablePlugins
 {
     /// <summary>
     /// The DatePlugin provides functionalities related to date and time.

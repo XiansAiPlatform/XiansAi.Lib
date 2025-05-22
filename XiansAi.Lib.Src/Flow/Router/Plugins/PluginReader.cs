@@ -8,14 +8,14 @@ using XiansAi.Activity;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 
-namespace XiansAi.Router.Plugins;
+namespace XiansAi.Flow.Router.Plugins;
 
-public class PluginReaderLogger { }
+internal class PluginReaderLogger { }
 
 /// <summary>
 /// Base class for all plugins that provides common functionality.
 /// </summary>
-public static class PluginReader
+internal static class PluginReader
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<PluginReaderLogger>();
 

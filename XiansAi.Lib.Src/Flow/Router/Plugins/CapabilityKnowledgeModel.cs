@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace XiansAi.Router.Plugins;
+namespace XiansAi.Flow.Router.Plugins;
 
 /// <summary>
 /// Represents the structure of the JSON file referenced by CapabilityKnowledgeAttribute.
