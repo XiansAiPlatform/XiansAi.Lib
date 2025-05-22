@@ -1,16 +1,11 @@
 using Microsoft.Extensions.Logging;
 using XiansAi.Models;
-
 namespace XiansAi.Logging;
 
 public class ApiLoggerProvider : ILoggerProvider
 {
     private bool _isDisposed = false;
 
-    public ApiLoggerProvider(string logApiUrl)
-    {
-        // No need to create a LogQueue anymore
-    }
 
     public ILogger CreateLogger(string categoryName)
     {
@@ -29,9 +24,35 @@ public class ApiLogger : ILogger
     private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
     private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
 
-    public ApiLogger()
+    private LogLevel ProcessTemporalMessage(string message, LogLevel originalLevel)
     {
-        // No dependencies needed
+    
+        if (originalLevel == LogLevel.Error && message.Contains("Temporalio.Exceptions.ActivityFailureException"))
+        {
+            return LogLevel.Critical;
+        }
+
+        if (originalLevel == LogLevel.Trace && message.Contains("Activity task failed"))
+        {
+            return LogLevel.Critical;
+        }
+
+        if (originalLevel != LogLevel.Trace && originalLevel != LogLevel.Debug)
+        {
+            return originalLevel;
+        }
+
+        if (!message.Contains("Sending activity completion"))
+        {
+            return originalLevel;
+        }
+   
+        if (originalLevel == LogLevel.Trace && message.Contains("\"failed\""))
+        {
+            return LogLevel.Error;
+        }
+
+        return originalLevel;
     }
 
     IDisposable ILogger.BeginScope<TState>(TState state)
@@ -57,12 +78,15 @@ public class ApiLogger : ILogger
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
+        logLevel = ProcessTemporalMessage(logMessage, logLevel);
+
         var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
-        
-        // Check for both "WorkflowRunId" and "RunId" keys
         var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() 
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "defaultWorkflowRunId";
+        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString()  ?? "defaultWorkflowType";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent";
+        var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
 
         var log = new Log
         {
@@ -72,12 +96,14 @@ public class ApiLogger : ILogger
             Message = logMessage,
             WorkflowId = workflowId,
             WorkflowRunId = workflowRunId,
+            WorkflowType = workflowType,
+            Agent = agent,
+            ParticipantId = participantId,
             Properties = null,
             Exception = exception?.ToString(),
             UpdatedAt = null
         };
 
-        // Use the static queue instead of a local queue
         LoggingServices.EnqueueLog(log);
     }
 

@@ -1,10 +1,8 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
-
 namespace XiansAi.Logging;
 
 public class Logger<T>
@@ -16,7 +14,6 @@ public class Logger<T>
 
     static Logger()
     {
-        // Initialize logging services - will only happen once 
         InitializeLoggingSystem();
     }
 
@@ -25,15 +22,15 @@ public class Logger<T>
         lock (_initLock)
         {
             if (_isInitialized) return;
-            
+
             // Initialize minimal logger for application startup
             var services = new ServiceCollection()
                 .AddLogging()
                 .BuildServiceProvider();
-                
+
             // Initialize the logging system
             LoggingServices.Initialize(services);
-            
+
             _isInitialized = true;
         }
     }
@@ -55,22 +52,24 @@ public class Logger<T>
 
     private Logger()
     {
-        _lazyLogger = new Lazy<ILogger>(() => {
+        _lazyLogger = new Lazy<ILogger>(() =>
+        {
 
             var logFactory = LoggerFactory.Create(builder =>
             {
                 // Configure API logger with Trace level
-                builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
-                
+                builder.AddProvider(new ApiLoggerProvider());
+
                 // Configure console logger with level from environment variable
                 var consoleLogLevel = GetConsoleLogLevel();
-                builder.AddConsole(options => {
+                builder.AddConsole(options =>
+                {
                     options.LogToStandardErrorThreshold = consoleLogLevel;
                 });
-                
+
                 // Set the default minimum level to Trace to ensure API logger gets all logs
                 builder.SetMinimumLevel(LogLevel.Trace);
-                
+
                 // Configure console logger to respect the environment variable level
                 builder.AddFilter("Microsoft", consoleLogLevel)
                        .AddFilter("System", consoleLogLevel)
@@ -116,23 +115,15 @@ public class Logger<T>
 
         try
         {
-            if (IsInActivity())
-            {
-                var info = ActivityExecutionContext.Current!.Info;
-                contextData["WorkflowId"] = info.WorkflowId;
-                contextData["WorkflowRunId"] = info.WorkflowRunId;
-            }
-            else if (IsInWorkflow())
-            {
-                var info = Workflow.Info;
-                contextData["WorkflowId"] = info.WorkflowId;
-                contextData["WorkflowRunId"] = info.RunId;
-            }
+            contextData["WorkflowId"] = AgentContext.WorkflowId;
+            contextData["WorkflowRunId"] = AgentContext.WorkflowRunId;
+            contextData["WorkflowType"] = AgentContext.WorkflowType;
+            contextData["Agent"] = AgentContext.Agent;
+            contextData["ParticipantId"] = "TODO";
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            Console.Error.WriteLine("Error getting context data");
-            // If we can't get context data, return empty dictionary
+            Console.Error.WriteLine("Error getting context data: " + e.Message);
         }
 
         return contextData;
@@ -170,10 +161,10 @@ public class Logger<T>
 
     private void Log(LogLevel logLevel, string message, Exception? exception)
     {
-         var contextData = GetContextData();
+        var contextData = GetContextData();
         // If in workflow context, use Workflow.Logger
         if (IsInWorkflow())
-        {   
+        {
             // Create a scope for Workflow.Logger with the appropriate context data
             using (Workflow.Logger.BeginScope(contextData))
             {
@@ -200,9 +191,9 @@ public class Logger<T>
                         break;
                     case LogLevel.Critical:
                         if (exception != null)
-                            Workflow.Logger.LogError($"CRITICAL: {message} Exception: {exception}");
+                            Workflow.Logger.LogCritical($"{message} Exception: {exception}");
                         else
-                            Workflow.Logger.LogError($"CRITICAL: {message}");
+                            Workflow.Logger.LogCritical(message);
                         break;
                     default:
                         Workflow.Logger.LogInformation(message);
@@ -239,4 +230,4 @@ public class Logger<T>
             }
         }
     }
-} 
+}

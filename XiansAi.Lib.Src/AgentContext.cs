@@ -8,6 +8,7 @@ public class AgentContext
     private static string? _agent { get; set; }
     private static string? _workflowId { get; set; }
     private static string? _workflowType { get; set; }
+    private static string? _workflowRunId { get; set; }
 
     public static string GetSingletonWorkflowIdFor(Type flowClassType)
     {
@@ -105,4 +106,29 @@ public class AgentContext
         }
     }
 
+    public static string WorkflowRunId { 
+        get 
+        {
+            if (Workflow.InWorkflow)
+            {
+                return Workflow.Info.RunId;
+            }
+            else if (ActivityExecutionContext.HasCurrent)
+            {
+                return ActivityExecutionContext.Current.Info.WorkflowRunId;
+            }
+            else if (_workflowRunId != null)
+            {
+                return _workflowRunId;
+            }
+            else
+            {
+                throw new InvalidOperationException("Not in workflow or activity");
+            }
+        }
+        set
+        {
+            _workflowRunId = value;
+        }
+    }
 }

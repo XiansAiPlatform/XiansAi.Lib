@@ -128,6 +128,10 @@ public static class LoggingServices
     private static void ProcessLogBatch()
     {
         if (_globalLogQueue.IsEmpty) return;
+        
+        // Check and reinitialize secure API client if needed
+        EnsureSecureApiClient();
+        
         if (_secureApiClient == null) return;
 
         List<Log> batchToSend = new();
@@ -145,11 +149,25 @@ public static class LoggingServices
     }
 
     /// <summary>
+    /// Ensures the secure API client is initialized and available
+    /// </summary>
+    private static void EnsureSecureApiClient()
+    {
+        if (_secureApiClient == null && SecureApi.IsReady)
+        {
+            _secureApiClient = SecureApi.Instance;
+        }
+    }
+
+    /// <summary>
     /// Sends a batch of logs to the API
     /// </summary>
     private static async Task SendLogBatchAsync(List<Log> logs)
     {
-        if (_secureApiClient == null )
+        // Check and reinitialize secure API client if needed
+        EnsureSecureApiClient();
+        
+        if (_secureApiClient == null)
         {
             Console.Error.WriteLine("App server secure API is not available, log upload failed");
             RequeueLogBatch(logs);
