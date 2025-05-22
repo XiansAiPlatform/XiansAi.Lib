@@ -10,6 +10,9 @@ namespace XiansAi.Models
         public required string Message { get; set; }
         public required string WorkflowId { get; set; }
         public required string WorkflowRunId { get; set; }
+        public required string WorkflowType { get; set; }
+        public required string Agent { get; set; }
+        public required string ParticipantId { get; set; }
         public Dictionary<string, object>? Properties { get; set; }
         public string? Exception { get; set; }
         public DateTime? UpdatedAt { get; set; }

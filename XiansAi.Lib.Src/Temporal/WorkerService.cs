@@ -147,7 +147,7 @@ internal class WorkerService
     {
         return LoggerFactory.Create(builder =>
         {
-            builder.AddProvider(new ApiLoggerProvider("/api/agent/logs"));
+            builder.AddProvider(new ApiLoggerProvider());
             var consoleLogLevel = GetConsoleLogLevel();
             _logger.LogInformation($"Console log level: {consoleLogLevel}");
             
