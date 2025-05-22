@@ -47,7 +47,7 @@ public class ApiLogger : ILogger
             return originalLevel;
         }
    
-        if (message.Contains("\"failed\""))
+        if (originalLevel == LogLevel.Trace && message.Contains("\"failed\""))
         {
             return LogLevel.Error;
         }

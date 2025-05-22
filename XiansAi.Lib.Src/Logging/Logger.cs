@@ -191,9 +191,9 @@ public class Logger<T>
                         break;
                     case LogLevel.Critical:
                         if (exception != null)
-                            Workflow.Logger.LogError($"CRITICAL: {message} Exception: {exception}");
+                            Workflow.Logger.LogCritical($"{message} Exception: {exception}");
                         else
-                            Workflow.Logger.LogError($"CRITICAL: {message}");
+                            Workflow.Logger.LogCritical(message);
                         break;
                     default:
                         Workflow.Logger.LogInformation(message);
