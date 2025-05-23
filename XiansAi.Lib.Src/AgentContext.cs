@@ -12,14 +12,14 @@ public class AgentContext
 
     public static string GetSingletonWorkflowIdFor(Type flowClassType)
     {
-        var workflowId = $"{Agent}:{GetWorkflowTypeFor(flowClassType)}";
-        return workflowId.Replace(" ", "");
+        var workflowId = $"{GetWorkflowTypeFor(flowClassType)}";
+        return workflowId;
     }
 
     public static string GetWorkflowTypeFor(Type flowClassType)
     {
         var workflowAttr = flowClassType.GetCustomAttribute<WorkflowAttribute>();
-        return workflowAttr?.Name ?? flowClassType.Name;
+        return workflowAttr?.Name ?? throw new InvalidOperationException("WorkflowAttribute.Name is not set");
     }
 
 

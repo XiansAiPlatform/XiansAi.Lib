@@ -121,9 +121,9 @@ public class Logger<T>
             contextData["Agent"] = AgentContext.Agent;
             contextData["ParticipantId"] = "TODO";
         }
-        catch (Exception e)
+        catch (InvalidOperationException)
         {
-            Console.Error.WriteLine("Error getting context data: " + e.Message);
+            //ignore, not in workflow or activity
         }
 
         return contextData;

@@ -10,9 +10,12 @@ namespace XiansAi.Flow;
 internal class WorkerService
 {
     private readonly Logging.Logger<WorkerService> _logger;    
-    public WorkerService(FlowRunnerOptions? options = null)
+
+    private readonly RunnerOptions? _options;
+    public WorkerService(RunnerOptions? options = null)
     {
         _logger = Logging.Logger<WorkerService>.For();
+        _options = options;
 
         ValidateConfig();
 
@@ -100,9 +103,14 @@ internal class WorkerService
 
         // Run the worker for the flow
         var client = TemporalClientService.Instance.GetClientAsync();
-        var workFlowName = flow.WorkflowName;
 
+        var workFlowName = flow.WorkflowName;
         var taskQueue = workFlowName; 
+
+        if (!string.IsNullOrEmpty(_options?.QueuePrefix))
+        {
+            taskQueue = _options.QueuePrefix + taskQueue;
+        } 
 
         _logger.LogInformation($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
 
