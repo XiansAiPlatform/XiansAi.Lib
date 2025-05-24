@@ -73,9 +73,13 @@ public class Agent
         await Task.WhenAll(tasks);
     }
 
+#pragma warning disable CS0618 // Type or member is obsolete
     internal AgentInfo GetAgentInfo()
+#pragma warning restore CS0618 // Type or member is obsolete
     {
+#pragma warning disable CS0618 // Type or member is obsolete
         return new AgentInfo(Name);
+#pragma warning restore CS0618 // Type or member is obsolete
     }
 }
 
@@ -107,6 +111,7 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
     internal Flow(Agent agent)
     {
         _agent = agent;
+
         var agentInfo = agent.GetAgentInfo();
         var flowInfo = new FlowInfo();
         _runner = new Runner<TWorkflow>(agentInfo, flowInfo);
@@ -191,6 +196,8 @@ public class Runner<TClass> where TClass : class
 {
     private readonly Dictionary<Type, object> _activityProxies = new();
     private readonly List<Type> _capabilities = new();
+
+#pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }
     public FlowInfo? FlowInfo { get; private set; }
     private readonly Logger<Runner<TClass>> _logger = Logger<Runner<TClass>>.For();
@@ -204,6 +211,7 @@ public class Runner<TClass> where TClass : class
         // validate the runner
         Validate();
     }
+#pragma warning restore CS0618 // Type or member is obsolete
 
     private void Validate()
     {
@@ -214,7 +222,7 @@ public class Runner<TClass> where TClass : class
         // Workflow name should start with AgentName:
         if (!WorkflowName.StartsWith(AgentName + ":"))
         {
-            throw new InvalidOperationException($"WorkflowName must start with `{AgentName}:`");
+            throw new InvalidOperationException($"Invalid workflow name `{WorkflowName}`. WorkflowName must start with `agent_name:`, i.e. `{AgentName}:`");
         }
     }
 
@@ -360,6 +368,7 @@ public class Runner<TClass> where TClass : class
             }).ToList() ?? [];
         }
     }
+
 }
 
 
@@ -373,6 +382,7 @@ public class FlowInfo
     public bool AutoActivate { get; set; } = false;
 }
 
+[Obsolete("Use of AgentInfo is now obsolete. Refer to the online documentation for more information on how to create an agent.")]
 public class AgentInfo
 {
     public AgentInfo(string name, string? description = null, string? svgIcon = null)
