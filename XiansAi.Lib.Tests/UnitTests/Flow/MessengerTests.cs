@@ -13,7 +13,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         */
         public MessengerTests()
         {
-            AgentContext.Agent = "test-agent";
+            AgentContext.AgentName = "test-agent";
             AgentContext.WorkflowId = "test-workflow-id";
             AgentContext.WorkflowType = "test-workflow-type";
         }

@@ -83,7 +83,7 @@ public class KnowledgeUpdaterImpl : IKnowledgeUpdater
     /// <returns>A task representing the asynchronous operation</returns>
     private async Task<bool> UpdateOnServer(string knowledgeName, string knowledgeType, string knowledgeContent)
     {
-        var agent = AgentContext.Agent;
+        var agent = AgentContext.AgentName;
         _logger.LogInformation($"Updating knowledge on server: {knowledgeName} for agent: {agent}");
         _logger.LogInformation($"Content: {knowledgeContent}");
 

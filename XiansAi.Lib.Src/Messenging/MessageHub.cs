@@ -36,7 +36,7 @@ public class MessageHub: IMessageHub
             ParticipantId = participantId,
             WorkflowId = AgentContext.WorkflowId,
             WorkflowType = AgentContext.WorkflowType,
-            Agent = AgentContext.Agent
+            Agent = AgentContext.AgentName
         };
 
         if (Workflow.InWorkflow)
@@ -107,7 +107,7 @@ public class MessageHub: IMessageHub
         var messageThread = new MessageThread {
             WorkflowId = AgentContext.WorkflowId,
             WorkflowType = AgentContext.WorkflowType,
-            Agent = AgentContext.Agent,
+            Agent = AgentContext.AgentName,
             ThreadId = messageSignal.Payload.ThreadId,
             ParticipantId = messageSignal.Payload.ParticipantId,
             Metadata = messageSignal.Payload.Metadata,

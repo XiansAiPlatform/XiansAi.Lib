@@ -85,7 +85,7 @@ public class ApiLogger : ILogger
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "defaultWorkflowRunId";
         var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString()  ?? "defaultWorkflowType";
-        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.Agent ?? "defaultAgent";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.AgentName ?? "defaultAgent";
         var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
 
         var log = new Log

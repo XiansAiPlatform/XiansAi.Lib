@@ -44,7 +44,7 @@ public class InstructionLoaderTests
         // Create the instruction loader with real SecureApi
         _knowledgeLoader = new KnowledgeLoaderImpl();
 
-        AgentContext.Agent = "test-agent";
+        AgentContext.AgentName = "test-agent";
     }
 
     /*

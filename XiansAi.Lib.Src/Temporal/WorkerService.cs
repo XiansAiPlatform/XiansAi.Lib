@@ -1,20 +1,21 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
+
 using Temporalio.Worker;
 using Server;
 using Temporal;
-using XiansAi.Logging;
+using XiansAi.Server;
 
 namespace XiansAi.Flow;
 
 internal class WorkerService
 {
     private readonly Logging.Logger<WorkerService> _logger;    
+    private readonly CertificateReader _certificateReader;
 
     private readonly RunnerOptions? _options;
     public WorkerService(RunnerOptions? options = null)
     {
         _logger = Logging.Logger<WorkerService>.For();
+        _certificateReader = new CertificateReader();
         _options = options;
 
         ValidateConfig();
@@ -28,7 +29,7 @@ internal class WorkerService
             );
         }
     }
-    
+
     private void ValidateConfig()
     {
         if (string.IsNullOrEmpty(PlatformConfig.APP_SERVER_API_KEY))
@@ -116,7 +117,7 @@ internal class WorkerService
 
         var options = new TemporalWorkerOptions()
         {
-            LoggerFactory = CreateTemporalLoggerFactory(),
+            LoggerFactory = LoggingUtils.CreateTemporalLoggerFactory(),
             TaskQueue = taskQueue
         };
         
@@ -134,43 +135,6 @@ internal class WorkerService
         );
         _logger.LogInformation($"Worker to run `{workFlowName}` on queue `{taskQueue}` created. Ready to run!!");
         await worker.ExecuteAsync(cancellationToken!);
-    }
-
-    private LogLevel GetConsoleLogLevel()
-    {
-        var consoleLogLevel = Environment.GetEnvironmentVariable("CONSOLE_LOG_LEVEL")?.ToUpper();
-        return consoleLogLevel switch
-        {
-            "TRACE" => LogLevel.Trace,
-            "DEBUG" => LogLevel.Debug,
-            "INFORMATION" => LogLevel.Information,
-            "WARNING" => LogLevel.Warning,
-            "ERROR" => LogLevel.Error,
-            "CRITICAL" => LogLevel.Critical,
-            _ => LogLevel.Information // Default to Information if not set or invalid
-        };
-    }
-
-    private ILoggerFactory CreateTemporalLoggerFactory()
-    {
-        return LoggerFactory.Create(builder =>
-        {
-            builder.AddProvider(new ApiLoggerProvider());
-            var consoleLogLevel = GetConsoleLogLevel();
-            _logger.LogInformation($"Console log level: {consoleLogLevel}");
-            
-            // Set global minimum level to capture everything
-            builder.SetMinimumLevel(LogLevel.Trace);
-            
-            // Configure console with specific filtering for Temporalio
-            builder.AddConsole(options => 
-            {
-                options.LogToStandardErrorThreshold = consoleLogLevel;
-            });
-            
-            // Explicitly filter Temporalio category to Information level for the console
-            builder.AddFilter<ConsoleLoggerProvider>("Temporalio", consoleLogLevel);
-        });
     }
 }
 

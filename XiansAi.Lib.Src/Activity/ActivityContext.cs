@@ -14,7 +14,7 @@ public static class ActivityContext
         var context = ActivityExecutionContext.Current ?? throw new InvalidOperationException("ActivityExecutionContext is null");
         return new ActivityHistory
         {
-            Agent = AgentContext.Agent ?? throw new InvalidOperationException("Agent can not be null, set the agent first"),
+            Agent = AgentContext.AgentName ?? throw new InvalidOperationException("Agent can not be null, set the agent first"),
             ActivityId = context.Info.ActivityId ?? throw new InvalidOperationException("ActivityId is null"),
             ActivityName = context.Info.ActivityType ?? throw new InvalidOperationException("ActivityType is null"),
             StartedTime = context.Info.StartedTime,

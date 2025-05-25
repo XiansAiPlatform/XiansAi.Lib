@@ -1,0 +1,42 @@
+namespace XiansAi.Flow;
+
+/// <summary>
+/// Interface for type-erased bot storage.
+/// </summary>
+internal interface IBot
+{
+    Task RunAsync(RunnerOptions? options);
+}
+
+/// <summary>
+/// Manages capabilities for a specific bot type.
+/// </summary>
+/// <typeparam name="TBot">The bot class type</typeparam>
+public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
+{
+    internal Bot(Agent agent) : base(agent)
+    {
+    }
+
+    /// <summary>
+    /// Adds capabilities to this bot.
+    /// </summary>
+    /// <param name="capabilityType">The capability type to add</param>
+    /// <returns>This bot instance for method chaining</returns>
+    public Bot<TBot> AddCapabilities(Type capabilityType)
+    {
+        _runner.AddBotCapabilities(capabilityType);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds capabilities to this bot.
+    /// </summary>
+    /// <typeparam name="TCapability">The capability type to add</typeparam>
+    /// <returns>This bot instance for method chaining</returns>
+    public Bot<TBot> AddCapabilities<TCapability>()
+    {
+        _runner.AddBotCapabilities<TCapability>();
+        return this;
+    }
+}

@@ -118,7 +118,7 @@ public class Logger<T>
             contextData["WorkflowId"] = AgentContext.WorkflowId;
             contextData["WorkflowRunId"] = AgentContext.WorkflowRunId;
             contextData["WorkflowType"] = AgentContext.WorkflowType;
-            contextData["Agent"] = AgentContext.Agent;
+            contextData["Agent"] = AgentContext.AgentName;
             contextData["ParticipantId"] = "TODO";
         }
         catch (InvalidOperationException)

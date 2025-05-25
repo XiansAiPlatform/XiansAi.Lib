@@ -47,7 +47,7 @@ public class EventHub : IEventHub
                 EventType = evtType,
                 SourceWorkflowId = AgentContext.WorkflowId,
                 SourceWorkflowType = AgentContext.WorkflowType,
-                SourceAgent = AgentContext.Agent,
+                SourceAgent = AgentContext.AgentName,
                 Payload = payload,
                 Timestamp = DateTimeOffset.UtcNow,
                 TargetWorkflowType = targetWorkflowType,

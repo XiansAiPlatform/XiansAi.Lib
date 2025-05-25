@@ -1,6 +1,9 @@
 using System.Reflection;
 using Temporalio.Activities;
 using Temporalio.Workflows;
+using XiansAi.Models;
+using XiansAi.Server;
+using XiansAi.Temporal;
 
 public class AgentContext
 {
@@ -22,8 +25,15 @@ public class AgentContext
         return workflowAttr?.Name ?? throw new InvalidOperationException("WorkflowAttribute.Name is not set");
     }
 
+    public static CertificateInfo? CertificateInfo { 
+        get
+        {
+            return new CertificateReader().ReadCertificate();
+        }
+    }
 
-    public static string Agent
+
+    public static string AgentName
     {
         get
         {

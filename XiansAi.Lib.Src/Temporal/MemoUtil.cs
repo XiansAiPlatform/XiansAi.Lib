@@ -1,5 +1,7 @@
 using Temporalio.Converters;
 
+namespace XiansAi.Temporal;
+
 public class MemoUtil
 {
     private readonly IReadOnlyDictionary<string, IRawValue> _memo;
