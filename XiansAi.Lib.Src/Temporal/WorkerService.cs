@@ -44,50 +44,6 @@ internal class WorkerService
         }
     }
 
-    public void TestMe()
-    {
-        var temporalClient = TemporalClientService.Instance.GetClientAsync();
-        if (temporalClient == null)
-        {
-            _logger.LogError("Flow server connection failed");
-            return;
-        }
-        else
-        {
-            _logger.LogInformation("Flow server is successfully connected");
-        }
-
-        _logger.LogInformation($"Trying to connect to app server at: {PlatformConfig.APP_SERVER_URL}");
-        HttpClient? client = null;
-
-        if (PlatformConfig.APP_SERVER_API_KEY != null)
-        {
-            if (!SecureApi.IsReady)
-            {
-                _logger.LogError("App server connection failed because SecureApi is not ready");
-                throw new InvalidOperationException("App server connection failed because SecureApi is not ready");
-            }
-            client = SecureApi.Instance.Client;
-        }
-        else
-        {
-            _logger.LogError("App server connection failed because of missing configuration");
-            throw new InvalidOperationException("App server connection failed because of missing configuration");
-        }
-
-        if (client == null)
-        {
-            _logger.LogError("App server connection failed");
-            return;
-        }
-        else
-        {
-            _logger.LogInformation("App server is successfully connected");
-        }
-
-        _logger.LogInformation("All connections are successful! You are ready to go!");
-    }
-
     public async Task RunFlowAsync<TFlow>(Runner<TFlow> flow, CancellationToken cancellationToken = default)
         where TFlow : class
     {
@@ -106,7 +62,7 @@ internal class WorkerService
         var client = TemporalClientService.Instance.GetClientAsync();
 
         var workFlowName = flow.WorkflowName;
-        var taskQueue = workFlowName; 
+        var taskQueue = _certificateReader.ReadCertificate()?.TenantId + ":" + workFlowName; 
 
         if (!string.IsNullOrEmpty(_options?.QueuePrefix))
         {

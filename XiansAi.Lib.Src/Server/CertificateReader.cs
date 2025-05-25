@@ -7,7 +7,7 @@ namespace XiansAi.Server;
 public class CertificateReader
 {
     private readonly Logging.Logger<CertificateReader> _logger;
-    private static readonly ConcurrentDictionary<string, CertificateInfo> _certificateCache = new();
+    private static readonly ConcurrentDictionary<string, Lazy<CertificateInfo>> _certificateCache = new();
 
     public CertificateReader()
     {
@@ -21,15 +21,22 @@ public class CertificateReader
             base64EncodedCertificate = PlatformConfig.APP_SERVER_API_KEY ?? throw new InvalidOperationException("App server API key is not set");
         }
 
-        // Check if certificate is already cached
-        if (_certificateCache.TryGetValue(base64EncodedCertificate, out var cachedCertificateInfo))
-        {
-            _logger.LogInformation("Certificate loaded from cache");
-            return cachedCertificateInfo;
-        }
+        // Normalize the base64 string to eliminate whitespace issues
+        var normalizedKey = base64EncodedCertificate.Replace(" ", "").Replace("\n", "").Replace("\r", "").Replace("\t", "");
+        
 
+        // Use Lazy<T> with GetOrAdd to ensure single execution even under concurrency
+        var lazyCertificate = _certificateCache.GetOrAdd(normalizedKey, key => new Lazy<CertificateInfo>(() => {
+            return ParseCertificate(key);
+        }));
+        
+        return lazyCertificate.Value;
+    }
+
+    private CertificateInfo ParseCertificate(string base64EncodedCertificate)
+    {
         try
-        {
+        {            
             // Decode the base64 encoded certificate
             var certificateBytes = Convert.FromBase64String(base64EncodedCertificate);
 
@@ -52,10 +59,7 @@ public class CertificateReader
                 ExpiresAt = certificate.NotAfter
             };
 
-            // Cache the certificate info for future use
-            _certificateCache.TryAdd(base64EncodedCertificate, certificateInfo);
-
-            _logger.LogInformation($"Certificate details - Subject: {certificate.Subject}, Thumbprint: {certificate.Thumbprint}, Expires: {certificate.NotAfter}");
+            _logger.LogInformation($"Certificate parsed and cached - Subject: {certificate.Subject}, Thumbprint: {certificate.Thumbprint}, Expires: {certificate.NotAfter}");
             
             return certificateInfo;
         }
