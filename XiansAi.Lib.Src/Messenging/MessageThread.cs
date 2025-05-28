@@ -32,7 +32,7 @@ public class MessageThread : IMessageThread
 
     public async Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
     {
-        var history = await new ThreadHistoryService().GetMessageHistory(Agent, ParticipantId, page, pageSize);
+        var history = await new ThreadHistoryService().GetMessageHistory(Agent, WorkflowType, ParticipantId, page, pageSize);
         return history;
     }
 

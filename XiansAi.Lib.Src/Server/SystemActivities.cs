@@ -175,12 +175,12 @@ public class SystemActivities
 
 
     [Activity("System Activities: Get Message Thread History")]
-    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string participantId, int page = 1, int pageSize = 10)
+    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        return await GetMessageHistoryStatic(agent, participantId, page, pageSize);
+        return await GetMessageHistoryStatic(agent, workflowType, participantId, page, pageSize);
     }
 
-    public static async Task<List<HistoricalMessage>> GetMessageHistoryStatic(string agent, string participantId, int page = 1, int pageSize = 10)
+    public static async Task<List<HistoricalMessage>> GetMessageHistoryStatic(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
         _logger.LogInformation("Getting message history for thread: {Agent} {ParticipantId}", agent, participantId);
 
@@ -192,7 +192,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"api/agent/conversation/history?agent={agent}&participantId={participantId}&page={page}&pageSize={pageSize}");
+            var response = await client.GetAsync($"api/agent/conversation/history?agent={agent}&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();

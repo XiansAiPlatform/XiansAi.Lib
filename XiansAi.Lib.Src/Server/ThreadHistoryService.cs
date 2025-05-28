@@ -11,14 +11,14 @@ public class ThreadHistoryService
         _logger = Globals.LogFactory.CreateLogger<ThreadHistoryService>();
     }
 
-    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string participantId, int page = 1, int pageSize = 10)
+    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
         if (Workflow.InWorkflow) {
             return await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.GetMessageHistory(agent, participantId, page, pageSize),
+                (SystemActivities a) => a.GetMessageHistory(agent, workflowType, participantId, page, pageSize),
                 new SystemActivityOptions());
         } else {
-            return await SystemActivities.GetMessageHistoryStatic(agent, participantId, page, pageSize);
+            return await SystemActivities.GetMessageHistoryStatic(agent, workflowType, participantId, page, pageSize);
         }
     }
 
