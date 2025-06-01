@@ -14,7 +14,12 @@ public static class LoggingUtils
             var consoleLogLevel = GetConsoleLogLevel();
             
             // Log the console log level using a simple logger
-            using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+            using var loggerFactory = LoggerFactory.Create(b => b.AddConsole(
+                options =>
+                {
+                    options.LogToStandardErrorThreshold = consoleLogLevel;
+                }
+            ));
             var tempLogger = loggerFactory.CreateLogger("LoggingUtils");
             tempLogger.LogInformation($"Console log level: {consoleLogLevel}");
             

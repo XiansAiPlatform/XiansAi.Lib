@@ -1,4 +1,3 @@
-using System.Net.Mime;
 using System.Text.Json;
 using Temporalio.Workflows;
 using XiansAi.Logging;
@@ -10,10 +9,19 @@ public delegate void MessageReceivedHandler(MessageThread messageThread);
 
 public interface IMessageHub
 {
-    void RegisterAsyncHandler(MessageReceivedAsyncHandler handler);
-    void RegisterHandler(MessageReceivedHandler handler);
-    void UnregisterHandler(MessageReceivedHandler handler);
-    void UnregisterAsyncHandler(MessageReceivedAsyncHandler handler);
+    // message handlers for incoming messages with content
+    void RegisterAsyncMessageHandler(MessageReceivedAsyncHandler handler);
+    void RegisterMessageHandler(MessageReceivedHandler handler);
+    void UnregisterMessageHandler(MessageReceivedHandler handler);
+    void UnregisterAsyncMessageHandler(MessageReceivedAsyncHandler handler);
+
+    // message handlers for incoming messages with only content
+    void RegisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler);
+    void RegisterMetadataHandler(MessageReceivedHandler handler);
+    void UnregisterMetadataHandler(MessageReceivedHandler handler);
+    void UnregisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler);
+
+    // message handlers for incoming messages with only metadata
     Task ReceiveMessage(MessageSignal messageSignal);
 }
 
@@ -22,10 +30,14 @@ class MessengerLog {}
 public class MessageHub: IMessageHub
 {
     private readonly List<Func<MessageThread, Task>> _messageHandlers = new List<Func<MessageThread, Task>>();
+    private readonly List<Func<MessageThread, Task>> _metadataHandlers = new List<Func<MessageThread, Task>>();
     
     private static readonly Logger<MessengerLog> _logger = Logger<MessengerLog>.For();
 
-    private readonly Dictionary<Delegate, Func<MessageThread, Task>> _handlerMappings = 
+    private readonly Dictionary<Delegate, Func<MessageThread, Task>> _messageHandlerMappings = 
+        new Dictionary<Delegate, Func<MessageThread, Task>>();
+
+    private readonly Dictionary<Delegate, Func<MessageThread, Task>> _metadataHandlerMappings = 
         new Dictionary<Delegate, Func<MessageThread, Task>>();
 
     public static async Task<string?> Send(string content, string participantId, object? metadata = null)
@@ -55,19 +67,19 @@ public class MessageHub: IMessageHub
 
     }
 
-    public void RegisterAsyncHandler(MessageReceivedAsyncHandler handler)
+    public void RegisterAsyncMessageHandler(MessageReceivedAsyncHandler handler)
     {
         // Convert the delegate type
         Func<MessageThread, Task> funcHandler = messageThread => handler(messageThread);
         
-        if (!_handlerMappings.ContainsKey(handler))
+        if (!_messageHandlerMappings.ContainsKey(handler))
         {
-            _handlerMappings[handler] = funcHandler;
+            _messageHandlerMappings[handler] = funcHandler;
             _messageHandlers.Add(funcHandler);
         }
     }
 
-    public void RegisterHandler(MessageReceivedHandler handler)
+    public void RegisterMessageHandler(MessageReceivedHandler handler)
     {
         // Wrap the synchronous handler to return a completed task
         Func<MessageThread, Task> funcHandler = messageThread => 
@@ -76,28 +88,74 @@ public class MessageHub: IMessageHub
             return Task.CompletedTask;
         };
         
-        if (!_handlerMappings.ContainsKey(handler))
+        if (!_messageHandlerMappings.ContainsKey(handler))
         {
-            _handlerMappings[handler] = funcHandler;
+            _messageHandlerMappings[handler] = funcHandler;
             _messageHandlers.Add(funcHandler);
         }
     }
     
-    public void UnregisterHandler(MessageReceivedHandler handler)
+    public void UnregisterMessageHandler(MessageReceivedHandler handler)
     {
-        if (_handlerMappings.TryGetValue(handler, out var funcHandler))
+        if (_messageHandlerMappings.TryGetValue(handler, out var funcHandler))
         {
             _messageHandlers.Remove(funcHandler);
-            _handlerMappings.Remove(handler);
+            _messageHandlerMappings.Remove(handler);
         }
     }
     
-    public void UnregisterAsyncHandler(MessageReceivedAsyncHandler handler)
+    public void UnregisterAsyncMessageHandler(MessageReceivedAsyncHandler handler)
     {
-        if (_handlerMappings.TryGetValue(handler, out var funcHandler))
+        if (_messageHandlerMappings.TryGetValue(handler, out var funcHandler))
         {
             _messageHandlers.Remove(funcHandler);
-            _handlerMappings.Remove(handler);
+            _messageHandlerMappings.Remove(handler);
+        }
+    }
+
+    public void RegisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler)
+    {
+        // Convert the delegate type
+        Func<MessageThread, Task> funcHandler = messageThread => handler(messageThread);
+        
+        if (!_metadataHandlerMappings.ContainsKey(handler))
+        {
+            _metadataHandlerMappings[handler] = funcHandler;
+            _metadataHandlers.Add(funcHandler);
+        }
+    }
+
+    public void RegisterMetadataHandler(MessageReceivedHandler handler)
+    {
+        // Wrap the synchronous handler to return a completed task
+        Func<MessageThread, Task> funcHandler = messageThread => 
+        {
+            handler(messageThread);
+            return Task.CompletedTask;
+        };
+        
+        if (!_metadataHandlerMappings.ContainsKey(handler))
+        {
+            _metadataHandlerMappings[handler] = funcHandler;
+            _metadataHandlers.Add(funcHandler);
+        }
+    }
+    
+    public void UnregisterMetadataHandler(MessageReceivedHandler handler)
+    {
+        if (_metadataHandlerMappings.TryGetValue(handler, out var funcHandler))
+        {
+            _metadataHandlers.Remove(funcHandler);
+            _metadataHandlerMappings.Remove(handler);
+        }
+    }
+    
+    public void UnregisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler)
+    {
+        if (_metadataHandlerMappings.TryGetValue(handler, out var funcHandler))
+        {
+            _metadataHandlers.Remove(funcHandler);
+            _metadataHandlerMappings.Remove(handler);
         }
     }
 
@@ -117,13 +175,28 @@ public class MessageHub: IMessageHub
             }
         };
 
-        _logger.LogInformation($"New MessageThread created: {JsonSerializer.Serialize(messageThread)}");
 
-        
-        // Call all handlers uniformly
-        foreach (var handler in _messageHandlers.ToList())
+        // If content is null, call metadata handlers; otherwise call message handlers
+        if (string.IsNullOrEmpty(messageSignal.Payload.Content?.Trim()))
         {
-            await handler(messageThread);
+            _logger.LogInformation($"New Metadata Message received: {JsonSerializer.Serialize(messageThread)}");
+            _logger.LogInformation($"Informing {_metadataHandlers.Count} metadata handlers");
+
+            // Call all metadata handlers
+            foreach (var handler in _metadataHandlers.ToList())
+            {
+                await handler(messageThread);
+            }
+        }
+        else
+        {
+            _logger.LogInformation($"New Message received: {JsonSerializer.Serialize(messageThread)}");
+            _logger.LogInformation($"Informing {_messageHandlers.Count} message handlers");
+            // Call all message handlers
+            foreach (var handler in _messageHandlers.ToList())
+            {
+                await handler(messageThread);
+            }
         }
     }
 

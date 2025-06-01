@@ -182,7 +182,7 @@ public class SystemActivities
 
     public static async Task<List<HistoricalMessage>> GetMessageHistoryStatic(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        _logger.LogInformation("Getting message history for thread: {Agent} {ParticipantId}", agent, participantId);
+        _logger.LogDebug("Getting message history for thread Agent: '{Agent}' WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", agent, workflowType, participantId);
 
         if (!SecureApi.IsReady)
         {
@@ -196,6 +196,8 @@ public class SystemActivities
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();
+
+            _logger.LogDebug($"Message history fetched: {messages?.Count} messages");
             return messages ?? new List<HistoricalMessage>();
         }
         catch (ObjectDisposedException ex)
