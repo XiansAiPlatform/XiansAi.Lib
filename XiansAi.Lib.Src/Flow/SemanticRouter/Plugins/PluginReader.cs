@@ -40,11 +40,11 @@ internal static class PluginReader
             {
                 var parameterMetadata = CreateParameterMetadata(method);
                 var capabilityAttribute = method.GetCustomAttribute<CapabilityAttribute>()?.Description
-                    ?? throw new Exception($"Capability for method {method.Name} has no description.");
+                    ?? throw new Exception($"Capability for method `{method.Name}` has no description. Check your Capability method `{method.Name}`.");
                 var returnParameter = new KernelReturnParameterMetadata
                 {
                     Description = method.GetCustomAttribute<ReturnsAttribute>()?.Description
-                        ?? throw new Exception($"Return parameter for method {method.Name} has no description."),
+                        ?? throw new Exception($"Return parameter for method `{method.Name}` has no description. Check your Capability method `{method.Name}`."),
                     ParameterType = method.ReturnType
                 };
 
@@ -89,14 +89,14 @@ internal static class PluginReader
     private static KernelFunction CreateKernelFunctionFromKnowledgeAttribute(MethodInfo method, object? target = null)
     {
         var knowledgeAttribute = method.GetCustomAttribute<KnowledgeAttribute>()
-            ?? throw new Exception($"Method {method.Name} does not have KnowledgeAttribute.");
+            ?? throw new Exception($"Method `{method.Name}` does not have KnowledgeAttribute.");
 
         // Load the knowledge from the JSON file
         var knowledge = CapabilityKnowledgeLoader.Load(knowledgeAttribute.Knowledge[0]);
 
         if (knowledge == null)
         {
-            throw new Exception($"Knowledge for method {method.Name} not found.");
+            throw new Exception($"Knowledge for method `{method.Name}` not found.");
         }
 
         // Create parameter metadata from the knowledge model
@@ -109,7 +109,7 @@ internal static class PluginReader
                 continue;
 
             if (!knowledge.Parameters.TryGetValue(parameter.Name, out var description))
-                throw new Exception($"Parameter {parameter.Name} for method {method.Name} is not described in the knowledge file.");
+                throw new Exception($"Parameter `{parameter.Name}` for method `{method.Name}` is not described in the knowledge file.");
 
             parameterMetadata.Add(new KernelParameterMetadata(parameter.Name)
             {
@@ -156,12 +156,15 @@ internal static class PluginReader
             {
                 // Try to find matching parameter attribute
                 var paramAttribute = parameterAttributes.FirstOrDefault(p => p.Name == parameter.Name);
-                var description = paramAttribute?.Description ?? throw new Exception($"Parameter {parameter.Name} has no description.");
+                var description = paramAttribute?.Description ?? throw new Exception($"Parameter `{parameter.Name}` has no description. Check your Capability method `{method.Name}`.");
 
                 parameterMetadata.Add(new KernelParameterMetadata(parameter.Name)
                 {
                     Description = description,
-                    ParameterType = parameter.ParameterType
+                    ParameterType = parameter.ParameterType,
+                    IsRequired = !parameter.IsOptional,
+                    Name = parameter.Name,
+                    DefaultValue = parameter.DefaultValue
                 });
             }
         }
@@ -200,11 +203,11 @@ internal static class PluginReader
                 {
                     var parameterMetadata = CreateParameterMetadata(method);
                     var capabilityAttribute = method.GetCustomAttribute<CapabilityAttribute>()?.Description
-                        ?? throw new Exception($"Capability for method {method.Name} has no description.");
+                        ?? throw new Exception($"Capability for method `{method.Name}` has no description. Check your Capability method `{method.Name}`.");
                     var returnParameter = new KernelReturnParameterMetadata
                     {
                         Description = method.GetCustomAttribute<ReturnsAttribute>()?.Description
-                            ?? throw new Exception($"Return parameter for method {method.Name} has no description."),
+                            ?? throw new Exception($"Return parameter for method `{method.Name}` has no description. Check your Capability method `{method.Name}`."),
                         ParameterType = method.ReturnType
                     };
 

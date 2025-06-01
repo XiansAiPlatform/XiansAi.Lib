@@ -58,7 +58,7 @@ public abstract class FlowBase : AbstractFlow
     {
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
-        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt, new RouterOptions());
+        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

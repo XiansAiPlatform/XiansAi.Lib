@@ -7,9 +7,9 @@ namespace XiansAi.Flow.Router;
 public class RouterOptions
 {
     /// <summary>
-    /// Gets or sets the model name for the AI model. Default is "gpt-4o".
+    /// Gets or sets the model name for the AI model.
     /// </summary>
-    public string ModelName = "gpt-4o";
+    public required string ModelName;
 
     /// <summary>
     /// Gets or sets the temperature for the AI model. Controls randomness in the output.

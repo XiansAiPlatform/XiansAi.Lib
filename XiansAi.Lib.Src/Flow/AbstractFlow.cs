@@ -1,5 +1,4 @@
 using Temporalio.Workflows;
-using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Events;
 using XiansAi.Memory;

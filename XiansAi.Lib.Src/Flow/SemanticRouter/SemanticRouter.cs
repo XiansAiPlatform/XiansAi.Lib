@@ -6,6 +6,7 @@ using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Server;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace XiansAi.Flow.Router;
 
@@ -13,11 +14,11 @@ namespace XiansAi.Flow.Router;
 public static class SemanticRouter
 {
 
-    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
+    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
+            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt),
             new SystemActivityOptions());
 
         return response;
@@ -42,7 +43,7 @@ class SemanticRouterImpl
         _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
     }
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes)
     {
         try
         {
@@ -50,6 +51,11 @@ class SemanticRouterImpl
             {
                 throw new Exception("System prompt is required");
             }
+
+            var options = new RouterOptions {
+                ModelName = _settings.ModelName,
+                HistorySizeToFetch = 10
+            };
 
             var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
 
@@ -120,9 +126,7 @@ class SemanticRouterImpl
     private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
 
-        // Load environment variables from .env file
         var apiKey = _settings.OpenAIApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
-        
 
         var builder = Kernel.CreateBuilder();
 
@@ -130,6 +134,10 @@ class SemanticRouterImpl
             modelId: options.ModelName,
             apiKey: apiKey
         );
+
+          // add logging
+        builder.Services.AddLogging(configure => configure.AddConsole());
+        builder.Services.AddLogging(configure => configure.SetMinimumLevel(LogLevel.Information));
 
         var kernel = builder.Build() ?? throw new Exception("Semantic Kernel is not built");
         // add system plugins

@@ -1,3 +1,4 @@
+using System.Net.Mime;
 using System.Text.Json;
 using Temporalio.Workflows;
 using XiansAi.Logging;
@@ -20,7 +21,7 @@ class MessengerLog {}
 
 public class MessageHub: IMessageHub
 {
-    private readonly List<Func<MessageThread, Task>> _handlers = new List<Func<MessageThread, Task>>();
+    private readonly List<Func<MessageThread, Task>> _messageHandlers = new List<Func<MessageThread, Task>>();
     
     private static readonly Logger<MessengerLog> _logger = Logger<MessengerLog>.For();
 
@@ -62,7 +63,7 @@ public class MessageHub: IMessageHub
         if (!_handlerMappings.ContainsKey(handler))
         {
             _handlerMappings[handler] = funcHandler;
-            _handlers.Add(funcHandler);
+            _messageHandlers.Add(funcHandler);
         }
     }
 
@@ -78,7 +79,7 @@ public class MessageHub: IMessageHub
         if (!_handlerMappings.ContainsKey(handler))
         {
             _handlerMappings[handler] = funcHandler;
-            _handlers.Add(funcHandler);
+            _messageHandlers.Add(funcHandler);
         }
     }
     
@@ -86,7 +87,7 @@ public class MessageHub: IMessageHub
     {
         if (_handlerMappings.TryGetValue(handler, out var funcHandler))
         {
-            _handlers.Remove(funcHandler);
+            _messageHandlers.Remove(funcHandler);
             _handlerMappings.Remove(handler);
         }
     }
@@ -95,7 +96,7 @@ public class MessageHub: IMessageHub
     {
         if (_handlerMappings.TryGetValue(handler, out var funcHandler))
         {
-            _handlers.Remove(funcHandler);
+            _messageHandlers.Remove(funcHandler);
             _handlerMappings.Remove(handler);
         }
     }
@@ -110,15 +111,17 @@ public class MessageHub: IMessageHub
             Agent = AgentContext.AgentName,
             ThreadId = messageSignal.Payload.ThreadId,
             ParticipantId = messageSignal.Payload.ParticipantId,
-            Metadata = messageSignal.Payload.Metadata,
-            LatestContent = messageSignal.Payload.Content
+            LatestMessage = new Message {
+                Content = messageSignal.Payload.Content,
+                Metadata = messageSignal.Payload.Metadata,
+            }
         };
 
         _logger.LogInformation($"New MessageThread created: {JsonSerializer.Serialize(messageThread)}");
 
         
         // Call all handlers uniformly
-        foreach (var handler in _handlers.ToList())
+        foreach (var handler in _messageHandlers.ToList())
         {
             await handler(messageThread);
         }

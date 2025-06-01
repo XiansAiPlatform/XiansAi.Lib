@@ -6,9 +6,16 @@ namespace XiansAi.Messaging;
 
 public interface IMessageThread
 {
-    Task<string?> Respond(string content, string? metadata = null);
-    Task<string?> Handoff(string userRequest, string workflowType, string workflowId);
-    Task<string?> Handoff(string userRequest, Type workflowType);
+    Task<string?> Respond(string content, object metadata);
+    Task<string?> Respond(string content);
+    Task<string?> Respond(object metadata);
+    Task<string?> Handoff(string userRequest, object? metadata, string workflowType, string workflowId);
+    Task<string?> Handoff(Type workflowType, string? userRequest = null);
+}
+
+public class Message {
+    public string? Content { get; set; }
+    public object? Metadata { get; set; }
 }
 
 public class MessageThread : IMessageThread
@@ -17,10 +24,8 @@ public class MessageThread : IMessageThread
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
-    public string? QueueName { get; set; }
     public string? ThreadId { get; set; }
-    public object? Metadata { get; set; }
-    public string? LatestContent { get; set; }
+    public required Message LatestMessage { get; set; }
 
     private readonly ILogger<MessageThread> _logger;
 
@@ -36,7 +41,22 @@ public class MessageThread : IMessageThread
         return history;
     }
 
-    public async Task<string?> Respond(string content, string? metadata = null)
+    public async Task<string?> Respond(string content)
+    {
+        return await RespondInternal(content, null);
+    }
+
+    public async Task<string?> Respond(object metadata)
+    {
+        return await RespondInternal(null, metadata);
+    }
+
+    public async Task<string?> Respond(string content, object metadata)
+    {
+        return await RespondInternal(content, metadata);
+    }
+
+    private async Task<string?> RespondInternal(string? content, object? metadata)
     {
         var outgoingMessage = new OutgoingMessage
         {
@@ -45,8 +65,7 @@ public class MessageThread : IMessageThread
             ParticipantId = ParticipantId,
             WorkflowId = WorkflowId,
             WorkflowType = WorkflowType,
-            Agent = Agent,
-            QueueName = QueueName
+            Agent = Agent
         };
 
         if(Workflow.InWorkflow) {
@@ -60,14 +79,16 @@ public class MessageThread : IMessageThread
         }
     }
 
-    public async Task<string?> Handoff(string userRequest, Type workflowType)
+    public async Task<string?> Handoff(Type workflowType, string? message = null)
     {
+        var userRequest = message ?? LatestMessage.Content ?? throw new Exception("User request is required for handoff");
         var workflowId = AgentContext.GetSingletonWorkflowIdFor(workflowType);
         var workflowTypeString = AgentContext.GetWorkflowTypeFor(workflowType);
-        return await Handoff(userRequest, workflowTypeString, workflowId);
+        var metadata = LatestMessage.Metadata;
+        return await Handoff(userRequest, metadata, workflowTypeString, workflowId);
     }
 
-    public async Task<string?> Handoff(string userRequest, string workflowType, string workflowId)
+    public async Task<string?> Handoff(string userRequest, object? metadata, string workflowType, string workflowId)
     {
         var outgoingMessage = new HandoverMessage
         {
@@ -77,7 +98,8 @@ public class MessageThread : IMessageThread
             ThreadId = ThreadId ?? throw new Exception("ThreadId is required for handover"),
             ParticipantId = ParticipantId,
             FromWorkflowType = WorkflowType,
-            UserRequest = userRequest
+            Content = userRequest,
+            Metadata = metadata
         };
 
         _logger.LogInformation("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));

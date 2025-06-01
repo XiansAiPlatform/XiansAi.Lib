@@ -23,7 +23,7 @@ public class OutgoingMessage
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public string? QueueName { get; set; }
-    public required string Content { get; set; }
+    public string? Content { get; set; }
     public object? Metadata { get; set; }
     public string? ThreadId { get; set; }
 }
@@ -37,7 +37,8 @@ public class HandoverMessage
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
     public required string FromWorkflowType { get; set; }
-    public string? UserRequest { get; set; }
+    public required string Content { get; set; }
+    public object? Metadata { get; set; }
 }
 
 

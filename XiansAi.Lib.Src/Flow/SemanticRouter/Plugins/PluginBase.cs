@@ -69,7 +69,7 @@ public abstract class PluginBase<T>
             {
                 // Try to find matching parameter attribute
                 var paramAttribute = parameterAttributes.FirstOrDefault(p => p.Name == parameter.Name);
-                var description = paramAttribute?.Description ?? throw new Exception($"Parameter {parameter.Name} has no description.");
+                var description = paramAttribute?.Description ?? throw new Exception($"Parameter {parameter.Name} has no description. Check your Capability method {method.Name} for the {parameter.Name} parameter.");
                 
                 parameterMetadata.Add(new KernelParameterMetadata(parameter.Name) {
                     Description = description,
