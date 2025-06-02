@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Temporalio.Workflows;
 using XiansAi.Logging;
@@ -29,16 +30,16 @@ class MessengerLog {}
 
 public class MessageHub: IMessageHub
 {
-    private readonly List<Func<MessageThread, Task>> _messageHandlers = new List<Func<MessageThread, Task>>();
-    private readonly List<Func<MessageThread, Task>> _metadataHandlers = new List<Func<MessageThread, Task>>();
+    private readonly ConcurrentBag<Func<MessageThread, Task>> _messageHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
+    private readonly ConcurrentBag<Func<MessageThread, Task>> _metadataHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
     
     private static readonly Logger<MessengerLog> _logger = Logger<MessengerLog>.For();
 
-    private readonly Dictionary<Delegate, Func<MessageThread, Task>> _messageHandlerMappings = 
-        new Dictionary<Delegate, Func<MessageThread, Task>>();
+    private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _messageHandlerMappings = 
+        new ConcurrentDictionary<Delegate, Func<MessageThread, Task>>();
 
-    private readonly Dictionary<Delegate, Func<MessageThread, Task>> _metadataHandlerMappings = 
-        new Dictionary<Delegate, Func<MessageThread, Task>>();
+    private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _metadataHandlerMappings = 
+        new ConcurrentDictionary<Delegate, Func<MessageThread, Task>>();
 
     public static async Task<string?> Send(string content, string participantId, object? metadata = null)
     {
@@ -72,10 +73,14 @@ public class MessageHub: IMessageHub
         // Convert the delegate type
         Func<MessageThread, Task> funcHandler = messageThread => handler(messageThread);
         
-        if (!_messageHandlerMappings.ContainsKey(handler))
+        if (_messageHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _messageHandlerMappings[handler] = funcHandler;
             _messageHandlers.Add(funcHandler);
+            _logger.LogInformation($"Registered async message handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Async message handler already registered: {handler.Method.Name}");
         }
     }
 
@@ -84,32 +89,52 @@ public class MessageHub: IMessageHub
         // Wrap the synchronous handler to return a completed task
         Func<MessageThread, Task> funcHandler = messageThread => 
         {
-            handler(messageThread);
-            return Task.CompletedTask;
+            try
+            {
+                handler(messageThread);
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error in sync message handler {handler.Method.Name}: {ex.Message}", ex);
+                return Task.CompletedTask;
+            }
         };
         
-        if (!_messageHandlerMappings.ContainsKey(handler))
+        if (_messageHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _messageHandlerMappings[handler] = funcHandler;
             _messageHandlers.Add(funcHandler);
+            _logger.LogInformation($"Registered sync message handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Sync message handler already registered: {handler.Method.Name}");
         }
     }
     
     public void UnregisterMessageHandler(MessageReceivedHandler handler)
     {
-        if (_messageHandlerMappings.TryGetValue(handler, out var funcHandler))
+        if (_messageHandlerMappings.TryRemove(handler, out var funcHandler))
         {
-            _messageHandlers.Remove(funcHandler);
-            _messageHandlerMappings.Remove(handler);
+            // Note: ConcurrentBag doesn't support removal, so we'll mark handlers as removed
+            // This is acceptable since we create new collections for iteration
+            _logger.LogInformation($"Unregistered sync message handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Attempted to unregister non-existent sync message handler: {handler.Method.Name}");
         }
     }
     
     public void UnregisterAsyncMessageHandler(MessageReceivedAsyncHandler handler)
     {
-        if (_messageHandlerMappings.TryGetValue(handler, out var funcHandler))
+        if (_messageHandlerMappings.TryRemove(handler, out var funcHandler))
         {
-            _messageHandlers.Remove(funcHandler);
-            _messageHandlerMappings.Remove(handler);
+            _logger.LogInformation($"Unregistered async message handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Attempted to unregister non-existent async message handler: {handler.Method.Name}");
         }
     }
 
@@ -118,10 +143,14 @@ public class MessageHub: IMessageHub
         // Convert the delegate type
         Func<MessageThread, Task> funcHandler = messageThread => handler(messageThread);
         
-        if (!_metadataHandlerMappings.ContainsKey(handler))
+        if (_metadataHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _metadataHandlerMappings[handler] = funcHandler;
             _metadataHandlers.Add(funcHandler);
+            _logger.LogInformation($"Registered async metadata handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Async metadata handler already registered: {handler.Method.Name}");
         }
     }
 
@@ -130,32 +159,50 @@ public class MessageHub: IMessageHub
         // Wrap the synchronous handler to return a completed task
         Func<MessageThread, Task> funcHandler = messageThread => 
         {
-            handler(messageThread);
-            return Task.CompletedTask;
+            try
+            {
+                handler(messageThread);
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error in sync metadata handler {handler.Method.Name}: {ex.Message}", ex);
+                return Task.CompletedTask;
+            }
         };
         
-        if (!_metadataHandlerMappings.ContainsKey(handler))
+        if (_metadataHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _metadataHandlerMappings[handler] = funcHandler;
             _metadataHandlers.Add(funcHandler);
+            _logger.LogInformation($"Registered sync metadata handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Sync metadata handler already registered: {handler.Method.Name}");
         }
     }
     
     public void UnregisterMetadataHandler(MessageReceivedHandler handler)
     {
-        if (_metadataHandlerMappings.TryGetValue(handler, out var funcHandler))
+        if (_metadataHandlerMappings.TryRemove(handler, out var funcHandler))
         {
-            _metadataHandlers.Remove(funcHandler);
-            _metadataHandlerMappings.Remove(handler);
+            _logger.LogInformation($"Unregistered sync metadata handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Attempted to unregister non-existent sync metadata handler: {handler.Method.Name}");
         }
     }
     
     public void UnregisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler)
     {
-        if (_metadataHandlerMappings.TryGetValue(handler, out var funcHandler))
+        if (_metadataHandlerMappings.TryRemove(handler, out var funcHandler))
         {
-            _metadataHandlers.Remove(funcHandler);
-            _metadataHandlerMappings.Remove(handler);
+            _logger.LogInformation($"Unregistered async metadata handler: {handler.Method.Name}");
+        }
+        else
+        {
+            _logger.LogWarning($"Attempted to unregister non-existent async metadata handler: {handler.Method.Name}");
         }
     }
 
@@ -175,29 +222,56 @@ public class MessageHub: IMessageHub
             }
         };
 
-
         // If content is null, call metadata handlers; otherwise call message handlers
         if (string.IsNullOrEmpty(messageSignal.Payload.Content?.Trim()))
         {
-            _logger.LogInformation($"New Metadata Message received: {JsonSerializer.Serialize(messageThread)}");
-            _logger.LogInformation($"Informing {_metadataHandlers.Count} metadata handlers");
-
-            // Call all metadata handlers
-            foreach (var handler in _metadataHandlers.ToList())
-            {
-                await handler(messageThread);
-            }
+            await ProcessHandlers(_metadataHandlerMappings.Values, messageThread, "metadata");
         }
         else
         {
-            _logger.LogInformation($"New Message received: {JsonSerializer.Serialize(messageThread)}");
-            _logger.LogInformation($"Informing {_messageHandlers.Count} message handlers");
-            // Call all message handlers
-            foreach (var handler in _messageHandlers.ToList())
-            {
-                await handler(messageThread);
-            }
+            await ProcessHandlers(_messageHandlerMappings.Values, messageThread, "message");
         }
     }
 
+    private async Task ProcessHandlers(IEnumerable<Func<MessageThread, Task>> handlers, MessageThread messageThread, string handlerType)
+    {
+        var handlerList = handlers.ToList();
+        _logger.LogInformation($"New {handlerType} received: {JsonSerializer.Serialize(messageThread)}");
+        _logger.LogInformation($"Informing {handlerList.Count} {handlerType} handlers");
+
+        var handlerTasks = new List<Task>();
+
+        foreach (var handler in handlerList)
+        {
+            var handlerTask = InvokeHandlerSafely(handler, messageThread, handlerType);
+            handlerTasks.Add(handlerTask);
+        }
+
+        try
+        {
+            // Wait for all handlers to complete
+            await Task.WhenAll(handlerTasks);
+            _logger.LogInformation($"All {handlerType} handlers completed successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"One or more {handlerType} handlers failed: {ex.Message}", ex);
+            // Continue execution even if some handlers failed
+        }
+    }
+
+    private async Task InvokeHandlerSafely(Func<MessageThread, Task> handler, MessageThread messageThread, string handlerType)
+    {
+        try
+        {
+            _logger.LogDebug($"Calling {handlerType} handler: {handler.Method.Name}");
+            await handler(messageThread);
+            _logger.LogDebug($"Completed {handlerType} handler: {handler.Method.Name}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in {handlerType} handler {handler.Method.Name}: {ex.Message}", ex);
+            // Don't rethrow - continue with other handlers
+        }
+    }
 }

@@ -8,7 +8,7 @@ public interface IMessageThread
 {
     Task<string?> Respond(string content, object metadata);
     Task<string?> Respond(string content);
-    Task<string?> Respond(object metadata);
+    Task<string?> RespondWithMetadata(object metadata);
     Task<string?> Handoff(string userRequest, object? metadata, string workflowType, string workflowId);
     Task<string?> Handoff(Type workflowType, string? userRequest = null);
 }
@@ -46,8 +46,9 @@ public class MessageThread : IMessageThread
         return await RespondInternal(content, null);
     }
 
-    public async Task<string?> Respond(object metadata)
+    public async Task<string?> RespondWithMetadata(object metadata)
     {
+        _logger.LogInformation("Sending message with metadata: {Metadata}", JsonSerializer.Serialize(metadata));
         return await RespondInternal(null, metadata);
     }
 
@@ -67,6 +68,8 @@ public class MessageThread : IMessageThread
             WorkflowType = WorkflowType,
             Agent = Agent
         };
+
+        _logger.LogInformation("Sending message: {Message}", JsonSerializer.Serialize(outgoingMessage));
 
         if(Workflow.InWorkflow) {
             var success = await Workflow.ExecuteActivityAsync(
