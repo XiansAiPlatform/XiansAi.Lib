@@ -19,7 +19,7 @@ public class ActivityUploader
         {
             var client = SecureApi.Instance.Client;
 
-            var response = await client.PostAsync("api/agent/activity-history", JsonContent.Create(activityHistory));
+            var response = await client.PostAsync("activity-history", JsonContent.Create(activityHistory));
             response.EnsureSuccessStatusCode();
         }
         else

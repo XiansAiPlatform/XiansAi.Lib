@@ -33,7 +33,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     private readonly ILogger<FlowDefinitionUploader> _logger;
     private readonly ISecureApiClient _secureApi;
     
-    private const string API_ENDPOINT = "api/agent/definitions";
+    private const string API_ENDPOINT = "definitions";
 
     /// <summary>
     /// Initializes a new instance of the FlowDefinitionUploader class.
@@ -100,8 +100,11 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         try
         {
             var client = _secureApi.Client;
+            Console.WriteLine("endpointttttttttte" + client.BaseAddress);
+            Console.WriteLine("clientttttttttt" + client);
             var response = await client.PostAsync(API_ENDPOINT, JsonContent.Create(flowDefinition));
-            
+            Console.WriteLine("responsewwwwwwwwwwwwwwwwwwww" + response);
+
             if (response.StatusCode == HttpStatusCode.BadRequest)
             {
                 var errorMessage = await response.Content.ReadAsStringAsync();

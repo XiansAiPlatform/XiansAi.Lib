@@ -32,7 +32,7 @@ public class ObjectCache : IObjectCache
         {
             var client = SecureApi.Instance.Client;
             var request = new CacheKeyRequest { Key = key };
-            var response = await client.PostAsJsonAsync("api/agent/cache/get", request);
+            var response = await client.PostAsJsonAsync("cache/get", request);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<T>();
@@ -64,7 +64,7 @@ public class ObjectCache : IObjectCache
                 SlidingExpirationMinutes = options?.SlidingExpirationMinutes
             };
             
-            var response = await client.PostAsJsonAsync("api/agent/cache/set", request);
+            var response = await client.PostAsJsonAsync("cache/set", request);
             response.EnsureSuccessStatusCode();
             
             return true;
@@ -89,7 +89,7 @@ public class ObjectCache : IObjectCache
         {
             var client = SecureApi.Instance.Client;
             var request = new CacheKeyRequest { Key = key };
-            var response = await client.PostAsJsonAsync("api/agent/cache/delete", request);
+            var response = await client.PostAsJsonAsync("cache/delete", request);
             response.EnsureSuccessStatusCode();
             
             return true;

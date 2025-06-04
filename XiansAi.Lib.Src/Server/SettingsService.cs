@@ -18,7 +18,7 @@ public class FlowServerSettings
 public static class SettingsService
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<FlowServerSettings>();
-    private const string SETTINGS_URL = "api/agent/settings/flowserver";
+    private const string SETTINGS_URL = "settings/flowserver";
 
     private static FlowServerSettings? _settings;
 

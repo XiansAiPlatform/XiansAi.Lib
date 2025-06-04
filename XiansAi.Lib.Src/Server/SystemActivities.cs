@@ -44,7 +44,7 @@ public class SystemActivities
             }
 
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/events/with-start", eventDto);
+            var response = await client.PostAsJsonAsync("events/with-start", eventDto);
             response.EnsureSuccessStatusCode();
         }
         catch (ObjectDisposedException ex)
@@ -127,7 +127,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
+            var response = await client.PostAsJsonAsync("conversation/outbound/handover", message);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();
@@ -156,7 +156,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/send", message);
+            var response = await client.PostAsJsonAsync("conversation/outbound/send", message);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();
@@ -192,7 +192,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"api/agent/conversation/history?agent={agent}&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
+            var response = await client.GetAsync($"conversation/history?agent={agent}&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();

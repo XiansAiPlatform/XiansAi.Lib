@@ -83,6 +83,10 @@ public class SecureApi : ISecureApiClient, IDisposable
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
+        string apiVersion = VersionInfo.MajorApiVersion;
+        string baseEndpoint = $"/api/{apiVersion}/agent/";
+        string serverUrlWithEndpoint = $"{serverUrl}{baseEndpoint}";
+
         if (string.IsNullOrEmpty(certificateBase64))
             throw new ArgumentNullException(nameof(certificateBase64));
             
@@ -90,7 +94,7 @@ public class SecureApi : ISecureApiClient, IDisposable
             throw new ArgumentNullException(nameof(serverUrl));
 
         _client = new HttpClient { 
-            BaseAddress = new Uri(serverUrl),
+            BaseAddress = new Uri(serverUrlWithEndpoint),
             Timeout = TimeSpan.FromSeconds(30) // Increase timeout to 30 seconds
         };
 

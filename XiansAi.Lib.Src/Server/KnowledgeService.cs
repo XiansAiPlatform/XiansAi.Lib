@@ -10,8 +10,8 @@ namespace Server;
 public class KnowledgeService
 {
     private readonly ILogger _logger;
-    private const string KNOWLEDGE_URL = "api/agent/knowledge/latest?name={name}&agent={agent}";
-    private const string UPLOAD_KNOWLEDGE_URL = "api/agent/knowledge";
+    private const string KNOWLEDGE_URL = "knowledge/latest?name={name}&agent={agent}";
+    private const string UPLOAD_KNOWLEDGE_URL = "knowledge";
 
     public KnowledgeService()
     {
