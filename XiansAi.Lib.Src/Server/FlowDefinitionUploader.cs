@@ -100,10 +100,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         try
         {
             var client = _secureApi.Client;
-            Console.WriteLine("endpointttttttttte" + client.BaseAddress);
-            Console.WriteLine("clientttttttttt" + client);
             var response = await client.PostAsync(API_ENDPOINT, JsonContent.Create(flowDefinition));
-            Console.WriteLine("responsewwwwwwwwwwwwwwwwwwww" + response);
 
             if (response.StatusCode == HttpStatusCode.BadRequest)
             {

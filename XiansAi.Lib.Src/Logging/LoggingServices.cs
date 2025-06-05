@@ -50,7 +50,7 @@ public static class LoggingServices
     /// <summary>
     /// Initializes the logging services and starts the background processor
     /// </summary>
-    public static void Initialize(IServiceProvider services, string logApiEndpoint = "/logs", int batchSize = 10, int processingIntervalMs = 5000)
+    public static void Initialize(IServiceProvider services, string logApiEndpoint = "logs", int batchSize = 10, int processingIntervalMs = 5000)
     {
         if (_isInitialized) return;
 
@@ -177,8 +177,8 @@ public static class LoggingServices
         try
         {
             var client = _secureApiClient.Client;
-            var fullUrl = PlatformConfig.APP_SERVER_URL + _logApiEndpoint;
-            var response = await client.PostAsync(fullUrl, JsonContent.Create(logs));
+            // var fullUrl = PlatformConfig.APP_SERVER_URL + _logApiEndpoint;
+            var response = await client.PostAsync(_logApiEndpoint, JsonContent.Create(logs));
 
             if (!response.IsSuccessStatusCode)
             {
