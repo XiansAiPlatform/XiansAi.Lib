@@ -12,6 +12,7 @@ public class MessagePayload
     public required string Agent { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
+    public string? Authorization { get; set; }
     public required string Content { get; set; }
     public required object Metadata { get; set; }
 }

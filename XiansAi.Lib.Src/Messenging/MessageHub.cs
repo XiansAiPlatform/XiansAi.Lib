@@ -216,6 +216,7 @@ public class MessageHub: IMessageHub
             Agent = AgentContext.AgentName,
             ThreadId = messageSignal.Payload.ThreadId,
             ParticipantId = messageSignal.Payload.ParticipantId,
+            Authorization = messageSignal.Payload.Authorization,
             LatestMessage = new Message {
                 Content = messageSignal.Payload.Content,
                 Metadata = messageSignal.Payload.Metadata,

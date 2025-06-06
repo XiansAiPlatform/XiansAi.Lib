@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using System.Net.Http.Json;
+using Server;
 
 namespace XiansAi.Messaging;
 
@@ -11,6 +13,7 @@ public interface IMessageThread
     Task<string?> RespondWithMetadata(object metadata);
     Task<string?> Handoff(string userRequest, object? metadata, string workflowType, string workflowId);
     Task<string?> Handoff(Type workflowType, string? userRequest = null);
+    Task<string?> GetAuthorization();
 }
 
 public class Message {
@@ -21,6 +24,7 @@ public class Message {
 public class MessageThread : IMessageThread
 {
     public required string ParticipantId { get; set; }
+    public string? Authorization { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
@@ -116,5 +120,31 @@ public class MessageThread : IMessageThread
             var success = await SystemActivities.HandOverThreadStatic(outgoingMessage);
             return success;
         }
+    }
+
+    public async Task<string?> GetAuthorization()
+    {
+        try
+        {
+            if (!SecureApi.IsReady)
+            {
+                _logger.LogError("Secure API is not ready");
+                return null;
+            }
+
+            var client = SecureApi.Instance.Client;
+            var response = await client.GetFromJsonAsync<AuthorizationResponse>($"{PlatformConfig.APP_SERVER_URL}/api/agent/conversation/authorization/{Authorization}");
+            return response?.Authorization;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving authorization for GUID: {Authorization}", Authorization);
+            return null;
+        }
+    }
+
+    private class AuthorizationResponse
+    {
+        public string? Authorization { get; set; }
     }
 }
