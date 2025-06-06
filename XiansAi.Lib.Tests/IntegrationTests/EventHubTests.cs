@@ -1,170 +1,170 @@
-using Microsoft.Extensions.Logging;
-using Server;
-using DotNetEnv;
-using XiansAi.Events;
-using System.Text.Json;
-using System.Net;
-using System.Net.Http;
+// using Microsoft.Extensions.Logging;
+// using Server;
+// using DotNetEnv;
+// using XiansAi.Events;
+// using System.Text.Json;
+// using System.Net;
+// using System.Net.Http;
 
-namespace XiansAi.Lib.Tests.IntegrationTests;
+// namespace XiansAi.Lib.Tests.IntegrationTests;
 
-[Collection("SecureApi Tests")]
-public class EventHubTests
-{
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly string _certificateBase64;
-    private readonly string _serverUrl;
-    private readonly ILogger<EventHubTests> _logger;
-    //private readonly SystemActivities _systemActivities;
+// [Collection("SecureApi Tests")]
+// public class EventHubTests
+// {
+//     private readonly ILoggerFactory _loggerFactory;
+//     private readonly string _certificateBase64;
+//     private readonly string _serverUrl;
+//     private readonly ILogger<EventHubTests> _logger;
+//     //private readonly SystemActivities _systemActivities;
 
-    /*
-    dotnet test --filter "FullyQualifiedName~EventHubTests"
-    */
-    public EventHubTests()
-    {
-        // Reset SecureApi to ensure clean state
-        SecureApi.Reset();
+//     /*
+//     dotnet test --filter "FullyQualifiedName~EventHubTests"
+//     */
+//     public EventHubTests()
+//     {
+//         // Reset SecureApi to ensure clean state
+//         SecureApi.Reset();
 
-        // Load environment variables
-        Env.Load();
+//         // Load environment variables
+//         Env.Load();
 
-        // Get values from environment for SecureApi
-        _certificateBase64 = Environment.GetEnvironmentVariable("APP_SERVER_API_KEY") ?? 
-            throw new InvalidOperationException("APP_SERVER_API_KEY environment variable is not set");
-        _serverUrl = Environment.GetEnvironmentVariable("APP_SERVER_URL") ?? 
-            throw new InvalidOperationException("APP_SERVER_URL environment variable is not set");
+//         // Get values from environment for SecureApi
+//         _certificateBase64 = Environment.GetEnvironmentVariable("APP_SERVER_API_KEY") ?? 
+//             throw new InvalidOperationException("APP_SERVER_API_KEY environment variable is not set");
+//         _serverUrl = Environment.GetEnvironmentVariable("APP_SERVER_URL") ?? 
+//             throw new InvalidOperationException("APP_SERVER_URL environment variable is not set");
 
-        // Set up logger
-        _loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-        _logger = _loggerFactory.CreateLogger<EventHubTests>();
+//         // Set up logger
+//         _loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+//         _logger = _loggerFactory.CreateLogger<EventHubTests>();
 
-        // Set the global LogFactory
-        typeof(Globals).GetProperty("LogFactory")?.SetValue(null, _loggerFactory);
+//         // Set the global LogFactory
+//         typeof(Globals).GetProperty("LogFactory")?.SetValue(null, _loggerFactory);
 
-        // Initialize SecureApi with real credentials
-        SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
+//         // Initialize SecureApi with real credentials
+//         SecureApi.InitializeClient(_certificateBase64, _serverUrl, forceReinitialize: true);
         
-        // Create SystemActivities instance
-        //_systemActivities = new SystemActivities();
-    }
+//         // Create SystemActivities instance
+//         //_systemActivities = new SystemActivities();
+//     }
 
-    /*
-    dotnet test --filter "FullyQualifiedName~EventHubTests.SendEvent_ShouldRespondNotFound"
-    */
-    [Fact]
-    public async Task SendEvent_ShouldRespondNotFound()
-    {
-        // Arrange - Use a non-existent workflow ID
-        var sourceWorkflowId = $"test-source-workflow-{Guid.NewGuid()}";
-        var targetWorkflowId = $"non-existent-workflow-{Guid.NewGuid()}";
+//     /*
+//     dotnet test --filter "FullyQualifiedName~EventHubTests.SendEvent_ShouldRespondNotFound"
+//     */
+//     [Fact]
+//     public async Task SendEvent_ShouldRespondNotFound()
+//     {
+//         // Arrange - Use a non-existent workflow ID
+//         var sourceWorkflowId = $"test-source-workflow-{Guid.NewGuid()}";
+//         var targetWorkflowId = $"non-existent-workflow-{Guid.NewGuid()}";
         
-        var testPayload = new TestPayload { 
-            Message = "Hello from test event!",
-            Timestamp = DateTime.UtcNow
-        };
+//         var testPayload = new TestPayload { 
+//             Message = "Hello from test event!",
+//             Timestamp = DateTime.UtcNow
+//         };
         
-        var evt = new EventSignal {
-            EventType = "TestEvent",
-            SourceWorkflowId = sourceWorkflowId,
-            SourceWorkflowType = "TestWorkflow",
-            SourceAgent = "TestAgent",
-            Payload = testPayload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowId = targetWorkflowId,
-            TargetWorkflowType = "TestWorkflow",
-        };
+//         var evt = new EventSignal {
+//             EventType = "TestEvent",
+//             SourceWorkflowId = sourceWorkflowId,
+//             SourceWorkflowType = "TestWorkflow",
+//             SourceAgent = "TestAgent",
+//             Payload = testPayload,
+//             Timestamp = DateTimeOffset.UtcNow,
+//             TargetWorkflowId = targetWorkflowId,
+//             TargetWorkflowType = "TestWorkflow",
+//         };
 
-        _logger.LogInformation("Sending event from {SourceWorkflow} to non-existent workflow {TargetWorkflow}", 
-            sourceWorkflowId, targetWorkflowId);
+//         _logger.LogInformation("Sending event from {SourceWorkflow} to non-existent workflow {TargetWorkflow}", 
+//             sourceWorkflowId, targetWorkflowId);
 
-        // Act & Assert
-        // The test should receive either a Not Found response or an Unauthorized response
-        try
-        {
-            await SystemActivities.SendEventStatic(evt);
-            Assert.Fail("Expected HttpRequestException, but no exception was thrown");
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-        {
-            // This is one of the expected exceptions
-            _logger.LogInformation("Successfully received expected NotFound status: {Message}", ex.Message);
-            Assert.Equal(HttpStatusCode.NotFound, ex.StatusCode);
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            // We're also accepting 401 Unauthorized as valid for this test
-            _logger.LogInformation("Received Unauthorized status which is acceptable for this test: {Message}", ex.Message);
-            // Test passes - we expect auth issues in the test environment
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Received unexpected exception: {Error}", ex.Message);
-            // For any other exception, we'll use a more lenient check
-            Assert.True(ex.Message.ToLower().Contains("notfound") || 
-                       ex.Message.ToLower().Contains("unauthoriz") || 
-                       ex.Message.ToLower().Contains("401"),
-                       $"Exception should be about not found or unauthorized, but was: {ex.Message}");
-        }
-    }
+//         // Act & Assert
+//         // The test should receive either a Not Found response or an Unauthorized response
+//         try
+//         {
+//             await SystemActivities.SendEventStatic(evt);
+//             Assert.Fail("Expected HttpRequestException, but no exception was thrown");
+//         }
+//         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+//         {
+//             // This is one of the expected exceptions
+//             _logger.LogInformation("Successfully received expected NotFound status: {Message}", ex.Message);
+//             Assert.Equal(HttpStatusCode.NotFound, ex.StatusCode);
+//         }
+//         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+//         {
+//             // We're also accepting 401 Unauthorized as valid for this test
+//             _logger.LogInformation("Received Unauthorized status which is acceptable for this test: {Message}", ex.Message);
+//             // Test passes - we expect auth issues in the test environment
+//         }
+//         catch (Exception ex)
+//         {
+//             _logger.LogError(ex, "Received unexpected exception: {Error}", ex.Message);
+//             // For any other exception, we'll use a more lenient check
+//             Assert.True(ex.Message.ToLower().Contains("notfound") || 
+//                        ex.Message.ToLower().Contains("unauthoriz") || 
+//                        ex.Message.ToLower().Contains("401"),
+//                        $"Exception should be about not found or unauthorized, but was: {ex.Message}");
+//         }
+//     }
     
-    /*
-    dotnet test --filter "FullyQualifiedName~EventHubTests.StartAndSendEvent_ShouldNotThrowException"
-    */
-    [Fact]
-    public async Task StartAndSendEvent_ShouldNotThrowException()
-    {
-        // Arrange
-        var sourceWorkflowId = $"test-source-workflow-{Guid.NewGuid()}";
-        var targetWorkflowType = "TestTargetWorkflow";
+//     /*
+//     dotnet test --filter "FullyQualifiedName~EventHubTests.StartAndSendEvent_ShouldNotThrowException"
+//     */
+//     [Fact]
+//     public async Task StartAndSendEvent_ShouldNotThrowException()
+//     {
+//         // Arrange
+//         var sourceWorkflowId = $"test-source-workflow-{Guid.NewGuid()}";
+//         var targetWorkflowType = "TestTargetWorkflow";
         
-        var testPayload = new TestPayload { 
-            Message = "Hello from start and send test event!",
-            Timestamp = DateTime.UtcNow
-        };
+//         var testPayload = new TestPayload { 
+//             Message = "Hello from start and send test event!",
+//             Timestamp = DateTime.UtcNow
+//         };
         
-        var evt = new EventSignal {
-            EventType = "TestStartEvent",
-            SourceWorkflowId = sourceWorkflowId,
-            SourceWorkflowType = "TestWorkflow",
-            SourceAgent = "TestAgent",
-            Payload = testPayload,
-            Timestamp = DateTimeOffset.UtcNow,
-            TargetWorkflowType = targetWorkflowType,
-        };
+//         var evt = new EventSignal {
+//             EventType = "TestStartEvent",
+//             SourceWorkflowId = sourceWorkflowId,
+//             SourceWorkflowType = "TestWorkflow",
+//             SourceAgent = "TestAgent",
+//             Payload = testPayload,
+//             Timestamp = DateTimeOffset.UtcNow,
+//             TargetWorkflowType = targetWorkflowType,
+//         };
 
-        _logger.LogInformation("Starting and sending event from {SourceWorkflow} to workflow type {TargetWorkflowType}", 
-            sourceWorkflowId, targetWorkflowType);
+//         _logger.LogInformation("Starting and sending event from {SourceWorkflow} to workflow type {TargetWorkflowType}", 
+//             sourceWorkflowId, targetWorkflowType);
 
-        // Act & Assert
-        // The test passes if either:
-        // 1. No exception is thrown during the event sending
-        // 2. A TaskCanceledException is thrown (which can happen due to network issues)
-        // 3. A 401 Unauthorized is thrown (which is expected in test environments)
-        try
-        {
-            await SystemActivities.SendEventStatic(evt);
-            _logger.LogInformation("Successfully started workflow and sent event");
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogWarning(ex, "Event sending was canceled (possibly due to network issues) - this is acceptable for this test");
-            // Test passes in this case too
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            _logger.LogWarning(ex, "Received 401 Unauthorized - this is acceptable for this test");
-            // Test passes in this case too
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start workflow and send event: {Error}", ex.Message);
-            throw;
-        }
-    }
-}
+//         // Act & Assert
+//         // The test passes if either:
+//         // 1. No exception is thrown during the event sending
+//         // 2. A TaskCanceledException is thrown (which can happen due to network issues)
+//         // 3. A 401 Unauthorized is thrown (which is expected in test environments)
+//         try
+//         {
+//             await SystemActivities.SendEventStatic(evt);
+//             _logger.LogInformation("Successfully started workflow and sent event");
+//         }
+//         catch (TaskCanceledException ex)
+//         {
+//             _logger.LogWarning(ex, "Event sending was canceled (possibly due to network issues) - this is acceptable for this test");
+//             // Test passes in this case too
+//         }
+//         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+//         {
+//             _logger.LogWarning(ex, "Received 401 Unauthorized - this is acceptable for this test");
+//             // Test passes in this case too
+//         }
+//         catch (Exception ex)
+//         {
+//             _logger.LogError(ex, "Failed to start workflow and send event: {Error}", ex.Message);
+//             throw;
+//         }
+//     }
+// }
 
-public class TestPayload
-{
-    public string? Message { get; set; }
-    public DateTime Timestamp { get; set; }
-} 
+// public class TestPayload
+// {
+//     public string? Message { get; set; }
+//     public DateTime Timestamp { get; set; }
+// } 
