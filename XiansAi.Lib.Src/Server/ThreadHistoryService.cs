@@ -11,7 +11,7 @@ public class ThreadHistoryService
         _logger = Globals.LogFactory.CreateLogger<ThreadHistoryService>();
     }
 
-    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    public async Task<List<DbMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
         if (Workflow.InWorkflow) {
             return await Workflow.ExecuteActivityAsync(

@@ -6,17 +6,17 @@ namespace XiansAi.Messaging;
 
 public interface IMessageThread
 {
-    Task<string?> Respond(string content, object metadata);
-    Task<string?> Respond(string content);
-    Task<string?> RespondWithMetadata(object metadata);
-    Task<string?> Handoff(string userRequest, object? metadata, string workflowType, string workflowId);
-    Task<string?> Handoff(Type workflowType, string? userRequest = null);
+    Task<string?> SendChat(string content, object? data = null);
+    Task<string?> SendData(object data, string? content = null);
+    Task<string?> SendHandoff(Type workflowType, string? message = null, object? metadata = null);
 }
 
-public class Message {
-    public string? Content { get; set; }
-    public object? Metadata { get; set; }
+public class Message
+{
+    public required string Content { get; set; }
+    public required object? Data { get; set; }
 }
+
 
 public class MessageThread : IMessageThread
 {
@@ -35,34 +35,47 @@ public class MessageThread : IMessageThread
     }
 
 
-    public async Task<List<HistoricalMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
+    public async Task<List<DbMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
     {
         var history = await new ThreadHistoryService().GetMessageHistory(Agent, WorkflowType, ParticipantId, page, pageSize);
         return history;
     }
 
-    public async Task<string?> Respond(string content)
+  
+    public async Task<string?> SendData(object data, string? content = null)
     {
-        return await RespondInternal(content, null);
+        _logger.LogDebug("Sending data message: {Content}", content);
+        return await SendChatOrData(content, data, MessageType.Data);
     }
 
-    public async Task<string?> RespondWithMetadata(object metadata)
+    public async Task<string?> SendChat(string content, object? data = null)
     {
-        _logger.LogInformation("Sending message with metadata: {Metadata}", JsonSerializer.Serialize(metadata));
-        return await RespondInternal(null, metadata);
+        _logger.LogDebug("Sending chat message: {Content}", content);
+        return await SendChatOrData(content, data, MessageType.Chat);
     }
 
-    public async Task<string?> Respond(string content, object metadata)
+    public async Task<string?> SendHandoff(Type targetWorkflowType, string? message = null, object? data = null)
     {
-        return await RespondInternal(content, metadata);
+        message ??= LatestMessage.Content ?? throw new Exception("User request is required for handoff");
+        var workflowId = AgentContext.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var workflowTypeString = AgentContext.GetWorkflowTypeFor(targetWorkflowType);
+        data ??= LatestMessage.Data;
+        return await Handoff(message, data, workflowTypeString, workflowId);
     }
 
-    private async Task<string?> RespondInternal(string? content, object? metadata)
+    public async Task<string?> SendHandoff(string targetWorkflowId, string? message = null, object? data = null)
     {
-        var outgoingMessage = new OutgoingMessage
+        message ??= LatestMessage.Content ?? throw new Exception("User request is required for handoff");
+        data ??= LatestMessage.Data;
+        return await Handoff(message, data, null, targetWorkflowId);
+    }
+
+    private async Task<string?> SendChatOrData(string? content, object? data, MessageType type)
+    {
+        var outgoingMessage = new ChatOrDataRequest
         {
-            Content = content,
-            Metadata = metadata,
+            Text = content,
+            Data = data,
             ParticipantId = ParticipantId,
             WorkflowId = WorkflowId,
             WorkflowType = WorkflowType,
@@ -73,47 +86,48 @@ public class MessageThread : IMessageThread
 
         if(Workflow.InWorkflow) {
             var success = await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.SendMessage(outgoingMessage),
+                (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
                 new SystemActivityOptions());
             return success;
         } else {
-            var success = await SystemActivities.SendMessageStatic(outgoingMessage);
+            var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, type);
             return success;
         }
     }
 
-    public async Task<string?> Handoff(Type workflowType, string? message = null)
-    {
-        var userRequest = message ?? LatestMessage.Content ?? throw new Exception("User request is required for handoff");
-        var workflowId = AgentContext.GetSingletonWorkflowIdFor(workflowType);
-        var workflowTypeString = AgentContext.GetWorkflowTypeFor(workflowType);
-        var metadata = LatestMessage.Metadata;
-        return await Handoff(userRequest, metadata, workflowTypeString, workflowId);
-    }
 
-    public async Task<string?> Handoff(string userRequest, object? metadata, string workflowType, string workflowId)
+    private async Task<string?> Handoff(string userRequest, object? data, string? targetWorkflowType, string? targetWorkflowId)
     {
-        var outgoingMessage = new HandoverMessage
+        if(string.IsNullOrEmpty(userRequest)) {
+            throw new Exception("User request is required for handoff");
+        }
+
+        if(targetWorkflowId == null && targetWorkflowType == null) {
+            throw new Exception("Target workflowId or workflowType is required for handoff");
+        }
+
+        var outgoingMessage = new HandoffRequest
         {
-            WorkflowId = workflowId,
-            WorkflowType = workflowType,
-            Agent = Agent,
-            ThreadId = ThreadId ?? throw new Exception("ThreadId is required for handover"),
+            TargetWorkflowId = targetWorkflowId,
+            TargetWorkflowType = targetWorkflowType,
+            SourceAgent = Agent,
+            SourceWorkflowId = WorkflowId,
+            ThreadId = ThreadId ?? throw new Exception("ThreadId is required for handoff"),
             ParticipantId = ParticipantId,
-            FromWorkflowType = WorkflowType,
-            Content = userRequest,
-            Metadata = metadata
+            SourceWorkflowType = WorkflowType,
+            Text = userRequest,
+            Data = data
         };
 
         _logger.LogInformation("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
 
         if(Workflow.InWorkflow) {
             var success = await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.HandOverThread(outgoingMessage),
+                (SystemActivities a) => a.SendHandoff(outgoingMessage),
                 new SystemActivityOptions());
             return success;
         } else {
-            var success = await SystemActivities.HandOverThreadStatic(outgoingMessage);
+            var success = await SystemActivities.SendHandoffStatic(outgoingMessage);
             return success;
         }
     }

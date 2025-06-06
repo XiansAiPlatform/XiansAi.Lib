@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Temporalio.Workflows;
 using XiansAi.Logging;
+using XiansAi.Messaging;
 
 namespace XiansAi.Events;
 
@@ -31,46 +32,6 @@ public class EventHub : IEventHub
     // Dictionary to keep track of handler references for unregistration
     private readonly Dictionary<Delegate, Func<EventMetadata, object?, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<EventMetadata, object?, Task>>();
-
-
-    public static async Task Publish(Type flowClassType, string evtType, object? payload = null)
-    {
-        var targetWorkflowType = AgentContext.GetWorkflowTypeFor(flowClassType);
-        var targetWorkflowId = AgentContext.GetSingletonWorkflowIdFor(flowClassType);
-        await Publish(targetWorkflowId, targetWorkflowType, evtType, payload);
-    }
-    public static async Task Publish(string targetWorkflowId, string targetWorkflowType, string evtType, object? payload = null)
-    {
-        try {
-            var eventDto = new EventSignal
-            {
-                EventType = evtType,
-                SourceWorkflowId = AgentContext.WorkflowId,
-                SourceWorkflowType = AgentContext.WorkflowType,
-                SourceAgent = AgentContext.AgentName,
-                Payload = payload,
-                Timestamp = DateTimeOffset.UtcNow,
-                TargetWorkflowType = targetWorkflowType,
-                TargetWorkflowId = targetWorkflowId
-            };
-
-            if (Workflow.InWorkflow)
-            {
-                await Workflow.ExecuteActivityAsync(
-                    (SystemActivities a) => a.SendEvent(eventDto),
-                    new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
-            }
-            else
-            {
-                await SystemActivities.SendEventStatic(eventDto);
-            }
-        }
-        catch (Exception e)
-        {
-            Console.Error.WriteLine(e);
-            throw;
-        }
-    }
 
     public void Subscribe<T>(EventReceivedAsyncHandler<T> handler)
     {

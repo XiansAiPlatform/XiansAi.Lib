@@ -5,6 +5,7 @@ using XiansAi.Events;
 using System.Text.Json;
 using System.Net;
 using System.Net.Http;
+using XiansAi.Messaging;
 
 namespace XiansAi.Lib.Tests.IntegrationTests;
 

@@ -9,6 +9,9 @@ using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
+using Temporal;
+using Temporalio.Client;
+
 public class SendMessageResponse
 {
     public required string[] MessageIds { get; set; }
@@ -25,7 +28,7 @@ public class SystemActivities
         _capabilities = capabilities;
     }
 
-    [Activity("System Activities: Send Event")]
+    [Activity]
     public async Task SendEvent(EventSignal eventDto)
     {
         await SendEventStatic(eventDto);
@@ -42,7 +45,6 @@ public class SystemActivities
             {
                 throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized.");
             }
-
             var client = SecureApi.Instance.Client;
             var response = await client.PostAsJsonAsync("api/agent/events/with-start", eventDto);
             response.EnsureSuccessStatusCode();
@@ -62,7 +64,7 @@ public class SystemActivities
     }
 
 
-    [Activity("System Activities: Get Knowledge")]
+    [Activity]
     public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
         return await GetKnowledgeAsyncStatic(knowledgeName);
@@ -88,7 +90,7 @@ public class SystemActivities
         return await UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
     }
 
-    [Activity("System Activities: Update Knowledge")]
+    [Activity]
     public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string knowledgeType, string knowledgeContent)
     {
         try
@@ -105,19 +107,19 @@ public class SystemActivities
 
     }
 
-    [Activity("System Activities: Route Message")]
+    [Activity]
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt)
     {
         // do the routing
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray());
     }
 
-    [Activity ("System Activities: Hand Over message Thread")]
-    public async Task<string?> HandOverThread(HandoverMessage message) {
-        return await HandOverThreadStatic(message);
+    [Activity]
+    public async Task<string?> SendHandoff(HandoffRequest message) {
+        return await SendHandoffStatic(message);
     }
 
-    public static async Task<string?> HandOverThreadStatic(HandoverMessage message) {
+    public static async Task<string?> SendHandoffStatic(HandoffRequest message) {
 
         if (!SecureApi.IsReady)
         {
@@ -127,7 +129,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handover", message);
+            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handoff", message);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();
@@ -139,13 +141,12 @@ public class SystemActivities
         }
     }
 
-
-    [Activity ("System Activities: Send Message")]
-    public async Task<string> SendMessage(OutgoingMessage message) {
-        return await SendMessageStatic(message);
+    [Activity]
+    public async Task<string> SendChatOrData(ChatOrDataRequest message, MessageType type) {
+        return await SendChatOrDataStatic(message, type);
     }
 
-    public static async Task<string> SendMessageStatic(OutgoingMessage message) {
+    public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
 
         if (!SecureApi.IsReady)
         {
@@ -153,10 +154,18 @@ public class SystemActivities
             throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized.");
         }
 
+        if (type == MessageType.Chat && string.IsNullOrEmpty(message.Text)) {
+            throw new Exception("Text is required for chat message");
+        }
+
+        if (type == MessageType.Data && message.Data == null) {
+            throw new Exception("Data is required for data message");
+        }
+
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/send", message);
+            var response = await client.PostAsJsonAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();
@@ -174,20 +183,20 @@ public class SystemActivities
     }
 
 
-    [Activity("System Activities: Get Message Thread History")]
-    public async Task<List<HistoricalMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    [Activity]
+    public async Task<List<DbMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
         return await GetMessageHistoryStatic(agent, workflowType, participantId, page, pageSize);
     }
 
-    public static async Task<List<HistoricalMessage>> GetMessageHistoryStatic(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    public static async Task<List<DbMessage>> GetMessageHistoryStatic(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
         _logger.LogDebug("Getting message history for thread Agent: '{Agent}' WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", agent, workflowType, participantId);
 
         if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
-            return new List<HistoricalMessage>();
+            return new List<DbMessage>();
         }
         try
         {
@@ -195,15 +204,15 @@ public class SystemActivities
             var response = await client.GetAsync($"api/agent/conversation/history?agent={agent}&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
 
-            var messages = await response.Content.ReadFromJsonAsync<List<HistoricalMessage>>();
+            var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
 
             _logger.LogDebug($"Message history fetched: {messages?.Count} messages");
-            return messages ?? new List<HistoricalMessage>();
+            return messages ?? new List<DbMessage>();
         }
         catch (ObjectDisposedException ex)
         {
             _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping message history fetch.");
-            return new List<HistoricalMessage>();
+            return new List<DbMessage>();
         }
         catch (Exception ex)
         {
