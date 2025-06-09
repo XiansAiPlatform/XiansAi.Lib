@@ -2,6 +2,7 @@ using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Logging;
 using XiansAi.Flow.Router;
+using XiansAi.Knowledge;
 
 namespace XiansAi.Flow;
 
@@ -19,6 +20,27 @@ public abstract class FlowBase : AbstractFlow
         _messageHub.RegisterMessageHandler(_messageQueue.Enqueue);
     }
 
+    protected async Task InitConversation(string knowledgeContent, MessageListenerDelegate? messageListener = null)
+    {
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
+
+        await ListenToUserMessages(messageListener, knowledgeContent);
+    }
+    protected async Task InitConversation(Models.Knowledge knowledge, MessageListenerDelegate? messageListener = null)
+    {
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
+
+        await ListenToUserMessages(messageListener, knowledge.Content);
+    }
+
+    protected async Task InitConversationByKnowledgeKey(string knowledgeName, MessageListenerDelegate? messageListener = null)
+    {
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
+
+        await ListenToUserMessagesByKnowledgeKey(messageListener, knowledgeName);
+    }
+
+    [Obsolete("Use InitConversation instead")]
     protected async Task InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
@@ -26,7 +48,8 @@ public abstract class FlowBase : AbstractFlow
         await ListenToUserMessages(messageListener, systemPrompt);
     }
 
-    private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, string systemPrompt)
+
+    private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, Func<Task<string>> systemPromptProvider)
     {
         while (true)
         {
@@ -44,6 +67,9 @@ public abstract class FlowBase : AbstractFlow
                     await messageListener(thread);
                 }
 
+                // Get the system prompt using the provider
+                var systemPrompt = await systemPromptProvider();
+
                 // Asynchronously process the message
                 await ProcessMessage(thread, systemPrompt);
             }
@@ -52,6 +78,24 @@ public abstract class FlowBase : AbstractFlow
                 _logger.LogError("Error processing message", ex);
             }
         }
+    }
+
+    private async Task ListenToUserMessagesByKnowledgeKey(MessageListenerDelegate? messageListener, string systemPromptKnowledgeKey)
+    {
+        await ListenToUserMessages(messageListener, async () =>
+        {
+            var knowledge = await KnowledgeHub.Fetch(systemPromptKnowledgeKey);
+            if (knowledge == null)
+            {
+                throw new Exception($"Knowledge '{systemPromptKnowledgeKey}' not found");
+            }
+            return knowledge.Content;
+        });
+    }
+
+    private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, string systemPrompt)
+    {
+        await ListenToUserMessages(messageListener, () => Task.FromResult(systemPrompt));
     }
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)
@@ -63,6 +107,6 @@ public abstract class FlowBase : AbstractFlow
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
         // Respond to the user
-        await messageThread.Respond(response);
+        await messageThread.SendChat(response);
     }
 }

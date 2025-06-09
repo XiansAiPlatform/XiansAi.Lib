@@ -186,13 +186,13 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                 Payload = new MessagePayload
                 {
                     ParticipantId = "test-participant-id",
-                    Content = "Test message content",
-                    Metadata = new Dictionary<string, string?> { { "Type", "test" } },
+                    Text = "Test message content",
+                    Data = new Dictionary<string, string?> { { "Type", "test" } },
                     Agent = "test-agent",
                     ThreadId = "test-thread-id"
                 },
-                TargetWorkflowId = "test-workflow-id",
-                TargetWorkflowType = "test-workflow-type",
+                SourceWorkflowId = "test-workflow-id",
+                SourceWorkflowType = "test-workflow-type",
                 SourceAgent = "test-agent"
             };
         }

@@ -32,7 +32,7 @@ public static class LoggingServices
     private static ISecureApiClient? _secureApiClient;
     private static string _logApiEndpoint = "logs";
     private static int _batchSize = 10;
-    private static int _processingIntervalMs = 5000;
+    private static int _processingIntervalMs = 30000;
 
     /// <summary>
     /// Enqueues a log to the global queue for processing

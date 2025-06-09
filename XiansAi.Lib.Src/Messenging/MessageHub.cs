@@ -41,28 +41,73 @@ public class MessageHub: IMessageHub
     private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _metadataHandlerMappings = 
         new ConcurrentDictionary<Delegate, Func<MessageThread, Task>>();
 
-    public static async Task<string?> Send(string content, string participantId, object? metadata = null)
+    public static async Task<string?> SendData(string participantId, string content, object? data = null)
     {
-        var outgoingMessage = new OutgoingMessage
+        return await SendChatOrData(MessageType.Data, participantId, content, data);
+    }
+
+    public static async Task<string?> SendChat(string participantId, string content, object? data = null)
+    {
+        return await SendChatOrData(MessageType.Chat, participantId, content, data);
+    }
+
+    public static async Task SendEvent(Type flowClassType, string evtType, object? payload = null) {
+        var targetWorkflowType = AgentContext.GetWorkflowTypeFor(flowClassType);
+        var targetWorkflowId = AgentContext.GetSingletonWorkflowIdFor(flowClassType);
+
+        try {
+            var eventDto = new EventSignal
+            {
+                EventType = evtType,
+                SourceWorkflowId = AgentContext.WorkflowId,
+                SourceWorkflowType = AgentContext.WorkflowType,
+                SourceAgent = AgentContext.AgentName,
+                Payload = payload,
+                TargetWorkflowType = targetWorkflowType,
+                TargetWorkflowId = targetWorkflowId
+            };
+
+            if (Workflow.InWorkflow)
+            {
+                await Workflow.ExecuteActivityAsync(
+                    (SystemActivities a) => a.SendEvent(eventDto),
+                    new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+            }
+            else
+            {
+                await SystemActivities.SendEventStatic(eventDto);
+            }
+        }
+        catch (Exception e)
         {
-            Content = content,
-            Metadata = metadata,
-            ParticipantId = participantId,
+            Console.Error.WriteLine(e);
+            throw;
+        }
+    }
+
+
+    private static async Task<string?> SendChatOrData(MessageType type, string participantId, string content, object? data = null)
+    {
+        var outgoingMessage = new ChatOrDataRequest
+        {
+            Agent = AgentContext.AgentName,
             WorkflowId = AgentContext.WorkflowId,
             WorkflowType = AgentContext.WorkflowType,
-            Agent = AgentContext.AgentName
+            Text = content,
+            Data = data,
+            ParticipantId = participantId
         };
 
         if (Workflow.InWorkflow)
         {
             var success = await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.SendMessage(outgoingMessage),
+                (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
                 new SystemActivityOptions());
             return success;
         }
         else
         {
-            var success = await SystemActivities.SendMessageStatic(outgoingMessage);
+            var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, MessageType.Chat);
             return success;
         }
 
@@ -216,14 +261,14 @@ public class MessageHub: IMessageHub
             Agent = AgentContext.AgentName,
             ThreadId = messageSignal.Payload.ThreadId,
             ParticipantId = messageSignal.Payload.ParticipantId,
-            LatestMessage = new Message {
-                Content = messageSignal.Payload.Content,
-                Metadata = messageSignal.Payload.Metadata,
+            LatestMessage = new () {
+                Content = messageSignal.Payload.Text,
+                Data = messageSignal.Payload.Data,
             }
         };
 
         // If content is null, call metadata handlers; otherwise call message handlers
-        if (string.IsNullOrEmpty(messageSignal.Payload.Content?.Trim()))
+        if (string.IsNullOrEmpty(messageSignal.Payload.Text?.Trim()))
         {
             await ProcessHandlers(_metadataHandlerMappings.Values, messageThread, "metadata");
         }
