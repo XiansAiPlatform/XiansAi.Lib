@@ -4,13 +4,10 @@ using Server;
 using Temporalio.Activities;
 using Temporalio.Common;
 using Temporalio.Workflows;
-using XiansAi.Events;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
-using Temporal;
-using Temporalio.Client;
 
 public class SendMessageResponse
 {
@@ -36,8 +33,8 @@ public class SystemActivities
 
     public static async Task SendEventStatic(EventSignal eventDto)
     {
-        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
-            eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+        _logger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
+            eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
 
         try
         {
@@ -57,8 +54,8 @@ public class SystemActivities
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            _logger.LogError(ex, "Failed to start and send event {EventType} from {SourceWorkflow} to {TargetWorkflow}",
-                eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+            _logger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
+                eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
             throw;
         }
     }

@@ -15,6 +15,7 @@ public class Message
 {
     public required string Content { get; set; }
     public required object? Data { get; set; }
+    public required MessageType Type { get; set; }
 }
 
 

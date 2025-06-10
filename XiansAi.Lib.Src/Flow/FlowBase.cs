@@ -17,7 +17,7 @@ public abstract class FlowBase : AbstractFlow
     public FlowBase() : base()  
     {
         // Register the message handler
-        _messageHub.RegisterMessageHandler(_messageQueue.Enqueue);
+        _messageHub.SubscribeChatHandler(_messageQueue.Enqueue);
     }
 
     protected async Task InitConversation(string knowledgeContent, MessageListenerDelegate? messageListener = null)

@@ -12,6 +12,11 @@ public interface ISecureApiClient
     /// Gets the underlying HTTP client configured with security settings.
     /// </summary>
     HttpClient Client { get; }
+
+    /// <summary>
+    /// Tests the connection to the server.
+    /// </summary>
+    Task TestConnection();
 }
 
 /// <summary>
@@ -43,6 +48,19 @@ public class SecureApi : ISecureApiClient, IDisposable
                 throw new ObjectDisposedException(nameof(SecureApi), "The SecureApi instance has been disposed. Please reinitialize the client.");
             }
             return _client;
+        }
+    }
+
+    public async Task TestConnection()
+    {
+        var settings = await SettingsService.GetSettingsFromServer();
+        if (settings == null)
+        {
+            throw new Exception("Failed to get settings from server");
+        }
+        if (settings.FlowServerCertBase64 == null || settings.FlowServerUrl == null)
+        {
+            throw new Exception("Failed to get settings from server: FlowServerCertBase64 or FlowServerUrl is null");
         }
     }
     
@@ -110,6 +128,7 @@ public class SecureApi : ISecureApiClient, IDisposable
             _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
             
             _logger.LogInformation("SecureApi initialized successfully");
+
         }
         catch (Exception ex)
         {

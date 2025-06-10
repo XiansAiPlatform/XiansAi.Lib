@@ -26,18 +26,18 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             var handlerCalled = false;
             
             // Act
-            MessageReceivedAsyncHandler handler = _ => 
+            ConversationReceivedAsyncHandler handler = _ => 
             {
                 handlerCalled = true;
                 return Task.CompletedTask;
             };
-            messenger.RegisterAsyncMessageHandler(handler);
+            messenger.SubscribeAsyncChatHandler(handler);
             
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
             // Use the now public method to trigger the handler
-            await messenger.ReceiveMessage(messageSignal);
+            await messenger.ReceiveConversationChatOrData(messageSignal);
             
             // Assert
             Assert.True(handlerCalled);
@@ -50,17 +50,17 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             var messenger = new MessageHub();
             var handlerCalled = false;
             
-            MessageReceivedHandler handler = _ => handlerCalled = true;
-            messenger.RegisterMessageHandler(handler);
+            ConversationReceivedHandler handler = _ => handlerCalled = true;
+            messenger.SubscribeChatHandler(handler);
             
             // Act
-            messenger.UnregisterMessageHandler(handler);
+            messenger.UnsubscribeChatHandler(handler);
             
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
             // Use the now public method to trigger the handler
-            await messenger.ReceiveMessage(messageSignal);
+            await messenger.ReceiveConversationChatOrData(messageSignal);
             
             // Assert
             Assert.False(handlerCalled);
@@ -73,21 +73,21 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             var messenger = new MessageHub();
             var handlerCalled = false;
             
-            MessageReceivedAsyncHandler handler = _ => 
+            ConversationReceivedAsyncHandler handler = _ => 
             {
                 handlerCalled = true;
                 return Task.CompletedTask;
             };
-            messenger.RegisterAsyncMessageHandler(handler);
+            messenger.SubscribeAsyncChatHandler(handler);
             
             // Act
-            messenger.UnregisterAsyncMessageHandler(handler);
+            messenger.UnsubscribeAsyncChatHandler(handler);
             
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
             // Use the now public method to trigger the handler
-            await messenger.ReceiveMessage(messageSignal);
+            await messenger.ReceiveConversationChatOrData(messageSignal);
             
             // Assert
             Assert.False(handlerCalled);
@@ -101,21 +101,21 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             var syncHandlerCalled = false;
             var asyncHandlerCalled = false;
             
-            MessageReceivedHandler syncHandler = _ => syncHandlerCalled = true;
-            MessageReceivedAsyncHandler asyncHandler = _ => 
+            ConversationReceivedHandler syncHandler = _ => syncHandlerCalled = true;
+            ConversationReceivedAsyncHandler asyncHandler = _ => 
             {
                 asyncHandlerCalled = true;
                 return Task.CompletedTask;
             };
             
-            messenger.RegisterMessageHandler(syncHandler);
-            messenger.RegisterAsyncMessageHandler(asyncHandler);
+            messenger.SubscribeChatHandler(syncHandler);
+            messenger.SubscribeAsyncChatHandler(asyncHandler);
             
             // Act
             var messageSignal = CreateTestMessageSignal();
             
             // Use the now public method
-            await messenger.ReceiveMessage(messageSignal);
+            await messenger.ReceiveConversationChatOrData(messageSignal);
             
             // Assert
             Assert.True(syncHandlerCalled);
@@ -129,14 +129,14 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             var messenger = new MessageHub();
             MessageThread capturedMessageThread = null!;
             
-            MessageReceivedHandler handler = messageThread => capturedMessageThread = messageThread;
-            messenger.RegisterMessageHandler(handler);
+            ConversationReceivedHandler handler = messageThread => capturedMessageThread = messageThread;
+            messenger.SubscribeChatHandler(handler);
             
             // Act
             var messageSignal = CreateTestMessageSignal();
             
             // Use the now public method
-            await messenger.ReceiveMessage(messageSignal);
+            await messenger.ReceiveConversationChatOrData(messageSignal);
             
             // Assert
             Assert.NotNull(capturedMessageThread);
@@ -151,17 +151,17 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
             var messenger = new MessageHub();
             var handlerCallCount = 0;
             
-            MessageReceivedHandler handler = _ => handlerCallCount++;
+            ConversationReceivedHandler handler = _ => handlerCallCount++;
             
             // Act
-            messenger.RegisterMessageHandler(handler);
-            messenger.RegisterMessageHandler(handler); // Try to register the same handler again
+            messenger.SubscribeChatHandler(handler);
+            messenger.SubscribeChatHandler(handler); // Try to register the same handler again
             
             // Create a message signal to test with
             var messageSignal = CreateTestMessageSignal();
             
             // Use the now public method to trigger the handler
-            await messenger.ReceiveMessage(messageSignal);
+            await messenger.ReceiveConversationChatOrData(messageSignal);
             
             // Assert
             Assert.Equal(1, handlerCallCount);
@@ -172,10 +172,10 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         {
             // Arrange
             var messenger = new MessageHub();
-            MessageReceivedHandler handler = _ => { };
+            ConversationReceivedHandler handler = _ => { };
             
             // Act & Assert
-            var exception = await Record.ExceptionAsync(() => Task.Run(() => messenger.UnregisterMessageHandler(handler)));
+            var exception = await Record.ExceptionAsync(() => Task.Run(() => messenger.UnsubscribeChatHandler(handler)));
             Assert.Null(exception);
         }
 
@@ -189,7 +189,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                     Text = "Test message content",
                     Data = new Dictionary<string, string?> { { "Type", "test" } },
                     Agent = "test-agent",
-                    ThreadId = "test-thread-id"
+                    ThreadId = "test-thread-id",
+                    Type = MessageType.Chat.ToString()
                 },
                 SourceWorkflowId = "test-workflow-id",
                 SourceWorkflowType = "test-workflow-type",
