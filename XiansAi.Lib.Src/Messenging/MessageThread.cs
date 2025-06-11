@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using Server;
 
 namespace XiansAi.Messaging;
 
@@ -9,6 +10,8 @@ public interface IMessageThread
     Task<string?> SendChat(string content, object? data = null);
     Task<string?> SendData(object data, string? content = null);
     Task<string?> SendHandoff(Type workflowType, string? message = null, object? metadata = null);
+
+    Task<string?> GetAuthorization();
 }
 
 public class Message
@@ -25,6 +28,7 @@ public class MessageThread : IMessageThread
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public string? ThreadId { get; set; }
+    public string? Authorization { get; set; }
     public required Message LatestMessage { get; set; }
 
     private readonly ILogger<MessageThread> _logger;
@@ -129,6 +133,40 @@ public class MessageThread : IMessageThread
         } else {
             var success = await SystemActivities.SendHandoffStatic(outgoingMessage);
             return success;
+        }
+    }
+    
+     public async Task<string?> GetAuthorization()
+    {
+        try
+        {
+            if (!SecureApi.IsReady)
+            {
+                _logger.LogError("Secure API is not ready");
+                return null;
+            }
+            var client = SecureApi.Instance.Client;
+            var response = await client.GetAsync($"{PlatformConfig.APP_SERVER_URL}/api/agent/conversation/authorization/{Authorization}");
+         
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("Failed to get authorization. Status code: {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            var token = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrEmpty(token))
+            {
+                _logger.LogError("Empty response received from authorization endpoint");
+                return null;
+            }
+
+            return token.Trim('"');
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving authorization for GUID: {Authorization}", Authorization);
+            return null;
         }
     }
 }
