@@ -8,6 +8,7 @@ using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
+using System.Text.Json;
 
 public class SendMessageResponse
 {
@@ -181,14 +182,14 @@ public class SystemActivities
 
 
     [Activity]
-    public async Task<List<DbMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    public async Task<List<DbMessage>> GetMessageHistory(string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        return await GetMessageHistoryStatic(agent, workflowType, participantId, page, pageSize);
+        return await GetMessageHistoryStatic(workflowType, participantId, page, pageSize);
     }
 
-    public static async Task<List<DbMessage>> GetMessageHistoryStatic(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    public static async Task<List<DbMessage>> GetMessageHistoryStatic(string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        _logger.LogDebug("Getting message history for thread Agent: '{Agent}' WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", agent, workflowType, participantId);
+        _logger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
 
         if (!SecureApi.IsReady)
         {
@@ -198,12 +199,12 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"api/agent/conversation/history?agent={agent}&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
+            var response = await client.GetAsync($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
 
-            _logger.LogDebug($"Message history fetched: {messages?.Count} messages");
+
             return messages ?? new List<DbMessage>();
         }
         catch (ObjectDisposedException ex)
@@ -213,7 +214,7 @@ public class SystemActivities
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching message history for thread: {Agent} {ParticipantId}", agent, participantId);
+            _logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
             throw;
         }
     }
