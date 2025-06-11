@@ -175,7 +175,7 @@ class SemanticRouterImpl
 
         foreach (var message in historyFromServer)
         {
-            if (string.IsNullOrEmpty(message.Content?.Trim()))
+            if (string.IsNullOrEmpty(message.Text?.Trim()))
             {
                 continue;
             }
@@ -186,7 +186,7 @@ class SemanticRouterImpl
                     new()
                     {
                         Role = AuthorRole.User,
-                        Content = message.Content,
+                        Content = message.Text,
                         AuthorName = SanitizeName(message.ParticipantId)
                     }
                 );
@@ -197,7 +197,7 @@ class SemanticRouterImpl
                     new()
                     {
                         Role = AuthorRole.Assistant,
-                        Content = message.Content,
+                        Content = message.Text,
                         AuthorName = SanitizeName(message.WorkflowType)
                     }
                 );

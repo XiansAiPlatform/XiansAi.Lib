@@ -20,7 +20,12 @@ public abstract class FlowBase : AbstractFlow
         _messageHub.RegisterMessageHandler(_messageQueue.Enqueue);
     }
 
+    protected async Task InitConversation(string knowledgeContent, MessageListenerDelegate? messageListener = null)
+    {
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
 
+        await ListenToUserMessages(messageListener, knowledgeContent);
+    }
     protected async Task InitConversation(Models.Knowledge knowledge, MessageListenerDelegate? messageListener = null)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
@@ -28,7 +33,7 @@ public abstract class FlowBase : AbstractFlow
         await ListenToUserMessages(messageListener, knowledge.Content);
     }
 
-    protected async Task InitConversation(string knowledgeName, MessageListenerDelegate? messageListener = null)
+    protected async Task InitConversationByKnowledgeKey(string knowledgeName, MessageListenerDelegate? messageListener = null)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
 
@@ -102,6 +107,6 @@ public abstract class FlowBase : AbstractFlow
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
         // Respond to the user
-        await messageThread.Respond(response);
+        await messageThread.SendChat(response);
     }
 }
