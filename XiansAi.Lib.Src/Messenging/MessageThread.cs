@@ -4,7 +4,6 @@ using Temporalio.Workflows;
 using Server;
 
 namespace XiansAi.Messaging;
-
 public interface IMessageThread
 {
     Task<string?> SendChat(string content, object? data = null);
@@ -32,10 +31,12 @@ public class MessageThread : IMessageThread
     public required Message LatestMessage { get; set; }
 
     private readonly ILogger<MessageThread> _logger;
+    private readonly MessageAuthorizationService _authService;
 
     public MessageThread()
     {
         _logger = Globals.LogFactory.CreateLogger<MessageThread>();
+        _authService = new MessageAuthorizationService();
     }
 
 
@@ -136,37 +137,8 @@ public class MessageThread : IMessageThread
         }
     }
     
-     public async Task<string?> GetAuthorization()
+    public async Task<string?> GetAuthorization()
     {
-        try
-        {
-            if (!SecureApi.IsReady)
-            {
-                _logger.LogError("Secure API is not ready");
-                return null;
-            }
-            var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"{PlatformConfig.APP_SERVER_URL}/api/agent/conversation/authorization/{Authorization}");
-         
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError("Failed to get authorization. Status code: {StatusCode}", response.StatusCode);
-                return null;
-            }
-
-            var token = await response.Content.ReadAsStringAsync();
-            if (string.IsNullOrEmpty(token))
-            {
-                _logger.LogError("Empty response received from authorization endpoint");
-                return null;
-            }
-
-            return token.Trim('"');
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving authorization for GUID: {Authorization}", Authorization);
-            return null;
-        }
+        return await _authService.GetAuthorization(Authorization);
     }
 }
