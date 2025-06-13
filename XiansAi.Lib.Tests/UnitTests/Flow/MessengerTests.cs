@@ -190,7 +190,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                     Data = new Dictionary<string, string?> { { "Type", "test" } },
                     Agent = "test-agent",
                     ThreadId = "test-thread-id",
-                    Type = MessageType.Chat.ToString()
+                    Type = MessageType.Chat.ToString(),
+                    Token = "test token"
                 },
                 SourceWorkflowId = "test-workflow-id",
                 SourceWorkflowType = "test-workflow-type",

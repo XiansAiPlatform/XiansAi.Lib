@@ -331,30 +331,52 @@ public class MessageHub: IMessageHub
     {
         _logger.LogInformation($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
 
-        var messageType = Enum.Parse<MessageType>(messageSignal.Payload.Type);
+        try
+		{
+			// Validate token
+			if (Workflow.InWorkflow)
+			{
+				await Workflow.ExecuteActivityAsync(
+					(SystemActivities a) => a.ValidateToken(messageSignal.Payload.Token),
+					new SystemActivityOptions());
+			}
+			else
+			{
+				await SystemActivities.ValidateTokenStatic(messageSignal.Payload.Token);
+			}
 
-        var messageThread = new MessageThread {
-            WorkflowId = AgentContext.WorkflowId,
-            WorkflowType = AgentContext.WorkflowType,
-            Agent = AgentContext.AgentName,
-            ThreadId = messageSignal.Payload.ThreadId,
-            ParticipantId = messageSignal.Payload.ParticipantId,
-            LatestMessage = new () {
-                Content = messageSignal.Payload.Text,
-                Data = messageSignal.Payload.Data,
-                Type = messageType
-            }
-        };
+			var messageType = Enum.Parse<MessageType>(messageSignal.Payload.Type);
 
-        // Determine which handlers to call based on the message type
-        if (messageType == MessageType.Data)
-        {
-            await ProcessConversationHandlers(_dataHandlerMappings.Values, messageThread);
-        }
-        else
-        {
-            await ProcessConversationHandlers(_chatHandlerMappings.Values, messageThread);
-        }
+			var messageThread = new MessageThread
+			{
+				WorkflowId = AgentContext.WorkflowId,
+				WorkflowType = AgentContext.WorkflowType,
+				Agent = AgentContext.AgentName,
+				ThreadId = messageSignal.Payload.ThreadId,
+				ParticipantId = messageSignal.Payload.ParticipantId,
+				LatestMessage = new()
+				{
+					Content = messageSignal.Payload.Text,
+					Data = messageSignal.Payload.Data,
+					Type = messageType
+				}
+			};
+
+			// Determine which handlers to call based on the message type
+			if (messageType == MessageType.Data)
+			{
+				await ProcessConversationHandlers(_dataHandlerMappings.Values, messageThread);
+			}
+			else
+			{
+				await ProcessConversationHandlers(_chatHandlerMappings.Values, messageThread);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError($"Unexpected error during token validation: {ex.GetType().Name} - {ex.Message}");
+			throw new UnauthorizedAccessException("Token validation failed", ex);
+		}
     }
 
     private async Task ProcessConversationHandlers(IEnumerable<Func<MessageThread, Task>> handlers, MessageThread messageThread)

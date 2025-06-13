@@ -218,6 +218,27 @@ public class SystemActivities
             throw;
         }
     }
+
+    [Activity]
+    public async Task ValidateToken(string token)
+    {
+        await ValidateTokenStatic(token);
+    }
+
+    public static async Task ValidateTokenStatic(string token)
+    {
+        try
+        {
+            _logger.LogInformation("Starting token validation...");
+            var keycloakService = new KeycloakService();
+            await keycloakService.ValidateTokenAsync(token);
+            _logger.LogInformation("Token validation completed successfully");
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
 }
 
 public class SystemActivityOptions : ActivityOptions

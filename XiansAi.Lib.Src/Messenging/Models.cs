@@ -16,6 +16,7 @@ public class MessagePayload
     public required string ParticipantId { get; set; }
     public required string Text { get; set; }
     public required object Data { get; set; }
+    public required string Token { get; set; }
     public required string Type { get; set; }
 }
 
