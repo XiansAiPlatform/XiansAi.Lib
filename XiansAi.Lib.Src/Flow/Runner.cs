@@ -1,4 +1,5 @@
 using System.Reflection;
+using Server;
 using Temporalio.Workflows;
 using XiansAi.Activity;
 using XiansAi.Logging;
@@ -29,6 +30,12 @@ public class Runner<TClass> where TClass : class
         AgentContext.AgentName = agentInfo.Name;
         // validate the runner
         Validate();
+        // test the connection to the server
+        SecureApi.InitializeClient(
+                PlatformConfig.APP_SERVER_API_KEY!,
+                PlatformConfig.APP_SERVER_URL!
+            );
+        SecureApi.Instance.TestConnection();
     }
 #pragma warning restore CS0618 // Type or member is obsolete
 
