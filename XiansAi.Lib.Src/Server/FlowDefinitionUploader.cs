@@ -113,9 +113,17 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             if (response.StatusCode == HttpStatusCode.Forbidden)
             {
                 var warningJson = await response.Content.ReadAsStringAsync();
-                var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
+                try {
+ var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
                 _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
                 throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
+
+                } 
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error deserializing warning response: {ErrorMessage}", ex.Message);
+                    throw new InvalidOperationException("Error deserializing warning response. Is the server running on the correct port?", ex);
+                }
             }
             
             response.EnsureSuccessStatusCode();

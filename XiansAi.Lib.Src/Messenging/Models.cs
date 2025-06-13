@@ -17,6 +17,7 @@ public class MessagePayload
     public string? Authorization { get; set; }
     public required string Text { get; set; }
     public required object Data { get; set; }
+    public required string Type { get; set; }
 }
 
 public enum MessageType
@@ -70,11 +71,21 @@ public class DbMessage
 }
 
 
+public class EventMetadata
+{
+    public required string SourceWorkflowId { get; set; }
+    public required string SourceWorkflowType { get; set; }
+    public required string SourceAgent { get; set; }
+}
+
+public class EventMetadata<T> : EventMetadata
+{
+    public required T Payload { get; set; }
+}
+
+
 public class EventSignal
 {
-    [JsonPropertyName("EventType")]
-    public required string EventType { get; set; }
-
     [JsonPropertyName("Payload")]
     public object? Payload { get; set; }
 
