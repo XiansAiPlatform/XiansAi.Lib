@@ -220,18 +220,40 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task ValidateToken(string token)
+    public async Task ValidateToken(string token, string authProvider)
     {
-        await ValidateTokenStatic(token);
+        await ValidateTokenStatic(token, authProvider);
     }
 
-    public static async Task ValidateTokenStatic(string token)
+    public static async Task ValidateTokenStatic(string token, string authProvider)
     {
         try
         {
             _logger.LogInformation("Starting token validation...");
-            var keycloakService = new KeycloakService();
-            await keycloakService.ValidateTokenAsync(token);
+
+            switch (authProvider.ToLower())
+            {
+                case "keycloak":
+                    {
+                        var keycloakService = new KeycloakService();
+                        await keycloakService.ValidateTokenAsync(token);
+                        break;
+                    }
+                case "auth0":
+                    {
+                        var azureService = new Auth0Service();
+                        await azureService.ValidateTokenAsync(token);
+                        break;
+                    }
+                case "certificate":
+                    {
+                        _logger.LogWarning("Auto authenticate certificate for now...");
+                        break;
+                    }
+                default:
+                    throw new NotSupportedException($"Authentication provider '{authProvider}' is not supported.");
+            }
+
             _logger.LogInformation("Token validation completed successfully");
         }
         catch (Exception)
