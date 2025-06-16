@@ -2,10 +2,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Server;
+using XiansAi.Server.Interfaces;
+using XiansAi.Server.Extensions;
+using System.ComponentModel;
 using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
-using Server;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace XiansAi.Flow.Router;
@@ -40,7 +43,8 @@ class SemanticRouterImpl
     public SemanticRouterImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
-        _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
+        var settingsService = XiansAiServiceFactory.GetSettingsService();
+        _settings = settingsService.GetFlowServerSettingsAsync().GetAwaiter().GetResult();
     }
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes)

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Server;
+using XiansAi.Server.Interfaces;
+using XiansAi.Server.Extensions;
 using Temporalio.Client;
 
 namespace Temporal;
@@ -31,8 +33,8 @@ public class TemporalClientService
 
     private static async Task<ITemporalClient> CreateClientAsync()
     {
-        var settings = await SettingsService.GetSettingsFromServer();
-
+        var settingsService = XiansAiServiceFactory.GetSettingsService();
+        var settings = await settingsService.GetFlowServerSettingsAsync();
 
         return await TemporalClient.ConnectAsync(new(settings.FlowServerUrl)
         {

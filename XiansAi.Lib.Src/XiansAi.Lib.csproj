@@ -7,6 +7,8 @@
     <NuspecProperties>$(NuspecProperties);configuration=$(Configuration)</NuspecProperties>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>XiansAi.Lib</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
   <PropertyGroup>
