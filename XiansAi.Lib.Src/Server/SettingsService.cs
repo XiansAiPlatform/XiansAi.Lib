@@ -20,7 +20,7 @@ public static class SettingsService
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<FlowServerSettings>();
     private const string SETTINGS_URL = "settings/flowserver";
 
-    private static FlowServerSettings? _settings;
+    private static readonly Lazy<Task<FlowServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
 
 
     /// <summary>
@@ -29,12 +29,14 @@ public static class SettingsService
     /// <returns>The flow server settings</returns>
     public static async Task<FlowServerSettings> GetSettingsFromServer()
     {
-        // Return cached settings if available
-        if (_settings != null)
-        {
-            return _settings;
-        }
+        return await _settingsLazy.Value;
+    }
 
+    /// <summary>
+    /// Internal method that actually loads settings from the server
+    /// </summary>
+    private static async Task<FlowServerSettings> LoadSettingsFromServer()
+    {
         if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, cannot load settings from server");
@@ -52,8 +54,7 @@ public static class SettingsService
                 throw new Exception($"Failed to get settings from server. Status code: {httpResult.StatusCode}");
             }
 
-            _settings = await ParseSettingsResponse(httpResult);
-            return _settings;
+            return await ParseSettingsResponse(httpResult);
         }
         catch (Exception e)
         {

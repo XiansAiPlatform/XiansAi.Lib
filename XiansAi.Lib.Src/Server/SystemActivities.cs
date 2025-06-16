@@ -4,13 +4,11 @@ using Server;
 using Temporalio.Activities;
 using Temporalio.Common;
 using Temporalio.Workflows;
-using XiansAi.Events;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
-using Temporal;
-using Temporalio.Client;
+using System.Text.Json;
 
 public class SendMessageResponse
 {
@@ -36,8 +34,8 @@ public class SystemActivities
 
     public static async Task SendEventStatic(EventSignal eventDto)
     {
-        _logger.LogInformation("Sending event {EventType} from workflow {SourceWorkflow} to {TargetWorkflow}", 
-            eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+        _logger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
+            eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
 
         try
         {
@@ -57,8 +55,8 @@ public class SystemActivities
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            _logger.LogError(ex, "Failed to start and send event {EventType} from {SourceWorkflow} to {TargetWorkflow}",
-                eventDto.EventType, eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+            _logger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
+                eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
             throw;
         }
     }
@@ -184,14 +182,14 @@ public class SystemActivities
 
 
     [Activity]
-    public async Task<List<DbMessage>> GetMessageHistory(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    public async Task<List<DbMessage>> GetMessageHistory(string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        return await GetMessageHistoryStatic(agent, workflowType, participantId, page, pageSize);
+        return await GetMessageHistoryStatic(workflowType, participantId, page, pageSize);
     }
 
-    public static async Task<List<DbMessage>> GetMessageHistoryStatic(string agent, string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    public static async Task<List<DbMessage>> GetMessageHistoryStatic(string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        _logger.LogDebug("Getting message history for thread Agent: '{Agent}' WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", agent, workflowType, participantId);
+        _logger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
 
         if (!SecureApi.IsReady)
         {
@@ -201,12 +199,12 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"conversation/history?agent={agent}&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
+            var response = await client.GetAsync($"conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
 
-            _logger.LogDebug($"Message history fetched: {messages?.Count} messages");
+
             return messages ?? new List<DbMessage>();
         }
         catch (ObjectDisposedException ex)
@@ -216,7 +214,7 @@ public class SystemActivities
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching message history for thread: {Agent} {ParticipantId}", agent, participantId);
+            _logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
             throw;
         }
     }

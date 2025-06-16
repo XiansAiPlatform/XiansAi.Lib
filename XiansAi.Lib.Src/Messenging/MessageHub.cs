@@ -5,60 +5,74 @@ using XiansAi.Logging;
 
 namespace XiansAi.Messaging;
 
-public delegate Task MessageReceivedAsyncHandler(MessageThread messageThread);
-public delegate void MessageReceivedHandler(MessageThread messageThread);
+public delegate Task ConversationReceivedAsyncHandler(MessageThread conversation);
+public delegate void ConversationReceivedHandler(MessageThread conversation);
+
+public delegate Task FlowMessageReceivedAsyncHandler<T>(EventMetadata<T> metadata);
+public delegate void FlowMessageReceivedHandler<T>(EventMetadata<T> metadata);
 
 public interface IMessageHub
 {
-    // message handlers for incoming messages with content
-    void RegisterAsyncMessageHandler(MessageReceivedAsyncHandler handler);
-    void RegisterMessageHandler(MessageReceivedHandler handler);
-    void UnregisterMessageHandler(MessageReceivedHandler handler);
-    void UnregisterAsyncMessageHandler(MessageReceivedAsyncHandler handler);
+    // Flow message handlers
+    void SubscribeAsyncFlowMessageHandler<T>(FlowMessageReceivedAsyncHandler<T> handler);
+    void SubscribeFlowMessageHandler<T>(FlowMessageReceivedHandler<T> handler);
+    void UnsubscribeAsyncFlowMessageHandler<T>(FlowMessageReceivedHandler<T> handler);
+    void UnsubscribeFlowMessageHandler<T>(FlowMessageReceivedAsyncHandler<T> handler);
 
-    // message handlers for incoming messages with only content
-    void RegisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler);
-    void RegisterMetadataHandler(MessageReceivedHandler handler);
-    void UnregisterMetadataHandler(MessageReceivedHandler handler);
-    void UnregisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler);
+    // message handlers for incoming messages with text content
+    void SubscribeAsyncChatHandler(ConversationReceivedAsyncHandler handler);
+    void SubscribeChatHandler(ConversationReceivedHandler handler);
+    void UnsubscribeChatHandler(ConversationReceivedHandler handler);
+    void UnsubscribeAsyncChatHandler(ConversationReceivedAsyncHandler handler);
+
+    // message handlers for incoming messages only data content
+    void SubscribeAsyncDataHandler(ConversationReceivedAsyncHandler handler);
+    void SubscribeDataHandler(ConversationReceivedHandler handler);
+    void UnsubscribeDataHandler(ConversationReceivedHandler handler);
+    void UnsubscribeAsyncDataHandler(ConversationReceivedAsyncHandler handler);
 
     // message handlers for incoming messages with only metadata
-    Task ReceiveMessage(MessageSignal messageSignal);
+    Task ReceiveConversationChatOrData(MessageSignal messageSignal);
+
+    Task ReceiveFlowMessage(EventSignal eventSignal);
 }
 
 class MessengerLog {}
 
 public class MessageHub: IMessageHub
 {
-    private readonly ConcurrentBag<Func<MessageThread, Task>> _messageHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
-    private readonly ConcurrentBag<Func<MessageThread, Task>> _metadataHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
-    
+    private readonly ConcurrentBag<Func<MessageThread, Task>> _chatHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
+    private readonly ConcurrentBag<Func<MessageThread, Task>> _dataHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
+    private readonly ConcurrentBag<Func<EventMetadata, object?, Task>> _flowMessageHandlers = new ConcurrentBag<Func<EventMetadata, object?, Task>>();
+
     private static readonly Logger<MessengerLog> _logger = Logger<MessengerLog>.For();
 
-    private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _messageHandlerMappings = 
+    private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _chatHandlerMappings = 
         new ConcurrentDictionary<Delegate, Func<MessageThread, Task>>();
 
-    private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _metadataHandlerMappings = 
+    private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _dataHandlerMappings = 
         new ConcurrentDictionary<Delegate, Func<MessageThread, Task>>();
 
-    public static async Task<string?> SendData(string participantId, string content, object? data = null)
+    private readonly Dictionary<Delegate, Func<EventMetadata, object?, Task>> _handlerMappings =
+        new Dictionary<Delegate, Func<EventMetadata, object?, Task>>();
+
+    public static async Task<string?> SendConversationData(string participantId, string content, object? data = null)
     {
-        return await SendChatOrData(MessageType.Data, participantId, content, data);
+        return await SendConversationChatOrData(MessageType.Data, participantId, content, data);
     }
 
-    public static async Task<string?> SendChat(string participantId, string content, object? data = null)
+    public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null)
     {
-        return await SendChatOrData(MessageType.Chat, participantId, content, data);
+        return await SendConversationChatOrData(MessageType.Chat, participantId, content, data);
     }
 
-    public static async Task SendEvent(Type flowClassType, string evtType, object? payload = null) {
+    public static async Task SendFlowMessage(Type flowClassType, object? payload = null) {
         var targetWorkflowType = AgentContext.GetWorkflowTypeFor(flowClassType);
         var targetWorkflowId = AgentContext.GetSingletonWorkflowIdFor(flowClassType);
 
         try {
             var eventDto = new EventSignal
             {
-                EventType = evtType,
                 SourceWorkflowId = AgentContext.WorkflowId,
                 SourceWorkflowType = AgentContext.WorkflowType,
                 SourceAgent = AgentContext.AgentName,
@@ -86,7 +100,7 @@ public class MessageHub: IMessageHub
     }
 
 
-    private static async Task<string?> SendChatOrData(MessageType type, string participantId, string content, object? data = null)
+    private static async Task<string?> SendConversationChatOrData(MessageType type, string participantId, string content, object? data = null)
     {
         var outgoingMessage = new ChatOrDataRequest
         {
@@ -107,20 +121,82 @@ public class MessageHub: IMessageHub
         }
         else
         {
-            var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, MessageType.Chat);
+            var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, type);
             return success;
         }
 
     }
 
-    public void RegisterAsyncMessageHandler(MessageReceivedAsyncHandler handler)
+    public void SubscribeAsyncFlowMessageHandler<T>(FlowMessageReceivedAsyncHandler<T> handler)
+    {
+        // Convert the delegate type with proper type casting
+        Func<EventMetadata, object?, Task> funcHandler = (metadata, payload) =>
+        {
+            var typedPayload = payload != null ? CastPayload<T>(payload) : default;
+            var typedMetadata = new EventMetadata<T>
+            {
+                SourceWorkflowId = metadata.SourceWorkflowId,
+                SourceWorkflowType = metadata.SourceWorkflowType,
+                SourceAgent = metadata.SourceAgent,
+                Payload = typedPayload!
+            };
+            return handler(typedMetadata);
+        };
+
+        if (!_handlerMappings.ContainsKey(handler))
+        {
+            _handlerMappings[handler] = funcHandler;
+            _flowMessageHandlers.Add(funcHandler);
+        }
+    }
+
+    public void SubscribeFlowMessageHandler<T>(FlowMessageReceivedHandler<T> handler)
+    {
+        // Wrap the synchronous handler to return a completed task with proper type casting
+        Func<EventMetadata, object?, Task> funcHandler = (metadata, payload) =>
+        {
+            var typedPayload = payload != null ? CastPayload<T>(payload) : default;
+            var typedMetadata = new EventMetadata<T>
+            {
+                SourceWorkflowId = metadata.SourceWorkflowId,
+                SourceWorkflowType = metadata.SourceWorkflowType,
+                SourceAgent = metadata.SourceAgent,
+                Payload = typedPayload!
+            };
+            handler(typedMetadata);
+            return Task.CompletedTask;
+        };
+
+        if (!_handlerMappings.ContainsKey(handler))
+        {
+            _handlerMappings[handler] = funcHandler;
+            _flowMessageHandlers.Add(funcHandler);
+        }
+    }
+
+    public void UnsubscribeAsyncFlowMessageHandler<T>(FlowMessageReceivedHandler<T> handler)
+    {
+        if (_handlerMappings.TryGetValue(handler, out var funcHandler))
+        {
+            _handlerMappings.Remove(handler);
+        }
+    }
+
+    public void UnsubscribeFlowMessageHandler<T>(FlowMessageReceivedAsyncHandler<T> handler)
+    {
+        if (_handlerMappings.TryGetValue(handler, out var funcHandler))
+        {
+            _handlerMappings.Remove(handler);
+        }
+    }
+    public void SubscribeAsyncChatHandler(ConversationReceivedAsyncHandler handler)
     {
         // Convert the delegate type
         Func<MessageThread, Task> funcHandler = messageThread => handler(messageThread);
         
-        if (_messageHandlerMappings.TryAdd(handler, funcHandler))
+        if (_chatHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _messageHandlers.Add(funcHandler);
+            _chatHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered async message handler: {handler.Method.Name}");
         }
         else
@@ -129,7 +205,7 @@ public class MessageHub: IMessageHub
         }
     }
 
-    public void RegisterMessageHandler(MessageReceivedHandler handler)
+    public void SubscribeChatHandler(ConversationReceivedHandler handler)
     {
         // Wrap the synchronous handler to return a completed task
         Func<MessageThread, Task> funcHandler = messageThread => 
@@ -146,9 +222,9 @@ public class MessageHub: IMessageHub
             }
         };
         
-        if (_messageHandlerMappings.TryAdd(handler, funcHandler))
+        if (_chatHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _messageHandlers.Add(funcHandler);
+            _chatHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered sync message handler: {handler.Method.Name}");
         }
         else
@@ -157,9 +233,9 @@ public class MessageHub: IMessageHub
         }
     }
     
-    public void UnregisterMessageHandler(MessageReceivedHandler handler)
+    public void UnsubscribeChatHandler(ConversationReceivedHandler handler)
     {
-        if (_messageHandlerMappings.TryRemove(handler, out var funcHandler))
+        if (_chatHandlerMappings.TryRemove(handler, out var funcHandler))
         {
             // Note: ConcurrentBag doesn't support removal, so we'll mark handlers as removed
             // This is acceptable since we create new collections for iteration
@@ -171,9 +247,9 @@ public class MessageHub: IMessageHub
         }
     }
     
-    public void UnregisterAsyncMessageHandler(MessageReceivedAsyncHandler handler)
+    public void UnsubscribeAsyncChatHandler(ConversationReceivedAsyncHandler handler)
     {
-        if (_messageHandlerMappings.TryRemove(handler, out var funcHandler))
+        if (_chatHandlerMappings.TryRemove(handler, out var funcHandler))
         {
             _logger.LogInformation($"Unregistered async message handler: {handler.Method.Name}");
         }
@@ -183,14 +259,14 @@ public class MessageHub: IMessageHub
         }
     }
 
-    public void RegisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler)
+    public void SubscribeAsyncDataHandler(ConversationReceivedAsyncHandler handler)
     {
         // Convert the delegate type
         Func<MessageThread, Task> funcHandler = messageThread => handler(messageThread);
         
-        if (_metadataHandlerMappings.TryAdd(handler, funcHandler))
+        if (_dataHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _metadataHandlers.Add(funcHandler);
+            _dataHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered async metadata handler: {handler.Method.Name}");
         }
         else
@@ -199,7 +275,7 @@ public class MessageHub: IMessageHub
         }
     }
 
-    public void RegisterMetadataHandler(MessageReceivedHandler handler)
+    public void SubscribeDataHandler(ConversationReceivedHandler handler)
     {
         // Wrap the synchronous handler to return a completed task
         Func<MessageThread, Task> funcHandler = messageThread => 
@@ -216,9 +292,9 @@ public class MessageHub: IMessageHub
             }
         };
         
-        if (_metadataHandlerMappings.TryAdd(handler, funcHandler))
+        if (_dataHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _metadataHandlers.Add(funcHandler);
+            _dataHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered sync metadata handler: {handler.Method.Name}");
         }
         else
@@ -227,9 +303,9 @@ public class MessageHub: IMessageHub
         }
     }
     
-    public void UnregisterMetadataHandler(MessageReceivedHandler handler)
+    public void UnsubscribeDataHandler(ConversationReceivedHandler handler)
     {
-        if (_metadataHandlerMappings.TryRemove(handler, out var funcHandler))
+        if (_dataHandlerMappings.TryRemove(handler, out var funcHandler))
         {
             _logger.LogInformation($"Unregistered sync metadata handler: {handler.Method.Name}");
         }
@@ -239,9 +315,9 @@ public class MessageHub: IMessageHub
         }
     }
     
-    public void UnregisterAsyncMetadataHandler(MessageReceivedAsyncHandler handler)
+    public void UnsubscribeAsyncDataHandler(ConversationReceivedAsyncHandler handler)
     {
-        if (_metadataHandlerMappings.TryRemove(handler, out var funcHandler))
+        if (_dataHandlerMappings.TryRemove(handler, out var funcHandler))
         {
             _logger.LogInformation($"Unregistered async metadata handler: {handler.Method.Name}");
         }
@@ -251,9 +327,11 @@ public class MessageHub: IMessageHub
         }
     }
 
-    public async Task ReceiveMessage(MessageSignal messageSignal)
+    public async Task ReceiveConversationChatOrData(MessageSignal messageSignal)
     {
         _logger.LogInformation($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
+
+        var messageType = Enum.Parse<MessageType>(messageSignal.Payload.Type);
 
         var messageThread = new MessageThread {
             WorkflowId = AgentContext.WorkflowId,
@@ -264,31 +342,32 @@ public class MessageHub: IMessageHub
             LatestMessage = new () {
                 Content = messageSignal.Payload.Text,
                 Data = messageSignal.Payload.Data,
+                Type = messageType
             }
         };
 
-        // If content is null, call metadata handlers; otherwise call message handlers
-        if (string.IsNullOrEmpty(messageSignal.Payload.Text?.Trim()))
+        // Determine which handlers to call based on the message type
+        if (messageType == MessageType.Data)
         {
-            await ProcessHandlers(_metadataHandlerMappings.Values, messageThread, "metadata");
+            await ProcessConversationHandlers(_dataHandlerMappings.Values, messageThread);
         }
         else
         {
-            await ProcessHandlers(_messageHandlerMappings.Values, messageThread, "message");
+            await ProcessConversationHandlers(_chatHandlerMappings.Values, messageThread);
         }
     }
 
-    private async Task ProcessHandlers(IEnumerable<Func<MessageThread, Task>> handlers, MessageThread messageThread, string handlerType)
+    private async Task ProcessConversationHandlers(IEnumerable<Func<MessageThread, Task>> handlers, MessageThread messageThread)
     {
         var handlerList = handlers.ToList();
-        _logger.LogInformation($"New {handlerType} received: {JsonSerializer.Serialize(messageThread)}");
-        _logger.LogInformation($"Informing {handlerList.Count} {handlerType} handlers");
+        _logger.LogDebug($"New message received: {JsonSerializer.Serialize(messageThread)}");
+        _logger.LogDebug($"Informing {handlerList.Count} handlers");
 
         var handlerTasks = new List<Task>();
 
         foreach (var handler in handlerList)
         {
-            var handlerTask = InvokeHandlerSafely(handler, messageThread, handlerType);
+            var handlerTask = InvokeHandlerSafely(handler, messageThread);
             handlerTasks.Add(handlerTask);
         }
 
@@ -296,27 +375,58 @@ public class MessageHub: IMessageHub
         {
             // Wait for all handlers to complete
             await Task.WhenAll(handlerTasks);
-            _logger.LogInformation($"All {handlerType} handlers completed successfully");
+            _logger.LogDebug($"All handlers completed successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogError($"One or more {handlerType} handlers failed: {ex.Message}", ex);
+            _logger.LogError($"One or more handlers failed: {ex.Message}", ex);
             // Continue execution even if some handlers failed
         }
     }
 
-    private async Task InvokeHandlerSafely(Func<MessageThread, Task> handler, MessageThread messageThread, string handlerType)
+    private async Task InvokeHandlerSafely(Func<MessageThread, Task> handler, MessageThread messageThread)
     {
         try
         {
-            _logger.LogDebug($"Calling {handlerType} handler: {handler.Method.Name}");
+            _logger.LogDebug($"Calling handler: {handler.Method.Name}");
             await handler(messageThread);
-            _logger.LogDebug($"Completed {handlerType} handler: {handler.Method.Name}");
+            _logger.LogDebug($"Completed handler: {handler.Method.Name}");
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error in {handlerType} handler {handler.Method.Name}: {ex.Message}", ex);
+            _logger.LogError($"Error in handler {handler.Method.Name}: {ex.Message}", ex);
             // Don't rethrow - continue with other handlers
+        }
+    }
+
+    public static T CastPayload<T>(object obj)
+    {
+        if (obj == null)
+        {
+            return default!;
+        }
+        try {
+            return JsonSerializer.Deserialize<T>(obj.ToString()!)!;
+        }
+        catch (Exception)
+        {
+            throw new InvalidOperationException($"Failed to cast event payload `{obj}` to `{typeof(T).Name}`");
+        }
+    }
+
+
+    public async Task ReceiveFlowMessage(EventSignal obj)
+    {
+        var metadata = new EventMetadata
+        {
+            SourceWorkflowId = obj.SourceWorkflowId,
+            SourceWorkflowType = obj.SourceWorkflowType,
+            SourceAgent = obj.SourceAgent
+        };
+        // Call all handlers uniformly
+        foreach (var handler in _flowMessageHandlers.ToList())
+        {
+            await handler(metadata, obj.Payload);
         }
     }
 }

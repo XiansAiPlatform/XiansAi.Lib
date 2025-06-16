@@ -15,6 +15,7 @@ public class Message
 {
     public required string Content { get; set; }
     public required object? Data { get; set; }
+    public required MessageType Type { get; set; }
 }
 
 
@@ -37,7 +38,7 @@ public class MessageThread : IMessageThread
 
     public async Task<List<DbMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
     {
-        var history = await new ThreadHistoryService().GetMessageHistory(Agent, WorkflowType, ParticipantId, page, pageSize);
+        var history = await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, page, pageSize);
         return history;
     }
 
