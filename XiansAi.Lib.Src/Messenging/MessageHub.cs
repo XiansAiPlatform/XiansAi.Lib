@@ -337,12 +337,12 @@ public class MessageHub: IMessageHub
             if (Workflow.InWorkflow)
             {
                 await Workflow.ExecuteActivityAsync(
-                    (SystemActivities a) => a.ValidateToken(messageSignal.Payload.Token, messageSignal.Payload.AuthProvider),
+                    (SystemActivities a) => a.ValidateToken(messageSignal.Payload.Authorization, messageSignal.Payload.AuthProvider),
                     new SystemActivityOptions());
             }
             else
             {
-                await SystemActivities.ValidateTokenStatic(messageSignal.Payload.Token, messageSignal.Payload.AuthProvider);
+                await SystemActivities.ValidateTokenStatic(messageSignal.Payload.Authorization, messageSignal.Payload.AuthProvider);
             }
 
             var messageType = Enum.Parse<MessageType>(messageSignal.Payload.Type);

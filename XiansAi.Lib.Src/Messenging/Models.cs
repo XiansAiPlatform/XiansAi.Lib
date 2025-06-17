@@ -14,10 +14,9 @@ public class MessagePayload
     public required string Agent { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
-    public string? Authorization { get; set; }
+    public required string Authorization { get; set; }
     public required string Text { get; set; }
     public required object Data { get; set; }
-    public required string Token { get; set; }
     public required string AuthProvider { get; set; }
     public required string Type { get; set; }
 }
