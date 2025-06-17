@@ -1,5 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
+using XiansAi;
 
 namespace Server;
 
@@ -53,7 +54,25 @@ public class SecureApi : ISecureApiClient, IDisposable
 
     public async Task TestConnection()
     {
-        var settings = await LegacySettingsService.GetSettingsFromServer();
+        // Create a temporary service instance to get settings
+        // This maintains compatibility while using the new implementation
+        using var httpClient = new HttpClient
+        {
+            BaseAddress = new Uri(PlatformConfig.APP_SERVER_URL ?? throw new InvalidOperationException("APP_SERVER_URL is required")),
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+        
+        // Configure authorization using the same strategy as the main service
+        var apiKey = PlatformConfig.APP_SERVER_API_KEY ?? throw new InvalidOperationException("APP_SERVER_API_KEY is required");
+        XiansAi.Server.Extensions.ServiceCollectionExtensions.ConfigureAuthorization(httpClient, apiKey);
+        
+        // Create temporary services for this call
+        using var memoryCache = new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var logger = Globals.LogFactory.CreateLogger<Server.SettingsService>();
+        var settingsService = new Server.SettingsService(httpClient, memoryCache, logger);
+        
+        // Use the new service implementation
+        var settings = await settingsService.GetFlowServerSettingsAsync();
         if (settings == null)
         {
             throw new Exception("Failed to get settings from server");
