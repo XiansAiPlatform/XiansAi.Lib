@@ -53,7 +53,7 @@ public class SecureApi : ISecureApiClient, IDisposable
 
     public async Task TestConnection()
     {
-        var settings = await SettingsService.GetSettingsFromServer();
+        var settings = await LegacySettingsService.GetSettingsFromServer();
         if (settings == null)
         {
             throw new Exception("Failed to get settings from server");

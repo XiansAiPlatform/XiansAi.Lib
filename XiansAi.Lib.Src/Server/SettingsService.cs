@@ -107,7 +107,7 @@ public static class LegacySettingsService
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<FlowServerSettings>();
     private const string SETTINGS_URL = "api/agent/settings/flowserver";
-    private static FlowServerSettings? _settings;
+    private static readonly Lazy<Task<FlowServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
 
     /// <summary>
     /// Loads settings from the server. Caches the settings after the first fetch.
