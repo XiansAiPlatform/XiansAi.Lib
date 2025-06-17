@@ -14,8 +14,10 @@ public class MessagePayload
     public required string Agent { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
+    public string? Authorization { get; set; }
     public required string Text { get; set; }
     public required object Data { get; set; }
+    public required string Type { get; set; }
 }
 
 public enum MessageType
@@ -32,6 +34,7 @@ public class ChatOrDataRequest
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public object? Data { get; set; }
+    public string? Authorization { get; set; }
     public string? Text { get; set; }
     public string? ThreadId { get; set;} 
 }
@@ -45,6 +48,7 @@ public class HandoffRequest
     public required string SourceWorkflowId { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
+    public string? Authorization { get; set; }
     public required string Text { get; set; }
     public object? Data { get; set; }
     public MessageType Type { get; set; } = MessageType.Handoff;
@@ -67,11 +71,21 @@ public class DbMessage
 }
 
 
+public class EventMetadata
+{
+    public required string SourceWorkflowId { get; set; }
+    public required string SourceWorkflowType { get; set; }
+    public required string SourceAgent { get; set; }
+}
+
+public class EventMetadata<T> : EventMetadata
+{
+    public required T Payload { get; set; }
+}
+
+
 public class EventSignal
 {
-    [JsonPropertyName("EventType")]
-    public required string EventType { get; set; }
-
     [JsonPropertyName("Payload")]
     public object? Payload { get; set; }
 

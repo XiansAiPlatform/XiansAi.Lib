@@ -115,12 +115,14 @@ public static class LegacySettingsService
     /// <returns>The flow server settings</returns>
     public static async Task<FlowServerSettings> GetSettingsFromServer()
     {
-        // Return cached settings if available
-        if (_settings != null)
-        {
-            return _settings;
-        }
+        return await _settingsLazy.Value;
+    }
 
+    /// <summary>
+    /// Internal method that actually loads settings from the server
+    /// </summary>
+    private static async Task<FlowServerSettings> LoadSettingsFromServer()
+    {
         if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, cannot load settings from server");
@@ -137,8 +139,7 @@ public static class LegacySettingsService
                 throw new Exception($"Failed to get settings from server. Status code: {httpResult.StatusCode}");
             }
 
-            _settings = await ParseSettingsResponse(httpResult);
-            return _settings;
+            return await ParseSettingsResponse(httpResult);
         }
         catch (Exception e)
         {

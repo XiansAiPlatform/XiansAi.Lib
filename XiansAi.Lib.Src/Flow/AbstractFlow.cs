@@ -1,7 +1,6 @@
 using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Memory;
-using XiansAi.Events;
 
 namespace XiansAi.Flow;
 
@@ -13,19 +12,19 @@ public abstract class AbstractFlow
 
     protected readonly IMemoryHub _memoryHub;
     protected readonly IMessageHub _messageHub;
-    private readonly IEventHub _eventHub;
+    //private readonly IEventHub _eventHub;
 
     // Signal method to receive events
     [WorkflowSignal("HandleInboundEvent")]
     public async Task HandleInboundEvent(EventSignal eventDto)
     {
-        await _eventHub.EventListener(eventDto);
+        await _messageHub.ReceiveFlowMessage(eventDto);
     }
 
     [WorkflowSignal("HandleInboundChatOrData")]
     public async Task HandleInboundMessage(MessageSignal messageSignal)
     {
-        await _messageHub.ReceiveMessage(messageSignal);
+        await _messageHub.ReceiveConversationChatOrData(messageSignal);
     }
 
     /// <summary>
@@ -36,7 +35,6 @@ public abstract class AbstractFlow
     {
         _messageHub = new MessageHub();
         _memoryHub = new MemoryHub();
-        _eventHub = new EventHub();
     }
 
 }
