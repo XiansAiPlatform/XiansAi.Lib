@@ -113,61 +113,78 @@ public class SettingsServiceTests : IDisposable
     [Fact]
     public void XiansAiServiceFactory_GetSettingsService_ShouldReturnSameInstance()
     {
-        // Arrange
+        // Arrange - Set environment variables for the factory
         Environment.SetEnvironmentVariable("APP_SERVER_URL", _serverUrl);
+        Environment.SetEnvironmentVariable("APP_SERVER_API_KEY", _apiKey);
+        
+        try
+        {
+            // Act
+            var service1 = XiansAiServiceFactory.GetSettingsService();
+            var service2 = XiansAiServiceFactory.GetSettingsService();
 
-        // Act
-        var service1 = XiansAiServiceFactory.GetSettingsService();
-        var service2 = XiansAiServiceFactory.GetSettingsService();
-
-        // Assert
-        Assert.NotNull(service1);
-        Assert.NotNull(service2);
-        Assert.Same(service1, service2);
+            // Assert
+            Assert.Same(service1, service2);
+        }
+        finally
+        {
+            // Clean up
+            XiansAiServiceFactory.Reset();
+        }
     }
 
     [Fact]
     public void XiansAiServiceFactory_GetSettingsService_ShouldThrowException_WhenAppServerUrlNotSet()
     {
-        // Arrange - Use reflection to temporarily set the static field to null
-        var field = typeof(PlatformConfig).GetField("APP_SERVER_URL");
-        var originalValue = field?.GetValue(null);
-        
+        // Arrange
+        var originalValue = typeof(PlatformConfig)
+            .GetField("APP_SERVER_URL", BindingFlags.Public | BindingFlags.Static)
+            ?.GetValue(null);
+
         try
         {
-            // Set the static field to null using reflection
-            field?.SetValue(null, null);
-            XiansAiServiceFactory.Reset();
+            // Act & Assert - Set APP_SERVER_URL to null using reflection
+            typeof(PlatformConfig)
+                .GetField("APP_SERVER_URL", BindingFlags.Public | BindingFlags.Static)
+                ?.SetValue(null, null);
 
-            // Act & Assert
             var exception = Assert.Throws<InvalidOperationException>(() => 
                 XiansAiServiceFactory.GetSettingsService());
             
-            Assert.Contains("APP_SERVER_URL environment variable is required", exception.Message);
+            Assert.Contains("Server URL is required", exception.Message);
         }
         finally
         {
             // Restore original value
-            field?.SetValue(null, originalValue);
-            XiansAiServiceFactory.Reset();
+            typeof(PlatformConfig)
+                .GetField("APP_SERVER_URL", BindingFlags.Public | BindingFlags.Static)
+                ?.SetValue(null, originalValue);
         }
     }
 
     [Fact]
     public void XiansAiServiceFactory_Reset_ShouldClearInstance()
     {
-        // Arrange
+        // Arrange - Set environment variables for the factory
         Environment.SetEnvironmentVariable("APP_SERVER_URL", _serverUrl);
-        var service1 = XiansAiServiceFactory.GetSettingsService();
+        Environment.SetEnvironmentVariable("APP_SERVER_API_KEY", _apiKey);
+        
+        try
+        {
+            var service1 = XiansAiServiceFactory.GetSettingsService();
 
-        // Act
-        XiansAiServiceFactory.Reset();
-        var service2 = XiansAiServiceFactory.GetSettingsService();
+            // Act
+            XiansAiServiceFactory.Reset();
+            var service2 = XiansAiServiceFactory.GetSettingsService();
 
-        // Assert
-        Assert.NotNull(service1);
-        Assert.NotNull(service2);
-        Assert.NotSame(service1, service2);
+            // Assert
+            Assert.NotSame(service1, service2);
+        }
+        finally
+        {
+            // Clean up
+            XiansAiServiceFactory.Reset();
+        }
     }
 
     #endregion

@@ -4,239 +4,375 @@ using XiansAi;
 using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Temporal;
 
 namespace XiansAi.Server.Extensions;
 
 /// <summary>
-/// Factory for creating XiansAi services with proper configuration
+/// Strategy interface for different authorization methods
 /// </summary>
+public interface IAuthorizationStrategy
+{
+    /// <summary>
+    /// Determines if this strategy can handle the given credential
+    /// </summary>
+    bool CanHandle(string credential);
+    
+    /// <summary>
+    /// Configures the HttpClient with the appropriate authorization
+    /// </summary>
+    void ConfigureAuthorization(HttpClient client, string credential);
+}
+
+/// <summary>
+/// Strategy for certificate-based authorization
+/// </summary>
+public class CertificateAuthorizationStrategy : IAuthorizationStrategy
+{
+    public bool CanHandle(string credential)
+    {
+        if (string.IsNullOrEmpty(credential))
+            return false;
+            
+        try
+        {
+            // Try to parse as Base64 and create certificate
+            var certificateBytes = Convert.FromBase64String(credential);
+            
+            #pragma warning disable SYSLIB0057
+            using var certificate = new X509Certificate2(certificateBytes);
+            #pragma warning restore SYSLIB0057
+            
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void ConfigureAuthorization(HttpClient client, string credential)
+    {
+        try
+        {
+            var certificateBytes = Convert.FromBase64String(credential);
+            
+            #pragma warning disable SYSLIB0057
+            using var clientCertificate = new X509Certificate2(certificateBytes);
+            #pragma warning restore SYSLIB0057
+
+            // Export the certificate as Base64 and add it to the request headers for authentication
+            var exportedCertBytes = clientCertificate.Export(X509ContentType.Cert);
+            var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to configure certificate-based authorization: {ex.Message}", ex);
+        }
+    }
+}
+
+/// <summary>
+/// Strategy for simple bearer token authorization
+/// </summary>
+public class BearerTokenAuthorizationStrategy : IAuthorizationStrategy
+{
+    public bool CanHandle(string credential)
+    {
+        // This is the fallback strategy - it can handle any non-empty string
+        return !string.IsNullOrEmpty(credential);
+    }
+
+    public void ConfigureAuthorization(HttpClient client, string credential)
+    {
+        if (string.IsNullOrEmpty(credential))
+        {
+            throw new InvalidOperationException("Bearer token cannot be null or empty");
+        }
+        
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {credential}");
+    }
+}
+
+/// <summary>
+/// Factory for creating authorization strategies
+/// </summary>
+public static class AuthorizationStrategyFactory
+{
+    private static readonly List<IAuthorizationStrategy> _strategies = new()
+    {
+        new CertificateAuthorizationStrategy(),
+        new BearerTokenAuthorizationStrategy() // This should be last as it's the fallback
+    };
+
+    /// <summary>
+    /// Gets the appropriate authorization strategy for the given credential
+    /// </summary>
+    public static IAuthorizationStrategy GetStrategy(string credential)
+    {
+        if (string.IsNullOrEmpty(credential))
+        {
+            throw new InvalidOperationException("Credential is required for authorization");
+        }
+
+        var strategy = _strategies.FirstOrDefault(s => s.CanHandle(credential));
+        
+        if (strategy == null)
+        {
+            throw new InvalidOperationException("No suitable authorization strategy found for the provided credential");
+        }
+
+        return strategy;
+    }
+}
+
+/// <summary>
+/// Extension methods for configuring XiansAi services in the DI container
+/// </summary>
+public static class ServiceCollectionExtensions
+{
+    /// <summary>
+    /// Adds XiansAi services to the service collection
+    /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="serverUrl">Optional server URL (will use environment variable if not provided)</param>
+    /// <param name="apiKey">Optional API key (will use environment variable if not provided)</param>
+    /// <returns>The service collection for chaining</returns>
+    public static IServiceCollection AddXiansAiServices(
+        this IServiceCollection services, 
+        string? serverUrl = null, 
+        string? apiKey = null)
+    {
+        // Use provided values or fall back to environment variables
+        var effectiveServerUrl = serverUrl ?? PlatformConfig.APP_SERVER_URL;
+        var effectiveApiKey = apiKey ?? PlatformConfig.APP_SERVER_API_KEY;
+        
+        // Validate required configuration
+        if (string.IsNullOrEmpty(effectiveServerUrl))
+        {
+            throw new InvalidOperationException(
+                "Server URL is required. Provide it via parameter or APP_SERVER_URL environment variable.");
+        }
+        
+        if (string.IsNullOrEmpty(effectiveApiKey))
+        {
+            throw new InvalidOperationException(
+                "API Key is required. Provide it via parameter or APP_SERVER_API_KEY environment variable.");
+        }
+        
+        // Register HttpClient with authorization
+        services.AddHttpClient<ISettingsService, SettingsService>(client =>
+        {
+            client.BaseAddress = new Uri(effectiveServerUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            
+            // Configure authorization
+            ConfigureAuthorization(client, effectiveApiKey);
+        });
+        
+        // Register memory cache if not already registered
+        services.TryAddSingleton<IMemoryCache, MemoryCache>();
+        
+        // Register the settings service as singleton
+        services.AddSingleton<ISettingsService, SettingsService>();
+        
+        // Register Temporal client service
+        services.AddSingleton<TemporalClientService>();
+
+        return services;
+    }
+    
+    /// <summary>
+    /// Adds XiansAi services with custom HttpClient configuration
+    /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="configureClient">Action to configure the HttpClient</param>
+    /// <param name="serverUrl">Optional server URL</param>
+    /// <param name="apiKey">Optional API key</param>
+    /// <returns>The service collection for chaining</returns>
+    public static IServiceCollection AddXiansAiServices(
+        this IServiceCollection services,
+        Action<HttpClient> configureClient,
+        string? serverUrl = null,
+        string? apiKey = null)
+    {
+        // Use provided values or fall back to environment variables
+        var effectiveServerUrl = serverUrl ?? PlatformConfig.APP_SERVER_URL;
+        var effectiveApiKey = apiKey ?? PlatformConfig.APP_SERVER_API_KEY;
+        
+        // Validate required configuration
+        if (string.IsNullOrEmpty(effectiveServerUrl))
+        {
+            throw new InvalidOperationException(
+                "Server URL is required. Provide it via parameter or APP_SERVER_URL environment variable.");
+        }
+        
+        if (string.IsNullOrEmpty(effectiveApiKey))
+        {
+            throw new InvalidOperationException(
+                "API Key is required. Provide it via parameter or APP_SERVER_API_KEY environment variable.");
+        }
+        
+        // Register HttpClient with custom configuration and authorization
+        services.AddHttpClient<ISettingsService, SettingsService>(client =>
+        {
+            client.BaseAddress = new Uri(effectiveServerUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            
+            // Apply custom configuration first
+            configureClient(client);
+            
+            // Configure authorization (this should come after custom config to ensure it's not overridden)
+            ConfigureAuthorization(client, effectiveApiKey);
+        });
+        
+        // Register memory cache if not already registered
+        services.TryAddSingleton<IMemoryCache, MemoryCache>();
+        
+        // Remove the conflicting singleton registration - AddHttpClient already registers the service
+        // but we need to make it singleton instead of transient
+        services.AddSingleton<ISettingsService>(serviceProvider =>
+        {
+            var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient(typeof(SettingsService).Name);
+            var cache = serviceProvider.GetRequiredService<IMemoryCache>();
+            var logger = serviceProvider.GetRequiredService<ILogger<SettingsService>>();
+            return new SettingsService(httpClient, cache, logger);
+        });
+        
+        // Register Temporal client service
+        services.AddSingleton<TemporalClientService>();
+
+        return services;
+    }
+    
+    /// <summary>
+    /// Configures authorization for the HttpClient using the appropriate strategy
+    /// </summary>
+    /// <param name="client">The HttpClient to configure</param>
+    /// <param name="credential">The credential (certificate or API key)</param>
+    internal static void ConfigureAuthorization(HttpClient client, string credential)
+    {
+        var strategy = AuthorizationStrategyFactory.GetStrategy(credential);
+        strategy.ConfigureAuthorization(client, credential);
+    }
+}
+
+/// <summary>
+/// Extension methods to add TryAdd functionality for services
+/// </summary>
+internal static class ServiceCollectionTryAddExtensions
+{
+    public static IServiceCollection TryAddSingleton<TService, TImplementation>(this IServiceCollection services)
+        where TService : class
+        where TImplementation : class, TService
+    {
+        if (!services.Any(x => x.ServiceType == typeof(TService)))
+        {
+            services.AddSingleton<TService, TImplementation>();
+        }
+        return services;
+    }
+    
+    public static IServiceCollection TryAddSingleton<TService>(this IServiceCollection services)
+        where TService : class
+    {
+        if (!services.Any(x => x.ServiceType == typeof(TService)))
+        {
+            services.AddSingleton<TService>();
+        }
+        return services;
+    }
+}
+
+/// <summary>
+/// Legacy factory for backward compatibility - will be deprecated
+/// </summary>
+[Obsolete("Use dependency injection with AddXiansAiServices() instead. This factory will be removed in a future version.")]
 public static class XiansAiServiceFactory
 {
-    private static ISettingsService? _settingsServiceInstance;
+    private static IServiceProvider? _serviceProvider;
     private static readonly object _lock = new object();
     
     /// <summary>
-    /// Creates or gets the singleton settings service instance
+    /// Gets the settings service instance (legacy method)
     /// </summary>
     /// <returns>The settings service instance</returns>
     public static ISettingsService GetSettingsService()
     {
-        if (_settingsServiceInstance != null)
+        if (_serviceProvider == null)
         {
-            return _settingsServiceInstance;
+            lock (_lock)
+            {
+                if (_serviceProvider == null)
+                {
+                    // Get configuration from environment variables
+                    var serverUrl = PlatformConfig.APP_SERVER_URL;
+                    var apiKey = PlatformConfig.APP_SERVER_API_KEY;
+                    
+                    if (string.IsNullOrEmpty(serverUrl))
+                    {
+                        throw new InvalidOperationException(
+                            "Server URL is required. Set the APP_SERVER_URL environment variable.");
+                    }
+                    
+                    if (string.IsNullOrEmpty(apiKey))
+                    {
+                        throw new InvalidOperationException(
+                            "API Key is required. Set the APP_SERVER_API_KEY environment variable.");
+                    }
+                    
+                    // Create a service collection and configure services
+                    var services = new ServiceCollection();
+                    services.AddLogging(builder => builder.AddConsole());
+                    
+                    // Configure HttpClient manually for the obsolete factory
+                    services.AddHttpClient<SettingsService>(client =>
+                    {
+                        client.BaseAddress = new Uri(serverUrl);
+                        client.Timeout = TimeSpan.FromSeconds(30);
+                        
+                        // Configure authorization
+                        ServiceCollectionExtensions.ConfigureAuthorization(client, apiKey);
+                    });
+                    
+                    // Register memory cache
+                    services.AddSingleton<IMemoryCache, MemoryCache>();
+                    
+                    // Register SettingsService as singleton using the configured HttpClient
+                    services.AddSingleton<ISettingsService>(serviceProvider =>
+                    {
+                        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+                        var httpClient = httpClientFactory.CreateClient(typeof(SettingsService).Name);
+                        var cache = serviceProvider.GetRequiredService<IMemoryCache>();
+                        var logger = serviceProvider.GetRequiredService<ILogger<SettingsService>>();
+                        return new SettingsService(httpClient, cache, logger);
+                    });
+                    
+                    _serviceProvider = services.BuildServiceProvider();
+                }
+            }
         }
         
-        lock (_lock)
-        {
-            if (_settingsServiceInstance != null)
-            {
-                return _settingsServiceInstance;
-            }
-            
-            // Validate that the required environment variables are set
-            if (string.IsNullOrEmpty(PlatformConfig.APP_SERVER_URL))
-            {
-                throw new InvalidOperationException("APP_SERVER_URL environment variable is required");
-            }
-            
-            if (string.IsNullOrEmpty(PlatformConfig.APP_SERVER_API_KEY))
-            {
-                throw new InvalidOperationException("APP_SERVER_API_KEY environment variable is required");
-            }
-            
-            // Create HttpClient with proper authorization
-            var httpClient = CreateAuthorizedHttpClient(
-                PlatformConfig.APP_SERVER_URL,
-                PlatformConfig.APP_SERVER_API_KEY
-            );
-            
-            // Create a simple memory cache implementation
-            var cache = new SimpleMemoryCache();
-            
-            // Create a logger using the existing logging infrastructure
-            var logger = Globals.LogFactory.CreateLogger("SettingsService");
-            
-            _settingsServiceInstance = new SettingsService(httpClient, cache, new LoggerAdapter(logger));
-            return _settingsServiceInstance;
-        }
+        return _serviceProvider.GetRequiredService<ISettingsService>();
     }
     
     /// <summary>
-    /// Creates an HttpClient with proper certificate-based authorization
-    /// </summary>
-    /// <param name="serverUrl">The server URL</param>
-    /// <param name="certificateBase64">The Base64 encoded certificate for authorization</param>
-    /// <returns>Configured HttpClient with authorization headers</returns>
-    private static HttpClient CreateAuthorizedHttpClient(string serverUrl, string certificateBase64)
-    {
-        var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(serverUrl),
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-        
-        try
-        {
-            // Convert the Base64 string to a certificate and export it for authorization
-            var certificateBytes = Convert.FromBase64String(certificateBase64);
-            
-            // Suppress warning about X509Certificate2 constructor being obsolete in .NET Core 
-            #pragma warning disable SYSLIB0057
-            using var clientCertificate = new System.Security.Cryptography.X509Certificates.X509Certificate2(certificateBytes);
-            #pragma warning restore SYSLIB0057
-
-            // Export the certificate as Base64 and add it to the request headers for authentication
-            var exportedCertBytes = clientCertificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert);
-            var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
-            
-            return httpClient;
-        }
-        catch (Exception ex)
-        {
-            httpClient.Dispose();
-            throw new InvalidOperationException($"Failed to configure authorization for HttpClient: {ex.Message}", ex);
-        }
-    }
-    
-    /// <summary>
-    /// Resets the service instances (primarily for testing)
+    /// Resets the service provider (primarily for testing)
     /// </summary>
     public static void Reset()
     {
         lock (_lock)
         {
-            if (_settingsServiceInstance is IDisposable disposable)
+            if (_serviceProvider is IDisposable disposable)
             {
                 disposable.Dispose();
             }
-            _settingsServiceInstance = null;
+            _serviceProvider = null;
         }
-    }
-}
-
-/// <summary>
-/// Simple memory cache implementation for basic caching needs
-/// </summary>
-internal class SimpleMemoryCache : Microsoft.Extensions.Caching.Memory.IMemoryCache
-{
-    private readonly ConcurrentDictionary<object, CacheEntry> _cache = new();
-    
-    public Microsoft.Extensions.Caching.Memory.ICacheEntry CreateEntry(object key)
-    {
-        return new SimpleCacheEntry(key, this);
-    }
-    
-    public void Dispose()
-    {
-        _cache.Clear();
-    }
-    
-    public void Remove(object key)
-    {
-        _cache.TryRemove(key, out _);
-    }
-    
-    public bool TryGetValue(object key, out object? value)
-    {
-        if (_cache.TryGetValue(key, out var entry))
-        {
-            if (entry.IsExpired)
-            {
-                _cache.TryRemove(key, out _);
-                value = null;
-                return false;
-            }
-            
-            value = entry.Value;
-            return true;
-        }
-        
-        value = null;
-        return false;
-    }
-    
-    internal void Set(object key, object? value, DateTimeOffset? expiration)
-    {
-        _cache[key] = new CacheEntry(value, expiration);
-    }
-    
-    private class CacheEntry
-    {
-        public object? Value { get; }
-        public DateTimeOffset? Expiration { get; }
-        
-        public CacheEntry(object? value, DateTimeOffset? expiration)
-        {
-            Value = value;
-            Expiration = expiration;
-        }
-        
-        public bool IsExpired => Expiration.HasValue && DateTimeOffset.UtcNow > Expiration.Value;
-    }
-}
-
-/// <summary>
-/// Simple cache entry implementation
-/// </summary>
-internal class SimpleCacheEntry : Microsoft.Extensions.Caching.Memory.ICacheEntry
-{
-    private readonly object _key;
-    private readonly SimpleMemoryCache _cache;
-    
-    public SimpleCacheEntry(object key, SimpleMemoryCache cache)
-    {
-        _key = key;
-        _cache = cache;
-        Key = key;
-    }
-    
-    public object Key { get; }
-    public object? Value { get; set; }
-    public DateTimeOffset? AbsoluteExpiration { get; set; }
-    public TimeSpan? AbsoluteExpirationRelativeToNow { get; set; }
-    public TimeSpan? SlidingExpiration { get; set; }
-    public IList<Microsoft.Extensions.Primitives.IChangeToken> ExpirationTokens { get; } = new List<Microsoft.Extensions.Primitives.IChangeToken>();
-    public IList<Microsoft.Extensions.Caching.Memory.PostEvictionCallbackRegistration> PostEvictionCallbacks { get; } = new List<Microsoft.Extensions.Caching.Memory.PostEvictionCallbackRegistration>();
-    public Microsoft.Extensions.Caching.Memory.CacheItemPriority Priority { get; set; }
-    public long? Size { get; set; }
-    
-    public void Dispose()
-    {
-        var expiration = AbsoluteExpiration;
-        if (AbsoluteExpirationRelativeToNow.HasValue)
-        {
-            expiration = DateTimeOffset.UtcNow.Add(AbsoluteExpirationRelativeToNow.Value);
-        }
-        
-        _cache.Set(_key, Value, expiration);
-    }
-}
-
-/// <summary>
-/// Adapter to convert ILogger to ILogger<T>
-/// </summary>
-internal class LoggerAdapter : Microsoft.Extensions.Logging.ILogger<SettingsService>
-{
-    private readonly Microsoft.Extensions.Logging.ILogger _logger;
-    
-    public LoggerAdapter(Microsoft.Extensions.Logging.ILogger logger)
-    {
-        _logger = logger;
-    }
-    
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-    {
-        return _logger.BeginScope(state);
-    }
-    
-    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel)
-    {
-        return _logger.IsEnabled(logLevel);
-    }
-    
-    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-    {
-        _logger.Log(logLevel, eventId, state, exception, formatter);
     }
 } 

@@ -8,14 +8,30 @@ namespace Temporal;
 
 public class TemporalClientService 
 {
-    private static readonly Lazy<TemporalClientService> _instance = new(() => new TemporalClientService());
+    private readonly ISettingsService _settingsService;
     private ITemporalClient? _client;
     private readonly object _lock = new();
     private bool _isInitialized;
 
-    private TemporalClientService() {}
+    // Backward compatibility - static instance using obsolete factory
+    private static readonly Lazy<TemporalClientService> _staticInstance = new(() => 
+    {
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var settingsService = XiansAiServiceFactory.GetSettingsService();
+        #pragma warning restore CS0618 // Type or member is obsolete
+        return new TemporalClientService(settingsService);
+    });
 
-    public static TemporalClientService Instance => _instance.Value;
+    /// <summary>
+    /// Static instance for backward compatibility - will be deprecated
+    /// </summary>
+    [Obsolete("Use dependency injection instead. This static instance will be removed in a future version.")]
+    public static TemporalClientService Instance => _staticInstance.Value;
+
+    public TemporalClientService(ISettingsService settingsService)
+    {
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+    }
 
     public ITemporalClient GetClientAsync()
     {
@@ -31,10 +47,9 @@ public class TemporalClientService
         }
     }
 
-    private static async Task<ITemporalClient> CreateClientAsync()
+    private async Task<ITemporalClient> CreateClientAsync()
     {
-        var settingsService = XiansAiServiceFactory.GetSettingsService();
-        var settings = await settingsService.GetFlowServerSettingsAsync();
+        var settings = await _settingsService.GetFlowServerSettingsAsync();
 
         return await TemporalClient.ConnectAsync(new(settings.FlowServerUrl)
         {

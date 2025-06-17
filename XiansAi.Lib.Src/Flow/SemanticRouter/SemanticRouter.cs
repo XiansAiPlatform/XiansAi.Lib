@@ -40,10 +40,22 @@ class SemanticRouterImpl
     private readonly ILogger _logger;
     private readonly FlowServerSettings _settings;
 
+    // Constructor for dependency injection
+    public SemanticRouterImpl(ISettingsService settingsService)
+    {
+        _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
+        var settings = settingsService?.GetFlowServerSettingsAsync().GetAwaiter().GetResult() 
+            ?? throw new ArgumentNullException(nameof(settingsService));
+        _settings = settings;
+    }
+
+    // Parameterless constructor for backward compatibility
     public SemanticRouterImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
+        #pragma warning disable CS0618 // Type or member is obsolete
         var settingsService = XiansAiServiceFactory.GetSettingsService();
+        #pragma warning restore CS0618 // Type or member is obsolete
         _settings = settingsService.GetFlowServerSettingsAsync().GetAwaiter().GetResult();
     }
 
