@@ -247,7 +247,7 @@ public class SystemActivities
                     }
                 case "certificate":
                     {
-                        _logger.LogWarning("Auto authenticate certificate for now...");
+                        await SendSecureApiRequestStatic<object>("api/agent/settings/flowserver", HttpMethod.Get, token);
                         break;
                     }
                 default:
@@ -258,6 +258,72 @@ public class SystemActivities
         }
         catch (Exception)
         {
+            throw;
+        }
+    }
+
+    public static async Task<TResponse?> SendSecureApiRequestStatic<TResponse>(string endpoint, HttpMethod method, string token, object? payload = null)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            throw new ArgumentNullException(nameof(token), "Bearer token is required");
+        }
+
+        try
+        {
+            _logger.LogInformation("Starting secure API request to {Endpoint}", endpoint);
+
+            if (!SecureApi.IsReady)
+            {
+                throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized.");
+            }
+
+            // Create a new HttpClient with the same base address as SecureApi
+            using var client = new HttpClient
+            {
+                BaseAddress = SecureApi.Instance.Client.BaseAddress,
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+
+            // Add bearer token to request headers
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            HttpResponseMessage response;
+            switch (method.Method.ToUpper())
+            {
+                case "GET":
+                    response = await client.GetAsync(endpoint);
+                    break;
+                case "POST":
+                    response = await client.PostAsJsonAsync(endpoint, payload);
+                    break;
+                case "PUT":
+                    response = await client.PutAsJsonAsync(endpoint, payload);
+                    break;
+                case "DELETE":
+                    response = await client.DeleteAsync(endpoint);
+                    break;
+                default:
+                    throw new NotSupportedException($"HTTP method {method.Method} is not supported.");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            if (typeof(TResponse) == typeof(string))
+            {
+                return (TResponse)(object)await response.Content.ReadAsStringAsync();
+            }
+
+            return await response.Content.ReadFromJsonAsync<TResponse>();
+        }
+        catch (ObjectDisposedException ex)
+        {
+            _logger.LogWarning(ex, "Client was disposed. Request operation failed.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error making secure API request to {Endpoint}", endpoint);
             throw;
         }
     }
