@@ -1,8 +1,8 @@
-
 using Temporalio.Worker;
 using Server;
 using Temporal;
 using XiansAi.Server;
+using Microsoft.Extensions.Logging;
 
 namespace XiansAi.Flow;
 
@@ -56,7 +56,10 @@ internal class WorkerService
         }
 
         // Upload the flow definition to the server
-        await new FlowDefinitionUploader().UploadFlowDefinition(flow);
+        var httpClient = SecureApi.Instance.Client;
+        var logger = Globals.LogFactory.CreateLogger<FlowDefinitionUploader>();
+        var flowUploader = new FlowDefinitionUploader(httpClient, logger);
+        await flowUploader.UploadFlowDefinition(flow);
 
         // Run the worker for the flow
         var client = TemporalClientService.Instance.GetClientAsync();

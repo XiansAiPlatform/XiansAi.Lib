@@ -174,11 +174,24 @@ public static class ServiceCollectionExtensions
             ConfigureAuthorization(client, effectiveApiKey);
         });
         
+        // Register HttpClient for FlowDefinitionUploader
+        services.AddHttpClient<IFlowDefinitionUploader, FlowDefinitionUploader>(client =>
+        {
+            client.BaseAddress = new Uri(effectiveServerUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            
+            // Configure authorization
+            ConfigureAuthorization(client, effectiveApiKey);
+        });
+        
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
         
         // Register the settings service as singleton
         services.AddSingleton<ISettingsService, SettingsService>();
+        
+        // Register the flow definition uploader as singleton
+        services.AddSingleton<IFlowDefinitionUploader, FlowDefinitionUploader>();
         
         // Register Temporal client service
         services.AddSingleton<TemporalClientService>();
@@ -230,6 +243,16 @@ public static class ServiceCollectionExtensions
             ConfigureAuthorization(client, effectiveApiKey);
         });
         
+        // Register HttpClient for FlowDefinitionUploader
+        services.AddHttpClient<IFlowDefinitionUploader, FlowDefinitionUploader>(client =>
+        {
+            client.BaseAddress = new Uri(effectiveServerUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            
+            // Configure authorization
+            ConfigureAuthorization(client, effectiveApiKey);
+        });
+        
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
         
@@ -243,6 +266,9 @@ public static class ServiceCollectionExtensions
             var logger = serviceProvider.GetRequiredService<ILogger<SettingsService>>();
             return new SettingsService(httpClient, cache, logger);
         });
+        
+        // Register the flow definition uploader as singleton
+        services.AddSingleton<IFlowDefinitionUploader, FlowDefinitionUploader>();
         
         // Register Temporal client service
         services.AddSingleton<TemporalClientService>();
@@ -340,6 +366,16 @@ public static class XiansAiServiceFactory
                         ServiceCollectionExtensions.ConfigureAuthorization(client, apiKey);
                     });
                     
+                    // Register HttpClient for FlowDefinitionUploader
+                    services.AddHttpClient<FlowDefinitionUploader>(client =>
+                    {
+                        client.BaseAddress = new Uri(serverUrl);
+                        client.Timeout = TimeSpan.FromSeconds(30);
+                        
+                        // Configure authorization
+                        ServiceCollectionExtensions.ConfigureAuthorization(client, apiKey);
+                    });
+                    
                     // Register memory cache
                     services.AddSingleton<IMemoryCache, MemoryCache>();
                     
@@ -353,12 +389,33 @@ public static class XiansAiServiceFactory
                         return new SettingsService(httpClient, cache, logger);
                     });
                     
+                    // Register FlowDefinitionUploader as singleton using the configured HttpClient
+                    services.AddSingleton<IFlowDefinitionUploader>(serviceProvider =>
+                    {
+                        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+                        var httpClient = httpClientFactory.CreateClient(typeof(FlowDefinitionUploader).Name);
+                        var logger = serviceProvider.GetRequiredService<ILogger<FlowDefinitionUploader>>();
+                        return new FlowDefinitionUploader(httpClient, logger);
+                    });
+                    
                     _serviceProvider = services.BuildServiceProvider();
                 }
             }
         }
         
         return _serviceProvider.GetRequiredService<ISettingsService>();
+    }
+    
+    /// <summary>
+    /// Gets the flow definition uploader service instance (legacy method)
+    /// </summary>
+    /// <returns>The flow definition uploader service instance</returns>
+    public static IFlowDefinitionUploader GetFlowDefinitionUploader()
+    {
+        // Ensure the service provider is initialized (reuse the same initialization as GetSettingsService)
+        GetSettingsService();
+        
+        return _serviceProvider!.GetRequiredService<IFlowDefinitionUploader>();
     }
     
     /// <summary>

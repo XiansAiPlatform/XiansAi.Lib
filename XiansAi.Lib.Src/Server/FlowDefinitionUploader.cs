@@ -6,6 +6,7 @@ using XiansAi.Activity;
 using XiansAi.Flow;
 using XiansAi.Knowledge;
 using XiansAi.Models;
+using XiansAi.Server.Base;
 
 namespace Server;
 
@@ -26,25 +27,22 @@ public interface IFlowDefinitionUploader
 }
 
 /// <summary>
-/// Implementation of the flow definition uploader that can send flow definitions to the server.
+/// Modern implementation of the flow definition uploader with dependency injection support
 /// </summary>
-public class FlowDefinitionUploader : IFlowDefinitionUploader
+public class FlowDefinitionUploader : BaseApiService, IFlowDefinitionUploader
 {
-    private readonly ILogger<FlowDefinitionUploader> _logger;
-    private readonly ISecureApiClient _secureApi;
-    
     private const string API_ENDPOINT = "api/agent/definitions";
+    private readonly ILogger<FlowDefinitionUploader> _logger;
 
     /// <summary>
     /// Initializes a new instance of the FlowDefinitionUploader class.
     /// </summary>
-    /// <param name="loggerFactory">Factory to create a logger instance</param>
-    /// <param name="secureApi">Secure API client for server communication</param>
-    /// <exception cref="ArgumentNullException">Thrown if secureApi is null</exception>
-    public FlowDefinitionUploader()
+    /// <param name="httpClient">The HTTP client for API communication</param>
+    /// <param name="logger">Logger for recording operational information</param>
+    public FlowDefinitionUploader(HttpClient httpClient, ILogger<FlowDefinitionUploader> logger) 
+        : base(httpClient, logger)
     {
-        _logger = Globals.LogFactory.CreateLogger<FlowDefinitionUploader>();
-        _secureApi = SecureApi.Instance;
+        _logger = logger;
     }
 
     /// <summary>
@@ -91,16 +89,9 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <exception cref="InvalidOperationException">Thrown if server connection fails or returns an error</exception>
     private async Task UploadToServer(FlowDefinition flowDefinition)
     {
-        if (!SecureApi.IsReady)
-        {
-            _logger.LogError("App server secure API is not available, upload of flow definition failed");
-            throw new InvalidOperationException("App server secure API is not available");
-        }
-        
         try
         {
-            var client = _secureApi.Client;
-            var response = await client.PostAsync(API_ENDPOINT, JsonContent.Create(flowDefinition));
+            var response = await PostRawAsync(API_ENDPOINT, flowDefinition);
             
             if (response.StatusCode == HttpStatusCode.BadRequest)
             {
@@ -113,11 +104,11 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             if (response.StatusCode == HttpStatusCode.Forbidden)
             {
                 var warningJson = await response.Content.ReadAsStringAsync();
-                try {
- var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
-                _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
-                throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
-
+                try 
+                {
+                    var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
+                    _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
+                    throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
                 } 
                 catch (Exception ex)
                 {
@@ -190,7 +181,6 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// Extracts activity definitions from a type.
     /// </summary>
     /// <param name="stubType">The type to extract activities from</param>
-    /// <param name="agentNames">List of agent tool names</param>
     /// <returns>List of activity definitions</returns>
     private List<ActivityDefinition> GetActivities(Type stubType) 
     {
@@ -233,5 +223,45 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     internal class WarningResponse
     {
         public string? message { get; set; }
+    }
+}
+
+/// <summary>
+/// Legacy static class for backward compatibility
+/// This will be deprecated in favor of the new IFlowDefinitionUploader
+/// </summary>
+[Obsolete("Use IFlowDefinitionUploader instead. This class will be removed in a future version.")]
+public static class LegacyFlowDefinitionUploader
+{
+    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<FlowDefinitionUploader>();
+    private static readonly Lazy<IFlowDefinitionUploader> _uploaderLazy = new(() => CreateUploader());
+
+    /// <summary>
+    /// Gets the flow definition uploader instance
+    /// </summary>
+    public static IFlowDefinitionUploader Instance => _uploaderLazy.Value;
+
+    /// <summary>
+    /// Creates a flow definition uploader instance using the legacy approach
+    /// </summary>
+    private static IFlowDefinitionUploader CreateUploader()
+    {
+        if (!SecureApi.IsReady)
+        {
+            _logger.LogWarning("App server secure API is not ready, cannot create flow definition uploader");
+            throw new Exception("App server secure API is not ready, cannot create flow definition uploader");
+        }
+
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var logger = Globals.LogFactory.CreateLogger<FlowDefinitionUploader>();
+            return new FlowDefinitionUploader(client, logger);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError($"Failed to create flow definition uploader {e.Message}");
+            throw new Exception($"Failed to create flow definition uploader {e.Message}", e);
+        }
     }
 }

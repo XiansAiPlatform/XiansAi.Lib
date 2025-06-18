@@ -128,4 +128,26 @@ public abstract class BaseApiService
             throw;
         }
     }
+    
+    /// <summary>
+    /// Makes a POST request with JSON payload and returns the raw HttpResponseMessage
+    /// This allows derived classes to handle specific status codes before calling EnsureSuccessStatusCode
+    /// </summary>
+    /// <param name="endpoint">API endpoint</param>
+    /// <param name="data">Data to serialize and send</param>
+    /// <returns>Raw HttpResponseMessage</returns>
+    protected async Task<HttpResponseMessage> PostRawAsync(string endpoint, object data)
+    {
+        try
+        {
+            Logger.LogDebug("Making POST request to {Endpoint}", endpoint);
+            var response = await HttpClient.PostAsJsonAsync(endpoint, data);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "API call failed: POST {Endpoint}", endpoint);
+            throw;
+        }
+    }
 } 
