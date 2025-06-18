@@ -184,6 +184,16 @@ public static class ServiceCollectionExtensions
             ConfigureAuthorization(client, effectiveApiKey);
         });
         
+        // Register HttpClient for SystemActivities
+        services.AddHttpClient<SystemActivities>(client =>
+        {
+            client.BaseAddress = new Uri(effectiveServerUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            
+            // Configure authorization
+            ConfigureAuthorization(client, effectiveApiKey);
+        });
+        
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
         
@@ -245,6 +255,16 @@ public static class ServiceCollectionExtensions
         
         // Register HttpClient for FlowDefinitionUploader
         services.AddHttpClient<IFlowDefinitionUploader, FlowDefinitionUploader>(client =>
+        {
+            client.BaseAddress = new Uri(effectiveServerUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            
+            // Configure authorization
+            ConfigureAuthorization(client, effectiveApiKey);
+        });
+        
+        // Register HttpClient for SystemActivities
+        services.AddHttpClient<SystemActivities>(client =>
         {
             client.BaseAddress = new Uri(effectiveServerUrl);
             client.Timeout = TimeSpan.FromSeconds(30);

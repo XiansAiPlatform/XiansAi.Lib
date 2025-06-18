@@ -8,6 +8,7 @@ using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
+using XiansAi.Server.Base;
 using System.Text.Json;
 
 public class SendMessageResponse
@@ -15,15 +16,39 @@ public class SendMessageResponse
     public required string[] MessageIds { get; set; }
 }
 
-public class SystemActivities
+public class SystemActivities : BaseApiService
 {
-    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
-
+    private static readonly ILogger _staticLogger = Globals.LogFactory.CreateLogger<SystemActivities>();
     private readonly List<Type> _capabilities = new();
 
+    /// <summary>
+    /// Constructor for dependency injection with HttpClient
+    /// </summary>
+    public SystemActivities(HttpClient httpClient, ILogger<SystemActivities> logger, List<Type>? capabilities = null)
+        : base(httpClient, logger)
+    {
+        _capabilities = capabilities ?? new List<Type>();
+    }
+
+    /// <summary>
+    /// Legacy constructor for backward compatibility - creates instance without DI
+    /// </summary>
     public SystemActivities(List<Type> capabilities)
+        : base(GetLegacyHttpClient(), _staticLogger)
     {
         _capabilities = capabilities;
+    }
+
+    /// <summary>
+    /// Gets HttpClient for legacy constructor - fallback to SecureApi
+    /// </summary>
+    private static HttpClient GetLegacyHttpClient()
+    {
+        if (!SecureApi.IsReady)
+        {
+            throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized or use dependency injection.");
+        }
+        return SecureApi.Instance.Client;
     }
 
     [Activity]
@@ -34,7 +59,7 @@ public class SystemActivities
 
     public static async Task SendEventStatic(EventSignal eventDto)
     {
-        _logger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
+        _staticLogger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
             eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
 
         try
@@ -49,18 +74,37 @@ public class SystemActivities
         }
         catch (ObjectDisposedException ex)
         {
-            _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping event send operation.");
+            _staticLogger.LogWarning(ex, "SecureApi instance was disposed. Skipping event send operation.");
             throw;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(ex);
-            _logger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
+            _staticLogger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
                 eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
             throw;
         }
     }
 
+    /// <summary>
+    /// Instance method that uses BaseApiService for clean API calls
+    /// </summary>
+    public async Task SendEventAsync(EventSignal eventDto)
+    {
+        Logger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
+            eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+
+        try
+        {
+            await PostAsync("api/agent/events/with-start", eventDto);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
+                eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+            throw;
+        }
+    }
 
     [Activity]
     public async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
@@ -77,11 +121,10 @@ public class SystemActivities
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting knowledge: {KnowledgeName}", knowledgeName);
+            _staticLogger.LogError(ex, "Error getting knowledge: {KnowledgeName}", knowledgeName);
             throw;
         }
     }
-
 
     public static async Task<bool> UpdateKnowledgeAsyncStatic(string knowledgeName, string knowledgeType, string knowledgeContent)
     {
@@ -99,10 +142,9 @@ public class SystemActivities
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating knowledge: {InstructionName}", knowledgeName);
+            Logger.LogError(ex, "Error updating knowledge: {InstructionName}", knowledgeName);
             throw;
         }
-
     }
 
     [Activity]
@@ -115,6 +157,22 @@ public class SystemActivities
     [Activity]
     public async Task<string?> SendHandoff(HandoffRequest message) {
         return await SendHandoffStatic(message);
+    }
+
+    /// <summary>
+    /// Instance method that uses BaseApiService for clean API calls
+    /// </summary>
+    public async Task<string?> SendHandoffAsync(HandoffRequest message) 
+    {
+        try
+        {
+            return await PostAsync("api/agent/conversation/outbound/handoff", message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending handoff message: {Message}", message);
+            throw new Exception($"Failed to send handoff message: {ex.Message}");
+        }
     }
 
     public static async Task<string?> SendHandoffStatic(HandoffRequest message) {
@@ -134,7 +192,7 @@ public class SystemActivities
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message: {Message}", message);
+            _staticLogger.LogError(ex, "Error sending message: {Message}", message);
             throw new Exception($"Failed to send message: {ex.Message}");
         }
     }
@@ -144,11 +202,35 @@ public class SystemActivities
         return await SendChatOrDataStatic(message, type);
     }
 
+    /// <summary>
+    /// Instance method that uses BaseApiService for clean API calls
+    /// </summary>
+    public async Task<string> SendChatOrDataAsync(ChatOrDataRequest message, MessageType type) 
+    {
+        if (type == MessageType.Chat && string.IsNullOrEmpty(message.Text)) {
+            throw new Exception("Text is required for chat message");
+        }
+
+        if (type == MessageType.Data && message.Data == null) {
+            throw new Exception("Data is required for data message");
+        }
+
+        try
+        {
+            return await PostAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending message: {Message}", message);
+            throw new Exception($"Failed to send message: {ex.Message}");
+        }
+    }
+
     public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
 
         if (!SecureApi.IsReady)
         {
-            _logger.LogWarning("App server secure API is not ready, skipping message send operation");
+            _staticLogger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized.");
         }
 
@@ -170,16 +252,15 @@ public class SystemActivities
         }
         catch (ObjectDisposedException ex)
         {
-            _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping message send operation.");
+            _staticLogger.LogWarning(ex, "SecureApi instance was disposed. Skipping message send operation.");
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message: {Message}", message);
+            _staticLogger.LogError(ex, "Error sending message: {Message}", message);
             throw new Exception($"Failed to send message: {ex.Message}");
         }
     }
-
 
     [Activity]
     public async Task<List<DbMessage>> GetMessageHistory(string? workflowType, string participantId, int page = 1, int pageSize = 10)
@@ -187,13 +268,32 @@ public class SystemActivities
         return await GetMessageHistoryStatic(workflowType, participantId, page, pageSize);
     }
 
+    /// <summary>
+    /// Instance method that uses BaseApiService for clean API calls
+    /// </summary>
+    public async Task<List<DbMessage>> GetMessageHistoryAsync(string? workflowType, string participantId, int page = 1, int pageSize = 10)
+    {
+        Logger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
+
+        try
+        {
+            var messages = await GetAsync<List<DbMessage>>($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
+            return messages ?? new List<DbMessage>();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
+            throw;
+        }
+    }
+
     public static async Task<List<DbMessage>> GetMessageHistoryStatic(string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        _logger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
+        _staticLogger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
 
         if (!SecureApi.IsReady)
         {
-            _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
+            _staticLogger.LogWarning("App server secure API is not ready, skipping message history fetch");
             return new List<DbMessage>();
         }
         try
@@ -204,17 +304,16 @@ public class SystemActivities
 
             var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
 
-
             return messages ?? new List<DbMessage>();
         }
         catch (ObjectDisposedException ex)
         {
-            _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping message history fetch.");
+            _staticLogger.LogWarning(ex, "SecureApi instance was disposed. Skipping message history fetch.");
             return new List<DbMessage>();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
+            _staticLogger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
             throw;
         }
     }
