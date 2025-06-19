@@ -16,17 +16,20 @@ public class SendMessageResponse
     public required string[] MessageIds { get; set; }
 }
 
-public class SystemActivities : BaseApiService
+public class SystemActivities
 {
     private static readonly ILogger _staticLogger = Globals.LogFactory.CreateLogger<SystemActivities>();
     private readonly List<Type> _capabilities = new();
+    private readonly IApiService _apiService;
+    private readonly ILogger<SystemActivities> _logger;
 
     /// <summary>
-    /// Constructor for dependency injection with HttpClient
+    /// Constructor for dependency injection with IApiService
     /// </summary>
-    public SystemActivities(HttpClient httpClient, ILogger<SystemActivities> logger, List<Type>? capabilities = null)
-        : base(httpClient, logger)
+    public SystemActivities(IApiService apiService, ILogger<SystemActivities> logger, List<Type>? capabilities = null)
     {
+        _apiService = apiService ?? throw new ArgumentNullException(nameof(apiService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _capabilities = capabilities ?? new List<Type>();
     }
 
@@ -34,9 +37,13 @@ public class SystemActivities : BaseApiService
     /// Legacy constructor for backward compatibility - creates instance without DI
     /// </summary>
     public SystemActivities(List<Type> capabilities)
-        : base(GetLegacyHttpClient(), _staticLogger)
     {
         _capabilities = capabilities;
+        
+        // Create a BaseApiService instance for legacy support
+        var httpClient = GetLegacyHttpClient();
+        _apiService = new LegacyApiServiceWrapper(httpClient, _staticLogger);
+        _logger = (ILogger<SystemActivities>)_staticLogger;
     }
 
     /// <summary>
@@ -49,6 +56,16 @@ public class SystemActivities : BaseApiService
             throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized or use dependency injection.");
         }
         return SecureApi.Instance.Client;
+    }
+
+    /// <summary>
+    /// Legacy wrapper that implements IApiService using BaseApiService for backward compatibility
+    /// </summary>
+    private class LegacyApiServiceWrapper : BaseApiService
+    {
+        public LegacyApiServiceWrapper(HttpClient httpClient, ILogger logger) : base(httpClient, logger)
+        {
+        }
     }
 
     [Activity]
@@ -91,16 +108,16 @@ public class SystemActivities : BaseApiService
     /// </summary>
     public async Task SendEventAsync(EventSignal eventDto)
     {
-        Logger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
+        _logger.LogInformation("Sending event from workflow {SourceWorkflow} to {TargetWorkflow}", 
             eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
 
         try
         {
-            await PostAsync("api/agent/events/with-start", eventDto);
+            await _apiService.PostAsync("api/agent/events/with-start", eventDto);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
+            _logger.LogError(ex, "Failed to start and send event from {SourceWorkflow} to {TargetWorkflow}",
                 eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
             throw;
         }
@@ -142,7 +159,7 @@ public class SystemActivities : BaseApiService
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error updating knowledge: {InstructionName}", knowledgeName);
+            _logger.LogError(ex, "Error updating knowledge: {InstructionName}", knowledgeName);
             throw;
         }
     }
@@ -166,11 +183,11 @@ public class SystemActivities : BaseApiService
     {
         try
         {
-            return await PostAsync("api/agent/conversation/outbound/handoff", message);
+            return await _apiService.PostAsync("api/agent/conversation/outbound/handoff", message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error sending handoff message: {Message}", message);
+            _logger.LogError(ex, "Error sending handoff message: {Message}", message);
             throw new Exception($"Failed to send handoff message: {ex.Message}");
         }
     }
@@ -217,11 +234,11 @@ public class SystemActivities : BaseApiService
 
         try
         {
-            return await PostAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message);
+            return await _apiService.PostAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error sending message: {Message}", message);
+            _logger.LogError(ex, "Error sending message: {Message}", message);
             throw new Exception($"Failed to send message: {ex.Message}");
         }
     }
@@ -273,16 +290,16 @@ public class SystemActivities : BaseApiService
     /// </summary>
     public async Task<List<DbMessage>> GetMessageHistoryAsync(string? workflowType, string participantId, int page = 1, int pageSize = 10)
     {
-        Logger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
+        _logger.LogDebug("Getting message history for thread WorkflowType: '{WorkflowType}' ParticipantId: '{ParticipantId}'", workflowType, participantId);
 
         try
         {
-            var messages = await GetAsync<List<DbMessage>>($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
+            var messages = await _apiService.GetAsync<List<DbMessage>>($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
             return messages ?? new List<DbMessage>();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
+            _logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
             throw;
         }
     }

@@ -8,7 +8,7 @@ namespace XiansAi.Server.Base;
 /// <summary>
 /// Base class for all API services providing common HTTP functionality
 /// </summary>
-public abstract class BaseApiService
+public abstract class BaseApiService : IApiService
 {
     protected readonly HttpClient HttpClient;
     protected readonly ILogger Logger;
@@ -25,7 +25,7 @@ public abstract class BaseApiService
     /// <typeparam name="T">Type to deserialize to</typeparam>
     /// <param name="endpoint">API endpoint</param>
     /// <returns>Deserialized response</returns>
-    protected async Task<T> GetAsync<T>(string endpoint)
+    public async Task<T> GetAsync<T>(string endpoint)
     {
         try
         {
@@ -71,7 +71,7 @@ public abstract class BaseApiService
     /// <param name="endpoint">API endpoint</param>
     /// <param name="data">Data to serialize and send</param>
     /// <returns>Deserialized response</returns>
-    protected async Task<T> PostAsync<T>(string endpoint, object data)
+    public async Task<T> PostAsync<T>(string endpoint, object data)
     {
         try
         {
@@ -110,7 +110,7 @@ public abstract class BaseApiService
     /// <param name="endpoint">API endpoint</param>
     /// <param name="data">Data to serialize and send</param>
     /// <returns>Response content as string</returns>
-    protected async Task<string> PostAsync(string endpoint, object data)
+    public async Task<string> PostAsync(string endpoint, object data)
     {
         try
         {
@@ -136,7 +136,7 @@ public abstract class BaseApiService
     /// <param name="endpoint">API endpoint</param>
     /// <param name="data">Data to serialize and send</param>
     /// <returns>Raw HttpResponseMessage</returns>
-    protected async Task<HttpResponseMessage> PostRawAsync(string endpoint, object data)
+    public async Task<HttpResponseMessage> PostRawAsync(string endpoint, object data)
     {
         try
         {

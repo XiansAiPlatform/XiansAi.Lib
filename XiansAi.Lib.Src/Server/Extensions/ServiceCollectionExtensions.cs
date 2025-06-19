@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Temporal;
+using XiansAi.Server.Base;
 
 namespace XiansAi.Server.Extensions;
 
@@ -184,8 +185,8 @@ public static class ServiceCollectionExtensions
             ConfigureAuthorization(client, effectiveApiKey);
         });
         
-        // Register HttpClient for SystemActivities
-        services.AddHttpClient<SystemActivities>(client =>
+        // Register IApiService with BaseApiService implementation
+        services.AddHttpClient<IApiService, BaseApiService>(client =>
         {
             client.BaseAddress = new Uri(effectiveServerUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
@@ -193,6 +194,9 @@ public static class ServiceCollectionExtensions
             // Configure authorization
             ConfigureAuthorization(client, effectiveApiKey);
         });
+        
+        // Register SystemActivities that uses IApiService
+        services.AddScoped<SystemActivities>();
         
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
@@ -263,8 +267,8 @@ public static class ServiceCollectionExtensions
             ConfigureAuthorization(client, effectiveApiKey);
         });
         
-        // Register HttpClient for SystemActivities
-        services.AddHttpClient<SystemActivities>(client =>
+        // Register IApiService with BaseApiService implementation
+        services.AddHttpClient<IApiService, BaseApiService>(client =>
         {
             client.BaseAddress = new Uri(effectiveServerUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
@@ -272,6 +276,9 @@ public static class ServiceCollectionExtensions
             // Configure authorization
             ConfigureAuthorization(client, effectiveApiKey);
         });
+        
+        // Register SystemActivities that uses IApiService
+        services.AddScoped<SystemActivities>();
         
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
