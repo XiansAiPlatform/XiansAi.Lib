@@ -103,7 +103,7 @@ public class ObjectCacheUnitTests
 
         _mockApiService.Setup(x => x.PostAsync("api/agent/cache/set", It.Is<CacheSetRequest>(r => 
             r.Key == key && 
-            r.Value.ToString() == value &&
+            r.Value != null && r.Value.ToString() == value &&
             r.RelativeExpirationMinutes == null &&
             r.SlidingExpirationMinutes == null)))
                       .Returns(Task.FromResult("success"))
@@ -116,7 +116,7 @@ public class ObjectCacheUnitTests
         Assert.True(result);
         _mockApiService.Verify(x => x.PostAsync("api/agent/cache/set", It.Is<CacheSetRequest>(r => 
             r.Key == key && 
-            r.Value.ToString() == value &&
+            r.Value != null && r.Value.ToString() == value &&
             r.RelativeExpirationMinutes == null &&
             r.SlidingExpirationMinutes == null)), Times.Once);
     }
