@@ -141,26 +141,26 @@ public class SecureApi : ISecureApiClient, IDisposable
     /// Initializes the singleton instance of the SecureApi client.
     /// This method must be called before using the Instance property.
     /// </summary>
-    /// <param name="certificateBase64">The client certificate in Base64 encoded format.</param>
+    /// <param name="serverApiKey">The client certificate in Base64 encoded format.</param>
     /// <param name="serverUrl">The base URL of the server API.</param>
     /// <param name="forceReinitialize">Whether to force reinitialization even if already initialized.</param>
     /// <returns>The configured HTTP client instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if already initialized with different parameters.</exception>
-    public static HttpClient InitializeClient(string certificateBase64, string serverUrl, bool forceReinitialize = false)
+    public static HttpClient InitializeClient(string serverApiKey, string serverUrl, bool forceReinitialize = false)
     {
         // Validate parameters first
-        if (string.IsNullOrEmpty(certificateBase64))
-            throw new ArgumentNullException(nameof(certificateBase64));
+        if (string.IsNullOrEmpty(serverApiKey))
+            throw new ArgumentNullException(nameof(serverApiKey), "Server API key is required. Please set the APP_SERVER_API_KEY environment variable.");
             
         if (string.IsNullOrEmpty(serverUrl))
-            throw new ArgumentNullException(nameof(serverUrl));
+            throw new ArgumentNullException(nameof(serverUrl), "Server URL is required. Please set the APP_SERVER_URL environment variable.");
 
         lock (_lock)
         {
             if (_instance != null && !forceReinitialize)
             {
                 // Check if the existing instance has the same configuration
-                if (_currentServerUrl == serverUrl && _currentCertificate == certificateBase64)
+                if (_currentServerUrl == serverUrl && _currentCertificate == serverApiKey)
                 {
                     return _instance.Client;
                 }
@@ -175,9 +175,9 @@ public class SecureApi : ISecureApiClient, IDisposable
             }
 
             var logger = Globals.LogFactory.CreateLogger<SecureApi>();
-            _instance = new SecureApi(certificateBase64, serverUrl, logger);
+            _instance = new SecureApi(serverApiKey, serverUrl, logger);
             _currentServerUrl = serverUrl;
-            _currentCertificate = certificateBase64;
+            _currentCertificate = serverApiKey;
             return _instance.Client;
         }
     }
