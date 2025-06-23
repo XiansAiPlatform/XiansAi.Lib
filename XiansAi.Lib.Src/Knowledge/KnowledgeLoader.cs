@@ -26,7 +26,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     private readonly KnowledgeService _knowledgeService = new KnowledgeService();
 
     // Path to local instructions folder, configured via environment variable
-    private readonly string? _localInstructionsFolder = Environment.GetEnvironmentVariable("LOCAL_INSTRUCTIONS_FOLDER");
+    private readonly string? _localFolder = Environment.GetEnvironmentVariable("LOCAL_KNOWLEDGE_FOLDER");
 
     /// <summary>
     /// Loads an instruction by name from either the server or local filesystem.
@@ -42,9 +42,8 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
         }
         
         // Fall back to local loading if server connection isn't available
-        if (!string.IsNullOrEmpty(_localInstructionsFolder))
+        if (!string.IsNullOrEmpty(_localFolder))
         { 
-            _logger.LogWarning($"App server connection not ready, loading instruction locally from {_localInstructionsFolder}");
             _logger.LogWarning($"Loading instruction locally - {instructionName}");
             return await LoadFromLocal(instructionName);
         }
@@ -61,7 +60,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     /// <exception cref="FileNotFoundException">Thrown if instruction file not found</exception>
     private async Task<Models.Knowledge?> LoadFromLocal(string instructionName)
     {
-        if (string.IsNullOrEmpty(_localInstructionsFolder))
+        if (string.IsNullOrEmpty(_localFolder))
         {
             throw new InvalidOperationException("LOCAL_INSTRUCTIONS_FOLDER environment variable is not set. Please set it to the path of the local instructions folder.");
         }
@@ -70,8 +69,8 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
         var searchPattern = fileNameWithoutExt + ".*";
         
         // Search for files both with and without extensions to support different file formats
-        var matchingFiles = Directory.GetFiles(_localInstructionsFolder, searchPattern)
-            .Concat(Directory.GetFiles(_localInstructionsFolder, fileNameWithoutExt))
+        var matchingFiles = Directory.GetFiles(_localFolder, searchPattern)
+            .Concat(Directory.GetFiles(_localFolder, fileNameWithoutExt))
             .Distinct()
             .ToList();
 
@@ -84,7 +83,7 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
         
         if (matchingFiles.Count == 0)
         {
-            _logger.LogError($"No instruction file found with name: '{fileNameWithoutExt}' in folder: '{_localInstructionsFolder}'");
+            _logger.LogError($"No instruction file found with name: '{fileNameWithoutExt}' in folder: '{_localFolder}'");
             return null;
         }
 

@@ -29,10 +29,10 @@ public static class LoggingServices
     private static readonly object _initLock = new object();
 
     // Client for sending logs to API
-    private static ISecureApiClient? _secureApiClient;
-    private static string _logApiEndpoint = "/api/agent/logs";
-    private static int _batchSize = 10;
-    private static int _processingIntervalMs = 30000;
+    private static ISecureApiClient? _secureApi;
+    private static string _logApiEndpoint = "api/agent/logs";
+    private static int _batchSize = 100;
+    private static int _processingIntervalMs = 60000;
 
     /// <summary>
     /// Enqueues a log to the global queue for processing
@@ -50,18 +50,14 @@ public static class LoggingServices
     /// <summary>
     /// Initializes the logging services and starts the background processor
     /// </summary>
-    public static void Initialize(IServiceProvider services, string logApiEndpoint = "/api/agent/logs", int batchSize = 10, int processingIntervalMs = 5000)
+    public static void Initialize(IServiceProvider services)
     {
         if (_isInitialized) return;
 
         lock (_initLock)
         {
             if (_isInitialized) return;
-
-            _logApiEndpoint = logApiEndpoint;
-            _batchSize = batchSize;
-            _processingIntervalMs = processingIntervalMs;
-            _secureApiClient = SecureApi.IsReady? SecureApi.Instance : null;
+            _secureApi = SecureApi.IsReady? SecureApi.Instance : null;
 
             // Start the background processor
             StartLogProcessor();
@@ -132,7 +128,7 @@ public static class LoggingServices
         // Check and reinitialize secure API client if needed
         EnsureSecureApiClient();
         
-        if (_secureApiClient == null) return;
+        if (_secureApi == null) return;
 
         List<Log> batchToSend = new();
         
@@ -153,9 +149,9 @@ public static class LoggingServices
     /// </summary>
     private static void EnsureSecureApiClient()
     {
-        if (_secureApiClient == null && SecureApi.IsReady)
+        if (_secureApi == null && SecureApi.IsReady)
         {
-            _secureApiClient = SecureApi.Instance;
+            _secureApi = SecureApi.Instance;
         }
     }
 
@@ -167,7 +163,7 @@ public static class LoggingServices
         // Check and reinitialize secure API client if needed
         EnsureSecureApiClient();
         
-        if (_secureApiClient == null)
+        if (_secureApi == null)
         {
             Console.Error.WriteLine("App server secure API is not available, log upload failed");
             RequeueLogBatch(logs);
@@ -176,9 +172,8 @@ public static class LoggingServices
 
         try
         {
-            var client = _secureApiClient.Client;
-            var fullUrl = PlatformConfig.APP_SERVER_URL + _logApiEndpoint;
-            var response = await client.PostAsync(fullUrl, JsonContent.Create(logs));
+            var client = _secureApi.Client;
+            var response = await client.PostAsync(_logApiEndpoint, JsonContent.Create(logs));
 
             if (!response.IsSuccessStatusCode)
             {

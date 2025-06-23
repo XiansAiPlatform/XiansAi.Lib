@@ -68,7 +68,7 @@ public class Logger<T>
                 });
 
                 // Set the default minimum level to Trace to ensure API logger gets all logs
-                builder.SetMinimumLevel(LogLevel.Trace);
+                builder.SetMinimumLevel(LogLevel.Information);
 
                 // Configure console logger to respect the environment variable level
                 builder.AddFilter("Microsoft", consoleLogLevel)
