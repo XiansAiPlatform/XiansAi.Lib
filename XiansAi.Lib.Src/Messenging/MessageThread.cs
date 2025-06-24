@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Server;
+using System.Text.Json.Serialization;
 
 namespace XiansAi.Messaging;
 public interface IMessageThread
@@ -15,23 +16,34 @@ public interface IMessageThread
 
 public class Message
 {
+    [JsonPropertyName("content")]
     public required string Content { get; set; }
+    [JsonPropertyName("data")]
     public required object? Data { get; set; }
+    [JsonPropertyName("type")]
     public required MessageType Type { get; set; }
 }
 
 
 public class MessageThread : IMessageThread
 {
+    [JsonPropertyName("participant_id")]
     public required string ParticipantId { get; set; }
+    [JsonPropertyName("workflow_id")]
     public required string WorkflowId { get; set; }
+    [JsonPropertyName("workflow_type")]
     public required string WorkflowType { get; set; }
+    [JsonPropertyName("agent")]
     public required string Agent { get; set; }
+    [JsonPropertyName("thread_id")]
     public string? ThreadId { get; set; }
+    [JsonPropertyName("authorization")]
     public string? Authorization { get; set; }
+    [JsonPropertyName("latest_message")]
     public required Message LatestMessage { get; set; }
-
+    [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
+    [JsonIgnore]
     private readonly MessageAuthorizationService _authService;
 
     public MessageThread()

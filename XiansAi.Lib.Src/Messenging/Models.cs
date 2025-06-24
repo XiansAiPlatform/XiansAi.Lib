@@ -20,6 +20,7 @@ public class MessagePayload
     public required string Type { get; set; }
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum MessageType
 {
     Chat,
