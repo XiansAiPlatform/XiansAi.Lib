@@ -198,6 +198,9 @@ public static class ServiceCollectionExtensions
         // Register SystemActivities that uses IApiService
         services.AddScoped<SystemActivities>();
         
+        // Register MessageAuthorizationService that uses IApiService
+        services.AddScoped<MessageAuthorizationService>();
+        
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
         
@@ -279,6 +282,9 @@ public static class ServiceCollectionExtensions
         
         // Register SystemActivities that uses IApiService
         services.AddScoped<SystemActivities>();
+        
+        // Register MessageAuthorizationService that uses IApiService
+        services.AddScoped<MessageAuthorizationService>();
         
         // Register memory cache if not already registered
         services.TryAddSingleton<IMemoryCache, MemoryCache>();
