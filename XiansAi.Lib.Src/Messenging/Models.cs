@@ -14,11 +14,13 @@ public class MessagePayload
     public required string Agent { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
+    public string? Authorization { get; set; }
     public required string Text { get; set; }
     public required object Data { get; set; }
     public required string Type { get; set; }
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum MessageType
 {
     Chat,
@@ -33,6 +35,7 @@ public class ChatOrDataRequest
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
     public object? Data { get; set; }
+    public string? Authorization { get; set; }
     public string? Text { get; set; }
     public string? ThreadId { get; set;} 
 }
@@ -46,6 +49,7 @@ public class HandoffRequest
     public required string SourceWorkflowId { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
+    public string? Authorization { get; set; }
     public required string Text { get; set; }
     public object? Data { get; set; }
     public MessageType Type { get; set; } = MessageType.Handoff;

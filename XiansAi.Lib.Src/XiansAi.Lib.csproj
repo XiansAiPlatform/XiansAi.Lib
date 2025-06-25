@@ -18,8 +18,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
     <PackageReference Include="Temporalio" Version="1.7.0" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.55.0" />
-    <PackageReference Include="openai" Version="2.2.0-beta.4" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.57.0" />
   </ItemGroup>
 
 </Project>

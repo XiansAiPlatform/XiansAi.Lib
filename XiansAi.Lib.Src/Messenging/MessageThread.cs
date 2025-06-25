@@ -1,38 +1,55 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using Server;
+using System.Text.Json.Serialization;
 
 namespace XiansAi.Messaging;
-
 public interface IMessageThread
 {
     Task<string?> SendChat(string content, object? data = null);
     Task<string?> SendData(object data, string? content = null);
     Task<string?> SendHandoff(Type workflowType, string? message = null, object? metadata = null);
+
+    Task<string?> GetAuthorization();
 }
 
 public class Message
 {
+    [JsonPropertyName("content")]
     public required string Content { get; set; }
+    [JsonPropertyName("data")]
     public required object? Data { get; set; }
+    [JsonPropertyName("type")]
     public required MessageType Type { get; set; }
 }
 
 
 public class MessageThread : IMessageThread
 {
+    [JsonPropertyName("participant_id")]
     public required string ParticipantId { get; set; }
+    [JsonPropertyName("workflow_id")]
     public required string WorkflowId { get; set; }
+    [JsonPropertyName("workflow_type")]
     public required string WorkflowType { get; set; }
+    [JsonPropertyName("agent")]
     public required string Agent { get; set; }
+    [JsonPropertyName("thread_id")]
     public string? ThreadId { get; set; }
+    [JsonPropertyName("authorization")]
+    public string? Authorization { get; set; }
+    [JsonPropertyName("latest_message")]
     public required Message LatestMessage { get; set; }
-
+    [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
+    [JsonIgnore]
+    private readonly MessageAuthorizationService _authService;
 
     public MessageThread()
     {
         _logger = Globals.LogFactory.CreateLogger<MessageThread>();
+        _authService = new MessageAuthorizationService();
     }
 
 
@@ -131,5 +148,10 @@ public class MessageThread : IMessageThread
             var success = await SystemActivities.SendHandoffStatic(outgoingMessage);
             return success;
         }
+    }
+    
+    public async Task<string?> GetAuthorization()
+    {
+        return await _authService.GetAuthorization(Authorization);
     }
 }
