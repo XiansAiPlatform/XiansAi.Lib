@@ -43,12 +43,9 @@ public class MessageThread : IMessageThread
     [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
 
-
-
     public MessageThread()
     {
         _logger = Globals.LogFactory.CreateLogger<MessageThread>();
-
     }
 
 
