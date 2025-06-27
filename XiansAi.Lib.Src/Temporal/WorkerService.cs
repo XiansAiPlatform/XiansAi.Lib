@@ -69,7 +69,7 @@ internal class WorkerService
             taskQueue = _options.QueuePrefix + taskQueue;
         } 
 
-        _logger.LogInformation($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
+        _logger.LogTrace($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
 
         var options = new TemporalWorkerOptions()
         {
@@ -89,7 +89,7 @@ internal class WorkerService
             client,
             options
         );
-        _logger.LogInformation($"Worker to run `{workFlowName}` on queue `{taskQueue}` created. Ready to run!!");
+        _logger.LogTrace($"Worker to run `{workFlowName}` on queue `{taskQueue}` created. Ready to run!!");
         await worker.ExecuteAsync(cancellationToken!);
     }
 }

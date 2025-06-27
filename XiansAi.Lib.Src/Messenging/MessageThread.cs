@@ -11,7 +11,6 @@ public interface IMessageThread
     Task<string?> SendData(object data, string? content = null);
     Task<string?> SendHandoff(Type workflowType, string? message = null, object? metadata = null);
 
-    Task<string?> GetAuthorization();
 }
 
 public class Message
@@ -43,13 +42,10 @@ public class MessageThread : IMessageThread
     public required Message LatestMessage { get; set; }
     [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
-    [JsonIgnore]
-    private readonly MessageAuthorizationService _authService;
 
     public MessageThread()
     {
         _logger = Globals.LogFactory.CreateLogger<MessageThread>();
-        _authService = new MessageAuthorizationService();
     }
 
 
@@ -100,7 +96,7 @@ public class MessageThread : IMessageThread
             Agent = Agent
         };
 
-        _logger.LogInformation("Sending message: {Message}", JsonSerializer.Serialize(outgoingMessage));
+        _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(outgoingMessage));
 
         if(Workflow.InWorkflow) {
             var success = await Workflow.ExecuteActivityAsync(
@@ -137,7 +133,7 @@ public class MessageThread : IMessageThread
             Data = data
         };
 
-        _logger.LogInformation("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
+        _logger.LogDebug("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
 
         if(Workflow.InWorkflow) {
             var success = await Workflow.ExecuteActivityAsync(
@@ -150,8 +146,4 @@ public class MessageThread : IMessageThread
         }
     }
     
-    public async Task<string?> GetAuthorization()
-    {
-        return await _authService.GetAuthorization(Authorization);
-    }
 }

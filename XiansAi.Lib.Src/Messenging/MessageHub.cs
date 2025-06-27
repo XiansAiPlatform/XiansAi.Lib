@@ -329,7 +329,7 @@ public class MessageHub: IMessageHub
 
     public async Task ReceiveConversationChatOrData(MessageSignal messageSignal)
     {
-        _logger.LogInformation($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
+        _logger.LogDebug($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
 
         var messageType = Enum.Parse<MessageType>(messageSignal.Payload.Type);
 
