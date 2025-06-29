@@ -33,8 +33,7 @@ public class TemporalClientService
     {
         var settings = await SettingsService.GetSettingsFromServer();
 
-
-        return await TemporalClient.ConnectAsync(new(settings.FlowServerUrl)
+        var options = new TemporalClientConnectOptions(settings.FlowServerUrl)
         {
             Namespace = settings.FlowServerNamespace,
             Tls = getTlsConfig(settings), 
@@ -42,11 +41,17 @@ public class TemporalClientService
                 builder.
                     AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ").
                     SetMinimumLevel(LogLevel.Information)),
-        });
+        };
+
+        return await TemporalClient.ConnectAsync(options);
     }
 
-    private static TlsOptions getTlsConfig(FlowServerSettings settings)
+    private static TlsOptions? getTlsConfig(FlowServerSettings settings)
     {
+        if (settings.FlowServerCertBase64 == null || settings.FlowServerPrivateKeyBase64 == null)
+        {
+            return null;
+        }
         var certBase64 = settings.FlowServerCertBase64;
         var cert = Convert.FromBase64String(certBase64);
         var privateKeyBase64 = settings.FlowServerPrivateKeyBase64;
