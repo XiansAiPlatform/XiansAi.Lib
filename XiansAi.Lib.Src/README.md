@@ -14,7 +14,7 @@ dotnet build
 
 ## Publishing to Nuget
 
-1. Change the version in the nuspec file.
+1. Change the version in the .csproj file (in the `<Version>` property).
 
 1. Run the following command to push the package to Nuget.
 

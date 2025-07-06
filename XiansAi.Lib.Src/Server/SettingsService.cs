@@ -87,6 +87,17 @@ public static class SettingsService
                 throw new Exception($"Failed to deserialize settings from server: {response}");
             }
 
+            if (settings.FlowServerUrl == null || settings.FlowServerNamespace == null)
+            {
+                _logger.LogError("Flow server URL or namespace is not set, cannot connect to flow server");
+                throw new Exception("Flow server URL or namespace is not set, cannot connect to flow server");
+            }
+
+            if (settings.FlowServerCertBase64 == null || settings.FlowServerPrivateKeyBase64 == null)
+            {
+                _logger.LogWarning("Flow server cert or private key is not set, using default TLS config");
+            }
+
             _logger.LogInformation($"Settings loaded from server: {settings.FlowServerUrl}");
             
             return settings;

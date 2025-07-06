@@ -6,6 +6,7 @@ namespace Temporal;
 
 public class TemporalClientService 
 {
+    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<TemporalClientService>();
     private static readonly Lazy<TemporalClientService> _instance = new(() => new TemporalClientService());
     private ITemporalClient? _client;
     private readonly object _lock = new();
@@ -42,6 +43,8 @@ public class TemporalClientService
                     AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ").
                     SetMinimumLevel(LogLevel.Information)),
         };
+
+        _logger.LogInformation($"Connecting to flow server at {settings.FlowServerUrl} with namespace {settings.FlowServerNamespace}");
 
         return await TemporalClient.ConnectAsync(options);
     }
