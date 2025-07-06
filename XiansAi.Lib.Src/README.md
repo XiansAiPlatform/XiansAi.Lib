@@ -12,16 +12,44 @@ dotnet build
 
 .env file is required to run tests. It contains the environment variables for the tests.
 
-## Publishing to Nuget
+## Publishing to NuGet
 
-1. Change the version in the .csproj file (in the `<Version>` property).
+### Automated Publishing (Recommended)
 
-1. Run the following command to push the package to Nuget.
+The easiest way to publish a new version is through GitHub Actions automation:
 
-    ```bash
-    ./nuget-push.sh <version> <api_key>
-    ```
+```bash
+# Create and push a version tag
+git tag -a v1.3.6 -m "Release v1.3.6"
+git push origin v1.3.6
+```
 
-## Nuget Package
+This automatically builds, tests, and publishes the package to NuGet.org.
+
+### Manual Publishing (Alternative)
+
+For manual publishing, use the provided script:
+
+```bash
+./nuget-push.sh <version> <api_key>
+```
+
+### 📚 Detailed Documentation
+
+For comprehensive publishing instructions, troubleshooting, and package consumption guides, see: **[NuGet Documentation](docs/NUGET.md)**
+
+## NuGet Package
 
 You can find the latest version of the package [here](https://www.nuget.org/packages/XiansAi.Lib/).
+
+### Installation
+
+```bash
+dotnet add package XiansAi.Lib --version 1.3.6
+```
+
+Or add to your `.csproj`:
+
+```xml
+<PackageReference Include="XiansAi.Lib" Version="1.3.6" />
+```
