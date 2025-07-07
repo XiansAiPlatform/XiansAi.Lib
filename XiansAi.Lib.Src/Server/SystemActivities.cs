@@ -9,6 +9,7 @@ using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
 using System.Text.Json;
+using System.Net;
 
 public class SendMessageResponse
 {
@@ -43,14 +44,37 @@ public class SystemActivities
             {
                 throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized.");
             }
-            var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/events/with-start", eventDto);
-            response.EnsureSuccessStatusCode();
+
+            // Log connection health status for observability
+            var healthStatus = SecureApi.Instance.GetConnectionHealthStatus();
+            _logger.LogDebug("Connection health before sending event: {HealthStatus}", 
+                JsonSerializer.Serialize(healthStatus));
+
+            var response = await SecureApi.Instance.ExecuteWithRetryAsync(async client =>
+                await client.PostAsJsonAsync("api/agent/events/with-start", eventDto));
+
+            // Ensure success status code and surface errors for retries
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("HTTP {StatusCode} error sending event: {ErrorContent}", 
+                    response.StatusCode, errorContent);
+                throw new HttpRequestException($"HTTP {response.StatusCode} error sending event: {errorContent}");
+            }
+
+            _logger.LogInformation("Event sent successfully from {SourceWorkflow} to {TargetWorkflow}", 
+                eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
         }
         catch (ObjectDisposedException ex)
         {
             _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping event send operation.");
             throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending event from {SourceWorkflow} to {TargetWorkflow}", 
+                eventDto.SourceWorkflowId, eventDto.TargetWorkflowType);
+            throw; // Surface HTTP errors for Temporal retry
         }
         catch (Exception ex)
         {
@@ -126,16 +150,38 @@ public class SystemActivities
 
         try
         {
-            var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync("api/agent/conversation/outbound/handoff", message);
-            response.EnsureSuccessStatusCode();
+            // Log connection health status for observability
+            var healthStatus = SecureApi.Instance.GetConnectionHealthStatus();
+            _logger.LogDebug("Connection health before sending handoff: {HealthStatus}", 
+                JsonSerializer.Serialize(healthStatus));
 
-            return await response.Content.ReadAsStringAsync();
+            var response = await SecureApi.Instance.ExecuteWithRetryAsync(async client =>
+                await client.PostAsJsonAsync("api/agent/conversation/outbound/handoff", message));
+
+            // Ensure success status code and surface errors for retries
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("HTTP {StatusCode} error sending handoff message: {ErrorContent}", 
+                    response.StatusCode, errorContent);
+                throw new HttpRequestException($"HTTP {response.StatusCode} error sending handoff message: {errorContent}");
+            }
+
+            var result = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation("Handoff message sent successfully for participant {ParticipantId}", 
+                message.ParticipantId);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending handoff message for participant {ParticipantId}", 
+                message.ParticipantId);
+            throw; // Surface HTTP errors for Temporal retry
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message: {Message}", message);
-            throw new Exception($"Failed to send message: {ex.Message}");
+            _logger.LogError(ex, "Error sending handoff message: {Message}", message);
+            throw new Exception($"Failed to send handoff message: {ex.Message}");
         }
     }
 
@@ -162,21 +208,43 @@ public class SystemActivities
 
         try
         {
-            var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message);
-            response.EnsureSuccessStatusCode();
+            // Log connection health status for observability
+            var healthStatus = SecureApi.Instance.GetConnectionHealthStatus();
+            _logger.LogDebug("Connection health before sending {Type} message: {HealthStatus}", 
+                type, JsonSerializer.Serialize(healthStatus));
 
-            return await response.Content.ReadAsStringAsync();
+            var response = await SecureApi.Instance.ExecuteWithRetryAsync(async client =>
+                await client.PostAsJsonAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message));
+
+            // Ensure success status code and surface errors for retries
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("HTTP {StatusCode} error sending {Type} message: {ErrorContent}", 
+                    response.StatusCode, type, errorContent);
+                throw new HttpRequestException($"HTTP {response.StatusCode} error sending {type} message: {errorContent}");
+            }
+
+            var result = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation("{Type} message sent successfully for participant {ParticipantId}", 
+                type, message.ParticipantId);
+            return result;
         }
         catch (ObjectDisposedException ex)
         {
             _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping message send operation.");
             throw;
         }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending {Type} message for participant {ParticipantId}", 
+                type, message.ParticipantId);
+            throw; // Surface HTTP errors for Temporal retry
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message: {Message}", message);
-            throw new Exception($"Failed to send message: {ex.Message}");
+            _logger.LogError(ex, "Error sending {Type} message: {Message}", type, message);
+            throw new Exception($"Failed to send {type} message: {ex.Message}");
         }
     }
 
@@ -198,19 +266,40 @@ public class SystemActivities
         }
         try
         {
-            var client = SecureApi.Instance.Client;
-            var response = await client.GetAsync($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}");
-            response.EnsureSuccessStatusCode();
+            // Log connection health status for observability
+            var healthStatus = SecureApi.Instance.GetConnectionHealthStatus();
+            _logger.LogDebug("Connection health before fetching message history: {HealthStatus}", 
+                JsonSerializer.Serialize(healthStatus));
+
+            var response = await SecureApi.Instance.ExecuteWithRetryAsync(async client =>
+                await client.GetAsync($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}"));
+
+            // Ensure success status code and surface errors for retries
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("HTTP {StatusCode} error fetching message history: {ErrorContent}", 
+                    response.StatusCode, errorContent);
+                throw new HttpRequestException($"HTTP {response.StatusCode} error fetching message history: {errorContent}");
+            }
 
             var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
-
-
-            return messages ?? new List<DbMessage>();
+            var result = messages ?? new List<DbMessage>();
+            
+            _logger.LogDebug("Successfully fetched {Count} messages for participant {ParticipantId}", 
+                result.Count, participantId);
+            return result;
         }
         catch (ObjectDisposedException ex)
         {
             _logger.LogWarning(ex, "SecureApi instance was disposed. Skipping message history fetch.");
             return new List<DbMessage>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error fetching message history for thread: {WorkflowType} {ParticipantId}", 
+                workflowType, participantId);
+            throw; // Surface HTTP errors for Temporal retry
         }
         catch (Exception ex)
         {
@@ -228,9 +317,15 @@ public class SystemActivityOptions : ActivityOptions
         RetryPolicy = new RetryPolicy
         {
             InitialInterval = TimeSpan.FromSeconds(1),
-            MaximumInterval = TimeSpan.FromSeconds(10),
-            MaximumAttempts = 5,
-            BackoffCoefficient = 2
+            MaximumInterval = TimeSpan.FromSeconds(30),
+            MaximumAttempts = 10,
+            BackoffCoefficient = 2,
+            NonRetryableErrorTypes = new[] 
+            { 
+                "System.ArgumentNullException",
+                "System.ArgumentException",
+                "System.InvalidOperationException"
+            }
         };
     }
 }
