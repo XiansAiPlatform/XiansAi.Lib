@@ -1,3 +1,4 @@
+using Server;
 using XiansAi.Models;
 
 namespace XiansAi.Flow;
@@ -47,7 +48,8 @@ public class Agent
     /// </summary>
     public async Task RunAsync(RunnerOptions? options = null)
     {
-        var tasks = new List<Task>();
+        var tasks = new List<Task>();        
+        await new ResourceUploader().UploadResource();
 
         // Run all flows
         foreach (var flow in _flows)
