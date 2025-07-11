@@ -23,9 +23,9 @@ public class ResourceUploader : IResourceUploader
 
     private static readonly string[] SupportedExtensions = [".md", ".txt", ".json"];
 
-    public ResourceUploader()
+    public ResourceUploader(bool uploadResource)
     {
-        _uploadResource = bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag;
+        _uploadResource = uploadResource;
         _localFolder = Environment.GetEnvironmentVariable("LOCAL_KNOWLEDGE_FOLDER");
     }
 
