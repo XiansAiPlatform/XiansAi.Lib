@@ -13,11 +13,12 @@ public class Agent
     private readonly bool _uploadResources;
     public string Name { get; }
 
-    public Agent(string name, bool uploadResources)
+    public Agent(string name, bool? uploadResources=null)
     {
         Name = name ?? throw new ArgumentNullException(nameof(name));
-        _uploadResources = uploadResources
+        _uploadResources = uploadResources.GetValueOrDefault()
             || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
+
         AgentContext.AgentName = name;
     }
 
