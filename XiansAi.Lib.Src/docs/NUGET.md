@@ -20,9 +20,15 @@ The repository includes GitHub Actions automation that automatically builds and 
 
 ### Quick Start
 
+Change the version in the XiansAi.Lib.csproj file.
+
+```xml
+<Version>1.3.7</Version>
+```
+
 ```bash
 # Define the version
-export VERSION=1.3.6 # or 1.3.6-beta for pre-release
+export VERSION=1.3.7 # or 1.3.7-beta for pre-release
 
 # Create and push a version tag
 git tag -a v$VERSION -m "Release v$VERSION"
