@@ -21,6 +21,12 @@ public class Message
     public required object? Data { get; set; }
     [JsonPropertyName("type")]
     public required MessageType Type { get; set; }
+    [JsonPropertyName("request_id")]
+    public required string RequestId { get; set; }
+    [JsonPropertyName("hint")]
+    public required string Hint { get; set; }
+    [JsonPropertyName("scope")]
+    public required string Scope { get; set; }
 }
 
 
@@ -90,6 +96,8 @@ public class MessageThread : IMessageThread
         {
             Text = content,
             Data = data,
+            RequestId = LatestMessage.RequestId,
+            Scope = LatestMessage.Scope,
             ParticipantId = ParticipantId,
             WorkflowId = WorkflowId,
             WorkflowType = WorkflowType,

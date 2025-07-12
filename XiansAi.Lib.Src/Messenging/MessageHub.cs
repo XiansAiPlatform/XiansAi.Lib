@@ -56,14 +56,14 @@ public class MessageHub: IMessageHub
     private readonly Dictionary<Delegate, Func<EventMetadata, object?, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<EventMetadata, object?, Task>>();
 
-    public static async Task<string?> SendConversationData(string participantId, string content, object? data = null)
+    public static async Task<string?> SendConversationData(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
-        return await SendConversationChatOrData(MessageType.Data, participantId, content, data);
+        return await SendConversationChatOrData(MessageType.Data, participantId, content, data, requestId, scope);
     }
 
-    public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null)
+    public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
-        return await SendConversationChatOrData(MessageType.Chat, participantId, content, data);
+        return await SendConversationChatOrData(MessageType.Chat, participantId, content, data, requestId, scope);
     }
 
     public static async Task SendFlowMessage(Type flowClassType, object? payload = null) {
@@ -100,7 +100,7 @@ public class MessageHub: IMessageHub
     }
 
 
-    private static async Task<string?> SendConversationChatOrData(MessageType type, string participantId, string content, object? data = null)
+    private static async Task<string?> SendConversationChatOrData(MessageType type, string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
         var outgoingMessage = new ChatOrDataRequest
         {
@@ -109,7 +109,9 @@ public class MessageHub: IMessageHub
             WorkflowType = AgentContext.WorkflowType,
             Text = content,
             Data = data,
-            ParticipantId = participantId
+            ParticipantId = participantId,
+            RequestId = requestId,
+            Scope = scope
         };
 
         if (Workflow.InWorkflow)
@@ -343,7 +345,10 @@ public class MessageHub: IMessageHub
             LatestMessage = new () {
                 Content = messageSignal.Payload.Text,
                 Data = messageSignal.Payload.Data,
-                Type = messageType
+                Type = messageType,
+                RequestId = messageSignal.Payload.RequestId,
+                Hint = messageSignal.Payload.Hint,
+                Scope = messageSignal.Payload.Scope
             }
         };
 
