@@ -27,6 +27,8 @@ public abstract class AbstractFlow
         await _messageHub.ReceiveConversationChatOrData(messageSignal);
     }
 
+
+
     /// <summary>
     /// Initializes a new instance of the FlowBase class.
     /// </summary>

@@ -9,10 +9,60 @@ namespace XiansAi.Flow;
 // Define delegate for message listening
 public delegate Task MessageListenerDelegate(MessageThread messageThread);
 
+
 public abstract class FlowBase : AbstractFlow
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
+    private MessageListenerDelegate? _messageListener;
+    private Func<Task<string>>? _systemPromptProvider;
+
+    [WorkflowUpdate("HandleInboundChatOrDataSync")]
+    public async Task<ChatOrDataRequest> HandleInboundMessageSync(MessageSignal messageSignal)
+    {
+        var thread = new MessageThread {
+            WorkflowId = AgentContext.WorkflowId,
+            WorkflowType = AgentContext.WorkflowType,
+            Agent = AgentContext.AgentName,
+            LatestMessage = new Message {
+                Content = messageSignal.Payload.Text,
+                Type = MessageType.Chat,
+                Data = messageSignal.Payload.Data,
+                RequestId = messageSignal.Payload.RequestId,
+                Hint = messageSignal.Payload.Hint,
+                Scope = messageSignal.Payload.Scope
+            },
+            ParticipantId = messageSignal.Payload.ParticipantId,
+            ThreadId = messageSignal.Payload.ThreadId,
+            Authorization = messageSignal.Payload.Authorization
+        };
+
+        // Get the system prompt using the provider
+        if (_systemPromptProvider == null)
+        {
+            throw new InvalidOperationException("System prompt provider has not been set. Call one of the InitConversation methods first.");
+        }
+        
+        var systemPrompt = await _systemPromptProvider();
+
+        // process the message
+        var response = await ProcessMessageSync(thread, systemPrompt);
+
+        var outgoingMessage = new ChatOrDataRequest
+        {
+            Text = response,
+            RequestId = thread.LatestMessage.RequestId,
+            Scope = thread.LatestMessage.Scope,
+            ParticipantId = thread.ParticipantId,
+            WorkflowId = thread.WorkflowId,
+            WorkflowType = thread.WorkflowType,
+            Agent = thread.Agent,
+            ThreadId = thread.ThreadId,
+        };
+
+        // Respond to the user
+        return outgoingMessage;
+    }
 
     public FlowBase() : base()  
     {
@@ -20,37 +70,63 @@ public abstract class FlowBase : AbstractFlow
         _messageHub.SubscribeChatHandler(_messageQueue.Enqueue);
     }
 
-    protected async Task InitConversation(string knowledgeContent, MessageListenerDelegate? messageListener = null)
+    /// <summary>
+    /// Subscribe to message events with a custom listener
+    /// </summary>
+    /// <param name="messageListener">The delegate to handle incoming messages</param>
+    public void SubscribeToMessages(MessageListenerDelegate messageListener)
     {
-        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-
-        await ListenToUserMessages(messageListener, knowledgeContent);
-    }
-    protected async Task InitConversation(Models.Knowledge knowledge, MessageListenerDelegate? messageListener = null)
-    {
-        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-
-        await ListenToUserMessages(messageListener, knowledge.Content);
+        _messageListener = messageListener;
     }
 
-    protected async Task InitConversationByKnowledgeKey(string knowledgeName, MessageListenerDelegate? messageListener = null)
+    protected async Task InitConversation(string knowledgeContent)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
+        
+        _systemPromptProvider = () => Task.FromResult(knowledgeContent);
+        await ListenToUserMessages();
+    }
+    
+    protected async Task InitConversation(Models.Knowledge knowledge)
+    {
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
+        
+        _systemPromptProvider = () => Task.FromResult(knowledge.Content);
+        await ListenToUserMessages();
+    }
 
-        await ListenToUserMessagesByKnowledgeKey(messageListener, knowledgeName);
+    protected async Task InitConversationByKnowledgeKey(string knowledgeName)
+    {
+        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
+        
+        _systemPromptProvider = async () =>
+        {
+            var knowledge = await KnowledgeHub.Fetch(knowledgeName);
+            if (knowledge == null)
+            {
+                throw new Exception($"Knowledge '{knowledgeName}' not found");
+            }
+            return knowledge.Content;
+        };
+        await ListenToUserMessages();
     }
 
     [Obsolete("Use InitConversation instead")]
-    protected async Task InitUserConversation(string systemPrompt, MessageListenerDelegate? messageListener = null)
+    protected async Task InitUserConversation(string systemPrompt)
     {
         _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-
-        await ListenToUserMessages(messageListener, systemPrompt);
+        
+        _systemPromptProvider = () => Task.FromResult(systemPrompt);
+        await ListenToUserMessages();
     }
 
-
-    private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, Func<Task<string>> systemPromptProvider)
+    private async Task ListenToUserMessages()
     {
+        if (_systemPromptProvider == null)
+        {
+            throw new InvalidOperationException("System prompt provider has not been set. Call one of the InitConversation methods first.");
+        }
+
         while (true)
         {
             try {
@@ -62,13 +138,13 @@ public abstract class FlowBase : AbstractFlow
                 var thread = _messageQueue.Dequeue();
                 
                 // Invoke the message listener if provided
-                if (messageListener != null)
+                if (_messageListener != null)
                 {
-                    await messageListener(thread);
+                    await _messageListener(thread);
                 }
 
                 // Get the system prompt using the provider
-                var systemPrompt = await systemPromptProvider();
+                var systemPrompt = await _systemPromptProvider();
 
                 // Asynchronously process the message
                 await ProcessMessage(thread, systemPrompt);
@@ -79,23 +155,16 @@ public abstract class FlowBase : AbstractFlow
             }
         }
     }
-
-    private async Task ListenToUserMessagesByKnowledgeKey(MessageListenerDelegate? messageListener, string systemPromptKnowledgeKey)
+    private async Task<string> ProcessMessageSync(MessageThread messageThread, string systemPrompt)
     {
-        await ListenToUserMessages(messageListener, async () =>
-        {
-            var knowledge = await KnowledgeHub.Fetch(systemPromptKnowledgeKey);
-            if (knowledge == null)
-            {
-                throw new Exception($"Knowledge '{systemPromptKnowledgeKey}' not found");
-            }
-            return knowledge.Content;
-        });
-    }
+        _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
+        // Route the message to the appropriate flow
+        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt);
 
-    private async Task ListenToUserMessages(MessageListenerDelegate? messageListener, string systemPrompt)
-    {
-        await ListenToUserMessages(messageListener, () => Task.FromResult(systemPrompt));
+        _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
+
+        // Respond to the user
+        return response;
     }
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)

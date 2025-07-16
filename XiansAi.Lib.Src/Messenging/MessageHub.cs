@@ -33,7 +33,6 @@ public interface IMessageHub
 
     // message handlers for incoming messages with only metadata
     Task ReceiveConversationChatOrData(MessageSignal messageSignal);
-
     Task ReceiveFlowMessage(EventSignal eventSignal);
 }
 
@@ -328,6 +327,7 @@ public class MessageHub: IMessageHub
             _logger.LogWarning($"Attempted to unregister non-existent async metadata handler: {handler.Method.Name}");
         }
     }
+
 
     public async Task ReceiveConversationChatOrData(MessageSignal messageSignal)
     {
