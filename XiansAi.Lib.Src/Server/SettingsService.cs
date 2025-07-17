@@ -11,8 +11,12 @@ public class FlowServerSettings
     public required string FlowServerNamespace { get; set; }
     public string? FlowServerCertBase64 { get; set; }
     public string? FlowServerPrivateKeyBase64 { get; set; }
-    public required string OpenAIApiKey { get; set; }
+    public required string ApiKey { get; set; }
+    public required string? ProviderName { get; set; }
     public required string ModelName { get; set; }
+    public Dictionary<string, string>? AdditionalConfig { get; set; }
+    public required string? BaseUrl { get; set; }
+
 }
 
 public static class SettingsService
