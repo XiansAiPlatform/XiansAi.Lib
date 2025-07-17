@@ -3,6 +3,7 @@ using XiansAi.Messaging;
 using XiansAi.Logging;
 using XiansAi.Flow.Router;
 using XiansAi.Knowledge;
+using System.Text.Json;
 
 namespace XiansAi.Flow;
 
@@ -15,7 +16,10 @@ public abstract class FlowBase : AbstractFlow
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
     private MessageListenerDelegate? _messageListener;
-    private Func<Task<string>>? _systemPromptProvider;
+
+    // default system prompt is empty
+    public string SystemPrompt { get; set; } = "";
+    protected Func<Task<string>>? _systemPromptProvider;
 
     [WorkflowUpdate("HandleInboundChatOrDataSync")]
     public async Task<ChatOrDataRequest> HandleInboundMessageSync(MessageSignal messageSignal)
@@ -32,6 +36,7 @@ public abstract class FlowBase : AbstractFlow
                 Hint = messageSignal.Payload.Hint,
                 Scope = messageSignal.Payload.Scope
             },
+            
             ParticipantId = messageSignal.Payload.ParticipantId,
             ThreadId = messageSignal.Payload.ThreadId,
             Authorization = messageSignal.Payload.Authorization
@@ -157,6 +162,18 @@ public abstract class FlowBase : AbstractFlow
     }
     private async Task<string> ProcessMessageSync(MessageThread messageThread, string systemPrompt)
     {
+        Console.WriteLine("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        Console.WriteLine(systemPrompt);
+        Console.WriteLine("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+
+        Console.WriteLine("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        Console.WriteLine(JsonSerializer.Serialize(messageThread));
+        Console.WriteLine("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+
+        Console.WriteLine("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        Console.WriteLine(messageThread.LatestMessage.Content);
+        Console.WriteLine("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         // Route the message to the appropriate flow
         var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt);

@@ -12,10 +12,12 @@ public class AgentContext
     private static string? _workflowId { get; set; }
     private static string? _workflowType { get; set; }
     private static string? _workflowRunId { get; set; }
+    private static string? _tenantId { get; set; }
+    private static CertificateInfo? _certificateInfo { get; set; }
 
     public static string GetSingletonWorkflowIdFor(Type flowClassType)
     {
-        var workflowId = $"{GetWorkflowTypeFor(flowClassType)}";
+        var workflowId = $"{TenantId}:{GetWorkflowTypeFor(flowClassType)}";
         return workflowId;
     }
 
@@ -28,7 +30,31 @@ public class AgentContext
     public static CertificateInfo? CertificateInfo { 
         get
         {
-            return new CertificateReader().ReadCertificate();
+            if (_certificateInfo != null)
+            {
+                return _certificateInfo;
+            }
+            _certificateInfo = new CertificateReader().ReadCertificate();
+            return _certificateInfo;
+        }
+    }
+
+    public static string TenantId {
+        get
+        {
+            if (_tenantId != null)
+            {
+                return _tenantId;
+            }
+            return CertificateInfo?.TenantId ?? throw new InvalidOperationException("Tenant ID is not set, certificate is missing tenant ID info");
+        }
+    }
+
+
+    public static string UserId {
+        get
+        {
+            return CertificateInfo?.UserId ?? throw new InvalidOperationException("User ID is not set, certificate is missing user ID info");
         }
     }
 
@@ -141,4 +167,5 @@ public class AgentContext
             _workflowRunId = value;
         }
     }
+
 }
