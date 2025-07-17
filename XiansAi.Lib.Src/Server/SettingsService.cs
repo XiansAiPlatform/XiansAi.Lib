@@ -93,8 +93,8 @@ public static class SettingsService
         } 
         catch (Exception e)
         {
-            _logger.LogError($"Failed to deserialize settings from server: {response}", e);
-            throw new Exception($"Failed to deserialize settings from server: {response}", e);
+            _logger.LogError($"Failed to deserialize settings from server: {response} {e.Message}", e);
+            throw new Exception($"Failed to deserialize settings from server: {response} {e.Message}", e);
         }
     }
 }
