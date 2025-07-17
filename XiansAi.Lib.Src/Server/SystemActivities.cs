@@ -85,12 +85,6 @@ public class SystemActivities
 
     public static async Task<bool> UpdateKnowledgeAsyncStatic(string knowledgeName, string knowledgeType, string knowledgeContent)
     {
-        return await UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
-    }
-
-    [Activity]
-    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string knowledgeType, string knowledgeContent)
-    {
         try
         {
             var knowledgeUpdater = new KnowledgeUpdaterImpl();
@@ -102,6 +96,12 @@ public class SystemActivities
             _logger.LogError(ex, "Error updating knowledge: {InstructionName}", knowledgeName);
             throw;
         }
+    }
+
+    [Activity]
+    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string knowledgeType, string knowledgeContent)
+    {
+        return await UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
 
     }
 

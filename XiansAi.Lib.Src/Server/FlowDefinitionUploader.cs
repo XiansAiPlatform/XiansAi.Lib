@@ -1,11 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using XiansAi.Activity;
+using System.Text.Encodings.Web;
 using XiansAi.Flow;
 using XiansAi.Knowledge;
 using XiansAi.Models;
+using System.Security.Cryptography;
 
 namespace Server;
 
@@ -100,6 +102,28 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         try
         {
             var client = _secureApi.Client;
+            string serializedDefinition = JsonSerializer.Serialize(flowDefinition);
+            string hash = ComputeHash(serializedDefinition);
+
+            string checkUrl = $"{API_ENDPOINT}/check?workflowType={flowDefinition.WorkflowType}&hash={hash}";
+            var hashCheckResponse = await client.GetAsync(checkUrl);
+
+            switch (hashCheckResponse.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    _logger.LogInformation("Flow definition for {TypeName} already up to date", flowDefinition.WorkflowType);
+                    return;
+
+                case HttpStatusCode.NotFound:
+                    // Proceed with upload
+                    break;
+
+                default:
+                    string error = await hashCheckResponse.Content.ReadAsStringAsync();
+                    _logger.LogError("Hash check failed with status {StatusCode}: {Error}", hashCheckResponse.StatusCode, error);
+                    throw new InvalidOperationException($"Hash check failed: {error}");
+            }
+
             var response = await client.PostAsync(API_ENDPOINT, JsonContent.Create(flowDefinition));
             
             if (response.StatusCode == HttpStatusCode.BadRequest)
@@ -114,9 +138,9 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             {
                 var warningJson = await response.Content.ReadAsStringAsync();
                 try {
- var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
-                _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
-                throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
+                    var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
+                    _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
+                    throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
 
                 } 
                 catch (Exception ex)
@@ -137,6 +161,14 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         }
     }
 
+    private string ComputeHash(string source)
+    {
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(source);
+        var hash = sha256.ComputeHash(bytes);
+        return Convert.ToHexString(hash).ToLower();
+    }
+
     /// <summary>
     /// Attempts to read the source code of a type from embedded resources.
     /// </summary>
@@ -148,7 +180,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         {
             var assembly = type.Assembly;
             var resourceName = $"{type.Name}.cs";
-            
+
             using var stream = assembly.GetManifestResourceStream(resourceName);
             if (stream == null)
             {
@@ -158,7 +190,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
 
             using var reader = new StreamReader(stream);
             var source = reader.ReadToEnd();
-            _logger.LogDebug("Found source code for {TypeName} in resource {ResourceName}", 
+            _logger.LogDebug("Found source code for {TypeName} in resource {ResourceName}",
                 type.FullName, resourceName);
             return source;
         }
@@ -227,6 +259,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         return activities;
     }
     
+
     /// <summary>
     /// Class to deserialize warning messages from the server
     /// </summary>

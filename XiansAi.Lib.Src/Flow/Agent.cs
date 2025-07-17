@@ -1,3 +1,4 @@
+using Server;
 using XiansAi.Models;
 
 namespace XiansAi.Flow;
@@ -9,12 +10,15 @@ public class Agent
 {
     private readonly List<IFlow> _flows = new();
     private readonly List<IBot> _bots = new();
-    
+    private readonly bool _uploadResources;
     public string Name { get; }
 
-    public Agent(string name)
+    public Agent(string name, bool? uploadResources=null)
     {
         Name = name ?? throw new ArgumentNullException(nameof(name));
+        _uploadResources = uploadResources.GetValueOrDefault()
+            || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
+
         AgentContext.AgentName = name;
     }
 
@@ -47,7 +51,8 @@ public class Agent
     /// </summary>
     public async Task RunAsync(RunnerOptions? options = null)
     {
-        var tasks = new List<Task>();
+        var tasks = new List<Task>();        
+        await new ResourceUploader(_uploadResources).UploadResource();
 
         // Run all flows
         foreach (var flow in _flows)
