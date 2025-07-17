@@ -126,16 +126,40 @@ class SemanticRouterImpl
     private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
 
-        var apiKey = _settings.OpenAIApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
-
+        var apiKey = _settings.ApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
         var builder = Kernel.CreateBuilder();
+        
+        switch (_settings.ProviderName)
+        {
+            case "OpenAI":
+                builder.Services.AddOpenAIChatCompletion(
+                   modelId: options.ModelName,
+                   apiKey: apiKey
+               );
+                break;
+            case "AzureOpenAI":
+                if (_settings.AdditionalConfig == null)
+                {
+                    throw new Exception("AdditionalConfig is not set for AzureOpenAI");
+                }
 
-        builder.Services.AddOpenAIChatCompletion(
-            modelId: options.ModelName,
-            apiKey: apiKey
-        );
+                if (!_settings.AdditionalConfig.TryGetValue("DeploymentName", out var deploymentName) || string.IsNullOrWhiteSpace(deploymentName))
+                {
+                    throw new Exception("Missing 'DeploymentName' in AdditionalConfig");
+                }
 
-          // add logging
+                var endpoint = _settings.BaseUrl ?? throw new Exception("BaseUrl is not available from the server");
+                builder.AddAzureOpenAIChatCompletion(
+                    deploymentName: deploymentName,
+                    endpoint: endpoint,
+                    apiKey: apiKey
+                );
+                break;
+            default:
+                throw new Exception($"Unsupported provider: {_settings.ProviderName}");
+        }
+
+        // add logging
         builder.Services.AddLogging(configure => configure.AddConsole());
         builder.Services.AddLogging(configure => configure.SetMinimumLevel(LogLevel.Information));
 
