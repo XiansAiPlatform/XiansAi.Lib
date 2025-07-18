@@ -129,15 +129,15 @@ class SemanticRouterImpl
         var apiKey = _settings.ApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
         var builder = Kernel.CreateBuilder();
         
-        switch (_settings.ProviderName)
+        switch (_settings.ProviderName?.ToLower())
         {
-            case "OpenAI":
+            case "openai":
                 builder.Services.AddOpenAIChatCompletion(
                    modelId: options.ModelName,
                    apiKey: apiKey
                );
                 break;
-            case "AzureOpenAI":
+            case "azureopenai":
                 if (_settings.AdditionalConfig == null)
                 {
                     throw new Exception("AdditionalConfig is not set for AzureOpenAI");
@@ -156,7 +156,7 @@ class SemanticRouterImpl
                 );
                 break;
             default:
-                throw new Exception($"Unsupported provider: {_settings.ProviderName}");
+                throw new Exception($"Unsupported provider: {_settings.ProviderName}. Supported providers are: openai, azureopenai");
         }
 
         // add logging
