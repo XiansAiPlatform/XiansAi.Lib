@@ -138,7 +138,8 @@ public class MessageThread : IMessageThread
             ParticipantId = ParticipantId,
             SourceWorkflowType = WorkflowType,
             Text = userRequest,
-            Data = data
+            Data = data,
+            Authorization = Authorization
         };
 
         _logger.LogDebug("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
