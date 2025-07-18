@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-
+    
 namespace XiansAi.Messaging;
 public class MessageSignal
 {
@@ -21,6 +21,7 @@ public class MessagePayload
     public required string Scope { get; set; }
     public required object Data { get; set; }
     public required string Type { get; set; }
+    public List<DbMessage>? History { get; set; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

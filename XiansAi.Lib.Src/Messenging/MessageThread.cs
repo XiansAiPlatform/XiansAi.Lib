@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
-using Server;
 using System.Text.Json.Serialization;
 
 namespace XiansAi.Messaging;
@@ -48,6 +47,7 @@ public class MessageThread : IMessageThread
     public required Message LatestMessage { get; set; }
     [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
+    public List<DbMessage>? History { get; set; }
 
     public MessageThread()
     {
@@ -55,10 +55,12 @@ public class MessageThread : IMessageThread
     }
 
 
-    public async Task<List<DbMessage>> GetThreadHistory(int page = 1, int pageSize = 10)
+    public async Task<List<DbMessage>> FetchThreadHistory(int page = 1, int pageSize = 10)
     {
-        var history = await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, page, pageSize);
-        return history;
+        if(History == null || History.Count == 0) {
+            History = await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, page, pageSize);
+        }
+        return History;
     }
 
   
