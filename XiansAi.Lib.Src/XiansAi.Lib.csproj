@@ -3,8 +3,6 @@
   <PropertyGroup> 
     <TargetFramework>net9.0</TargetFramework>
     <IsPackable>true</IsPackable>
-    <NuspecFile>XiansAi.Lib.nuspec</NuspecFile>
-    <NuspecProperties>$(NuspecProperties);configuration=$(Configuration)</NuspecProperties>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>XiansAi.Lib</RootNamespace>
   </PropertyGroup>
@@ -13,6 +11,25 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>XiansAi.Lib</PackageId>
+    <Version>2.0.3</Version>
+    <Authors>99x</Authors>
+    <Description>This is a library for the Xians.Ai flow projects. This LIbrary is used by the Flows. It contains the base classes, interfaces and other utilities for creating and running Flows.</Description>
+    <PackageProjectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</RepositoryUrl>
+    <PackageTags>Xians AI</PackageTags>
+    <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright (c) 99x</Copyright>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="../LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />

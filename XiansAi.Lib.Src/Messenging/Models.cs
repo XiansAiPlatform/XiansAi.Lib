@@ -16,6 +16,9 @@ public class MessagePayload
     public required string ParticipantId { get; set; }
     public string? Authorization { get; set; }
     public required string Text { get; set; }
+    public required string RequestId { get; set; }
+    public required string Hint { get; set; }
+    public required string Scope { get; set; }
     public required object Data { get; set; }
     public required string Type { get; set; }
 }
@@ -34,6 +37,8 @@ public class ChatOrDataRequest
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
     public required string Agent { get; set; }
+    public string? RequestId { get; set; }
+    public string? Scope { get; set; }
     public object? Data { get; set; }
     public string? Authorization { get; set; }
     public string? Text { get; set; }

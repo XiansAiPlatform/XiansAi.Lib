@@ -9,8 +9,8 @@ public class FlowServerSettings
 {
     public required string FlowServerUrl { get; set; }
     public required string FlowServerNamespace { get; set; }
-    public required string FlowServerCertBase64 { get; set; }
-    public required string FlowServerPrivateKeyBase64 { get; set; }
+    public string? FlowServerCertBase64 { get; set; }
+    public string? FlowServerPrivateKeyBase64 { get; set; }
     public required string OpenAIApiKey { get; set; }
     public required string ModelName { get; set; }
 }
@@ -85,6 +85,17 @@ public static class SettingsService
             {
                 _logger.LogError($"Failed to deserialize settings from server: {response}");
                 throw new Exception($"Failed to deserialize settings from server: {response}");
+            }
+
+            if (settings.FlowServerUrl == null || settings.FlowServerNamespace == null)
+            {
+                _logger.LogError("Flow server URL or namespace is not set, cannot connect to flow server");
+                throw new Exception("Flow server URL or namespace is not set, cannot connect to flow server");
+            }
+
+            if (settings.FlowServerCertBase64 == null || settings.FlowServerPrivateKeyBase64 == null)
+            {
+                _logger.LogWarning("Flow server cert or private key is not set, using default TLS config");
             }
 
             _logger.LogInformation($"Settings loaded from server: {settings.FlowServerUrl}");

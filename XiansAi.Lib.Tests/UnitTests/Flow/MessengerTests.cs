@@ -187,6 +187,9 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
                 {
                     ParticipantId = "test-participant-id",
                     Text = "Test message content",
+                    RequestId = "test-request-id",
+                    Hint = "test-hint",
+                    Scope = "test-scope",
                     Data = new Dictionary<string, string?> { { "Type", "test" } },
                     Agent = "test-agent",
                     ThreadId = "test-thread-id",
