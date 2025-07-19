@@ -126,7 +126,7 @@ class SemanticRouterImpl
     private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
 
-        var apiKey = _settings.ApiKey ?? throw new Exception("OpenAi Api Key is not available from the server");
+        var apiKey = _settings.ApiKey ?? throw new Exception("LLM Api Key is not available from the server");
         var builder = Kernel.CreateBuilder();
         
         switch (_settings.ProviderName?.ToLower())
