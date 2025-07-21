@@ -221,7 +221,7 @@ class SemanticRouterImpl
         If you cannot accomplish the user request through your primary capabilities, or handover to another bot,
         respond with a message indicating that you cannot accomplish the user request.");
 
-        var historyFromServer = await messageThread.GetThreadHistory(1, historySizeToFetch);
+        var historyFromServer = await messageThread.FetchThreadHistory(1, historySizeToFetch);
         // Reverse the history to put the most recent messages last
         historyFromServer.Reverse();
 

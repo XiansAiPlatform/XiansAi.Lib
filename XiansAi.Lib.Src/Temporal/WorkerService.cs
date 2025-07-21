@@ -61,15 +61,15 @@ internal class WorkerService
         // Run the worker for the flow
         var client = TemporalClientService.Instance.GetClientAsync();
 
-        var workFlowName = flow.WorkflowName;
-        var taskQueue = _certificateReader.ReadCertificate()?.TenantId + ":" + workFlowName; 
+        var workFlowType = flow.WorkflowName;
+        var taskQueue = _certificateReader.ReadCertificate()?.TenantId + ":" + workFlowType; 
 
         if (!string.IsNullOrEmpty(_options?.QueuePrefix))
         {
             taskQueue = _options.QueuePrefix + taskQueue;
         } 
 
-        _logger.LogTrace($"Running worker for `{workFlowName}` on queue `{taskQueue}`");
+        _logger.LogInformation($"Running worker for `{workFlowType}` on queue `{taskQueue}`");
 
         var options = new TemporalWorkerOptions()
         {
@@ -89,7 +89,7 @@ internal class WorkerService
             client,
             options
         );
-        _logger.LogTrace($"Worker to run `{workFlowName}` on queue `{taskQueue}` created. Ready to run!!");
+        _logger.LogTrace($"Worker to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
         await worker.ExecuteAsync(cancellationToken!);
     }
 }

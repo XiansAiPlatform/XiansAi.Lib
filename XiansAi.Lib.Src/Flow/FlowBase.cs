@@ -15,54 +15,25 @@ public abstract class FlowBase : AbstractFlow
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
     private MessageListenerDelegate? _messageListener;
-    private Func<Task<string>>? _systemPromptProvider;
 
-    [WorkflowUpdate("HandleInboundChatOrDataSync")]
-    public async Task<ChatOrDataRequest> HandleInboundMessageSync(MessageSignal messageSignal)
-    {
-        var thread = new MessageThread {
-            WorkflowId = AgentContext.WorkflowId,
-            WorkflowType = AgentContext.WorkflowType,
-            Agent = AgentContext.AgentName,
-            LatestMessage = new Message {
-                Content = messageSignal.Payload.Text,
-                Type = MessageType.Chat,
-                Data = messageSignal.Payload.Data,
-                RequestId = messageSignal.Payload.RequestId,
-                Hint = messageSignal.Payload.Hint,
-                Scope = messageSignal.Payload.Scope
-            },
-            ParticipantId = messageSignal.Payload.ParticipantId,
-            ThreadId = messageSignal.Payload.ThreadId,
-            Authorization = messageSignal.Payload.Authorization
-        };
-
-        // Get the system prompt using the provider
-        if (_systemPromptProvider == null)
-        {
-            throw new InvalidOperationException("System prompt provider has not been set. Call one of the InitConversation methods first.");
+    // default system prompt is empty
+    public string SystemPrompt { 
+        set {
+            _systemPromptProvider = () => Task.FromResult(value);
         }
-        
-        var systemPrompt = await _systemPromptProvider();
-
-        // process the message
-        var response = await ProcessMessageSync(thread, systemPrompt);
-
-        var outgoingMessage = new ChatOrDataRequest
-        {
-            Text = response,
-            RequestId = thread.LatestMessage.RequestId,
-            Scope = thread.LatestMessage.Scope,
-            ParticipantId = thread.ParticipantId,
-            WorkflowId = thread.WorkflowId,
-            WorkflowType = thread.WorkflowType,
-            Agent = thread.Agent,
-            ThreadId = thread.ThreadId,
-        };
-
-        // Respond to the user
-        return outgoingMessage;
     }
+
+    public string SystemPromptName { 
+        set {
+            _systemPromptProvider = async () =>
+            {
+                var knowledge = await KnowledgeHub.Fetch(value);
+                return knowledge?.Content ?? throw new Exception($"Knowledge '{value}' not found");
+            };
+        }
+    }
+
+    protected Func<Task<string>>? _systemPromptProvider;
 
     public FlowBase() : base()  
     {
@@ -79,46 +50,29 @@ public abstract class FlowBase : AbstractFlow
         _messageListener = messageListener;
     }
 
-    protected async Task InitConversation(string knowledgeContent)
+    protected async Task InitConversation()
     {
-        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-        
-        _systemPromptProvider = () => Task.FromResult(knowledgeContent);
-        await ListenToUserMessages();
-    }
-    
-    protected async Task InitConversation(Models.Knowledge knowledge)
-    {
-        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-        
-        _systemPromptProvider = () => Task.FromResult(knowledge.Content);
-        await ListenToUserMessages();
+#pragma warning disable CS0618 // Type or member is obsolete
+        await InitConversation(null);
+#pragma warning restore CS0618 // Type or member is obsolete
     }
 
-    protected async Task InitConversationByKnowledgeKey(string knowledgeName)
+    [Obsolete("Use InitConversation() instead after setting the SystemPrompt/SystemPromptName on constructor.")]
+    protected async Task InitConversation(string? knowledgeContent = null)
     {
-        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-        
-        _systemPromptProvider = async () =>
+        if (knowledgeContent != null)
         {
-            var knowledge = await KnowledgeHub.Fetch(knowledgeName);
-            if (knowledge == null)
-            {
-                throw new Exception($"Knowledge '{knowledgeName}' not found");
-            }
-            return knowledge.Content;
-        };
+            _systemPromptProvider = () => Task.FromResult(knowledgeContent);
+        }
+        
+        if (_systemPromptProvider == null)
+        {
+            throw new InvalidOperationException("System prompt provider has not been set. Set SystemPrompt or SystemPromptName on constructor.");
+        }
+
         await ListenToUserMessages();
     }
 
-    [Obsolete("Use InitConversation instead")]
-    protected async Task InitUserConversation(string systemPrompt)
-    {
-        _logger.LogInformation($"{GetType().Name} Flow started listening for messages");
-        
-        _systemPromptProvider = () => Task.FromResult(systemPrompt);
-        await ListenToUserMessages();
-    }
 
     private async Task ListenToUserMessages()
     {
@@ -154,17 +108,6 @@ public abstract class FlowBase : AbstractFlow
                 _logger.LogError("Error processing message", ex);
             }
         }
-    }
-    private async Task<string> ProcessMessageSync(MessageThread messageThread, string systemPrompt)
-    {
-        _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
-        // Route the message to the appropriate flow
-        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt);
-
-        _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
-
-        // Respond to the user
-        return response;
     }
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)

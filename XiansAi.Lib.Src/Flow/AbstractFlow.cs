@@ -22,7 +22,7 @@ public abstract class AbstractFlow
     }
 
     [WorkflowSignal("HandleInboundChatOrData")]
-    public async Task HandleInboundMessage(MessageSignal messageSignal)
+    public async Task HandleInboundChatOrData(MessageSignal messageSignal)
     {
         await _messageHub.ReceiveConversationChatOrData(messageSignal);
     }
