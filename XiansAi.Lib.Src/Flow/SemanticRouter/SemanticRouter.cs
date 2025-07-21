@@ -45,9 +45,17 @@ class SemanticRouterImpl
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
         _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
+
+        // The name of the LLM provider, e.g., "openai", "azureopenai"
         _llmProvider = Environment.GetEnvironmentVariable("LLM_PROVIDER");
+
+        // The API key for the LLM provider
         _llmApiKey = Environment.GetEnvironmentVariable("LLM_API_KEY");
+
+        // The endpoint for the LLM provider, if any, e.g., "https://api.openai.com"
         _llmEndpoint = Environment.GetEnvironmentVariable("LLM_ENDPOINT");
+
+        // The deployment name for the LLM provider, if any, e.g., "gpt-3.5-turbo"
         _llmDeploymentName = Environment.GetEnvironmentVariable("LLM_DEPLOYMENT_NAME");
     }
 
