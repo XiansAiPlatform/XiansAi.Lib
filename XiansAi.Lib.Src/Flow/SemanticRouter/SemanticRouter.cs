@@ -148,26 +148,26 @@ class SemanticRouterImpl
             _settings.AdditionalConfig != null &&
             _settings.AdditionalConfig.TryGetValue("DeploymentName", out var configDeploymentName) &&
             !string.IsNullOrWhiteSpace(configDeploymentName) ? configDeploymentName :
-            throw new Exception("AzureOpenAI DeploymentName is not available");
+            throw new Exception("LLM DeploymentName is not available");
 
         string GetEndpoint() =>
             !string.IsNullOrWhiteSpace(_llmEndpoint) ? _llmEndpoint :
             !string.IsNullOrWhiteSpace(_settings.BaseUrl) ? _settings.BaseUrl :
-            throw new Exception("AzureOpenAI BaseUrl is not available");
+            throw new Exception("LLM BaseUrl is not available");
 
         var providerName = GetProviderName();
         var builder = Kernel.CreateBuilder();
 
-        switch (providerName)
+        switch (providerName?.ToLower())
         {
-            case "OpenAI":
+            case "openai":
                 builder.Services.AddOpenAIChatCompletion(
                     modelId: options.ModelName,
                     apiKey: GetApiKey()
                 );
                 break;
 
-            case "AzureOpenAI":
+            case "azureopenai":
                 builder.AddAzureOpenAIChatCompletion(
                     deploymentName: GetDeploymentName(),
                     endpoint: GetEndpoint(),
@@ -176,7 +176,7 @@ class SemanticRouterImpl
                 break;
 
             default:
-                throw new Exception($"Unsupported LLM provider: {providerName}");
+                throw new Exception($"Unsupported provider: {_settings.ProviderName}. Supported providers are: openai, azureopenai");
         }
 
         // add logging
