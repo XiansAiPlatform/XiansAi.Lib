@@ -36,11 +36,27 @@ class SemanticRouterImpl
     private static readonly object _kernelCacheLock = new object();
     private readonly ILogger _logger;
     private readonly FlowServerSettings _settings;
+    private readonly string? _llmProvider;
+    private readonly string? _llmApiKey;
+    private readonly string? _llmEndpoint;
+    private readonly string? _llmDeploymentName;
 
     public SemanticRouterImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
         _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
+
+        // The name of the LLM provider, e.g., "openai", "azureopenai"
+        _llmProvider = Environment.GetEnvironmentVariable("LLM_PROVIDER");
+
+        // The API key for the LLM provider
+        _llmApiKey = Environment.GetEnvironmentVariable("LLM_API_KEY");
+
+        // The endpoint for the LLM provider, if any, e.g., "https://api.openai.com"
+        _llmEndpoint = Environment.GetEnvironmentVariable("LLM_ENDPOINT");
+
+        // The deployment name for the LLM provider, if any, e.g., "gpt-3.5-turbo"
+        _llmDeploymentName = Environment.GetEnvironmentVariable("LLM_DEPLOYMENT_NAME");
     }
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes)
@@ -125,36 +141,48 @@ class SemanticRouterImpl
 
     private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
+         string GetApiKey() =>
+            !string.IsNullOrEmpty(_llmApiKey) ? _llmApiKey :
+            !string.IsNullOrEmpty(_settings.ApiKey) ? _settings.ApiKey :
+            throw new Exception("LLM API Key is not available");
 
-        var apiKey = _settings.ApiKey ?? throw new Exception("LLM Api Key is not available from the server");
+        string GetProviderName() =>
+            !string.IsNullOrEmpty(_llmProvider) ? _llmProvider :
+            !string.IsNullOrEmpty(_settings.ProviderName) ? _settings.ProviderName :
+            throw new Exception("LLM Provider is not available");
+
+        string GetDeploymentName() =>
+            !string.IsNullOrWhiteSpace(_llmDeploymentName) ? _llmDeploymentName :
+            _settings.AdditionalConfig != null &&
+            _settings.AdditionalConfig.TryGetValue("DeploymentName", out var configDeploymentName) &&
+            !string.IsNullOrWhiteSpace(configDeploymentName) ? configDeploymentName :
+            throw new Exception("LLM DeploymentName is not available");
+
+        string GetEndpoint() =>
+            !string.IsNullOrWhiteSpace(_llmEndpoint) ? _llmEndpoint :
+            !string.IsNullOrWhiteSpace(_settings.BaseUrl) ? _settings.BaseUrl :
+            throw new Exception("LLM BaseUrl is not available");
+
+        var providerName = GetProviderName();
         var builder = Kernel.CreateBuilder();
-        
-        switch (_settings.ProviderName?.ToLower())
+
+        switch (providerName?.ToLower())
         {
             case "openai":
                 builder.Services.AddOpenAIChatCompletion(
-                   modelId: options.ModelName,
-                   apiKey: apiKey
-               );
-                break;
-            case "azureopenai":
-                if (_settings.AdditionalConfig == null)
-                {
-                    throw new Exception("AdditionalConfig is not set for AzureOpenAI");
-                }
-
-                if (!_settings.AdditionalConfig.TryGetValue("DeploymentName", out var deploymentName) || string.IsNullOrWhiteSpace(deploymentName))
-                {
-                    throw new Exception("Missing 'DeploymentName' in AdditionalConfig");
-                }
-
-                var endpoint = _settings.BaseUrl ?? throw new Exception("BaseUrl is not available from the server");
-                builder.AddAzureOpenAIChatCompletion(
-                    deploymentName: deploymentName,
-                    endpoint: endpoint,
-                    apiKey: apiKey
+                    modelId: options.ModelName,
+                    apiKey: GetApiKey()
                 );
                 break;
+
+            case "azureopenai":
+                builder.AddAzureOpenAIChatCompletion(
+                    deploymentName: GetDeploymentName(),
+                    endpoint: GetEndpoint(),
+                    apiKey: GetApiKey()
+                );
+                break;
+
             default:
                 throw new Exception($"Unsupported provider: {_settings.ProviderName}. Supported providers are: openai, azureopenai");
         }
