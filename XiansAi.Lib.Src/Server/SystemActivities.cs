@@ -140,6 +140,35 @@ public class SystemActivities
     }
 
     [Activity]
+    public async Task<string?> SendBotToBotMessage(ChatOrDataRequest chatOrDataMessage) 
+    {
+        return await SendBotToBotMessageStatic( chatOrDataMessage);
+    }
+
+    public static async Task<string?> SendBotToBotMessageStatic(ChatOrDataRequest chatOrDataMessage) 
+    {
+        if (!SecureApi.IsReady)
+        {
+            throw new Exception("App server secure API is not ready, skipping message send operation");
+        }
+
+        try
+        {
+            var client = SecureApi.Instance.Client;
+            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?&type=Chat&timeoutSeconds=240", chatOrDataMessage);
+            response.EnsureSuccessStatusCode();
+            var chatMessage = await response.Content.ReadFromJsonAsync<ApiResponse>();
+            
+            return chatMessage?.Response.Text??$"No Response from {chatOrDataMessage.Agent}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending message: {Message}", chatOrDataMessage);
+            throw new Exception($"Failed to send message: {ex.Message}");
+        }
+    }
+
+    [Activity]
     public async Task<string> SendChatOrData(ChatOrDataRequest message, MessageType type) {
         return await SendChatOrDataStatic(message, type);
     }
