@@ -37,7 +37,7 @@ internal static class ActivityProxyFactory
         var activityType = activityInstance.GetType();
         
         // Get the generic proxy type for the specified interface and activity
-        var proxyType = typeof(ActivityProxy<,>).MakeGenericType(interfaceType, activityType);
+        var proxyType = typeof(ActivityProxy<>).MakeGenericType(activityType);
         
         // Get the Create method from the proxy type
         var createMethod = proxyType.GetMethod("Create") 

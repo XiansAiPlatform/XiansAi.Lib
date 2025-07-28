@@ -150,12 +150,14 @@ public class TemporalClientService : IDisposable
 
     public async Task DisconnectAsync()
     {
-        if (_client != null)
+        if (_disposed || _client == null) return;
+
+        try
         {
             await _semaphore.WaitAsync();
             try
             {
-                if (_client != null)
+                if (_client != null && !_disposed)
                 {
                     _logger.LogInformation("Disconnecting from Temporal server");
                     // ITemporalClient doesn't implement IDisposable
@@ -166,8 +168,15 @@ public class TemporalClientService : IDisposable
             }
             finally
             {
-                _semaphore.Release();
+                if (!_disposed)
+                {
+                    _semaphore.Release();
+                }
             }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Semaphore was already disposed, ignore
         }
     }
 
@@ -198,7 +207,7 @@ public class TemporalClientService : IDisposable
     /// </summary>
     public static async Task CleanupAsync()
     {
-        if (_instance.IsValueCreated)
+        if (_instance.IsValueCreated && !_instance.Value._disposed)
         {
             await _instance.Value.DisconnectAsync();
             _instance.Value.Dispose();

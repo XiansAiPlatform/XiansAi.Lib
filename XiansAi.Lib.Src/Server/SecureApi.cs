@@ -218,12 +218,12 @@ public class SecureApi : ISecureApiClient, IDisposable
 
         _client = new HttpClient(handler) { 
             BaseAddress = new Uri(serverUrl),
-            // Separate timeouts for different phases
-            Timeout = TimeSpan.FromSeconds(60) // Total request timeout including retries
+            // Reduce timeout for faster shutdown - 30 seconds should be sufficient
+            Timeout = TimeSpan.FromSeconds(30)
         };
 
-        // Configure more granular timeouts via properties
-        _client.DefaultRequestHeaders.ConnectionClose = false; // Keep connections alive
+        // Configure for faster shutdown
+        _client.DefaultRequestHeaders.ConnectionClose = true; // Close connections after requests
         
         try
         {

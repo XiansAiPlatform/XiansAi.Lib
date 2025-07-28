@@ -49,10 +49,20 @@ internal class WorkerService
     {
 
         if (cancellationToken == default) {
-            // Cancellation token cancelled on ctrl+c
-            var tokenSource = new CancellationTokenSource();
-            Console.CancelKeyPress += (_, eventArgs) => { tokenSource.Cancel(); eventArgs.Cancel = true; };
-            cancellationToken = tokenSource.Token;
+            // Only set up cancellation token if CommandLineHelper hasn't already done it
+            // This prevents conflicts between multiple Console.CancelKeyPress handlers
+            if (!CommandLineHelper.IsShutdownConfigured())
+            {
+                // Cancellation token cancelled on ctrl+c
+                var tokenSource = new CancellationTokenSource();
+                Console.CancelKeyPress += (_, eventArgs) => { tokenSource.Cancel(); eventArgs.Cancel = true; };
+                cancellationToken = tokenSource.Token;
+            }
+            else
+            {
+                // CommandLineHelper is handling shutdown, use its cancellation token
+                cancellationToken = CommandLineHelper.GetShutdownToken();
+            }
         }
 
         // Upload the flow definition to the server

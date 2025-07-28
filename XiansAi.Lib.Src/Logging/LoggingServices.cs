@@ -27,6 +27,10 @@ public static class LoggingServices
     // Flag to track initialization
     private static bool _isInitialized = false;
     private static readonly object _initLock = new object();
+    
+    // Track pending upload tasks for proper shutdown
+    private static readonly List<Task> _pendingUploadTasks = new();
+    private static readonly object _tasksLock = new object();
 
     // Client for sending logs to API
     private static ISecureApiClient? _secureApi;
@@ -140,8 +144,15 @@ public static class LoggingServices
         
         if (batchToSend.Count == 0) return;
         
-        // Fire and forget
-        _ = SendLogBatchAsync(batchToSend);
+        // Track the upload task instead of fire-and-forget
+        var uploadTask = SendLogBatchAsync(batchToSend);
+        lock (_tasksLock)
+        {
+            _pendingUploadTasks.Add(uploadTask);
+            
+            // Clean up completed tasks to prevent memory leak
+            _pendingUploadTasks.RemoveAll(t => t.IsCompleted);
+        }
     }
 
     /// <summary>
@@ -210,6 +221,36 @@ public static class LoggingServices
         lock (_processingLock)
         {
             _cancellationTokenSource?.Cancel();
+            
+            // Wait for the background thread to finish (with timeout)
+            if (_processingThread != null && _processingThread.IsAlive)
+            {
+                Console.WriteLine("Waiting for log processing thread to complete...");
+                if (!_processingThread.Join(TimeSpan.FromSeconds(5)))
+                {
+                    Console.WriteLine("Log processing thread did not complete within timeout, forcing shutdown");
+                }
+            }
+        }
+
+        // Wait for pending upload tasks to complete (with timeout)
+        List<Task> pendingTasks;
+        lock (_tasksLock)
+        {
+            pendingTasks = _pendingUploadTasks.Where(t => !t.IsCompleted).ToList();
+        }
+        
+        if (pendingTasks.Count > 0)
+        {
+            Console.WriteLine($"Waiting for {pendingTasks.Count} pending log upload tasks to complete...");
+            try
+            {
+                Task.WaitAll(pendingTasks.ToArray(), TimeSpan.FromSeconds(10));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Some log upload tasks did not complete: {ex.Message}");
+            }
         }
 
         // Process remaining logs synchronously
@@ -218,6 +259,8 @@ public static class LoggingServices
             ProcessLogBatch();
             Thread.Sleep(100);
         }
+        
+        Console.WriteLine("Log flushing completed");
     }
     
     /// <summary>

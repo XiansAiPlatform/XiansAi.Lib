@@ -155,7 +155,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?&type=Chat&timeoutSeconds=240", chatOrDataMessage);
+            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?&type=Chat&timeoutSeconds=30", chatOrDataMessage);
             response.EnsureSuccessStatusCode();
             var chatMessage = await response.Content.ReadFromJsonAsync<ApiResponse>();
             

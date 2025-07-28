@@ -40,6 +40,7 @@ class SemanticRouterImpl
     private readonly string? _llmApiKey;
     private readonly string? _llmEndpoint;
     private readonly string? _llmDeploymentName;
+    private readonly string? _llmModelName;
 
     public SemanticRouterImpl()
     {
@@ -57,6 +58,9 @@ class SemanticRouterImpl
 
         // The deployment name for the LLM provider, if any, e.g., "gpt-3.5-turbo"
         _llmDeploymentName = Environment.GetEnvironmentVariable("LLM_DEPLOYMENT_NAME");
+
+        // The model name for the LLM provider, if any, e.g., "gpt-3.5-turbo"
+        _llmModelName = Environment.GetEnvironmentVariable("LLM_MODEL_NAME");
     }
 
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options)
@@ -183,6 +187,8 @@ class SemanticRouterImpl
 
         string GetModelName() =>
             !string.IsNullOrWhiteSpace(options.ModelName) ? options.ModelName :
+            !string.IsNullOrWhiteSpace(_llmModelName) ? _llmModelName :
+            !string.IsNullOrWhiteSpace(_settings.ModelName) ? _settings.ModelName :
             throw new Exception("LLM Model Name is not available");
 
         var providerName = GetProviderName();
