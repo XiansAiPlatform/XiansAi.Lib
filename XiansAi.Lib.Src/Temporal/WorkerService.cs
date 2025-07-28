@@ -59,7 +59,7 @@ internal class WorkerService
         await new FlowDefinitionUploader().UploadFlowDefinition(flow);
 
         // Run the worker for the flow
-        var client = TemporalClientService.Instance.GetClientAsync();
+        var client = await TemporalClientService.Instance.GetClientAsync();
 
         var workFlowType = flow.WorkflowName;
         var taskQueue = _certificateReader.ReadCertificate()?.TenantId + ":" + workFlowType; 
@@ -90,7 +90,17 @@ internal class WorkerService
             options
         );
         _logger.LogTrace($"Worker to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
-        await worker.ExecuteAsync(cancellationToken!);
+        
+        try
+        {
+            await worker.ExecuteAsync(cancellationToken!);
+        }
+        finally
+        {
+            // Ensure proper cleanup when the worker stops
+            _logger.LogInformation("Worker execution completed. Cleaning up temporal connections...");
+            await TemporalClientService.CleanupAsync();
+        }
     }
 }
 

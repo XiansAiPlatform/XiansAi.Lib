@@ -4,30 +4,112 @@ using Temporalio.Client;
 
 namespace Temporal;
 
-public class TemporalClientService 
+public class TemporalClientService : IDisposable
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<TemporalClientService>();
     private static readonly Lazy<TemporalClientService> _instance = new(() => new TemporalClientService());
     private ITemporalClient? _client;
-    private readonly object _lock = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private bool _isInitialized;
+    private bool _disposed;
+    private DateTime _lastConnectionAttempt = DateTime.MinValue;
+    private readonly TimeSpan _connectionRetryDelay = TimeSpan.FromSeconds(5);
+    private readonly int _maxRetryAttempts = 3;
 
     private TemporalClientService() {}
 
     public static TemporalClientService Instance => _instance.Value;
 
-    public ITemporalClient GetClientAsync()
+    public async Task<ITemporalClient> GetClientAsync()
     {
-        if (_isInitialized && _client != null) return _client;
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(TemporalClientService));
 
-        lock (_lock)
+        if (_isInitialized && _client != null && IsConnectionHealthyAsync(_client)) 
+            return _client;
+
+        await _semaphore.WaitAsync();
+        try
         {
-            if (_isInitialized && _client != null) return _client;
+            // Double-check pattern with health check
+            if (_isInitialized && _client != null && IsConnectionHealthyAsync(_client)) 
+                return _client;
             
-            _client = CreateClientAsync().GetAwaiter().GetResult();
+            _client = await CreateClientWithRetryAsync();
             _isInitialized = true;
+            _logger.LogInformation("Temporal client connection established successfully");
             return _client;
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create or reconnect Temporal client connection after all retry attempts");
+            throw;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    private bool IsConnectionHealthyAsync(ITemporalClient client)
+    {
+        try
+        {
+            return client.Connection.IsConnected;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Temporal connection health check failed, will attempt reconnection");
+            
+            // Mark as unhealthy and reset state for reconnection
+            _isInitialized = false;
+            _client = null;
+            return false;
+        }
+    }
+
+    private async Task<ITemporalClient> CreateClientWithRetryAsync()
+    {
+        var attempt = 0;
+        Exception? lastException = null;
+
+        while (attempt < _maxRetryAttempts)
+        {
+            attempt++;
+            
+            try
+            {
+                // Respect retry delay between attempts
+                if (attempt > 1)
+                {
+                    var timeSinceLastAttempt = DateTime.UtcNow - _lastConnectionAttempt;
+                    if (timeSinceLastAttempt < _connectionRetryDelay)
+                    {
+                        var delayRemaining = _connectionRetryDelay - timeSinceLastAttempt;
+                        _logger.LogInformation($"Waiting {delayRemaining.TotalSeconds:F1}s before retry attempt {attempt}");
+                        await Task.Delay(delayRemaining);
+                    }
+                }
+
+                _lastConnectionAttempt = DateTime.UtcNow;
+                _logger.LogInformation($"Attempting to connect to Temporal server (attempt {attempt}/{_maxRetryAttempts})");
+                
+                return await CreateClientAsync();
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, $"Connection attempt {attempt}/{_maxRetryAttempts} failed: {ex.Message}");
+                
+                if (attempt == _maxRetryAttempts)
+                {
+                    _logger.LogError(ex, $"All {_maxRetryAttempts} connection attempts failed");
+                    break;
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"Failed to establish Temporal connection after {_maxRetryAttempts} attempts", lastException);
     }
 
     private static async Task<ITemporalClient> CreateClientAsync()
@@ -64,5 +146,81 @@ public class TemporalClientService
             ClientCert = cert,
             ClientPrivateKey = privateKey,
         };
+    }
+
+    public async Task DisconnectAsync()
+    {
+        if (_client != null)
+        {
+            await _semaphore.WaitAsync();
+            try
+            {
+                if (_client != null)
+                {
+                    _logger.LogInformation("Disconnecting from Temporal server");
+                    // ITemporalClient doesn't implement IDisposable
+                    // Just set to null to allow GC to handle cleanup
+                    _client = null;
+                    _isInitialized = false;
+                }
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        try
+        {
+            DisconnectAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error during temporal client disposal");
+        }
+
+        _semaphore?.Dispose();
+        _disposed = true;
+    }
+
+    ~TemporalClientService()
+    {
+        Dispose();
+    }
+
+    /// <summary>
+    /// Static method to ensure proper cleanup for command line applications
+    /// </summary>
+    public static async Task CleanupAsync()
+    {
+        if (_instance.IsValueCreated)
+        {
+            await _instance.Value.DisconnectAsync();
+            _instance.Value.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Forces a reconnection on the next GetClientAsync call
+    /// Useful for testing or when you know the connection has issues
+    /// </summary>
+    public async Task ForceReconnectAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            _logger.LogInformation("Forcing Temporal client reconnection");
+            _client = null;
+            _isInitialized = false;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 }

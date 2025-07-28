@@ -1,5 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Net.Sockets;
 
 namespace Server;
 
@@ -14,9 +16,14 @@ public interface ISecureApiClient
     HttpClient Client { get; }
 
     /// <summary>
-    /// Tests the connection to the server.
+    /// Tests the connection to the server with retry logic.
     /// </summary>
     Task TestConnection();
+
+    /// <summary>
+    /// Performs a health check on the connection.
+    /// </summary>
+    Task<bool> IsHealthyAsync();
 }
 
 /// <summary>
@@ -25,10 +32,19 @@ public interface ISecureApiClient
 /// </summary>
 public class SecureApi : ISecureApiClient, IDisposable
 {
-    private readonly HttpClient _client;
-    private readonly X509Certificate2 _clientCertificate;
+    private HttpClient? _client;
+    private X509Certificate2? _clientCertificate;
     private readonly ILogger<SecureApi> _logger;
     private bool _disposed;
+    
+    // Connection resilience properties
+    private readonly int _maxRetryAttempts = 3;
+    private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(2);
+    private DateTime _lastHealthCheck = DateTime.MinValue;
+    private readonly TimeSpan _healthCheckInterval = TimeSpan.FromMinutes(1);
+    private bool _isHealthy = true;
+    private bool _isInitialized = false;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     
     // Lazy-loaded singleton instance that requires explicit initialization before use
     private static SecureApi? _instance;
@@ -38,6 +54,7 @@ public class SecureApi : ISecureApiClient, IDisposable
 
     /// <summary>
     /// Gets the configured HTTP client for making secure API requests.
+    /// This now includes automatic health checking and reconnection for long-term resilience.
     /// </summary>
     public HttpClient Client
     {
@@ -47,21 +64,356 @@ public class SecureApi : ISecureApiClient, IDisposable
             {
                 throw new ObjectDisposedException(nameof(SecureApi), "The SecureApi instance has been disposed. Please reinitialize the client.");
             }
-            return _client;
+
+            // Always check health before returning client - this enables automatic recovery
+            if (!IsConnectionHealthy())
+            {
+                _logger.LogWarning("SecureApi connection is unhealthy, will attempt reconnection on next operation");
+                // Mark for reconnection - actual reconnection happens in operations
+                _isInitialized = false;
+                _isHealthy = false;
+            }
+
+            return _client!;
+        }
+    }
+
+    /// <summary>
+    /// Performs a non-blocking health check on the current connection.
+    /// If unhealthy, marks the connection for recreation.
+    /// </summary>
+    private bool IsConnectionHealthy()
+    {
+        if (!_isInitialized || _client == null)
+        {
+            return false;
+        }
+
+        // Use cached result if recent
+        if (DateTime.UtcNow - _lastHealthCheck < _healthCheckInterval && _isHealthy)
+        {
+            return _isHealthy;
+        }
+
+        try
+        {
+            _lastHealthCheck = DateTime.UtcNow;
+            
+            // Quick connection validation - check if we can create a request
+            using var testRequest = new HttpRequestMessage(HttpMethod.Head, "/");
+            // Don't actually send it, just validate the client state
+            _isHealthy = _client.BaseAddress != null && !_disposed;
+            
+            return _isHealthy;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SecureApi health check failed");
+            _isHealthy = false;
+            _isInitialized = false; // Mark for reconnection
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets a healthy HTTP client, automatically reconnecting if necessary.
+    /// This method enables automatic recovery from long-term server outages.
+    /// </summary>
+    public async Task<HttpClient> GetHealthyClientAsync()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(SecureApi));
+
+        // Check if current client is healthy
+        if (_isInitialized && IsConnectionHealthy())
+            return _client!;
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            // Double-check pattern with health check
+            if (_isInitialized && IsConnectionHealthy())
+                return _client!;
+            
+            // Recreate client with retry logic
+            await RecreateClientWithRetryAsync();
+            _isInitialized = true;
+            _isHealthy = true;
+            _logger.LogInformation("SecureApi client recreated successfully after connection recovery");
+            return _client!;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to recreate SecureApi client after all retry attempts");
+            throw;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Recreates the HTTP client with retry logic for connection recovery.
+    /// </summary>
+    private async Task RecreateClientWithRetryAsync()
+    {
+        var attempt = 0;
+        Exception? lastException = null;
+
+        while (attempt < _maxRetryAttempts)
+        {
+            attempt++;
+            
+            try
+            {
+                if (attempt > 1)
+                {
+                    var delay = TimeSpan.FromMilliseconds(_retryDelay.TotalMilliseconds * Math.Pow(2, attempt - 2));
+                    _logger.LogInformation("Retrying SecureApi client recreation (attempt {Attempt}/{MaxAttempts}) after {Delay}ms", 
+                        attempt, _maxRetryAttempts, delay.TotalMilliseconds);
+                    await Task.Delay(delay);
+                }
+
+                _logger.LogInformation("Attempting to recreate SecureApi client (attempt {Attempt}/{MaxAttempts})", 
+                    attempt, _maxRetryAttempts);
+
+                // Dispose old client if it exists
+                _client?.Dispose();
+                
+                // Recreate client with same configuration
+                await CreateClientAsync(_currentCertificate!, _currentServerUrl!);
+                
+                // Test the new connection
+                await TestConnectionInternal();
+                
+                _logger.LogInformation("SecureApi client recreation succeeded on attempt {Attempt}", attempt);
+                return;
+            }
+            catch (Exception ex) when (IsTransientException(ex) && attempt < _maxRetryAttempts)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, "SecureApi client recreation failed on attempt {Attempt}/{MaxAttempts}: {Message}", 
+                    attempt, _maxRetryAttempts, ex.Message);
+            }
+        }
+
+        _logger.LogError(lastException, "SecureApi client recreation failed after {MaxAttempts} attempts", _maxRetryAttempts);
+        throw lastException ?? new InvalidOperationException("Failed to recreate SecureApi client after all retry attempts");
+    }
+
+    /// <summary>
+    /// Creates the HTTP client with the specified configuration.
+    /// </summary>
+    private Task CreateClientAsync(string certificateBase64, string serverUrl)
+    {
+        // Configure HttpClient with optimized settings for console applications
+        var handler = new SocketsHttpHandler()
+        {
+            // Connection pool settings for better resource management
+            MaxConnectionsPerServer = 10,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        };
+
+        _client = new HttpClient(handler) { 
+            BaseAddress = new Uri(serverUrl),
+            // Separate timeouts for different phases
+            Timeout = TimeSpan.FromSeconds(60) // Total request timeout including retries
+        };
+
+        // Configure more granular timeouts via properties
+        _client.DefaultRequestHeaders.ConnectionClose = false; // Keep connections alive
+        
+        try
+        {
+            // Convert the Base64 string to a certificate
+            var certificateBytes = Convert.FromBase64String(certificateBase64);
+            
+            // Suppress warning about X509Certificate2 constructor being obsolete in .NET Core 
+            #pragma warning disable SYSLIB0057
+            _clientCertificate?.Dispose(); // Dispose old certificate
+            _clientCertificate = new X509Certificate2(certificateBytes);
+            #pragma warning restore SYSLIB0057
+
+            // Export the certificate as Base64 and add it to the request headers for authentication
+            var exportedCertBytes = _clientCertificate.Export(X509ContentType.Cert);
+            var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
+            _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
+            
+            _logger.LogInformation("SecureApi client created successfully");
+
+        }
+        catch (Exception ex)
+        {
+            _client?.Dispose();
+            throw new InvalidOperationException("Failed to create SecureApi client", ex);
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Internal connection test without retry logic (used during client recreation).
+    /// </summary>
+    private async Task TestConnectionInternal()
+    {
+        var settings = await SettingsService.GetSettingsFromServer();
+        if (settings == null)
+        {
+            throw new InvalidOperationException("Failed to get settings from server");
+        }
+        if (settings.FlowServerCertBase64 == null || settings.FlowServerUrl == null)
+        {
+            throw new InvalidOperationException("Failed to get settings from server: FlowServerCertBase64 or FlowServerUrl is null");
+        }
+    }
+
+    public async Task<bool> IsHealthyAsync()
+    {
+        if (_disposed)
+        {
+            return false;
+        }
+
+        // Use cached health status if recent
+        if (DateTime.UtcNow - _lastHealthCheck < _healthCheckInterval && _isHealthy)
+        {
+            return true;
+        }
+
+        try
+        {
+            _lastHealthCheck = DateTime.UtcNow;
+            
+            if (_client == null)
+            {
+                _isHealthy = false;
+                return false;
+            }
+            
+            // Perform lightweight health check
+            using var request = new HttpRequestMessage(HttpMethod.Head, "/health");
+            using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, 
+                CancellationToken.None);
+            
+            _isHealthy = response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound;
+            
+            if (!_isHealthy)
+            {
+                _logger.LogWarning("SecureApi health check failed with status: {StatusCode}", response.StatusCode);
+            }
+            
+            return _isHealthy;
+        }
+        catch (Exception ex)
+        {
+            _isHealthy = false;
+            _logger.LogWarning(ex, "SecureApi health check failed due to exception");
+            return false;
         }
     }
 
     public async Task TestConnection()
     {
-        var settings = await SettingsService.GetSettingsFromServer();
-        if (settings == null)
+        await ExecuteWithRetryAsync(async () =>
         {
-            throw new Exception("Failed to get settings from server");
-        }
-        if (settings.FlowServerCertBase64 == null || settings.FlowServerUrl == null)
+            var settings = await SettingsService.GetSettingsFromServer();
+            if (settings == null)
+            {
+                throw new InvalidOperationException("Failed to get settings from server");
+            }
+            if (settings.FlowServerCertBase64 == null || settings.FlowServerUrl == null)
+            {
+                throw new InvalidOperationException("Failed to get settings from server: FlowServerCertBase64 or FlowServerUrl is null");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Executes an operation with retry logic for transient failures.
+    /// </summary>
+    internal async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation)
+    {
+        var attempt = 0;
+        Exception? lastException = null;
+
+        while (attempt < _maxRetryAttempts)
         {
-            throw new Exception("Failed to get settings from server: FlowServerCertBase64 or FlowServerUrl is null");
+            attempt++;
+            
+            try
+            {
+                if (attempt > 1)
+                {
+                    var delay = TimeSpan.FromMilliseconds(_retryDelay.TotalMilliseconds * Math.Pow(2, attempt - 2));
+                    _logger.LogInformation("Retrying SecureApi operation (attempt {Attempt}/{MaxAttempts}) after {Delay}ms", 
+                        attempt, _maxRetryAttempts, delay.TotalMilliseconds);
+                    await Task.Delay(delay);
+                }
+
+                var result = await operation();
+                
+                // Reset health status on success
+                _isHealthy = true;
+                
+                if (attempt > 1)
+                {
+                    _logger.LogInformation("SecureApi operation succeeded on attempt {Attempt}", attempt);
+                }
+                
+                return result;
+            }
+            catch (Exception ex) when (IsTransientException(ex) && attempt < _maxRetryAttempts)
+            {
+                lastException = ex;
+                _isHealthy = false;
+                _logger.LogWarning(ex, "SecureApi operation failed on attempt {Attempt}/{MaxAttempts}: {Message}", 
+                    attempt, _maxRetryAttempts, ex.Message);
+            }
         }
+
+        _logger.LogError(lastException, "SecureApi operation failed after {MaxAttempts} attempts", _maxRetryAttempts);
+        throw lastException ?? new InvalidOperationException("Operation failed after all retry attempts");
+    }
+
+    /// <summary>
+    /// Executes an operation with retry logic for operations that don't return a value.
+    /// </summary>
+    internal async Task ExecuteWithRetryAsync(Func<Task> operation)
+    {
+        await ExecuteWithRetryAsync(async () =>
+        {
+            await operation();
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// Determines if an exception represents a transient failure that should be retried.
+    /// </summary>
+    private static bool IsTransientException(Exception ex)
+    {
+        return ex switch
+        {
+            HttpRequestException httpEx => IsTransientHttpException(httpEx),
+            TaskCanceledException => true, // Timeout
+            SocketException => true,
+            TimeoutException => true,
+            _ => false
+        };
+    }
+
+    private static bool IsTransientHttpException(HttpRequestException httpEx)
+    {
+        // Check for common transient HTTP errors
+        var message = httpEx.Message.ToLower();
+        return message.Contains("timeout") || 
+               message.Contains("connection") || 
+               message.Contains("network") ||
+               message.Contains("dns") ||
+               message.Contains("ssl") ||
+               message.Contains("certificate");
     }
     
     /// <summary>
@@ -107,28 +459,12 @@ public class SecureApi : ISecureApiClient, IDisposable
         if (string.IsNullOrEmpty(serverUrl))
             throw new ArgumentNullException(nameof(serverUrl));
 
-        _client = new HttpClient { 
-            BaseAddress = new Uri(serverUrl),
-            Timeout = TimeSpan.FromSeconds(30) // Increase timeout to 30 seconds
-        };
-
         try
         {
-            // Convert the Base64 string to a certificate
-            var certificateBytes = Convert.FromBase64String(certificateBase64);
-            
-            // Suppress warning about X509Certificate2 constructor being obsolete in .NET Core 
-            #pragma warning disable SYSLIB0057
-            _clientCertificate = new X509Certificate2(certificateBytes);
-            #pragma warning restore SYSLIB0057
-
-            // Export the certificate as Base64 and add it to the request headers for authentication
-            var exportedCertBytes = _clientCertificate.Export(X509ContentType.Cert);
-            var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
-            _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
-            
-            _logger.LogInformation("SecureApi initialized successfully");
-
+            // Use the async creation method for consistency
+            CreateClientAsync(certificateBase64, serverUrl).GetAwaiter().GetResult();
+            _isInitialized = true;
+            _logger.LogInformation("SecureApi initialized successfully with enhanced connection resilience");
         }
         catch (Exception ex)
         {
@@ -215,9 +551,18 @@ public class SecureApi : ISecureApiClient, IDisposable
 
         if (disposing)
         {
-            // Dispose managed resources
-            _client?.Dispose();
-            _clientCertificate?.Dispose();
+            try
+            {
+                // Dispose managed resources
+                _client?.Dispose();
+                _clientCertificate?.Dispose();
+                _semaphore?.Dispose();
+                _logger.LogInformation("SecureApi disposed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error occurred during SecureApi disposal");
+            }
         }
 
         _disposed = true;
@@ -227,4 +572,72 @@ public class SecureApi : ISecureApiClient, IDisposable
     /// Finalizer to ensure resources are properly cleaned up if Dispose is not called.
     /// </summary>
     ~SecureApi() => Dispose(false);
+}
+
+/// <summary>
+/// Extension methods for SecureApi HttpClient to provide resilient operations.
+/// </summary>
+public static class SecureApiExtensions
+{
+    /// <summary>
+    /// Sends an HTTP request with automatic retry logic for transient failures and connection recovery.
+    /// </summary>
+    public static async Task<HttpResponseMessage> SendWithRetryAsync(this HttpClient client, 
+        HttpRequestMessage request, CancellationToken cancellationToken = default)
+    {
+        var secureApi = SecureApi.Instance as SecureApi;
+        if (secureApi == null)
+        {
+            return await client.SendAsync(request, cancellationToken);
+        }
+
+        return await secureApi.ExecuteWithRetryAsync(async () =>
+        {
+            // Ensure we have a healthy client before sending
+            var healthyClient = await secureApi.GetHealthyClientAsync();
+            var clonedRequest = await CloneHttpRequestMessageAsync(request);
+            return await healthyClient.SendAsync(clonedRequest, cancellationToken);
+        });
+    }
+
+    /// <summary>
+    /// Performs a GET request with automatic retry logic.
+    /// </summary>
+    public static async Task<HttpResponseMessage> GetWithRetryAsync(this HttpClient client, 
+        string requestUri, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        return await client.SendWithRetryAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Performs a POST request with automatic retry logic.
+    /// </summary>
+    public static async Task<HttpResponseMessage> PostWithRetryAsync(this HttpClient client, 
+        string requestUri, HttpContent content, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri) { Content = content };
+        return await client.SendWithRetryAsync(request, cancellationToken);
+    }
+
+    private static Task<HttpRequestMessage> CloneHttpRequestMessageAsync(HttpRequestMessage original)
+    {
+        var clone = new HttpRequestMessage(original.Method, original.RequestUri)
+        {
+            Content = original.Content,
+            Version = original.Version
+        };
+
+        foreach (var header in original.Headers)
+        {
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
+        foreach (var option in original.Options)
+        {
+            clone.Options.Set(new HttpRequestOptionsKey<object?>(option.Key), option.Value);
+        }
+
+        return Task.FromResult(clone);
+    }
 } 
