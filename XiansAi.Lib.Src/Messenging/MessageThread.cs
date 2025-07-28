@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using System.Text.Json.Serialization;
-using System.ComponentModel.DataAnnotations;
 
 namespace XiansAi.Messaging;
 public interface IMessageThread
