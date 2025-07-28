@@ -43,7 +43,9 @@ public class ChatOrDataRequest
     public object? Data { get; set; }
     public string? Authorization { get; set; }
     public string? Text { get; set; }
-    public string? ThreadId { get; set;} 
+    public string? ThreadId { get; set;}
+    public string? Hint { get; set; }
+    public string? Origin { get; set; }
 }
 
 public class HandoffRequest
@@ -113,4 +115,45 @@ public class EventSignal
 
     [JsonPropertyName("Timestamp")]
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+}
+
+
+
+public class ApiResponse
+{
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
+
+    [JsonPropertyName("threadId")]
+    public string? ThreadId { get; set; }
+
+    [JsonPropertyName("response")]
+    public required MessageResponse Response { get; set; }
+}
+
+public class MessageResponse
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+
+    [JsonPropertyName("data")]
+    public object? Data { get; set; }
+
+    [JsonPropertyName("createdAt")]
+    public DateTime Timestamp { get; set; } // Mapped to 'createdAt' in JSON
+
+    [JsonPropertyName("direction")]
+    public int Direction { get; set; }
+
+    [JsonPropertyName("messageType")]
+    public int MessageType { get; set; }
+
+    [JsonPropertyName("scope")]
+    public string? Scope { get; set; }
+
+    [JsonPropertyName("hint")]
+    public string? Hint { get; set; }
 }

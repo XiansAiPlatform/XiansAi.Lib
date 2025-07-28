@@ -26,6 +26,8 @@ public class Message
     public required string Hint { get; set; }
     [JsonPropertyName("scope")]
     public required string Scope { get; set; }
+    [JsonPropertyName("origin")]
+    public string? Origin { get; set; }
 }
 
 
@@ -57,13 +59,14 @@ public class MessageThread : IMessageThread
 
     public async Task<List<DbMessage>> FetchThreadHistory(int page = 1, int pageSize = 10)
     {
-        if(History == null || History.Count == 0) {
+        if (History == null || History.Count == 0)
+        {
             History = await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, page, pageSize);
         }
         return History;
     }
 
-  
+
     public async Task<string?> SendData(object data, string? content = null)
     {
         _logger.LogDebug("Sending data message: {Content}", content);
@@ -83,6 +86,17 @@ public class MessageThread : IMessageThread
         var workflowTypeString = AgentContext.GetWorkflowTypeFor(targetWorkflowType);
         data ??= LatestMessage.Data;
         return await Handoff(message, data, workflowTypeString, workflowId);
+    }
+
+
+    public async Task<string?> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null)
+    {
+        message ??= LatestMessage.Content ?? throw new Exception("User request is required for SendBotToBotMessage");
+        var workflowId = AgentContext.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var workflowTypeString = AgentContext.GetWorkflowTypeFor(targetWorkflowType);
+        var agent = AgentContext.AgentName;
+        data ??= LatestMessage.Data;
+        return await BotToBotMessage(message, data, workflowTypeString, workflowId, agent);
     }
 
     public async Task<string?> SendHandoff(string targetWorkflowId, string? message = null, object? data = null)
@@ -108,12 +122,15 @@ public class MessageThread : IMessageThread
 
         _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(outgoingMessage));
 
-        if(Workflow.InWorkflow) {
+        if (Workflow.InWorkflow)
+        {
             var success = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
                 new SystemActivityOptions());
             return success;
-        } else {
+        }
+        else
+        {
             var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, type);
             return success;
         }
@@ -122,11 +139,13 @@ public class MessageThread : IMessageThread
 
     private async Task<string?> Handoff(string userRequest, object? data, string? targetWorkflowType, string? targetWorkflowId)
     {
-        if(string.IsNullOrEmpty(userRequest)) {
+        if (string.IsNullOrEmpty(userRequest))
+        {
             throw new Exception("User request is required for handoff");
         }
 
-        if(targetWorkflowId == null && targetWorkflowType == null) {
+        if (targetWorkflowId == null && targetWorkflowType == null)
+        {
             throw new Exception("Target workflowId or workflowType is required for handoff");
         }
 
@@ -146,13 +165,59 @@ public class MessageThread : IMessageThread
 
         _logger.LogDebug("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
 
-        if(Workflow.InWorkflow) {
+        if (Workflow.InWorkflow)
+        {
             var success = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.SendHandoff(outgoingMessage),
                 new SystemActivityOptions());
             return success;
-        } else {
+        }
+        else
+        {
             var success = await SystemActivities.SendHandoffStatic(outgoingMessage);
+            return success;
+        }
+    }
+    
+    private async Task<string?> BotToBotMessage(string userRequest, object? data, string? targetWorkflowType, string? targetWorkflowId, string? agent)
+    {
+        if(string.IsNullOrEmpty(userRequest)) 
+        {
+            throw new Exception("User request is required for bot to bot messaging");
+        }
+
+        if (string.IsNullOrEmpty(targetWorkflowId) && string.IsNullOrEmpty(targetWorkflowType) && string.IsNullOrEmpty(agent))
+        {
+            throw new Exception("Target workflowId or workflowType or agent is required for bot to bot messaging");
+        }
+
+        if (string.IsNullOrEmpty(targetWorkflowId)) throw new Exception("WorkflowId is required");
+        if (string.IsNullOrEmpty(targetWorkflowType)) throw new Exception("WorkflowType is required");
+        if (string.IsNullOrEmpty(agent)) throw new Exception("Agent name is required");
+
+        var outgoingChatOrDataMessage = new ChatOrDataRequest
+        {
+            WorkflowId = targetWorkflowId,
+            WorkflowType = targetWorkflowType,
+            Agent = agent,
+            Text = userRequest,
+            Data = data,
+            RequestId = LatestMessage.RequestId,
+            Scope = LatestMessage.Scope,
+            ParticipantId = ParticipantId,
+            Authorization=Authorization,
+            Hint = LatestMessage.Hint,
+            Origin = WorkflowId
+        };
+
+        _logger.LogDebug("Sending over thread: {Message}", JsonSerializer.Serialize(outgoingChatOrDataMessage));
+        if (Workflow.InWorkflow) {
+            var success = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage),
+                new SystemActivityOptions());
+            return success;
+        } else {
+            var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage);
             return success;
         }
     }
