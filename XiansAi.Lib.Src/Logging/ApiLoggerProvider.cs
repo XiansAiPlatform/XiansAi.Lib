@@ -80,13 +80,15 @@ public class ApiLogger : ILogger
 
         logLevel = ProcessTemporalMessage(logMessage, logLevel);
 
-        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "defaultWorkflowId";
+        var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "Outside Workflows";
+
+        
         var workflowRunId = context?.GetValueOrDefault("WorkflowRunId")?.ToString() 
             ?? context?.GetValueOrDefault("RunId")?.ToString()
-            ?? "defaultWorkflowRunId";
-        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString()  ?? "defaultWorkflowType";
-        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.AgentName ?? "defaultAgent";
-        var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "defaultParticipantId";
+            ?? "No RunId Available";
+        var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString()  ?? "No Workflow Type Available";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.AgentName ?? "No Agent Available";
+        var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "No Participant Id Available";
 
         var log = new Log
         {
