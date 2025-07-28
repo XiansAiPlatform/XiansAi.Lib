@@ -106,10 +106,10 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray());
+        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options);
     }
 
     [Activity]

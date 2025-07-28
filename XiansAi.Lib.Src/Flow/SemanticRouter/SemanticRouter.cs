@@ -14,11 +14,11 @@ namespace XiansAi.Flow.Router;
 public static class SemanticRouter
 {
 
-    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt)
+    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt),
+            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
             new SystemActivityOptions());
 
         return response;
@@ -59,7 +59,7 @@ class SemanticRouterImpl
         _llmDeploymentName = Environment.GetEnvironmentVariable("LLM_DEPLOYMENT_NAME");
     }
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options)
     {
         try
         {
@@ -67,11 +67,6 @@ class SemanticRouterImpl
             {
                 throw new Exception("System prompt is required");
             }
-
-            var options = new RouterOptions {
-                ModelName = _settings.ModelName,
-                HistorySizeToFetch = 10
-            };
 
             var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
 
@@ -102,17 +97,36 @@ class SemanticRouterImpl
             return InitializeCacheable(options, capabilitiesPluginTypes);
         }
 
+        // Generate a cache key that includes RouterOptions to avoid configuration conflicts
+        var cacheKey = GenerateCacheKey(workflowType, options);
+
         lock (_kernelCacheLock)
         {
-            if (_kernelCache.TryGetValue(workflowType, out var cachedKernel))
+            if (_kernelCache.TryGetValue(cacheKey, out var cachedKernel))
             {
+                _logger.LogDebug("Using cached kernel for {CacheKey}", cacheKey);
                 return cachedKernel;
             }
-
+            _logger.LogDebug("Initializing new kernel for {CacheKey}", cacheKey);
             var newKernel = InitializeCacheable(options, capabilitiesPluginTypes);
-            _kernelCache[workflowType] = newKernel;
+            _kernelCache[cacheKey] = newKernel;
             return newKernel;
         }
+    }
+
+    private string GenerateCacheKey(string workflowType, RouterOptions options)
+    {
+        // Create a cache key that includes relevant RouterOptions values
+        var keyComponents = new[]
+        {
+            workflowType,
+            options.ProviderName ?? "",
+            options.ModelName ?? "",
+            options.DeploymentName ?? "",
+            options.Endpoint ?? "",
+            // Don't include ApiKey in cache key for security reasons
+        };
+        return string.Join("|", keyComponents);
     }
 
     private Kernel Initialize(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes, MessageThread messageThread)
@@ -124,7 +138,7 @@ class SemanticRouterImpl
 
             if (!(type.IsAbstract && type.IsSealed))
             {
-                _logger.LogInformation("Getting functions from instance type {PluginType}", type.Name);
+                _logger.LogDebug("Getting functions from instance type {PluginType}", type.Name);
                 var instance = Activator.CreateInstance(type, new object[] { messageThread }) ?? throw new Exception($"Failed to create instance of {type.Name}");
                 var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
                 kernel.Plugins.TryGetPlugin(type.Name, out var plugin);
@@ -142,16 +156,19 @@ class SemanticRouterImpl
     private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
          string GetApiKey() =>
+            !string.IsNullOrEmpty(options.ApiKey) ? options.ApiKey :
             !string.IsNullOrEmpty(_llmApiKey) ? _llmApiKey :
             !string.IsNullOrEmpty(_settings.ApiKey) ? _settings.ApiKey :
             throw new Exception("LLM API Key is not available");
 
         string GetProviderName() =>
+            !string.IsNullOrEmpty(options.ProviderName) ? options.ProviderName :
             !string.IsNullOrEmpty(_llmProvider) ? _llmProvider :
             !string.IsNullOrEmpty(_settings.ProviderName) ? _settings.ProviderName :
             throw new Exception("LLM Provider is not available");
 
         string GetDeploymentName() =>
+            !string.IsNullOrWhiteSpace(options.DeploymentName) ? options.DeploymentName :
             !string.IsNullOrWhiteSpace(_llmDeploymentName) ? _llmDeploymentName :
             _settings.AdditionalConfig != null &&
             _settings.AdditionalConfig.TryGetValue("DeploymentName", out var configDeploymentName) &&
@@ -159,9 +176,14 @@ class SemanticRouterImpl
             throw new Exception("LLM DeploymentName is not available");
 
         string GetEndpoint() =>
+            !string.IsNullOrWhiteSpace(options.Endpoint) ? options.Endpoint :
             !string.IsNullOrWhiteSpace(_llmEndpoint) ? _llmEndpoint :
             !string.IsNullOrWhiteSpace(_settings.BaseUrl) ? _settings.BaseUrl :
             throw new Exception("LLM BaseUrl is not available");
+
+        string GetModelName() =>
+            !string.IsNullOrWhiteSpace(options.ModelName) ? options.ModelName :
+            throw new Exception("LLM Model Name is not available");
 
         var providerName = GetProviderName();
         var builder = Kernel.CreateBuilder();
@@ -169,13 +191,15 @@ class SemanticRouterImpl
         switch (providerName?.ToLower())
         {
             case "openai":
+                _logger.LogDebug("Adding OpenAI chat completion with model {ModelName}", GetModelName());
                 builder.Services.AddOpenAIChatCompletion(
-                    modelId: options.ModelName,
+                    modelId: GetModelName(),
                     apiKey: GetApiKey()
                 );
                 break;
 
             case "azureopenai":
+                _logger.LogDebug("Adding Azure OpenAI chat completion with deployment {DeploymentName}", GetDeploymentName());
                 builder.AddAzureOpenAIChatCompletion(
                     deploymentName: GetDeploymentName(),
                     endpoint: GetEndpoint(),
@@ -202,7 +226,7 @@ class SemanticRouterImpl
             if (type.IsAbstract && type.IsSealed)
             {
                 // static plugin
-                _logger.LogInformation("Getting functions from static type {PluginType}", type.Name);
+                _logger.LogDebug("Getting functions from static type {PluginType}", type.Name);
                 var functions = PluginReader.GetFunctionsFromStaticType(type);
                 kernel.Plugins.AddFromFunctions(type.Name, functions);
             }

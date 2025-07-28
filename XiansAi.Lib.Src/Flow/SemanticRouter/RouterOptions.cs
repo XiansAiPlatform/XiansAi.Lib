@@ -7,9 +7,29 @@ namespace XiansAi.Flow.Router;
 public class RouterOptions
 {
     /// <summary>
+    /// Gets or sets the deployment name for the AI model.
+    /// </summary>
+    public string? DeploymentName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the endpoint for the AI model.
+    /// </summary>
+    public string? Endpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the API key for the AI model.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider name for the AI model.
+    /// </summary>
+    public string? ProviderName { get; set; }
+
+    /// <summary>
     /// Gets or sets the model name for the AI model.
     /// </summary>
-    public required string ModelName;
+    public string? ModelName;
 
     /// <summary>
     /// Gets or sets the temperature for the AI model. Controls randomness in the output.
