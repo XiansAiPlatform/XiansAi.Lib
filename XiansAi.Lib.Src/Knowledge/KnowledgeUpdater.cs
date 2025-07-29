@@ -27,9 +27,6 @@ public class KnowledgeUpdaterImpl : IKnowledgeUpdater
     private readonly Logger<KnowledgeUpdaterImpl> _logger = Logger<KnowledgeUpdaterImpl>.For();
     private readonly KnowledgeService _knowledgeService = new KnowledgeService();
 
-    // Path to local knowledges folder, configured via environment variable
-    private readonly string? _localknowledgesFolder = Environment.GetEnvironmentVariable("LOCAL_knowledgeS_FOLDER");
-
     /// <summary>
     /// Updates an knowledge by name to either the server or local filesystem.
     /// </summary>
@@ -50,28 +47,8 @@ public class KnowledgeUpdaterImpl : IKnowledgeUpdater
             throw new ArgumentException("Content cannot be null or empty", nameof(knowledgeContent));
         }
 
-        // Fall back to local updating if server connection isn't available
-        if (!string.IsNullOrEmpty(_localknowledgesFolder))
-        {
-            _logger.LogWarning($"App server connection not ready, updating knowledge locally in {_localknowledgesFolder}");
-            _logger.LogWarning($"Updating knowledge locally - {knowledgeName}");
-            return await UpdateLocal(knowledgeName, knowledgeContent);
-        }
-
         _logger.LogDebug($"Updating knowledge on server - {knowledgeName}");
         return await UpdateOnServer(knowledgeName, knowledgeType, knowledgeContent);
-    }
-
-    /// <summary>
-    /// Updates an knowledge in the local filesystem.
-    /// </summary>
-    /// <param name="knowledgeName">The name of the knowledge to update</param>
-    /// <param name="content">The content of the knowledge to update</param>
-    /// <returns>A task representing the asynchronous operation</returns>
-    private Task<bool> UpdateLocal(string knowledgeName, string content)
-    {
-        // TODO: Implement logic to update the knowledge in the local filesystem
-        throw new NotImplementedException("UpdateLocal method is not implemented yet.");
     }
 
     /// <summary>
