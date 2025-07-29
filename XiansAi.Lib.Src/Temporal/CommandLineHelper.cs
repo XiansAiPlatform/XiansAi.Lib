@@ -109,14 +109,6 @@ public static class CommandLineHelper
         {
             _logger.LogInformation("Cleaning up application resources...");
             
-            // Wait for activity upload tasks to complete
-            _logger.LogInformation("Waiting for activity upload tasks to complete...");
-            await ActivityProxy<object>.WaitForBackgroundTasksAsync(TimeSpan.FromSeconds(5));
-            
-            // Dispose ActivityProxy static resources
-            _logger.LogInformation("Disposing ActivityProxy static resources...");
-            ActivityProxy<object>.DisposeStaticResources();
-            
             // Cleanup Temporal connections with timeout
             _logger.LogInformation("Cleaning up Temporal connections...");
             try
@@ -154,9 +146,6 @@ public static class CommandLineHelper
     public static void DiagnoseShutdownIssues()
     {
         Console.WriteLine("=== Shutdown Diagnostics ===");
-        
-        var pendingTasks = ActivityProxy<object>.GetPendingTaskCount();
-        Console.WriteLine($"Pending activity upload tasks: {pendingTasks}");
         
         var logQueueSize = LoggingServices.GlobalLogQueue.Count;
         Console.WriteLine($"Pending logs in queue: {logQueueSize}");
