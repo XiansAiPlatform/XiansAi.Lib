@@ -9,6 +9,7 @@ using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
 using System.Text.Json;
+using XiansAi.Flow;
 
 public class SendMessageResponse
 {
@@ -20,10 +21,11 @@ public class SystemActivities
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
 
     private readonly List<Type> _capabilities = new();
-
-    public SystemActivities(List<Type> capabilities)
+    private readonly IChatInterceptor? _chatInterceptor;
+    public SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor)
     {
         _capabilities = capabilities;
+        _chatInterceptor = chatInterceptor;
     }
 
     [Activity]
@@ -109,7 +111,7 @@ public class SystemActivities
     public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options);
+        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor);
     }
 
     [Activity]

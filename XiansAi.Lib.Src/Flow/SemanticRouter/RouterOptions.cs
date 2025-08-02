@@ -39,7 +39,7 @@ public class RouterOptions
     /// <summary>
     /// Gets or sets the maximum number of tokens to generate in the response.
     /// </summary>
-    public int MaxTokens { get; set; } = 1000;
+    public int MaxTokens { get; set; } = 10000;
 
 
     /// <summary>

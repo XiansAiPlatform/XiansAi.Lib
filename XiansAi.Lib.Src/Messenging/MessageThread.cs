@@ -49,7 +49,9 @@ public class MessageThread : IMessageThread
     public required Message LatestMessage { get; set; }
     [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
-    public List<DbMessage>? History { get; set; }
+
+    [JsonPropertyName("skip_response")]
+    public bool SkipResponse { get; set; } = false;
 
     public MessageThread()
     {
@@ -59,11 +61,7 @@ public class MessageThread : IMessageThread
 
     public async Task<List<DbMessage>> FetchThreadHistory(int page = 1, int pageSize = 10)
     {
-        if (History == null || History.Count == 0)
-        {
-            History = await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, page, pageSize);
-        }
-        return History;
+        return await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, page, pageSize);;
     }
 
 
@@ -75,6 +73,11 @@ public class MessageThread : IMessageThread
 
     public async Task<string?> SendChat(string content, object? data = null)
     {
+        if (SkipResponse)
+        {
+            SkipResponse = false;
+            return null;
+        }
         _logger.LogDebug("Sending chat message: {Content}", content);
         return await SendChatOrData(content, data, MessageType.Chat);
     }

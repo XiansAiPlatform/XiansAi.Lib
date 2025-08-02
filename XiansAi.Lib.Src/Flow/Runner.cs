@@ -159,6 +159,8 @@ public class Runner<TClass> where TClass : class
         }
     }
 
+    public IChatInterceptor? ChatInterceptor { get; set; }
+
     public List<Type> Capabilities
     {
         get

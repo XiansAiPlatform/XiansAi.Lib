@@ -63,7 +63,7 @@ class SemanticRouterImpl
         _llmModelName = Environment.GetEnvironmentVariable("LLM_MODEL_NAME");
     }
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options)
+    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor)
     {
         try
         {
@@ -71,7 +71,10 @@ class SemanticRouterImpl
             {
                 throw new Exception("System prompt is required");
             }
-
+            if (interceptor != null)
+            {
+                messageThread = await interceptor.InterceptIncomingMessageAsync(messageThread);
+            }
             var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
 
             var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
@@ -82,8 +85,15 @@ class SemanticRouterImpl
                 Temperature = options.Temperature
             };
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+
             var result = await chatCompletionService.GetChatMessageContentAsync(chatHistory, settings, kernel);
-            return result.Content ?? string.Empty;
+
+            var response = result.Content;
+            if (interceptor != null)
+            {
+                response = await interceptor.InterceptOutgoingMessageAsync(messageThread, response);
+            }
+            return response ?? string.Empty;
         }
         catch (Exception e)
         {

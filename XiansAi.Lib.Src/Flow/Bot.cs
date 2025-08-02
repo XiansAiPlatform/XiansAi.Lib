@@ -29,6 +29,12 @@ public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
         return this;
     }
 
+    public Bot<TBot> SetChatInterceptor(IChatInterceptor interceptor)
+    {
+        _runner.ChatInterceptor = interceptor;
+        return this;
+    }
+
     /// <summary>
     /// Adds capabilities to this bot.
     /// </summary>
