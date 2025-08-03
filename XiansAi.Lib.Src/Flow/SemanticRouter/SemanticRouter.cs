@@ -14,12 +14,12 @@ namespace XiansAi.Flow.Router;
 public static class SemanticRouter
 {
 
-    public static async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
+    public static async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options, SystemActivityOptions systemActivityOptions)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
             (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
-            new SystemActivityOptions());
+            systemActivityOptions);
 
         return response;
     }

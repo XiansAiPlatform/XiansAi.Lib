@@ -19,6 +19,7 @@ public class ChatHandler
     private readonly IMessageHub _messageHub;
     private MessageListenerDelegate? _messageListener;
     private Func<Task<string>>? _systemPromptProvider;
+    public SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
 
     public RouterOptions RouterOptions { get; set; } = new RouterOptions();
 
@@ -119,7 +120,7 @@ public class ChatHandler
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         
         // Route the message to the appropriate flow
-        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt, RouterOptions);
+        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt, RouterOptions, SystemActivityOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

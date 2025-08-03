@@ -21,10 +21,13 @@ public class SystemActivities
 
     private readonly List<Type> _capabilities = new();
     private readonly IChatInterceptor? _chatInterceptor;
-    public SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor)
+    private readonly Type? _dataProcessorType;
+    
+    public SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor, Type? dataProcessorType)
     {
         _capabilities = capabilities;
         _chatInterceptor = chatInterceptor;
+        _dataProcessorType = dataProcessorType;
     }
 
     [Activity]
@@ -104,6 +107,13 @@ public class SystemActivities
     {
         return await UpdateKnowledgeAsyncStatic(knowledgeName, knowledgeType, knowledgeContent);
 
+    }
+
+    [Activity]
+    public async Task<object?> ProcessData(MessageThread messageThread, string MethodName, string? parameters)
+    {
+        // do the routing
+        return await DataHandler.ProcessData(_dataProcessorType, messageThread, MethodName, parameters);
     }
 
     [Activity]

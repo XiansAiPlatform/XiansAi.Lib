@@ -65,7 +65,7 @@ public class MessageThread : IMessageThread
     }
 
 
-    public async Task<string?> SendData(object data, string? content = null)
+    public async Task<string?> SendData(object? data, string? content = null)
     {
         _logger.LogDebug("Sending data message: {Content}", content);
         return await SendChatOrData(content, data, MessageType.Data);

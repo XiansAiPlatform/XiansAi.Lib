@@ -1,17 +1,24 @@
-using XiansAi.Logging;
 using XiansAi.Flow.Router;
 
 namespace XiansAi.Flow;
 
 public abstract class FlowBase : AbstractFlow
 {
-    private readonly Logger<FlowBase> _logger = Logger<FlowBase>.For();
     protected readonly ChatHandler _chatHandler;
+    protected readonly DataHandler _dataHandler;
 
     public RouterOptions RouterOptions 
     { 
         get => _chatHandler.RouterOptions; 
         set => _chatHandler.RouterOptions = value; 
+    }
+
+    public SystemActivityOptions SystemActivityOptions 
+    { 
+        set {
+            _chatHandler.SystemActivityOptions = value;
+            _dataHandler.SystemActivityOptions = value;
+        }
     }
 
     public string SystemPrompt 
@@ -27,6 +34,7 @@ public abstract class FlowBase : AbstractFlow
     public FlowBase() : base()  
     {
         _chatHandler = new ChatHandler(_messageHub);
+        _dataHandler = new DataHandler(_messageHub);
     }
 
     /// <summary>
@@ -36,6 +44,11 @@ public abstract class FlowBase : AbstractFlow
     public void SubscribeToMessages(MessageListenerDelegate messageListener)
     {
         _chatHandler.SubscribeToMessages(messageListener);
+    }
+
+    protected async Task InitDataProcessing()
+    {
+        await _dataHandler.InitDataProcessing();
     }
 
     /// <summary>
