@@ -58,6 +58,28 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
     }
 
     /// <summary>
+    /// Sets the data processor for this flow.
+    /// </summary>
+    /// <typeparam name="TDataProcessor"></typeparam>
+    /// <returns></returns>
+    public Flow<TWorkflow> SetDataProcessor<TDataProcessor>()
+    {
+        _runner.DataProcessorType = typeof(TDataProcessor);
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the data processor for this flow.
+    /// </summary>
+    /// <param name="dataProcessorType"></param>
+    /// <returns></returns>
+    public Flow<TWorkflow> SetDataProcessor(Type dataProcessorType)
+    {
+        _runner.DataProcessorType = dataProcessorType;
+        return this;
+    }
+
+    /// <summary>
     /// Runs this flow.
     /// </summary>
     public async Task RunAsync(RunnerOptions? options)

@@ -16,6 +16,7 @@ public class Runner<TClass> where TClass : class
 {
     private readonly Dictionary<Type, object> _activityProxies = new();
     private readonly List<Type> _capabilities = new();
+    public Type? DataProcessorType { get; set; }
 
 #pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }
