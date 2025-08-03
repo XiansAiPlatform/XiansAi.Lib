@@ -14,7 +14,7 @@ namespace XiansAi.Flow.Router;
 public static class SemanticRouter
 {
 
-    public static async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
+    public static async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
         var response = await Workflow.ExecuteActivityAsync(
@@ -63,7 +63,7 @@ class SemanticRouterImpl
         _llmModelName = Environment.GetEnvironmentVariable("LLM_MODEL_NAME");
     }
 
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor)
+    public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor)
     {
         try
         {
@@ -71,12 +71,15 @@ class SemanticRouterImpl
             {
                 throw new Exception("System prompt is required");
             }
+
+            // intercept the incoming message
             if (interceptor != null)
             {
                 messageThread = await interceptor.InterceptIncomingMessageAsync(messageThread);
             }
-            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
 
+            // initialize the kernel
+            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
             var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
             var settings = new OpenAIPromptExecutionSettings
             {
@@ -85,15 +88,24 @@ class SemanticRouterImpl
                 Temperature = options.Temperature
             };
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-
             var result = await chatCompletionService.GetChatMessageContentAsync(chatHistory, settings, kernel);
+            var response = result.Content ?? string.Empty;
 
-            var response = result.Content;
+            // intercept the response
             if (interceptor != null)
             {
                 response = await interceptor.InterceptOutgoingMessageAsync(messageThread, response);
             }
-            return response ?? string.Empty;
+
+            // if the message thread is set to skip response, return an empty string
+            if (messageThread.SkipResponse)
+            {
+                messageThread.SkipResponse = false;
+                return null;
+            }
+            else {
+                return response;
+            }
         }
         catch (Exception e)
         {

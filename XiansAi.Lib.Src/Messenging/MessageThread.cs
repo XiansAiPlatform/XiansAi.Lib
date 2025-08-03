@@ -71,13 +71,8 @@ public class MessageThread : IMessageThread
         return await SendChatOrData(content, data, MessageType.Data);
     }
 
-    public async Task<string?> SendChat(string content, object? data = null)
+    public async Task<string?> SendChat(string? content, object? data = null)
     {
-        if (SkipResponse)
-        {
-            SkipResponse = false;
-            return null;
-        }
         _logger.LogDebug("Sending chat message: {Content}", content);
         return await SendChatOrData(content, data, MessageType.Chat);
     }

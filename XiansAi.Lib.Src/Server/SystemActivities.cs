@@ -8,7 +8,6 @@ using XiansAi.Knowledge;
 using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
-using System.Text.Json;
 using XiansAi.Flow;
 
 public class SendMessageResponse
@@ -108,7 +107,7 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<string> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
+    public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
         return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor);
@@ -181,14 +180,6 @@ public class SystemActivities
         {
             _logger.LogWarning("App server secure API is not ready, skipping message send operation");
             throw new InvalidOperationException("SecureApi is not ready. Please ensure it is properly initialized.");
-        }
-
-        if (type == MessageType.Chat && string.IsNullOrEmpty(message.Text)) {
-            throw new Exception("Text is required for chat message");
-        }
-
-        if (type == MessageType.Data && message.Data == null) {
-            throw new Exception("Data is required for data message");
         }
 
         try
