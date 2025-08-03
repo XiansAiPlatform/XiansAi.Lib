@@ -28,7 +28,6 @@ public abstract class AbstractFlow
     }
 
 
-
     /// <summary>
     /// Initializes a new instance of the FlowBase class.
     /// </summary>
