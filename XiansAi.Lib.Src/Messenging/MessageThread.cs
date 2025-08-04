@@ -117,8 +117,6 @@ public class MessageThread : IMessageThread
             Agent = Agent
         };
 
-        _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(outgoingMessage));
-
         if (Workflow.InWorkflow)
         {
             var success = await Workflow.ExecuteActivityAsync(

@@ -9,6 +9,7 @@ using XiansAi.Messaging;
 using XiansAi.Models;
 using XiansAi.Flow.Router;
 using XiansAi.Flow;
+using System.Text.Json;
 
 public class SendMessageResponse
 {
@@ -110,10 +111,10 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<object?> ProcessData(MessageThread messageThread, string MethodName, string? parameters)
+    public async Task ProcessData(MessageThread messageThread, string MethodName, string? parameters)
     {
         // do the routing
-        return await DataHandler.ProcessData(_dataProcessorType, messageThread, MethodName, parameters);
+        await DataHandler.ProcessData(_dataProcessorType, messageThread, MethodName, parameters);
     }
 
     [Activity]
@@ -185,6 +186,8 @@ public class SystemActivities
     }
 
     public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
+
+        _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(message));
 
         if (!SecureApi.IsReady)
         {

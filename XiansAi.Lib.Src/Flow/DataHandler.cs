@@ -33,11 +33,9 @@ public class DataHandler
                 _logger.LogDebug("Method name: " + methodName);
                 _logger.LogDebug("Parameters: " + parameters?.ToString());
 
-                var result = await Workflow.ExecuteActivityAsync(
+                await Workflow.ExecuteActivityAsync(
                     (SystemActivities a) => a.ProcessData(messageThread, methodName, parameters),
-                    SystemActivityOptions);
-                
-                await messageThread.SendData(result);
+                    SystemActivityOptions);    
 
             }
             catch (Exception ex)
@@ -68,7 +66,7 @@ public class DataHandler
         return _messageQueue.TryDequeue(out var thread) ? thread : null;
     }
 
-    public static async Task<object?> ProcessData(Type? dataProcessorType, MessageThread messageThread, string methodName, string? parameters)
+    public static async Task ProcessData(Type? dataProcessorType, MessageThread messageThread, string methodName, string? parameters)
     {
         if (dataProcessorType == null)
         {
@@ -86,8 +84,8 @@ public class DataHandler
                 parameters);
 
             _logger.LogDebug($"Result returned from {methodName}: {result}");
-            
-            return result;
+
+            await messageThread.SendData(result);
         }
         catch (Exception ex)
         {
