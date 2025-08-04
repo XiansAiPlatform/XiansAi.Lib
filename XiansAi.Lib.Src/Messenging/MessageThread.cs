@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using System.Text.Json.Serialization;
-using System.Runtime.CompilerServices;
 
 namespace XiansAi.Messaging;
 public interface IMessageThread
@@ -69,13 +68,11 @@ public class MessageThread : IMessageThread
 
     public async Task<string?> SendData(object? data, string? content = null)
     {
-        _logger.LogDebug("Sending data message: {Content}", content);
         return await SendChatOrData(content, data, MessageType.Data);
     }
 
     public async Task<string?> SendChat(string? content, object? data = null)
     {
-        _logger.LogDebug("Sending chat message: {Content}", content);
         return await SendChatOrData(content, data, MessageType.Chat);
     }
 

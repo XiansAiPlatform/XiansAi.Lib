@@ -120,7 +120,7 @@ public class SystemActivities
     public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor);
+        return await new SemanticRouterHub().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor);
     }
 
     [Activity]

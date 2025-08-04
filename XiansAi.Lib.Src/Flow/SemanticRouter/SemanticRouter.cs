@@ -26,7 +26,7 @@ public static class SemanticRouter
 
 }
 
-class SemanticRouterImpl
+public class SemanticRouterHub
 {
 
     static readonly string INCOMING_MESSAGE = "incoming";
@@ -42,9 +42,9 @@ class SemanticRouterImpl
     private readonly string? _llmDeploymentName;
     private readonly string? _llmModelName;
 
-    public SemanticRouterImpl()
+    public SemanticRouterHub()
     {
-        _logger = Globals.LogFactory.CreateLogger<SemanticRouterImpl>();
+        _logger = Globals.LogFactory.CreateLogger<SemanticRouterHub>();
         _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
 
         // The name of the LLM provider, e.g., "openai", "azureopenai"
@@ -63,7 +63,35 @@ class SemanticRouterImpl
         _llmModelName = Environment.GetEnvironmentVariable("LLM_MODEL_NAME");
     }
 
-    public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor)
+
+    public async Task<string?> ChatCompletionAsync(string prompt, RouterOptions? options = null)
+    {
+        try
+        {
+            options = options ?? new RouterOptions();
+            // initialize the kernel
+            var kernel = InitializeKernel(options, []);
+            var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+            var settings = new OpenAIPromptExecutionSettings
+            {
+                FunctionChoiceBehavior = FunctionChoiceBehavior.None(),
+                MaxTokens = options.MaxTokens,
+                Temperature = options.Temperature
+            };
+            var result = await chatCompletionService.GetChatMessageContentAsync(prompt, settings);
+            var response = result.Content ?? string.Empty;
+
+            return response;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error routing message");
+            throw;
+        }
+    }
+
+
+    internal async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor)
     {
         try
         {
@@ -75,7 +103,14 @@ class SemanticRouterImpl
             // intercept the incoming message
             if (interceptor != null)
             {
-                messageThread = await interceptor.InterceptIncomingMessageAsync(messageThread);
+                try
+                {
+                    messageThread = await interceptor.InterceptIncomingMessageAsync(messageThread);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error intercepting incoming message");
+                }
             }
 
             // initialize the kernel
@@ -94,7 +129,14 @@ class SemanticRouterImpl
             // intercept the response
             if (interceptor != null)
             {
-                response = await interceptor.InterceptOutgoingMessageAsync(messageThread, response);
+                try
+                {
+                    response = await interceptor.InterceptOutgoingMessageAsync(messageThread, response);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error intercepting outgoing message");
+                }
             }
 
             // if the message thread is set to skip response, return an empty string
@@ -120,7 +162,7 @@ class SemanticRouterImpl
         if (string.IsNullOrEmpty(workflowType))
         {
             // If no workflow type, create a new non-cached kernel
-            return InitializeCacheable(options, capabilitiesPluginTypes);
+            return InitializeKernel(options, capabilitiesPluginTypes);
         }
 
         // Generate a cache key that includes RouterOptions to avoid configuration conflicts
@@ -134,7 +176,7 @@ class SemanticRouterImpl
                 return cachedKernel;
             }
             _logger.LogDebug("Initializing new kernel for {CacheKey}", cacheKey);
-            var newKernel = InitializeCacheable(options, capabilitiesPluginTypes);
+            var newKernel = InitializeKernel(options, capabilitiesPluginTypes);
             _kernelCache[cacheKey] = newKernel;
             return newKernel;
         }
@@ -164,7 +206,6 @@ class SemanticRouterImpl
 
             if (!(type.IsAbstract && type.IsSealed))
             {
-                _logger.LogDebug("Getting functions from instance type {PluginType}", type.Name);
                 var instance = Activator.CreateInstance(type, new object[] { messageThread }) ?? throw new Exception($"Failed to create instance of {type.Name}");
                 var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
                 kernel.Plugins.TryGetPlugin(type.Name, out var plugin);
@@ -179,7 +220,7 @@ class SemanticRouterImpl
         return kernel;
     }
 
-    private Kernel InitializeCacheable(RouterOptions options, Type[] capabilitiesPluginTypes)
+    private Kernel InitializeKernel(RouterOptions options, Type[] capabilitiesPluginTypes)
     {
          string GetApiKey() =>
             !string.IsNullOrEmpty(options.ApiKey) ? options.ApiKey :
@@ -250,11 +291,9 @@ class SemanticRouterImpl
         // add capabilities plugins
         foreach (var type in capabilitiesPluginTypes)
         {
-
             if (type.IsAbstract && type.IsSealed)
             {
                 // static plugin
-                _logger.LogDebug("Getting functions from static type {PluginType}", type.Name);
                 var functions = PluginReader.GetFunctionsFromStaticType(type);
                 kernel.Plugins.AddFromFunctions(type.Name, functions);
             }
