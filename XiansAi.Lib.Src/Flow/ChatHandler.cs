@@ -120,7 +120,7 @@ public class ChatHandler
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         
         // Route the message to the appropriate flow
-        var response = await SemanticRouter.RouteAsync(messageThread, systemPrompt, RouterOptions, SystemActivityOptions);
+        var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions, SystemActivityOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

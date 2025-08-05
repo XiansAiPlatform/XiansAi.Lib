@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace XiansAi.Flow.Router;
 
 
-public static class SemanticRouter
+public static class SemanticRouterHub
 {
 
     public static async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options, SystemActivityOptions systemActivityOptions)
@@ -24,9 +24,21 @@ public static class SemanticRouter
         return response;
     }
 
+    public static async Task<string?> ChatCompletionAsync(string prompt, RouterOptions? routerOptions = null, SystemActivityOptions? systemActivityOptions = null) {
+        if (Workflow.InWorkflow) {
+            systemActivityOptions = systemActivityOptions ?? new SystemActivityOptions();
+            var response = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.ChatCompletionAsync(prompt, routerOptions),
+                systemActivityOptions);
+
+            return response;   
+        } else {
+            return await new SemanticRouterHubImpl().ChatCompletionAsync(prompt, routerOptions);
+        }
+    }
 }
 
-public class SemanticRouterHub
+internal class SemanticRouterHubImpl
 {
 
     static readonly string INCOMING_MESSAGE = "incoming";
@@ -42,9 +54,9 @@ public class SemanticRouterHub
     private readonly string? _llmDeploymentName;
     private readonly string? _llmModelName;
 
-    public SemanticRouterHub()
+    public SemanticRouterHubImpl()
     {
-        _logger = Globals.LogFactory.CreateLogger<SemanticRouterHub>();
+        _logger = Globals.LogFactory.CreateLogger<SemanticRouterHubImpl>();
         _settings = SettingsService.GetSettingsFromServer().GetAwaiter().GetResult();
 
         // The name of the LLM provider, e.g., "openai", "azureopenai"
