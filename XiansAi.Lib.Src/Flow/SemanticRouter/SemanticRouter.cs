@@ -82,7 +82,7 @@ internal class SemanticRouterHubImpl
         {
             options = options ?? new RouterOptions();
             // initialize the kernel
-            var kernel = InitializeKernel(options, []);
+            var kernel = InitializeKernel(options, [], new KernelPlugins());
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
             var settings = new OpenAIPromptExecutionSettings
             {
@@ -103,7 +103,7 @@ internal class SemanticRouterHubImpl
     }
 
 
-    internal async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor)
+    internal async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, Type[] capabilitiesPluginTypes, RouterOptions options, IChatInterceptor? interceptor, KernelPlugins plugins)
     {
         try
         {
@@ -126,7 +126,7 @@ internal class SemanticRouterHubImpl
             }
 
             // initialize the kernel
-            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread);
+            var kernel = Initialize(messageThread.WorkflowType, options, capabilitiesPluginTypes, messageThread, plugins);
             var chatHistory = await ConstructHistory(messageThread, systemPrompt, options.HistorySizeToFetch);
             var settings = new OpenAIPromptExecutionSettings
             {
@@ -168,13 +168,13 @@ internal class SemanticRouterHubImpl
         }
     }
 
-    private Kernel GetOrCreateCacheableKernel(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes)
+    private Kernel GetOrCreateCacheableKernel(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes, KernelPlugins plugins)
     {
 
         if (string.IsNullOrEmpty(workflowType))
         {
             // If no workflow type, create a new non-cached kernel
-            return InitializeKernel(options, capabilitiesPluginTypes);
+            return InitializeKernel(options, capabilitiesPluginTypes, plugins);
         }
 
         // Generate a cache key that includes RouterOptions to avoid configuration conflicts
@@ -188,7 +188,7 @@ internal class SemanticRouterHubImpl
                 return cachedKernel;
             }
             _logger.LogDebug("Initializing new kernel for {CacheKey}", cacheKey);
-            var newKernel = InitializeKernel(options, capabilitiesPluginTypes);
+            var newKernel = InitializeKernel(options, capabilitiesPluginTypes, plugins);
             _kernelCache[cacheKey] = newKernel;
             return newKernel;
         }
@@ -209,9 +209,9 @@ internal class SemanticRouterHubImpl
         return string.Join("|", keyComponents);
     }
 
-    private Kernel Initialize(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes, MessageThread messageThread)
+    private Kernel Initialize(string workflowType, RouterOptions options, Type[] capabilitiesPluginTypes, MessageThread messageThread, KernelPlugins plugins)
     {
-        var kernel = GetOrCreateCacheableKernel(workflowType, options, capabilitiesPluginTypes);
+        var kernel = GetOrCreateCacheableKernel(workflowType, options, capabilitiesPluginTypes, plugins);
 
         foreach (var type in capabilitiesPluginTypes)
         {
@@ -232,7 +232,7 @@ internal class SemanticRouterHubImpl
         return kernel;
     }
 
-    private Kernel InitializeKernel(RouterOptions options, Type[] capabilitiesPluginTypes)
+    private Kernel InitializeKernel(RouterOptions options, Type[] capabilitiesPluginTypes, KernelPlugins plugins)
     {
          string GetApiKey() =>
             !string.IsNullOrEmpty(options.ApiKey) ? options.ApiKey :
@@ -297,8 +297,12 @@ internal class SemanticRouterHubImpl
         builder.Services.AddLogging(configure => configure.SetMinimumLevel(LogLevel.Information));
 
         var kernel = builder.Build() ?? throw new Exception("Semantic Kernel is not built");
-        // add system plugins
-        kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
+
+        // add date plugin
+        if (plugins.DatePlugin.Enabled) {
+            _logger.LogDebug("Adding Date plugin");
+            kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
+        }
 
         // add capabilities plugins
         foreach (var type in capabilitiesPluginTypes)

@@ -14,8 +14,14 @@ internal interface IBot
 /// <typeparam name="TBot">The bot class type</typeparam>
 public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
 {
+
     internal Bot(Agent agent) : base(agent)
     {
+    }
+
+    public void EnableDatePlugin(KernelPluginOptions? options = null)
+    {
+        _runner.Plugins.DatePlugin = options ?? new KernelPluginOptions();
     }
 
     /// <summary>

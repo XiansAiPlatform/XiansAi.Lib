@@ -23,12 +23,14 @@ public class SystemActivities
     private readonly List<Type> _capabilities = new();
     private readonly IChatInterceptor? _chatInterceptor;
     private readonly Type? _dataProcessorType;
+    private readonly KernelPlugins _plugins;
     
-    public SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor, Type? dataProcessorType)
+    internal SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor, Type? dataProcessorType, KernelPlugins plugins)
     {
         _capabilities = capabilities;
         _chatInterceptor = chatInterceptor;
         _dataProcessorType = dataProcessorType;
+        _plugins = plugins;
     }
 
     [Activity]
@@ -126,7 +128,7 @@ public class SystemActivities
     public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor);
+        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _plugins);
     }
 
     [Activity]
