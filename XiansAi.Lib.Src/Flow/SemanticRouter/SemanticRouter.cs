@@ -17,9 +17,9 @@ public static class SemanticRouterHub
     public static async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options, SystemActivityOptions systemActivityOptions)
     {
         // Go through a Temporal activity to perform IO operations
-        var response = await Workflow.ExecuteActivityAsync(
+        var response = await Workflow.ExecuteLocalActivityAsync(
             (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
-            systemActivityOptions);
+            new SystemLocalActivityOptions());
 
         return response;
     }
@@ -27,9 +27,9 @@ public static class SemanticRouterHub
     public static async Task<string?> ChatCompletionAsync(string prompt, RouterOptions? routerOptions = null, SystemActivityOptions? systemActivityOptions = null) {
         if (Workflow.InWorkflow) {
             systemActivityOptions = systemActivityOptions ?? new SystemActivityOptions();
-            var response = await Workflow.ExecuteActivityAsync(
+            var response = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.ChatCompletionAsync(prompt, routerOptions),
-                systemActivityOptions);
+                new SystemLocalActivityOptions());
 
             return response;   
         } else {

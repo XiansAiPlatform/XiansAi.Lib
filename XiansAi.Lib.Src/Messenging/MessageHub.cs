@@ -59,7 +59,6 @@ public class MessageHub: IMessageHub
     {
         return await SendConversationChatOrData(MessageType.Data, participantId, content, data, requestId, scope);
     }
-
     public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
         return await SendConversationChatOrData(MessageType.Chat, participantId, content, data, requestId, scope);
@@ -82,9 +81,9 @@ public class MessageHub: IMessageHub
 
             if (Workflow.InWorkflow)
             {
-                await Workflow.ExecuteActivityAsync(
+                await Workflow.ExecuteLocalActivityAsync(
                     (SystemActivities a) => a.SendEvent(eventDto),
-                    new ActivityOptions { StartToCloseTimeout = TimeSpan.FromSeconds(60) });
+                    new SystemLocalActivityOptions());
             }
             else
             {
@@ -115,9 +114,9 @@ public class MessageHub: IMessageHub
 
         if (Workflow.InWorkflow)
         {
-            var success = await Workflow.ExecuteActivityAsync(
+            var success = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
-                new SystemActivityOptions());
+                new SystemLocalActivityOptions());
             return success;
         }
         else
@@ -327,7 +326,6 @@ public class MessageHub: IMessageHub
             _logger.LogWarning($"Attempted to unregister non-existent async metadata handler: {handler.Method.Name}");
         }
     }
-
 
     public async Task ReceiveConversationChatOrData(MessageSignal messageSignal)
     {

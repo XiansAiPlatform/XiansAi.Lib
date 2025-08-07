@@ -12,7 +12,7 @@ public delegate Task MessageListenerDelegate(MessageThread messageThread);
 /// <summary>
 /// Handles chat message processing and conversation management for flows
 /// </summary>
-public class ChatHandler
+public class ChatHandler : SafeHandler
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<ChatHandler> _logger = Logger<ChatHandler>.For();
@@ -66,35 +66,27 @@ public class ChatHandler
     /// <summary>
     /// Starts listening for user messages and processing them
     /// </summary>
-    public async Task StartListening()
+    public async Task InitConversation()
     {
         if (_systemPromptProvider == null)
         {
             throw new InvalidOperationException("System prompt provider has not been set. Set SystemPrompt or SystemPromptName first.");
         }
-
-        await ListenToUserMessages();
-    }
-
-    private async Task ListenToUserMessages()
-    {
         while (true)
         {
+            MessageThread? messageThread = null;
             try 
             {
-                _logger.LogDebug("ChatHandler is waiting for a message");
-                // Wait for a message to be added to the queue
-                await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0);
-
                 // Get the message from the queue
-                var thread = _messageQueue.Dequeue();
+                messageThread = await DequeueMessage();
+                if (messageThread == null) continue;
                 
                 // Invoke the message listener if provided
                 if (_messageListener != null)
                 {
                     try 
                     {
-                        await _messageListener(thread);
+                        await _messageListener(messageThread);
                     }
                     catch (Exception ex)
                     {
@@ -106,13 +98,34 @@ public class ChatHandler
                 var systemPrompt = await _systemPromptProvider!();
 
                 // Asynchronously process the message
-                await ProcessMessage(thread, systemPrompt);
+                await ProcessMessage(messageThread, systemPrompt);
+
+            }
+            catch (ContinueAsNewException)
+            {
+                _logger.LogDebug("ChatHandler is continuing as new");
+                throw;
             }
             catch (Exception ex)
             {
                 _logger.LogError("Error processing message", ex);
             }
         }
+    }
+
+    private async Task<MessageThread?> DequeueMessage()
+    {
+        _logger.LogDebug("Waiting for message...");
+        await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0 || ShouldContinueAsNew);
+
+        if (ShouldContinueAsNew)
+        {
+            // Check if we should continue as new
+            ContinueAsNew();
+        }
+
+        _logger.LogDebug("Message received");
+        return _messageQueue.TryDequeue(out var thread) ? thread : null;
     }
 
     private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)

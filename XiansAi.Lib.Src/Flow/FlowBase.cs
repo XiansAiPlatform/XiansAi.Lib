@@ -56,7 +56,7 @@ public abstract class FlowBase : AbstractFlow
     /// </summary>
     protected async Task InitConversation()
     {
-        await _chatHandler.StartListening();
+        await _chatHandler.InitConversation();
     }
 
     /// <summary>

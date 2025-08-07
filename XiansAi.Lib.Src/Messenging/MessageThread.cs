@@ -119,9 +119,9 @@ public class MessageThread : IMessageThread
 
         if (Workflow.InWorkflow)
         {
-            var success = await Workflow.ExecuteActivityAsync(
+            var success = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
-                new SystemActivityOptions());
+                new SystemLocalActivityOptions());
             return success;
         }
         else
@@ -162,9 +162,9 @@ public class MessageThread : IMessageThread
 
         if (Workflow.InWorkflow)
         {
-            var success = await Workflow.ExecuteActivityAsync(
+            var success = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.SendHandoff(outgoingMessage),
-                new SystemActivityOptions());
+                new SystemLocalActivityOptions());
             return success;
         }
         else
@@ -207,9 +207,9 @@ public class MessageThread : IMessageThread
 
         _logger.LogDebug("Sending over thread: {Message}", JsonSerializer.Serialize(outgoingChatOrDataMessage));
         if (Workflow.InWorkflow) {
-            var success = await Workflow.ExecuteActivityAsync(
+            var success = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage),
-                new SystemActivityOptions());
+                new SystemLocalActivityOptions());
             return success;
         } else {
             var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage);

@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Server;
 using Temporalio.Activities;
-using Temporalio.Common;
 using Temporalio.Workflows;
 using XiansAi.Knowledge;
 using XiansAi.Messaging;
@@ -10,6 +9,7 @@ using XiansAi.Models;
 using XiansAi.Flow.Router;
 using XiansAi.Flow;
 using System.Text.Json;
+using Temporal;
 
 public class SendMessageResponse
 {
@@ -31,6 +31,11 @@ public class SystemActivities
         _chatInterceptor = chatInterceptor;
         _dataProcessorType = dataProcessorType;
         _plugins = plugins;
+    }
+
+    [Activity]
+    public async Task<object?> SendUpdateWithStart(string workflow, string update, params object?[] args) {
+        return await UpdateServiceImpl.SendUpdateWithStart(workflow, update, args);
     }
 
     [Activity]
@@ -264,15 +269,16 @@ public class SystemActivities
 
 public class SystemActivityOptions : ActivityOptions
 {
-    public SystemActivityOptions()
+    public SystemActivityOptions(int timeoutSeconds = 60)
     {
-        StartToCloseTimeout = TimeSpan.FromSeconds(60);
-        RetryPolicy = new RetryPolicy
-        {
-            InitialInterval = TimeSpan.FromSeconds(1),
-            MaximumInterval = TimeSpan.FromSeconds(10),
-            MaximumAttempts = 5,
-            BackoffCoefficient = 2
-        };
+        ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
+    }
+}
+
+public class SystemLocalActivityOptions : LocalActivityOptions
+{
+    public SystemLocalActivityOptions(int timeoutSeconds = 60)
+    {
+        ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
     }
 }

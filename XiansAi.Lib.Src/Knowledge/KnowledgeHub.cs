@@ -8,9 +8,9 @@ public static class KnowledgeHub
     {
         if (Workflow.InWorkflow) {
             // Go through a Temporal activity to perform IO operations
-            var response = await Workflow.ExecuteActivityAsync(
+            var response = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.GetKnowledgeAsync(knowledgeName),
-                new SystemActivityOptions());
+                new SystemLocalActivityOptions());
 
             return response;
         } else {
@@ -25,9 +25,9 @@ public static class KnowledgeHub
         {
             if (Workflow.InWorkflow) {
             // Go through a Temporal activity to perform IO operations
-            var response = await Workflow.ExecuteActivityAsync(
+            var response = await Workflow.ExecuteLocalActivityAsync(
                 (SystemActivities a) => a.UpdateKnowledgeAsync(knowledgeName, knowledgeType, knowledgeContent),
-                new SystemActivityOptions());
+                new SystemLocalActivityOptions());
 
             return response;
         } else {

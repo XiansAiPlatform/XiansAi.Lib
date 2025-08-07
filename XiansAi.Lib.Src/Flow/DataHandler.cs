@@ -4,7 +4,7 @@ using XiansAi.Logging;
 using XiansAi.Messaging;
 
 namespace XiansAi.Flow;
-public class DataHandler
+public class DataHandler: SafeHandler
 {
     private readonly IMessageHub _messageHub;
     private readonly ConcurrentQueue<MessageThread> _messageQueue = new();
@@ -30,13 +30,16 @@ public class DataHandler
 
                 var methodName = messageThread.LatestMessage.Content;
                 var parameters = messageThread.LatestMessage.Data?.ToString();
-                _logger.LogDebug("Method name: " + methodName);
-                _logger.LogDebug("Parameters: " + parameters?.ToString());
 
-                await Workflow.ExecuteActivityAsync(
+                await Workflow.ExecuteLocalActivityAsync(
                     (SystemActivities a) => a.ProcessData(messageThread, methodName, parameters),
-                    SystemActivityOptions);    
+                    new SystemLocalActivityOptions());    
 
+            }
+            catch (ContinueAsNewException)
+            {
+                _logger.LogDebug("DataHandler is continuing as new");
+                throw;
             }
             catch (Exception ex)
             {
@@ -61,7 +64,14 @@ public class DataHandler
     private async Task<MessageThread?> DequeueMessage()
     {
         _logger.LogDebug("Waiting for message...");
-        await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0);
+        await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0 || ShouldContinueAsNew);
+
+        if (ShouldContinueAsNew)
+        {
+            // Check if we should continue as new
+            ContinueAsNew();
+        }
+
         _logger.LogDebug("Message received");
         return _messageQueue.TryDequeue(out var thread) ? thread : null;
     }
