@@ -26,8 +26,6 @@ public class ChatHandler : SafeHandler
     public ChatHandler(IMessageHub messageHub)
     {
         _messageHub = messageHub;
-        // Register the message handler
-        _messageHub.SubscribeChatHandler(_messageQueue.Enqueue);
     }
 
     /// <summary>
@@ -68,6 +66,9 @@ public class ChatHandler : SafeHandler
     /// </summary>
     public async Task InitConversation()
     {
+        _logger.LogDebug("Subscribing to chat handler");
+        _messageHub.SubscribeChatHandler(_messageQueue.Enqueue);
+        
         if (_systemPromptProvider == null)
         {
             throw new InvalidOperationException("System prompt provider has not been set. Set SystemPrompt or SystemPromptName first.");

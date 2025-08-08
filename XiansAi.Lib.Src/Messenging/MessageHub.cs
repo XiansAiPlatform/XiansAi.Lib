@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Temporal;
 using Temporalio.Workflows;
 using XiansAi.Logging;
 
@@ -62,6 +63,11 @@ public class MessageHub: IMessageHub
     public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
         return await SendConversationChatOrData(MessageType.Chat, participantId, content, data, requestId, scope);
+    }
+
+    public static async Task<TResult?> SendFlowUpdate<TResult>(Type flowClassType, string update, params object?[] args) 
+    {
+        return await UpdateService.SendUpdateWithStart<TResult>(flowClassType, update, args);
     }
 
     public static async Task SendFlowMessage(Type flowClassType, object? payload = null) {

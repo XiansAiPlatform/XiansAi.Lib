@@ -15,6 +15,12 @@ public class SendMessageResponse
 {
     public required string[] MessageIds { get; set; }
 }
+    
+public class ProcessDataSettings
+{
+    public required bool ShouldProcessDataInWorkflow { get; set; }
+    public required string? DataProcessorTypeName { get; set; }
+}
 
 public class SystemActivities
 {
@@ -23,13 +29,15 @@ public class SystemActivities
     private readonly List<Type> _capabilities = new();
     private readonly IChatInterceptor? _chatInterceptor;
     private readonly Type? _dataProcessorType;
+    private readonly bool _processDataInWorkflow;
     private readonly KernelPlugins _plugins;
     
-    internal SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor, Type? dataProcessorType, KernelPlugins plugins)
+    internal SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor, Type? dataProcessorType, bool processDataInWorkflow, KernelPlugins plugins)
     {
         _capabilities = capabilities;
         _chatInterceptor = chatInterceptor;
         _dataProcessorType = dataProcessorType;
+        _processDataInWorkflow = processDataInWorkflow;
         _plugins = plugins;
     }
 
@@ -123,10 +131,24 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task ProcessData(MessageThread messageThread, string MethodName, string? parameters)
+    public ProcessDataSettings GetProcessDataSettings()
     {
+        return new ProcessDataSettings {
+            ShouldProcessDataInWorkflow = _processDataInWorkflow,
+            DataProcessorTypeName = _dataProcessorType?.AssemblyQualifiedName
+        };
+    }
+
+    [Activity]
+    public async Task ProcessData(MessageThread messageThread, string methodName, string? parameters)
+    {
+        if (_processDataInWorkflow)
+        {
+            throw new InvalidOperationException("Data processing is set to process in workflow, but this activity is not in workflow");
+        }
+        
         // do the routing
-        await DataHandler.ProcessData(_dataProcessorType, messageThread, MethodName, parameters);
+        await DataHandler.ProcessData(_dataProcessorType, messageThread, methodName, parameters);
     }
 
     [Activity]

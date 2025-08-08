@@ -62,9 +62,10 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
     /// </summary>
     /// <typeparam name="TDataProcessor"></typeparam>
     /// <returns></returns>
-    public Flow<TWorkflow> SetDataProcessor<TDataProcessor>()
+    public Flow<TWorkflow> SetDataProcessor<TDataProcessor>(bool processInWorkflow = false)
     {
         _runner.DataProcessorType = typeof(TDataProcessor);
+        _runner.ProcessDataInWorkflow = processInWorkflow;
         return this;
     }
 

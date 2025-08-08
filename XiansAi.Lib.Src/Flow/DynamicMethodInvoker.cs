@@ -249,7 +249,7 @@ public static class DynamicMethodInvoker
         if (jsonElement.ValueKind == JsonValueKind.Null)
         {
             return targetType.IsValueType && Nullable.GetUnderlyingType(targetType) == null 
-                ? throw new ArgumentException($"Cannot assign null to non-nullable type {targetType.Name}")
+                ? throw new DynamicInvokerException($"Cannot assign null to non-nullable type {targetType.Name}")
                 : null;
         }
 
@@ -315,7 +315,7 @@ public static class DynamicMethodInvoker
                 return JsonSerializer.Deserialize(json, targetType, _jsonOptions);
             }
 
-            throw new NotSupportedException($"Conversion from JsonElement to {targetType.Name} is not supported");
+            throw new DynamicInvokerException($"Conversion from JsonElement to {targetType.Name} is not supported");
         }
         catch (Exception ex)
         {
@@ -325,36 +325,42 @@ public static class DynamicMethodInvoker
     }
 }
 
+public class DynamicInvokerException : Exception
+{
+    public DynamicInvokerException(string message) : base(message) { }
+    public DynamicInvokerException(string message, Exception innerException) : base(message, innerException) { }
+}
+
 // Custom exceptions for better error handling
-public class MethodInvocationException : Exception
+public class MethodInvocationException : DynamicInvokerException
 {
     public MethodInvocationException(string message) : base(message) { }
     public MethodInvocationException(string message, Exception innerException) : base(message, innerException) { }
 }
 
-public class InstanceCreationException : Exception
+public class InstanceCreationException : DynamicInvokerException
 {
     public InstanceCreationException(string message) : base(message) { }
     public InstanceCreationException(string message, Exception innerException) : base(message, innerException) { }
 }
 
-public class MethodNotFoundException : Exception
+public class MethodNotFoundException : DynamicInvokerException
 {
     public MethodNotFoundException(string message) : base(message) { }
 }
 
-public class ParameterParsingException : Exception
+public class ParameterParsingException : DynamicInvokerException
 {
     public ParameterParsingException(string message) : base(message) { }
     public ParameterParsingException(string message, Exception innerException) : base(message, innerException) { }
 }
 
-public class MethodMatchException : Exception
+public class MethodMatchException : DynamicInvokerException
 {
     public MethodMatchException(string message) : base(message) { }
 }
 
-public class TypeConversionException : Exception
+public class TypeConversionException : DynamicInvokerException
 {
     public TypeConversionException(string message) : base(message) { }
     public TypeConversionException(string message, Exception innerException) : base(message, innerException) { }
