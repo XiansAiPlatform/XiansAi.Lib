@@ -28,21 +28,7 @@ public class DataHandler : SafeHandler
             (SystemActivities a) => a.GetProcessDataSettings(),
             new SystemLocalActivityOptions());
 
-        _logger.LogDebug($"Process data information starting data processing: {processDataInformation.DataProcessorTypeName}, {processDataInformation.ShouldProcessDataInWorkflow}");
-
-        if (processDataInformation.DataProcessorTypeName == null)
-        {
-            throw new Exception("Data processor type is not set for this flow. Use `flow.SetDataProcessor<DataProcessor>(bool)` to set the data processor type.");
-        }
-        var dataProcessorType = Type.GetType(processDataInformation.DataProcessorTypeName)
-            ?? AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => a.GetTypes())
-                .FirstOrDefault(t => t.FullName == processDataInformation.DataProcessorTypeName);
-        
-        if (dataProcessorType == null)
-        {
-            throw new Exception($"Data processor type {processDataInformation.DataProcessorTypeName} not found");
-        }
+        Type? dataProcessorType = GetProcessorType(processDataInformation);
 
         while (true)
         {
@@ -94,6 +80,27 @@ public class DataHandler : SafeHandler
                 }
             }
         }
+    }
+
+    private static Type GetProcessorType(ProcessDataSettings processDataInformation)
+    {
+        _logger.LogDebug($"Process data information starting data processing: {processDataInformation.DataProcessorTypeName}, {processDataInformation.ShouldProcessDataInWorkflow}");
+
+        if (processDataInformation.DataProcessorTypeName == null)
+        {
+            throw new Exception("Data processor type is not set for this flow. Use `flow.SetDataProcessor<DataProcessor>(bool)` to set the data processor type.");
+        }
+        var dataProcessorType = Type.GetType(processDataInformation.DataProcessorTypeName)
+            ?? AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(a => a.GetTypes())
+                .FirstOrDefault(t => t.FullName == processDataInformation.DataProcessorTypeName);
+
+        if (dataProcessorType == null)
+        {
+            throw new Exception($"Data processor type {processDataInformation.DataProcessorTypeName} not found");
+        }
+
+        return dataProcessorType;
     }
 
     private async Task<MessageThread?> DequeueMessage()

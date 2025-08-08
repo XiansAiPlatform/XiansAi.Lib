@@ -28,7 +28,9 @@ public class Runner<TClass> where TClass : class
     private readonly List<Type> _capabilities = new();
     public Type? DataProcessorType { get; set; }
     public bool ProcessDataInWorkflow { get; set; } = false;
-
+    public Type? ScheduleProcessorType { get; set; }
+    public bool ProcessScheduleInWorkflow { get; set; } = false;
+    
 #pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }
     public FlowInfo? FlowInfo { get; private set; }
@@ -80,6 +82,12 @@ public class Runner<TClass> where TClass : class
     public Runner<TClass> AddBotCapabilities(Type capabilityClass)
     {
         _capabilities.Add(capabilityClass);
+        return this;
+    }
+
+    public Runner<TClass> SetScheduleProcessor<TProcessor>()
+    {
+        ScheduleProcessorType = typeof(TProcessor);
         return this;
     }
 

@@ -22,6 +22,12 @@ public class ProcessDataSettings
     public required string? DataProcessorTypeName { get; set; }
 }
 
+public class ScheduleSettings
+{
+    public required string? ScheduleProcessorTypeName { get; set; }
+    public required bool ShouldProcessScheduleInWorkflow { get; set; }
+}
+
 public class SystemActivities
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
@@ -30,15 +36,19 @@ public class SystemActivities
     private readonly IChatInterceptor? _chatInterceptor;
     private readonly Type? _dataProcessorType;
     private readonly bool _processDataInWorkflow;
+    private readonly Type? _scheduleProcessorType;
+    private readonly bool _processScheduleInWorkflow;
     private readonly KernelPlugins _plugins;
     
-    internal SystemActivities(List<Type> capabilities, IChatInterceptor? chatInterceptor, Type? dataProcessorType, bool processDataInWorkflow, KernelPlugins plugins)
+    internal SystemActivities(dynamic flow)
     {
-        _capabilities = capabilities;
-        _chatInterceptor = chatInterceptor;
-        _dataProcessorType = dataProcessorType;
-        _processDataInWorkflow = processDataInWorkflow;
-        _plugins = plugins;
+        _capabilities = flow.Capabilities;
+        _chatInterceptor = flow.ChatInterceptor;
+        _dataProcessorType = flow.DataProcessorType;
+        _processDataInWorkflow = flow.ProcessDataInWorkflow;
+        _scheduleProcessorType = flow.ScheduleProcessorType;
+        _processScheduleInWorkflow = flow.ProcessScheduleInWorkflow;
+        _plugins = flow.Plugins;
     }
 
     [Activity]
@@ -131,12 +141,27 @@ public class SystemActivities
     }
 
     [Activity]
+    public ScheduleSettings GetScheduleSettings()
+    {
+        return new ScheduleSettings {
+            ScheduleProcessorTypeName = _scheduleProcessorType?.AssemblyQualifiedName,
+            ShouldProcessScheduleInWorkflow = _processScheduleInWorkflow
+        };
+    }
+
+    [Activity]
     public ProcessDataSettings GetProcessDataSettings()
     {
         return new ProcessDataSettings {
             ShouldProcessDataInWorkflow = _processDataInWorkflow,
             DataProcessorTypeName = _dataProcessorType?.AssemblyQualifiedName
         };
+    }
+
+    [Activity]
+    public string InvokeScheduledMethod(string processorTypeName, string methodName)
+    {
+        return ScheduleHandler.InvokeScheduledMethod(processorTypeName, methodName);
     }
 
     [Activity]

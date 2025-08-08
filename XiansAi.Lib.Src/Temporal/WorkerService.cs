@@ -93,7 +93,7 @@ internal class WorkerService
             options.AddAllActivities(stub.Key, stub.Value);
         }
         // Add all activities from the SystemActivities class
-        options.AddAllActivities(new SystemActivities(flow.Capabilities, flow.ChatInterceptor, flow.DataProcessorType, flow.ProcessDataInWorkflow, flow.Plugins));
+        options.AddAllActivities(new SystemActivities(flow));
 
         var worker = new TemporalWorker(
             client,

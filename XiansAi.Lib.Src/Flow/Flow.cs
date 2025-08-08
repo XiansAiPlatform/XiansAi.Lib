@@ -69,6 +69,13 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
         return this;
     }
 
+    public Flow<TWorkflow> SetScheduleProcessor<TProcessor>(bool processInWorkflow = false)
+    {
+        _runner.ScheduleProcessorType = typeof(TProcessor);
+        _runner.ProcessScheduleInWorkflow = processInWorkflow;
+        return this;
+    }
+
     /// <summary>
     /// Sets the data processor for this flow.
     /// </summary>

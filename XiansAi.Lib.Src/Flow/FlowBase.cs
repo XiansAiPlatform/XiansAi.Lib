@@ -6,7 +6,7 @@ public abstract class FlowBase : AbstractFlow
 {
     protected readonly ChatHandler _chatHandler;
     protected readonly DataHandler _dataHandler;
-
+    protected readonly ScheduleHandler _scheduleHandler;
     public RouterOptions RouterOptions 
     { 
         get => _chatHandler.RouterOptions; 
@@ -35,6 +35,7 @@ public abstract class FlowBase : AbstractFlow
     {
         _chatHandler = new ChatHandler(_messageHub);
         _dataHandler = new DataHandler(_messageHub);
+        _scheduleHandler = new ScheduleHandler();
     }
 
     /// <summary>
@@ -49,6 +50,11 @@ public abstract class FlowBase : AbstractFlow
     protected async Task InitDataProcessing()
     {
         await _dataHandler.InitDataProcessing();
+    }
+
+    protected async Task InitSchedule()
+    {
+        await _scheduleHandler.InitSchedule();
     }
 
     /// <summary>
