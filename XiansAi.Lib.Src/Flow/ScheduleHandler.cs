@@ -1,6 +1,8 @@
 using System.Reflection;
 using Temporalio.Workflows;
 using XiansAi.Logging;
+using NCrontab;
+using XiansAi.Knowledge;
 
 public class ScheduleHandler : SafeHandler
 {
@@ -92,7 +94,7 @@ public class ScheduleHandler : SafeHandler
             try
             {
                 // Calculate the next execution delay based on the method's schedule attributes
-                var delay = GetDelayFromMethodAttribute(method);
+                var delay = await GetDelayFromMethodAttributeAsync(method);
                 
                 _logger.LogDebug($"Next execution for {method.Name} in {delay.TotalMinutes:F2} minutes");
                 
@@ -195,7 +197,7 @@ public class ScheduleHandler : SafeHandler
     }
 
     // Utility method to get delay based on method attributes
-    public static TimeSpan GetDelayFromMethodAttribute(MethodInfo method)
+    public static async Task<TimeSpan> GetDelayFromMethodAttributeAsync(MethodInfo method)
     {
         if (method == null) return TimeSpan.FromHours(1);
 
@@ -227,7 +229,20 @@ public class ScheduleHandler : SafeHandler
             return intervalAttr.Interval;
         }
 
+        // Check for CronScheduleAttribute
+        var cronAttr = method.GetCustomAttribute<CronScheduleAttribute>();
+        if (cronAttr != null)
+        {
+            return await GetNextCronDelayAsync(DateTime.UtcNow, cronAttr);
+        }
+
         return TimeSpan.FromHours(1); // Default
+    }
+
+    // Legacy synchronous method for backward compatibility
+    public static TimeSpan GetDelayFromMethodAttribute(MethodInfo method)
+    {
+        return GetDelayFromMethodAttributeAsync(method).GetAwaiter().GetResult();
     }
 
     // Method to get next execution time based on schedule type
@@ -310,6 +325,53 @@ public class ScheduleHandler : SafeHandler
         var targetDateTime = DateOnly.FromDateTime(nextBusinessDay).ToDateTime(targetTime);
         return targetDateTime - now;
     }
+
+    private static async Task<TimeSpan> GetNextCronDelayAsync(DateTime now, CronScheduleAttribute cronAttr)
+    {
+        string cronExpression;
+        
+        if (cronAttr.IsKnowledgeBased)
+        {
+            try
+            {
+                var knowledge = await KnowledgeHub.Fetch(cronAttr.KnowledgeName!);
+                if (knowledge == null)
+                {
+                    throw new InvalidOperationException($"Knowledge '{cronAttr.KnowledgeName}' not found");
+                }
+                
+                cronExpression = knowledge.Content?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(cronExpression))
+                {
+                    throw new InvalidOperationException($"Knowledge '{cronAttr.KnowledgeName}' contains empty or null cron expression");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to fetch cron expression from knowledge '{cronAttr.KnowledgeName}': {ex.Message}", ex);
+            }
+        }
+        else
+        {
+            cronExpression = cronAttr.CronExpression!;
+        }
+        
+        return GetNextCronDelay(now, cronExpression);
+    }
+
+    private static TimeSpan GetNextCronDelay(DateTime now, string cronExpression)
+    {
+        try
+        {
+            var schedule = CrontabSchedule.Parse(cronExpression);
+            var nextOccurrence = schedule.GetNextOccurrence(now);
+            return nextOccurrence - now;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Invalid cron expression '{cronExpression}': {ex.Message}", ex);
+        }
+    }
 }
 
 public enum ScheduleType
@@ -384,5 +446,62 @@ public class MonthlyScheduleAttribute : ScheduleBaseAttribute
     {
         DayOfMonth = dayOfMonth;
         Time = time;
+    }
+}
+
+[AttributeUsage(AttributeTargets.Method)]
+public class CronScheduleAttribute : ScheduleBaseAttribute
+{
+    public string? CronExpression { get; }
+    public string? KnowledgeName { get; }
+    public bool IsKnowledgeBased { get; }
+    
+    /// <summary>
+    /// Initializes a new instance of the CronScheduleAttribute with the specified cron expression.
+    /// </summary>
+    /// <param name="cronExpression">
+    /// The cron expression defining the schedule. Format: "minute hour day-of-month month day-of-week"
+    /// Examples:
+    /// - "0 9 * * *" = Every day at 9:00 AM
+    /// - "30 14 * * 1-5" = Every weekday at 2:30 PM
+    /// - "0 0 1 * *" = First day of every month at midnight
+    /// - "*/15 * * * *" = Every 15 minutes
+    /// </param>
+    public CronScheduleAttribute(string cronExpression)
+    {
+        if (string.IsNullOrWhiteSpace(cronExpression))
+        {
+            throw new ArgumentException("Cron expression cannot be null or empty", nameof(cronExpression));
+        }
+        
+        CronExpression = cronExpression;
+        IsKnowledgeBased = false;
+    }
+    
+    /// <summary>
+    /// Initializes a new instance of the CronScheduleAttribute that fetches the cron expression from KnowledgeHub.
+    /// </summary>
+    /// <param name="knowledgeName">
+    /// The name of the knowledge entry containing the cron expression.
+    /// The knowledge content should be a valid cron expression string.
+    /// </param>
+    /// <param name="knowledgeBased">
+    /// Must be set to true to use knowledge-based mode. This parameter exists to differentiate 
+    /// between the string constructor and knowledge-based constructor.
+    /// </param>
+    public CronScheduleAttribute(string knowledgeName, bool knowledgeBased)
+    {
+        if (!knowledgeBased)
+        {
+            throw new ArgumentException("For knowledge-based cron schedules, knowledgeBased parameter must be true", nameof(knowledgeBased));
+        }
+        
+        if (string.IsNullOrWhiteSpace(knowledgeName))
+        {
+            throw new ArgumentException("Knowledge name cannot be null or empty", nameof(knowledgeName));
+        }
+        
+        KnowledgeName = knowledgeName;
+        IsKnowledgeBased = true;
     }
 }
