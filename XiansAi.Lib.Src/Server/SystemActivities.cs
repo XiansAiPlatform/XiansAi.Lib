@@ -161,7 +161,7 @@ public class SystemActivities
     [Activity]
     public string InvokeScheduledMethod(string processorTypeName, string methodName)
     {
-        return ScheduleHandler.InvokeScheduledMethod(processorTypeName, methodName);
+        return ScheduleHandler.InvokeScheduledMethod(processorTypeName, methodName, []);
     }
 
     [Activity]
@@ -173,7 +173,7 @@ public class SystemActivities
         }
         
         // do the routing
-        await DataHandler.ProcessData(_dataProcessorType, messageThread, methodName, parameters);
+        await DataHandler.ProcessDataStatic(_dataProcessorType, messageThread, null,methodName, parameters);
     }
 
     [Activity]

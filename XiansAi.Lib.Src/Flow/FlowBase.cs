@@ -34,8 +34,8 @@ public abstract class FlowBase : AbstractFlow
     public FlowBase() : base()  
     {
         _chatHandler = new ChatHandler(_messageHub);
-        _dataHandler = new DataHandler(_messageHub);
-        _scheduleHandler = new ScheduleHandler();
+        _dataHandler = new DataHandler(_messageHub, this);
+        _scheduleHandler = new ScheduleHandler(this);
     }
 
     /// <summary>

@@ -111,7 +111,7 @@ public class Runner<TClass> where TClass : class
         where TActivity : class
     {
 
-        var activity = Activator.CreateInstance(typeof(TActivity), args);
+        var activity = TypeActivator.CreateWithOptionalArgs(typeof(TActivity), args);
 
         if (activity == null)
         {

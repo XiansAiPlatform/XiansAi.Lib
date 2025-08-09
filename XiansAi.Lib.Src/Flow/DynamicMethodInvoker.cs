@@ -34,7 +34,7 @@ public static class DynamicMethodInvoker
     /// <returns>Result of the method invocation</returns>
     public static async Task<object?> InvokeMethodAsync(
         Type targetType, 
-        MessageThread messageThread, 
+        object[] constructorArgs, 
         string methodName, 
         string? parametersJson)
     {
@@ -43,7 +43,7 @@ public static class DynamicMethodInvoker
             _logger.LogDebug($"Invoking method {methodName} on type {targetType.Name} with parameters: {parametersJson}");
 
             // Create instance with MessageThread constructor parameter
-            var instance = CreateInstance(targetType, messageThread);
+            var instance = CreateInstance(targetType, constructorArgs);
             
             // Get method and parameters
             var (method, parameters) = PrepareMethodInvocation(targetType, methodName, parametersJson);
@@ -90,34 +90,11 @@ public static class DynamicMethodInvoker
         }
     }
 
-    private static object CreateInstance(Type targetType, MessageThread messageThread)
+    private static object CreateInstance(Type targetType, object[] constructorArgs)
     {
         try
         {
-            // Try constructor with MessageThread parameter
-            var constructors = targetType.GetConstructors();
-            
-            var messageThreadConstructor = constructors.FirstOrDefault(c =>
-            {
-                var parameters = c.GetParameters();
-                return parameters.Length == 1 && 
-                       (parameters[0].ParameterType == typeof(MessageThread) ||
-                        parameters[0].ParameterType == typeof(IMessageThread));
-            });
-
-            if (messageThreadConstructor != null)
-            {
-                return Activator.CreateInstance(targetType, messageThread)!;
-            }
-
-            // Try parameterless constructor
-            var parameterlessConstructor = constructors.FirstOrDefault(c => c.GetParameters().Length == 0);
-            if (parameterlessConstructor != null)
-            {
-                return Activator.CreateInstance(targetType)!;
-            }
-
-            throw new InvalidOperationException($"No suitable constructor found for type '{targetType.Name}'");
+            return TypeActivator.CreateWithOptionalArgs(targetType, constructorArgs);
         }
         catch (Exception ex)
         {

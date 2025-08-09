@@ -3,13 +3,16 @@ using Temporalio.Workflows;
 using XiansAi.Logging;
 using NCrontab;
 using XiansAi.Knowledge;
+using XiansAi.Flow;
 
-public class ScheduleHandler : SafeHandler
+public class ScheduleHandler: SafeHandler
 {
     private readonly Logger<ScheduleHandler> _logger = Logger<ScheduleHandler>.For();
+    private readonly FlowBase _flow;
 
-    public ScheduleHandler()
+    public ScheduleHandler(FlowBase flow)
     {
+        _flow = flow;
     }
 
     public async Task InitSchedule()
@@ -103,10 +106,18 @@ public class ScheduleHandler : SafeHandler
 
                 if (processInWorkflow)
                 {
+                    _logger.LogDebug($"Invoking scheduled method {method.Name} in workflow");
                     InvokeScheduledMethod(processorType, method);
                 }
                 else
                 {
+                    // IF processorType constructor has arguments, throw error
+                    if (processorType.GetConstructors().Any(c => c.GetParameters().Length > 0))
+                    {
+                        throw new InvalidOperationException($"Processor type {processorType.Name} has a constructor with arguments, but it is not supported in activity mode");
+                    }
+                    
+                    _logger.LogDebug($"Invoking scheduled method {method.Name} in activity");
                     if (processorType.AssemblyQualifiedName == null)
                     {
                         throw new InvalidOperationException($"Processor type {processorType.Name} has no assembly qualified name");
@@ -133,7 +144,7 @@ public class ScheduleHandler : SafeHandler
         }
     }
 
-    public static string InvokeScheduledMethod(string processorTypeName, string methodName)
+    public static string InvokeScheduledMethod(string processorTypeName, string methodName, params object[] args)
     {
         var processorType = Type.GetType(processorTypeName)
             ?? AppDomain.CurrentDomain.GetAssemblies()
@@ -149,16 +160,29 @@ public class ScheduleHandler : SafeHandler
             throw new InvalidOperationException($"Method {methodName} not found in {processorTypeName}");
         }
         
-        return InvokeScheduledMethod(processorType, method);
+        return InvokeScheduledMethod(processorType, method, args);
     }
 
-    public static string InvokeScheduledMethod(Type processorType, MethodInfo method)
+    public string InvokeScheduledMethod(Type processorType, MethodInfo method) {
+        try
+        {
+            // Create an instance of the processor
+            return InvokeScheduledMethod(processorType, method, [_flow]);
+        }
+        catch (Exception ex)
+        {
+            var error = $"Error invoking {method.Name}: {ex.Message}";
+            throw new InvalidOperationException(error, ex);
+        }
+    }
+
+    public static string InvokeScheduledMethod(Type processorType, MethodInfo method, params object[] args)
     {
         object? processor = null;
         try
         {
-            // Create an instance of the processor
-            processor = Activator.CreateInstance(processorType);
+            // Create an instance of the processor (use args if matching ctor exists; otherwise fallback)
+            processor = TypeActivator.CreateWithOptionalArgs(processorType, args);
             
             if (processor == null)
             {

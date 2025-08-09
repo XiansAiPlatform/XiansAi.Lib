@@ -7,6 +7,7 @@ using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Server;
 using Microsoft.Extensions.DependencyInjection;
+using XiansAi.Flow;
 
 namespace XiansAi.Flow.Router;
 
@@ -218,7 +219,7 @@ internal class SemanticRouterHubImpl
 
             if (!(type.IsAbstract && type.IsSealed))
             {
-                var instance = Activator.CreateInstance(type, new object[] { messageThread }) ?? throw new Exception($"Failed to create instance of {type.Name}");
+                var instance = TypeActivator.CreateWithOptionalArgs(type, messageThread);
                 var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
                 kernel.Plugins.TryGetPlugin(type.Name, out var plugin);
                 if (plugin != null)

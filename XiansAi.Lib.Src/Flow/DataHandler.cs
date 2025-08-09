@@ -8,14 +8,16 @@ namespace XiansAi.Flow;
 public class DataHandler : SafeHandler
 {
     private readonly IMessageHub _messageHub;
+    private readonly FlowBase _flow;
     private readonly ConcurrentQueue<MessageThread> _messageQueue = new();
     private static readonly Logger<DataHandler> _logger = Logger<DataHandler>.For();
 
     public SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
 
-    public DataHandler(IMessageHub messageHub)
+    public DataHandler(IMessageHub messageHub, FlowBase flow)
     {
         _messageHub = messageHub;
+        _flow = flow;
     }
 
     public async Task InitDataProcessing()
@@ -120,8 +122,11 @@ public class DataHandler : SafeHandler
         }
         return thread;
     }
+    public async Task ProcessData(Type? dataProcessorType, MessageThread messageThread, string methodName, string? methodArgs) {
+        await ProcessDataStatic(dataProcessorType, messageThread, _flow, methodName, methodArgs);
+    }
 
-    public static async Task ProcessData(Type? dataProcessorType, MessageThread messageThread, string methodName, string? parameters)
+    public static async Task ProcessDataStatic(Type? dataProcessorType, MessageThread messageThread, FlowBase? flow, string methodName, string? methodArgs)
     {
         if (dataProcessorType == null)
         {
@@ -130,13 +135,15 @@ public class DataHandler : SafeHandler
 
         try
         {
-            _logger.LogDebug($"Processing data with method {methodName} and parameters {parameters}");
+            _logger.LogDebug($"Processing data with method {methodName} and parameters {methodArgs}");
+
+            object[] constructorArgs = flow != null ? [messageThread, flow] : [messageThread];
 
             var result = await DynamicMethodInvoker.InvokeMethodAsync(
                 dataProcessorType,
-                messageThread,
+                constructorArgs,
                 methodName,
-                parameters);
+                methodArgs);
 
             _logger.LogDebug($"Result returned from {methodName}: {result}");
 
