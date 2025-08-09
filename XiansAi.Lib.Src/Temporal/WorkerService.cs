@@ -98,6 +98,14 @@ internal class WorkerService
         // Add all activities from the SystemActivities class
         options.AddAllActivities(new SystemActivities(flow));
 
+        // Add simple object activities
+        foreach (var activity in flow.ObjectActivities.Values)
+        {
+            _logger.LogDebug($"Adding object activity {activity.GetType().Name}, type {activity.GetType()}");
+            options.AddAllActivities(activity.GetType(), activity);
+        }
+
+
         var worker = new TemporalWorker(
             client,
             options

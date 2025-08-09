@@ -25,6 +25,8 @@ public class Runner<TClass> where TClass : class
 {
     internal KernelPlugins Plugins { get; set; } = new();
 
+    private readonly Dictionary<Type, object> _objectActivities = new();
+
     private readonly Dictionary<Type, object> _activityProxies = new();
     private readonly List<Type> _capabilities = new();
     public Type? DataProcessorType { get; set; }
@@ -96,6 +98,12 @@ public class Runner<TClass> where TClass : class
     public Runner<TClass> AddBotCapabilities<TCapability>()
     {
         _capabilities.Add(typeof(TCapability));
+        return this;
+    }
+
+    public Runner<TClass> AddFlowActivities<TActivity>(object activity)
+    {
+        _objectActivities.Add(typeof(TActivity), activity);
         return this;
     }
 
@@ -196,6 +204,14 @@ public class Runner<TClass> where TClass : class
         get
         {
             return AgentInfo.Name;
+        }
+    }
+
+    internal Dictionary<Type, object> ObjectActivities
+    {
+        get
+        {
+            return _objectActivities;
         }
     }
 

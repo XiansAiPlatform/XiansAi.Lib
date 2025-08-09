@@ -42,6 +42,12 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
         return this;
     }
 
+    public Flow<TWorkflow> AddActivities<TActivity>(object activity)
+    {
+        _runner.AddFlowActivities<TActivity>(activity);
+        return this;
+    }
+
     /// <summary>
     /// Adds activities to this flow with constructor arguments.
     /// </summary>
