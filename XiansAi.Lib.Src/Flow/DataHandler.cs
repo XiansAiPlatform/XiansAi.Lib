@@ -51,6 +51,11 @@ public class DataHandler : SafeHandler
                 }
                 else
                 {
+                    // In activity mode, dataProcessorType should not have more than one constructor args
+                    if (dataProcessorType.GetConstructors().Any(c => c.GetParameters().Length > 1))
+                    {
+                        throw new Exception("Data processor type has more than one constructor parameter, which is not supported in activity mode");
+                    }
                     _logger.LogDebug("Processing data in activity");
                     // process the data in activity
                     await Workflow.ExecuteLocalActivityAsync(
@@ -118,7 +123,7 @@ public class DataHandler : SafeHandler
 
         if (thread == null)
         {
-            throw new Exception("No message thread received");
+            _logger.LogWarning("No message thread received");
         }
         return thread;
     }
