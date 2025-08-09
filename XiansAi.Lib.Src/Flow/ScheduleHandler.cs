@@ -117,6 +117,11 @@ public class ScheduleHandler : SafeHandler
                 // To manage the workflow history, we need to check if the workflow should continue as new after each execution
                 ContinueAsNew();
             }
+            catch (ContinueAsNewException)
+            {
+                _logger.LogDebug($"ScheduleHandler for {method.Name} is continuing as new");
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError($"Error in scheduled method {method.Name}: {ex.Message}");

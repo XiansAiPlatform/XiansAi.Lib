@@ -1,6 +1,6 @@
 using Temporalio.Converters;
 
-namespace XiansAi.Temporal;
+namespace Temporal;
 
 public class MemoUtil
 {

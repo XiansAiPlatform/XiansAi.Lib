@@ -3,6 +3,8 @@ using Temporalio.Api.Enums.V1;
 using Temporalio.Client;
 using Temporalio.Common;
 
+namespace Temporal;
+
 public class NewWorkflowOptions : WorkflowOptions
 {
     public NewWorkflowOptions(string workflowType, string? workflowId = null)

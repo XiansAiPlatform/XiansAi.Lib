@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using XiansAi.Logging;
 
-namespace XiansAi.Flow;
+namespace Temporal;
 
 public static class LoggingUtils
 {

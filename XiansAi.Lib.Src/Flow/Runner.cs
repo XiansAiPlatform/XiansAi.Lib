@@ -1,5 +1,6 @@
 using System.Reflection;
 using Server;
+using Temporal;
 using Temporalio.Workflows;
 using XiansAi.Activity;
 using XiansAi.Logging;
@@ -30,7 +31,8 @@ public class Runner<TClass> where TClass : class
     public bool ProcessDataInWorkflow { get; set; } = false;
     public Type? ScheduleProcessorType { get; set; }
     public bool ProcessScheduleInWorkflow { get; set; } = false;
-    
+    public bool StartAutomatically { get; set; } = true;
+
 #pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }
     public FlowInfo? FlowInfo { get; private set; }

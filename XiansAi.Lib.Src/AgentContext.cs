@@ -3,7 +3,7 @@ using Temporalio.Activities;
 using Temporalio.Workflows;
 using XiansAi.Models;
 using XiansAi.Server;
-using XiansAi.Temporal;
+using Temporal;
 
 public class AgentContext
 {

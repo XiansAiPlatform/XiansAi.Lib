@@ -1,21 +1,24 @@
 
 using Temporalio.Worker;
 using Server;
-using Temporal;
 using XiansAi.Server;
+using XiansAi.Logging;
+using XiansAi.Flow;
+using XiansAi;
 
-namespace XiansAi.Flow;
+namespace Temporal;
 
 internal class WorkerService
 {
-    private readonly Logging.Logger<WorkerService> _logger;    
+    private readonly Logger<WorkerService> _logger;    
     private readonly CertificateReader _certificateReader;
-
+    private readonly WorkflowService _workflowService;
     private readonly RunnerOptions? _options;
     public WorkerService(RunnerOptions? options = null)
     {
-        _logger = Logging.Logger<WorkerService>.For();
+        _logger = Logger<WorkerService>.For();
         _certificateReader = new CertificateReader();
+        _workflowService = new WorkflowService();
         _options = options;
 
         ValidateConfig();
@@ -100,6 +103,13 @@ internal class WorkerService
             options
         );
         _logger.LogTrace($"Worker to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
+
+        // Start the workflow if it is configured to start automatically
+        if (flow.StartAutomatically)
+        {
+            _logger.LogInformation($"Starting workflow `{workFlowType}`");
+            await _workflowService.StartWorkflow(workFlowType);
+        }
         
         try
         {

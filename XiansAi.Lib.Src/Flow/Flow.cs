@@ -69,10 +69,12 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
         return this;
     }
 
-    public Flow<TWorkflow> SetScheduleProcessor<TProcessor>(bool processInWorkflow = false)
+    public Flow<TWorkflow> SetScheduleProcessor<TProcessor>(bool processInWorkflow = false, bool startAutomatically = true)
     {
         _runner.ScheduleProcessorType = typeof(TProcessor);
         _runner.ProcessScheduleInWorkflow = processInWorkflow;
+        _runner.StartAutomatically = startAutomatically;
+
         return this;
     }
 
