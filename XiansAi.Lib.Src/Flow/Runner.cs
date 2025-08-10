@@ -33,7 +33,7 @@ public class Runner<TClass> where TClass : class
     public bool ProcessDataInWorkflow { get; set; } = false;
     public Type? ScheduleProcessorType { get; set; }
     public bool ProcessScheduleInWorkflow { get; set; } = false;
-    public bool StartAutomatically { get; set; } = true;
+    public bool StartAutomatically { get; set; } = false;
 
 #pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }

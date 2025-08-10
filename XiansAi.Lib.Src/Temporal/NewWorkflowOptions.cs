@@ -7,16 +7,16 @@ namespace Temporal;
 
 public class NewWorkflowOptions : WorkflowOptions
 {
-    public NewWorkflowOptions(string workflowType, string? workflowId = null)
+    public NewWorkflowOptions(string workflowType, string? idPostfix = null)
     {
-        Id = workflowId ?? AgentContext.TenantId + ":" + workflowType;
+        Id = AgentContext.TenantId + ":" + workflowType + (idPostfix != null ? idPostfix : "");
         TaskQueue = AgentContext.TenantId + ":" + workflowType;
         Memo = GetMemo();
         TypedSearchAttributes = GetSearchAttributes();
         IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting;
     }
 
-    private SearchAttributeCollection GetSearchAttributes()
+    public SearchAttributeCollection GetSearchAttributes()
     {
         var searchAttributesBuilder = new SearchAttributeCollection.Builder()
                     .Set(SearchAttributeKey.CreateKeyword(Constants.TenantIdKey), AgentContext.TenantId)
@@ -26,7 +26,7 @@ public class NewWorkflowOptions : WorkflowOptions
         return searchAttributesBuilder.ToSearchAttributeCollection();
     }
 
-    private Dictionary<string, object> GetMemo()
+    public Dictionary<string, object> GetMemo()
     {
         var memo = new Dictionary<string, object> {
             { Constants.TenantIdKey, AgentContext.TenantId },

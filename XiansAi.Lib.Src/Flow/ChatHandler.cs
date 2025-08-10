@@ -20,12 +20,21 @@ public class ChatHandler : SafeHandler
     private MessageListenerDelegate? _messageListener;
     private Func<Task<string>>? _systemPromptProvider;
     public SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
+    private bool _initialized = false;
 
     public RouterOptions RouterOptions { get; set; } = new RouterOptions();
 
     public ChatHandler(IMessageHub messageHub)
     {
         _messageHub = messageHub;
+        _messageHub.SubscribeChatHandler(EnqueueChatMessage);
+    }
+
+    public void EnqueueChatMessage(MessageThread thread) {
+        if (!_initialized) {
+            _logger.LogWarning("Chat handler not initialized, adding message to queue for later processing");
+        }
+        _messageQueue.Enqueue(thread);
     }
 
     /// <summary>
@@ -66,8 +75,8 @@ public class ChatHandler : SafeHandler
     /// </summary>
     public async Task InitConversation()
     {
-        _logger.LogDebug("Subscribing to chat handler");
-        _messageHub.SubscribeChatHandler(_messageQueue.Enqueue);
+        _logger.LogDebug("Initializing chat handler");
+        _initialized = true;
         
         if (_systemPromptProvider == null)
         {
@@ -109,7 +118,20 @@ public class ChatHandler : SafeHandler
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error processing message", ex);
+                _logger.LogError("Error in DataHandler", ex);
+
+                // Send error message back to the caller
+                if (messageThread != null)
+                {
+                    try
+                    {
+                        await messageThread.SendData(new { error = ex.Message }, "Error occurred while processing data");
+                    }
+                    catch (Exception sendEx)
+                    {
+                        _logger.LogError("Failed to send error message", sendEx);
+                    }
+                }
             }
         }
     }

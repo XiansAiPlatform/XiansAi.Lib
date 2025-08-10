@@ -12,18 +12,29 @@ public class DataHandler : SafeHandler
     private readonly ConcurrentQueue<MessageThread> _messageQueue = new();
     private static readonly Logger<DataHandler> _logger = Logger<DataHandler>.For();
 
+    private bool _initialized = false;
+
     public SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
 
     public DataHandler(IMessageHub messageHub, FlowBase flow)
     {
         _messageHub = messageHub;
         _flow = flow;
+        _messageHub.SubscribeDataHandler(EnqueueDataMessage);
+    }
+
+    public void EnqueueDataMessage(MessageThread thread) {
+        if (!_initialized) {
+            _logger.LogWarning("Data handler not initialized, adding message to queue for later processing");
+        }
+        _messageQueue.Enqueue(thread);
     }
 
     public async Task InitDataProcessing()
     {
-        _logger.LogDebug("Subscribing to data handler");
-        _messageHub.SubscribeDataHandler(_messageQueue.Enqueue);
+        _logger.LogDebug("Initializing data handler");
+        _initialized = true;
+        
         // check if the data processing should be done in workflow
         var processDataInformation = await Workflow.ExecuteLocalActivityAsync(
             (SystemActivities a) => a.GetProcessDataSettings(),

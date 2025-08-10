@@ -27,6 +27,14 @@ public class AgentContext
         return workflowAttr?.Name ?? throw new InvalidOperationException("WorkflowAttribute.Name is not set");
     }
 
+    public static async Task StartWorkflow<TWorkflow>(string namePostfix, object[] args) {
+        await SubWorkflowService.Start<TWorkflow>(namePostfix, args);
+    }
+
+    public static async Task<TResult> ExecuteWorkflow<TWorkflow, TResult>(string namePostfix, object[] args) {
+        return await SubWorkflowService.Execute<TWorkflow, TResult>(namePostfix, args);
+    }
+
     public static CertificateInfo? CertificateInfo { 
         get
         {

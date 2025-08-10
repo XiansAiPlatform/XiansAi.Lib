@@ -12,13 +12,13 @@ internal class WorkerService
 {
     private readonly Logger<WorkerService> _logger;    
     private readonly CertificateReader _certificateReader;
-    private readonly WorkflowService _workflowService;
+    private readonly WorkflowClientService _workflowService;
     private readonly RunnerOptions? _options;
     public WorkerService(RunnerOptions? options = null)
     {
         _logger = Logger<WorkerService>.For();
         _certificateReader = new CertificateReader();
-        _workflowService = new WorkflowService();
+        _workflowService = new WorkflowClientService();
         _options = options;
 
         ValidateConfig();
@@ -116,7 +116,7 @@ internal class WorkerService
         if (flow.StartAutomatically)
         {
             _logger.LogInformation($"Starting workflow `{workFlowType}`");
-            await _workflowService.StartWorkflow(workFlowType);
+            await _workflowService.StartWorkflow(workFlowType, []);
         }
         
         try

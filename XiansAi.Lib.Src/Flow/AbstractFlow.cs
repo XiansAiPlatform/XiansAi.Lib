@@ -1,6 +1,7 @@
 using Temporalio.Workflows;
 using XiansAi.Messaging;
 using XiansAi.Memory;
+using Temporal;
 
 namespace XiansAi.Flow;
 
@@ -14,6 +15,16 @@ public abstract class AbstractFlow
     protected readonly IMessageHub _messageHub;
     //private readonly IEventHub _eventHub;
 
+    /// <summary>
+    /// Initializes a new instance of the FlowBase class.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
+    protected AbstractFlow()
+    {
+        _messageHub = new MessageHub();
+        _memoryHub = new MemoryHub();
+    }
+
     // Signal method to receive events
     [WorkflowSignal("HandleInboundEvent")]
     public async Task HandleInboundEvent(EventSignal eventDto)
@@ -25,17 +36,6 @@ public abstract class AbstractFlow
     public async Task HandleInboundChatOrData(MessageSignal messageSignal)
     {
         await _messageHub.ReceiveConversationChatOrData(messageSignal);
-    }
-
-
-    /// <summary>
-    /// Initializes a new instance of the FlowBase class.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when LogFactory is not initialized</exception>
-    protected AbstractFlow()
-    {
-        _messageHub = new MessageHub();
-        _memoryHub = new MemoryHub();
     }
 
 }
