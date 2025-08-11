@@ -91,6 +91,12 @@ public class ChatHandler : SafeHandler
                 messageThread = await DequeueMessage();
                 if (messageThread == null) continue;
                 
+                // Check if we should send a welcome message
+                var welcomeMessageSent = await HandleWelcomeMessage(messageThread);
+                
+                // Skip processing if welcome message was sent
+                if (welcomeMessageSent) continue;
+                
                 // Invoke the message listener if provided
                 if (_messageListener != null)
                 {
@@ -162,5 +168,27 @@ public class ChatHandler : SafeHandler
 
         // Respond to the user
         await messageThread.SendChat(response);
+    }
+
+    /// <summary>
+    /// Handles sending a welcome message if conditions are met
+    /// </summary>
+    /// <returns>True if a welcome message was sent, false otherwise</returns>
+    private async Task<bool> HandleWelcomeMessage(MessageThread messageThread)
+    {
+
+        // Check if welcome message is configured and the latest message content is null or empty
+        if (!string.IsNullOrEmpty(RouterOptions.WelcomeMessage) && 
+            string.IsNullOrWhiteSpace(messageThread.LatestMessage.Content))
+        {
+            _logger.LogDebug($"Sending welcome message to '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
+            
+            // Send the welcome message from the agent
+            await messageThread.SendChat(RouterOptions.WelcomeMessage);
+            
+            _logger.LogDebug($"Welcome message sent to '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
+            return true; // Indicate that a welcome message was sent
+        }
+        return false; // Indicate that no welcome message was sent
     }
 }
