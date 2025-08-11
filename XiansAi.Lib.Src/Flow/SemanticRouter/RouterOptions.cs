@@ -47,5 +47,11 @@ public class RouterOptions
     /// </summary>
     public int HistorySizeToFetch { get; set; } = 20;
 
+    /// <summary>
+    /// Gets or sets the welcome message to send when a user sends a null or empty message.
+    /// This message will be sent from the agent to initiate the conversation.
+    /// </summary>
+    public string? WelcomeMessage { get; set; }
+
 }
 
