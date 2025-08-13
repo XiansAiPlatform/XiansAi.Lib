@@ -10,6 +10,7 @@ using XiansAi.Flow.Router;
 using XiansAi.Flow;
 using System.Text.Json;
 using Temporal;
+using XiansAi.Memory;
 
 public class SendMessageResponse
 {
@@ -49,6 +50,54 @@ public class SystemActivities
         _scheduleProcessorType = flow.ScheduleProcessorType;
         _processScheduleInWorkflow = flow.ProcessScheduleInWorkflow;
         _plugins = flow.Plugins;
+    }
+
+    [Activity]
+    public async Task<Document?> GetAsync(string id)
+    {
+        return await MemoryHub.Documents.GetAsync(id);
+    }
+
+    [Activity]
+    public async Task<Document>  SaveDocument(Document document, DocumentOptions? options = null) 
+    {
+        return await MemoryHub.Documents.SaveAsync(document, options);
+    }
+
+    [Activity]
+    public async Task<Document?> GetByKeyAsync(string type, string key)
+    {
+        return await MemoryHub.Documents.GetByKeyAsync(type, key);
+    }
+
+    [Activity]
+    public async Task<List<Document>> QueryAsync(DocumentQuery query)
+    {
+        return await MemoryHub.Documents.QueryAsync(query);
+    }
+
+    [Activity]
+    public async Task<bool> UpdateAsync(Document document)
+    {
+        return await MemoryHub.Documents.UpdateAsync(document);
+    }
+
+    [Activity]
+    public async Task<bool> DeleteAsync(string id)
+    {
+        return await MemoryHub.Documents.DeleteAsync(id);
+    }
+
+    [Activity]
+    public async Task<int> DeleteManyAsync(IEnumerable<string> ids)
+    {
+        return await MemoryHub.Documents.DeleteManyAsync(ids);
+    }
+
+    [Activity]
+    public async Task<bool> ExistsAsync(string id)
+    {
+        return await MemoryHub.Documents.ExistsAsync(id);
     }
 
     [Activity]

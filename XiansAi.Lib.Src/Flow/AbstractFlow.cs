@@ -10,8 +10,6 @@ namespace XiansAi.Flow;
 /// </summary>
 public abstract class AbstractFlow
 {
-
-    protected readonly IMemoryHub _memoryHub;
     protected readonly IMessageHub _messageHub;
     //private readonly IEventHub _eventHub;
 
@@ -22,7 +20,6 @@ public abstract class AbstractFlow
     protected AbstractFlow()
     {
         _messageHub = new MessageHub();
-        _memoryHub = new MemoryHub();
     }
 
     // Signal method to receive events

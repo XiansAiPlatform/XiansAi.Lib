@@ -2,20 +2,12 @@ using Server;
 
 namespace XiansAi.Memory;
 
-public interface IMemoryHub
+public static class MemoryHub
 {
-    IObjectCache Cache { get; }
-}
+    private static readonly IObjectCache _cache = new ObjectCache();
+    private static readonly IDocumentStore _documents = new DocumentStore();
 
-public class MemoryHub : IMemoryHub
-{
-    public readonly IObjectCache _cache;
-
-    public MemoryHub()
-    {
-        _cache = new ObjectCache();
-    }
-
-    public IObjectCache Cache => _cache;
+    public static IObjectCache Cache => _cache;
+    public static IDocumentStore Documents => _documents;
 
 }
