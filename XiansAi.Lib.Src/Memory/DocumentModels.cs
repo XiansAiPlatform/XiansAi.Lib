@@ -173,5 +173,5 @@ internal class DocumentIdsRequest
 internal class DocumentQueryRequest
 {
     public required DocumentQuery Query { get; set; }
-    public string? ContentType { get; set; }
+    public string? ContentType { get; } = "JsonElement";
 }

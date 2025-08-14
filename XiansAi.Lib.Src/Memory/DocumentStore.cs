@@ -222,7 +222,6 @@ public class DocumentStoreImpl : IDocumentStore
             var request = new DocumentQueryRequest 
             { 
                 Query = query,
-                ContentType = typeof(JsonElement).FullName 
             };
 
             var response = await client.PostAsJsonAsync($"{_baseEndpoint}/query", request);
