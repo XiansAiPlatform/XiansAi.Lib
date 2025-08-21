@@ -34,16 +34,16 @@ public class Runner<TClass> where TClass : class
     public Type? ScheduleProcessorType { get; set; }
     public bool ProcessScheduleInWorkflow { get; set; } = false;
     public bool StartAutomatically { get; set; } = false;
+    public int NumberOfWorkers { get; set; } = 1;
 
 #pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }
-    public FlowInfo? FlowInfo { get; private set; }
     private readonly Logger<Runner<TClass>> _logger = Logger<Runner<TClass>>.For();
 
-    public Runner(AgentInfo agentInfo, FlowInfo? flowInfo = null)
+    public Runner(AgentInfo agentInfo, int workers)
     {
         AgentInfo = agentInfo;
-        FlowInfo = flowInfo;
+        NumberOfWorkers = workers;
         // Set the agent name to Agent Context
         AgentContext.AgentName = agentInfo.Name;
         // validate the runner
@@ -54,6 +54,7 @@ public class Runner<TClass> where TClass : class
                 PlatformConfig.APP_SERVER_URL!
             );
         SecureApi.Instance.TestConnection();
+
     }
 #pragma warning restore CS0618 // Type or member is obsolete
 
@@ -74,8 +75,8 @@ public class Runner<TClass> where TClass : class
     {
         try
         {
-            var runner = new WorkerService(options);
-            await runner.RunFlowAsync(this);
+            var workerService = new WorkerService(options);
+            await workerService.RunFlowAsync(this);
         }
         catch (OperationCanceledException)
         {
@@ -240,11 +241,10 @@ public class Runner<TClass> where TClass : class
 
 public class RunnerOptions
 {
-        public string? QueuePrefix { get; set; }
+    public string? QueuePrefix { get; set; }
 }
 
 public class FlowInfo
 {
-    public bool AutoActivate { get; set; } = false;
 }
 

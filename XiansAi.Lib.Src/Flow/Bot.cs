@@ -15,7 +15,7 @@ internal interface IBot
 public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
 {
 
-    internal Bot(Agent agent) : base(agent)
+    internal Bot(Agent agent, int numberOfWorkers) : base(agent, numberOfWorkers)
     {
     }
 

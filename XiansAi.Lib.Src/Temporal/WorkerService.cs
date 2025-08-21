@@ -20,7 +20,6 @@ internal class WorkerService
         _certificateReader = new CertificateReader();
         _workflowService = new WorkflowClientService();
         _options = options;
-
         ValidateConfig();
 
         // Initialize SecureApi first
@@ -47,7 +46,7 @@ internal class WorkerService
         }
     }
 
-    public async Task RunFlowAsync<TFlow>(Runner<TFlow> flow, CancellationToken cancellationToken = default)
+    public async Task RunFlowAsync<TFlow>(Runner<TFlow> runner, CancellationToken cancellationToken = default)
         where TFlow : class
     {
 
@@ -69,12 +68,12 @@ internal class WorkerService
         }
 
         // Upload the flow definition to the server
-        await new FlowDefinitionUploader().UploadFlowDefinition(flow);
+        await new FlowDefinitionUploader().UploadFlowDefinition(runner);
 
         // Run the worker for the flow
         var client = await TemporalClientService.Instance.GetClientAsync();
 
-        var workFlowType = flow.WorkflowName;
+        var workFlowType = runner.WorkflowName;
         var taskQueue = _certificateReader.ReadCertificate()?.TenantId + ":" + workFlowType; 
 
         if (!string.IsNullOrEmpty(_options?.QueuePrefix))
@@ -91,44 +90,78 @@ internal class WorkerService
         };
         
         options.AddWorkflow<TFlow>();
-        foreach (var stub in flow.ActivityProxies)
+        foreach (var stub in runner.ActivityProxies)
         {
             options.AddAllActivities(stub.Key, stub.Value);
         }
         // Add all activities from the SystemActivities class
-        options.AddAllActivities(new SystemActivities(flow));
+        options.AddAllActivities(new SystemActivities(runner));
 
         // Add simple object activities
-        foreach (var activity in flow.ObjectActivities.Values)
+        foreach (var activity in runner.ObjectActivities.Values)
         {
             _logger.LogDebug($"Adding object activity {activity.GetType().Name}, type {activity.GetType()}");
             options.AddAllActivities(activity.GetType(), activity);
         }
 
-
-        var worker = new TemporalWorker(
-            client,
-            options
-        );
-        _logger.LogTrace($"Worker to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
-
         // Start the workflow if it is configured to start automatically
-        if (flow.StartAutomatically)
+        if (runner.StartAutomatically)
         {
             _logger.LogInformation($"Starting workflow `{workFlowType}`");
             await _workflowService.StartWorkflow(workFlowType, []);
         }
+
+        // Create all worker tasks
+        var workerTasks = new List<Task>();
+        
+        for (int i = 0; i < runner.NumberOfWorkers; i++)
+        {
+            var worker = new TemporalWorker(
+                client,
+                options
+            );
+            _logger.LogDebug($"Worker {i + 1} to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
+
+
+            
+            // Create task for this worker
+            var workerIndex = i + 1; // Capture the current value
+            var workerTask = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogInformation($"Worker {workerIndex} starting execution");
+                    await worker.ExecuteAsync(cancellationToken!);
+                    _logger.LogInformation($"Worker {workerIndex} execution completed");
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation($"Worker {workerIndex} execution cancelled");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Worker {workerIndex} encountered an error: {ex.Message}");
+                    throw;
+                }
+            }, cancellationToken);
+            
+            workerTasks.Add(workerTask);
+        }
         
         try
         {
-            await worker.ExecuteAsync(cancellationToken!);
+            // Wait for all workers to complete
+            _logger.LogInformation($"Waiting for {workerTasks.Count} workers to complete");
+            await Task.WhenAll(workerTasks);
         }
         finally
         {
-            // Ensure proper cleanup when the worker stops
-            _logger.LogInformation("Worker execution completed. Cleaning up temporal connections...");
+            // Ensure proper cleanup when all workers stop
+            _logger.LogInformation("All workers execution completed. Cleaning up temporal connections...");
             await TemporalClientService.CleanupAsync();
         }
+
     }
 }
 

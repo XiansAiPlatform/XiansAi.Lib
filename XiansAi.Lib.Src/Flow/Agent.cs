@@ -27,9 +27,9 @@ public class Agent
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type</typeparam>
     /// <returns>A flow instance for configuring activities</returns>
-    public Flow<TWorkflow> AddFlow<TWorkflow>() where TWorkflow : FlowBase
+    public Flow<TWorkflow> AddFlow<TWorkflow>(int numberOfWorkers = 1) where TWorkflow : FlowBase
     {
-        var flow = new Flow<TWorkflow>(this);
+        var flow = new Flow<TWorkflow>(this, numberOfWorkers);
         _flows.Add(flow);
         return flow;
     }
@@ -39,9 +39,9 @@ public class Agent
     /// </summary>
     /// <typeparam name="TBot">The bot class type</typeparam>
     /// <returns>A bot instance for configuring capabilities</returns>
-    public Bot<TBot> AddBot<TBot>() where TBot : FlowBase
+    public Bot<TBot> AddBot<TBot>(int numberOfWorkers = 1) where TBot : FlowBase
     {
-        var bot = new Bot<TBot>(this);
+        var bot = new Bot<TBot>(this, numberOfWorkers);
         _bots.Add(bot);
         return bot;
     }

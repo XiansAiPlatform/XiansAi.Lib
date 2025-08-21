@@ -19,13 +19,12 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
     protected readonly Agent _agent;
     protected readonly Runner<TWorkflow> _runner;
 
-    internal Flow(Agent agent)
+    internal Flow(Agent agent, int numberOfWorkers)
     {
         _agent = agent;
 
         var agentInfo = agent.GetAgentInfo();
-        var flowInfo = new FlowInfo();
-        _runner = new Runner<TWorkflow>(agentInfo, flowInfo);
+        _runner = new Runner<TWorkflow>(agentInfo, numberOfWorkers);
     }
 
     /// <summary>
