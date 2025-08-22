@@ -272,7 +272,7 @@ internal class SemanticRouterHubImpl
 
         var httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromMinutes(5)
+            Timeout = TimeSpan.FromSeconds(options.HTTPTimeoutSeconds)
         };
 
         switch (providerName?.ToLower())

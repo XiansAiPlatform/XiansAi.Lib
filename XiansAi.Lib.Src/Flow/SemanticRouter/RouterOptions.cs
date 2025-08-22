@@ -53,5 +53,10 @@ public class RouterOptions
     /// </summary>
     public string? WelcomeMessage { get; set; }
 
+    /// <summary>
+    /// Gets or sets the HTTP timeout for the AI model.
+    /// </summary>
+    public int HTTPTimeoutSeconds { get; set; } = 5 * 60; // 5 minutes
+
 }
 
