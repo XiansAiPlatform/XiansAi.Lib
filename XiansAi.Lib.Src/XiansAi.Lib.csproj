@@ -14,7 +14,7 @@
 
   <PropertyGroup>
     <PackageId>XiansAi.Lib</PackageId>
-    <Version>2.0.3</Version>
+    <Version>2.3.3</Version>
     <Authors>99x</Authors>
     <Description>This is a library for the Xians.Ai flow projects. This LIbrary is used by the Flows. It contains the base classes, interfaces and other utilities for creating and running Flows.</Description>
     <PackageProjectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</PackageProjectUrl>
