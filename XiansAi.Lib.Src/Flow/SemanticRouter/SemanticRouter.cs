@@ -270,13 +270,19 @@ internal class SemanticRouterHubImpl
         var providerName = GetProviderName();
         var builder = Kernel.CreateBuilder();
 
+        var httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(5)
+        };
+
         switch (providerName?.ToLower())
         {
             case "openai":
                 _logger.LogDebug("Adding OpenAI chat completion with model {ModelName}", GetModelName());
-                builder.Services.AddOpenAIChatCompletion(
+                builder.AddOpenAIChatCompletion(
                     modelId: GetModelName(),
-                    apiKey: GetApiKey()
+                    apiKey: GetApiKey(),
+                    httpClient: httpClient
                 );
                 break;
 
@@ -285,7 +291,8 @@ internal class SemanticRouterHubImpl
                 builder.AddAzureOpenAIChatCompletion(
                     deploymentName: GetDeploymentName(),
                     endpoint: GetEndpoint(),
-                    apiKey: GetApiKey()
+                    apiKey: GetApiKey(),
+                    httpClient: httpClient
                 );
                 break;
 
