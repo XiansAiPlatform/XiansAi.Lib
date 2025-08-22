@@ -61,7 +61,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         where TFlow : class
     {
         var flowDefinition = CreateFlowDefinition(flow, source);
-        _logger.LogInformation("Uploading flow definition of {TypeName} to App server...", typeof(TFlow).FullName);
+        _logger.LogDebug("Uploading flow definition of {TypeName} to App server...", typeof(TFlow).FullName);
         
         await UploadToServer(flowDefinition);
     }
@@ -111,7 +111,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             switch (hashCheckResponse.StatusCode)
             {
                 case HttpStatusCode.OK:
-                    _logger.LogInformation("Flow definition for {TypeName} already up to date", flowDefinition.WorkflowType);
+                    _logger.LogInformation("Flow definition for {TypeName} already up to date on server", flowDefinition.WorkflowType);
                     return;
 
                 case HttpStatusCode.NotFound:

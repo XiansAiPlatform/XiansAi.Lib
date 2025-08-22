@@ -241,8 +241,6 @@ public class SecureApi : ISecureApiClient, IDisposable
             var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
             _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
             
-            _logger.LogInformation("SecureApi client created successfully");
-
         }
         catch (Exception ex)
         {
@@ -464,7 +462,7 @@ public class SecureApi : ISecureApiClient, IDisposable
             // Use the async creation method for consistency
             CreateClientAsync(certificateBase64, serverUrl).GetAwaiter().GetResult();
             _isInitialized = true;
-            _logger.LogInformation("SecureApi initialized successfully with enhanced connection resilience");
+            _logger.LogInformation("Secure API connection to server initialized");
         }
         catch (Exception ex)
         {

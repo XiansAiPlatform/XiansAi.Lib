@@ -37,7 +37,7 @@ public class TemporalClientService : IDisposable
             
             _client = await CreateClientWithRetryAsync();
             _isInitialized = true;
-            _logger.LogInformation("Temporal client connection established successfully");
+            _logger.LogInformation($"Temporal client connection established to namespace `{_client.Options.Namespace}` successfully");
             return _client;
         }
         catch (Exception ex)
@@ -92,7 +92,7 @@ public class TemporalClientService : IDisposable
                 }
 
                 _lastConnectionAttempt = DateTime.UtcNow;
-                _logger.LogInformation($"Attempting to connect to Temporal server (attempt {attempt}/{_maxRetryAttempts})");
+                _logger.LogDebug($"Attempting to connect to Temporal server (attempt {attempt}/{_maxRetryAttempts})");
                 
                 return await CreateClientAsync();
             }
@@ -126,7 +126,7 @@ public class TemporalClientService : IDisposable
                     SetMinimumLevel(LogLevel.Information)),
         };
 
-        _logger.LogInformation($"Connecting to flow server at {settings.FlowServerUrl} with namespace {settings.FlowServerNamespace}");
+        _logger.LogDebug($"Connecting to flow server at {settings.FlowServerUrl} with namespace {settings.FlowServerNamespace}");
 
         return await TemporalClient.ConnectAsync(options);
     }

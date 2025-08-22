@@ -9,9 +9,6 @@ public class AgentContext
 {
 
     private static string? _agent { get; set; }
-    private static string? _workflowId { get; set; }
-    private static string? _workflowType { get; set; }
-    private static string? _workflowRunId { get; set; }
     private static string? _tenantId { get; set; }
     private static CertificateInfo? _certificateInfo { get; set; }
 
@@ -110,18 +107,10 @@ public class AgentContext
             {
                 return ActivityExecutionContext.Current.Info.WorkflowId;
             }
-            else if (_workflowId != null)
-            {
-                return _workflowId;
-            }
             else
             {
                 throw new InvalidOperationException("Not in workflow or activity");
             }
-        }
-        set
-        {
-            _workflowId = value;
         }
     }
     public static string WorkflowType { 
@@ -135,18 +124,10 @@ public class AgentContext
             {
                 return ActivityExecutionContext.Current.Info.WorkflowType;
             }
-            else if (_workflowType != null)
-            {
-                return _workflowType;
-            }
             else
             {
                 throw new InvalidOperationException("Not in workflow or activity");
             }
-        }
-        set
-        {
-            _workflowType = value;
         }
     }
 
@@ -161,18 +142,10 @@ public class AgentContext
             {
                 return ActivityExecutionContext.Current.Info.WorkflowRunId;
             }
-            else if (_workflowRunId != null)
-            {
-                return _workflowRunId;
-            }
             else
             {
                 throw new InvalidOperationException("Not in workflow or activity");
             }
-        }
-        set
-        {
-            _workflowRunId = value;
         }
     }
 

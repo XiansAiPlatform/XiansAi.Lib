@@ -102,7 +102,7 @@ public static class SettingsService
                 _logger.LogWarning("Flow server cert or private key is not set, using default TLS config");
             }
 
-            _logger.LogInformation($"Settings loaded from server: {settings.FlowServerUrl}");
+            _logger.LogInformation($"Settings successfully loaded from server. e.g. Temporal server: {settings.FlowServerUrl}");
             
             return settings;
         } 

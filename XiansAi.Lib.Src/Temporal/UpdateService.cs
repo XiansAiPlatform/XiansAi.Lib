@@ -7,8 +7,6 @@ namespace Temporal;
 
 public class UpdateService 
 {
-    public static SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
-
     public static async Task<TResult?> SendUpdateWithStart<TResult>(Type workflowType, string update, params object?[] args) {
         var workflow = AgentContext.GetWorkflowTypeFor(workflowType);
         return await SendUpdateWithStart<TResult>(workflow, update, args);
@@ -20,7 +18,7 @@ public class UpdateService
         if (Workflow.InWorkflow) {
             result = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.SendUpdateWithStart(workflow, update, args), 
-                SystemActivityOptions);
+                new SystemActivityOptions());
         } else {
             result = await UpdateServiceImpl.SendUpdateWithStart(workflow, update, args);
         }

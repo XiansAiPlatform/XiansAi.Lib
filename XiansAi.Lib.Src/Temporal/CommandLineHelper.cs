@@ -13,10 +13,13 @@ namespace Temporal;
 public static class CommandLineHelper
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger(typeof(CommandLineHelper));
-    private static bool _shutdownHandlersSetup = false;
-    private static bool _isShuttingDown = false;
+    private static volatile bool _shutdownHandlersSetup = false;
+    private static volatile bool _isShuttingDown = false;
+    private static volatile bool _cleanupInProgress = false;
     private static readonly object _lock = new();
+    private static readonly object _cleanupLock = new();
     private static CancellationTokenSource? _shutdownTokenSource;
+    private static TaskCompletionSource<bool>? _cleanupCompletionSource;
 
     /// <summary>
     /// Gets whether shutdown handlers have been configured
@@ -92,15 +95,61 @@ public static class CommandLineHelper
 
     /// <summary>
     /// Manually cleanup all resources - can be called if needed
+    /// Thread-safe and prevents multiple concurrent cleanup operations
     /// </summary>
     public static async Task CleanupResourcesAsync()
     {
-        lock (_lock)
+        TaskCompletionSource<bool>? currentCleanupTask = null;
+        
+        lock (_cleanupLock)
         {
-            if (_isShuttingDown) return;
-            _isShuttingDown = true;
+            // If cleanup is already in progress, wait for it to complete
+            if (_cleanupInProgress)
+            {
+                currentCleanupTask = _cleanupCompletionSource;
+            }
+            else
+            {
+                // Mark cleanup as in progress and create completion source
+                _cleanupInProgress = true;
+                _isShuttingDown = true;
+                _cleanupCompletionSource = new TaskCompletionSource<bool>();
+            }
         }
 
+        // If cleanup is already running, wait for it to complete
+        if (currentCleanupTask != null)
+        {
+            try
+            {
+                await currentCleanupTask.Task;
+            }
+            catch
+            {
+                // Ignore exceptions from other cleanup operations
+            }
+            return;
+        }
+
+        // Perform the actual cleanup
+        try
+        {
+            await PerformCleanupAsync();
+            _cleanupCompletionSource?.SetResult(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Critical error during resource cleanup");
+            _cleanupCompletionSource?.SetException(ex);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Internal method that performs the actual cleanup operations
+    /// </summary>
+    private static async Task PerformCleanupAsync()
+    {
         // Create a short timeout for cleanup operations
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var timeoutToken = timeoutCts.Token;
@@ -113,11 +162,15 @@ public static class CommandLineHelper
             _logger.LogInformation("Cleaning up Temporal connections...");
             try
             {
-                await TemporalClientService.CleanupAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                await TemporalClientService.CleanupAsync().WaitAsync(TimeSpan.FromSeconds(5), timeoutToken);
             }
             catch (TimeoutException)
             {
                 _logger.LogWarning("Temporal cleanup timed out, continuing with shutdown");
+            }
+            catch (OperationCanceledException) when (timeoutToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Temporal cleanup was cancelled due to timeout, continuing with shutdown");
             }
             
             // Shutdown logging services
@@ -131,11 +184,12 @@ public static class CommandLineHelper
                 SecureApi.Reset();
             }
             
-            _logger.LogInformation("Resource cleanup completed");
+            _logger.LogInformation("Resource cleanup completed successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error during resource cleanup");
+            _logger.LogError(ex, "Error during resource cleanup");
+            throw; // Re-throw to ensure cleanup completion source gets the exception
         }
     }
 
@@ -146,6 +200,10 @@ public static class CommandLineHelper
     public static void DiagnoseShutdownIssues()
     {
         Console.WriteLine("=== Shutdown Diagnostics ===");
+        
+        Console.WriteLine($"Shutdown handlers setup: {_shutdownHandlersSetup}");
+        Console.WriteLine($"Is shutting down: {_isShuttingDown}");
+        Console.WriteLine($"Cleanup in progress: {_cleanupInProgress}");
         
         var logQueueSize = LoggingServices.GlobalLogQueue.Count;
         Console.WriteLine($"Pending logs in queue: {logQueueSize}");
@@ -162,6 +220,39 @@ public static class CommandLineHelper
         Console.WriteLine($"ThreadPool - Available: {workerThreads}/{maxWorkerThreads} worker, {completionPortThreads}/{maxCompletionPortThreads} completion");
         
         Console.WriteLine("=== End Diagnostics ===");
+    }
+
+    /// <summary>
+    /// Resets the CommandLineHelper state - primarily for testing purposes
+    /// WARNING: Only use this in test scenarios, not in production code
+    /// </summary>
+    internal static void ResetForTesting()
+    {
+        lock (_lock)
+        {
+            lock (_cleanupLock)
+            {
+                _shutdownHandlersSetup = false;
+                _isShuttingDown = false;
+                _cleanupInProgress = false;
+                
+                _shutdownTokenSource?.Dispose();
+                _shutdownTokenSource = null;
+                
+                _cleanupCompletionSource = null;
+                
+                // Remove event handlers if they were set up
+                try
+                {
+                    AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
+                    Console.CancelKeyPress -= OnCancelKeyPress;
+                }
+                catch
+                {
+                    // Ignore errors when removing handlers that might not be registered
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -182,13 +273,29 @@ public static class CommandLineHelper
         Environment.Exit(exitCode);
     }
 
-    private static async void OnProcessExit(object? sender, EventArgs e)
+    private static void OnProcessExit(object? sender, EventArgs e)
     {
+        // Prevent multiple ProcessExit handlers from running simultaneously
+        if (_isShuttingDown) return;
+        
         _logger.LogInformation("Process exit detected, cleaning up resources...");
-        await CleanupResourcesAsync();
+        
+        // Use a timeout to prevent hanging during process exit
+        try
+        {
+            var cleanupTask = CleanupResourcesAsync();
+            if (!cleanupTask.Wait(TimeSpan.FromSeconds(5)))
+            {
+                _logger.LogWarning("Process exit cleanup timed out after 5 seconds");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during process exit cleanup");
+        }
     }
 
-    private static async void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+    private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
     {
         _logger.LogInformation("Ctrl+C detected, initiating graceful shutdown...");
         e.Cancel = true; // Prevent immediate termination
@@ -199,29 +306,40 @@ public static class CommandLineHelper
             _shutdownTokenSource?.Cancel();
         }
         
-        // Try graceful cleanup with timeout
-        try
+        // Start cleanup in a separate task to avoid blocking the event handler
+        Task.Run(async () =>
         {
-            var cleanupTask = CleanupResourcesAsync();
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(20));
-            
-            var completedTask = await Task.WhenAny(cleanupTask, timeoutTask);
-            
-            if (completedTask == timeoutTask)
+            try
             {
-                Console.WriteLine("Graceful shutdown timed out after 20 seconds");
+                var cleanupTask = CleanupResourcesAsync();
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(20));
+                
+                var completedTask = await Task.WhenAny(cleanupTask, timeoutTask);
+                
+                if (completedTask == timeoutTask)
+                {
+                    Console.WriteLine("Graceful shutdown timed out after 20 seconds");
+                    ForceShutdown(1);
+                }
+                else
+                {
+                    try
+                    {
+                        await cleanupTask; // Ensure any exceptions are observed
+                        Environment.Exit(0);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error during cleanup: {ex.Message}");
+                        ForceShutdown(1);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during shutdown: {ex.Message}");
                 ForceShutdown(1);
             }
-            else
-            {
-                await cleanupTask; // Ensure any exceptions are observed
-                Environment.Exit(0);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error during shutdown: {ex.Message}");
-            ForceShutdown(1);
-        }
+        });
     }
 } 

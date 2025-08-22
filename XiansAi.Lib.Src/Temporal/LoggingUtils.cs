@@ -21,7 +21,7 @@ public static class LoggingUtils
                 }
             ));
             var tempLogger = loggerFactory.CreateLogger("LoggingUtils");
-            tempLogger.LogInformation($"Console log level: {consoleLogLevel}");
+            tempLogger.LogInformation($"Agentri Logging: Console log level: {consoleLogLevel}");
             
             // Set global minimum level to capture everything
             builder.SetMinimumLevel(LogLevel.Trace);

@@ -81,8 +81,6 @@ internal class WorkerService
             taskQueue = _options.QueuePrefix + taskQueue;
         } 
 
-        _logger.LogInformation($"Running worker for `{workFlowType}` on queue `{taskQueue}`");
-
         var options = new TemporalWorkerOptions()
         {
             LoggerFactory = LoggingUtils.CreateTemporalLoggerFactory(),
@@ -130,9 +128,8 @@ internal class WorkerService
             {
                 try
                 {
-                    _logger.LogInformation($"Worker {workerIndex} starting execution");
                     await worker.ExecuteAsync(cancellationToken!);
-                    _logger.LogInformation($"Worker {workerIndex} execution completed");
+                    _logger.LogInformation($"Worker {workerIndex} execution completed on queue `{taskQueue}`");
                 }
                 catch (OperationCanceledException)
                 {
@@ -152,13 +149,12 @@ internal class WorkerService
         try
         {
             // Wait for all workers to complete
-            _logger.LogInformation($"Waiting for {workerTasks.Count} workers to complete");
             await Task.WhenAll(workerTasks);
         }
         finally
         {
             // Ensure proper cleanup when all workers stop
-            _logger.LogInformation("All workers execution completed. Cleaning up temporal connections...");
+            _logger.LogInformation($"All workers execution completed on queue `{taskQueue}`. Cleaning up temporal connections...");
             await TemporalClientService.CleanupAsync();
         }
 
