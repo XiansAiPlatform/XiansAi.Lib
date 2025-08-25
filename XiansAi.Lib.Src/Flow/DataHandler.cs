@@ -11,10 +11,7 @@ public class DataHandler : SafeHandler
     private readonly FlowBase _flow;
     private readonly ConcurrentQueue<MessageThread> _messageQueue = new();
     private static readonly Logger<DataHandler> _logger = Logger<DataHandler>.For();
-
     private bool _initialized = false;
-
-    public SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
 
     public DataHandler(IMessageHub messageHub, FlowBase flow)
     {

@@ -10,11 +10,12 @@
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);SKEXP0001;SKEXP0110</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
     <PackageId>XiansAi.Lib</PackageId>
-    <Version>2.3.3</Version>
+    <Version>2.4.4</Version>
     <Authors>99x</Authors>
     <Description>This is a library for the Xians.Ai flow projects. This LIbrary is used by the Flows. It contains the base classes, interfaces and other utilities for creating and running Flows.</Description>
     <PackageProjectUrl>https://github.com/XiansAiPlatform/XiansAi.Lib</PackageProjectUrl>
@@ -35,7 +36,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
     <PackageReference Include="Temporalio" Version="1.7.0" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.61.0" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.63.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.63.0" />
     <PackageReference Include="NCrontab" Version="3.3.3" />
   </ItemGroup>
 

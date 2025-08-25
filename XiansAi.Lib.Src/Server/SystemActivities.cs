@@ -141,8 +141,8 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<string?> ChatCompletionAsync(string prompt, RouterOptions? routerOptions) {
-        return await new SemanticRouterHubImpl().ChatCompletionAsync(prompt, routerOptions);
+    public async Task<string?> ChatCompletionAsync(string prompt, string? systemInstruction, RouterOptions? routerOptions) {
+        return await new SemanticRouterHubImpl().CompletionAsync(prompt, systemInstruction, routerOptions);
     }
 
 

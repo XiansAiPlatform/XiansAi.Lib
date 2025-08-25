@@ -12,15 +12,6 @@ public abstract class FlowBase : AbstractFlow
         get => _chatHandler.RouterOptions; 
         set => _chatHandler.RouterOptions = value; 
     }
-
-    public SystemActivityOptions SystemActivityOptions 
-    { 
-        set {
-            _chatHandler.SystemActivityOptions = value;
-            _dataHandler.SystemActivityOptions = value;
-        }
-    }
-
     public string SystemPrompt 
     { 
         set => _chatHandler.SystemPrompt = value;

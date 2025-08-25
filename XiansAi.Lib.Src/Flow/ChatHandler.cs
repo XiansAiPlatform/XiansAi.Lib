@@ -19,7 +19,6 @@ public class ChatHandler : SafeHandler
     private readonly IMessageHub _messageHub;
     private MessageListenerDelegate? _messageListener;
     private Func<Task<string>>? _systemPromptProvider;
-    public SystemActivityOptions SystemActivityOptions { get; set; } = new SystemActivityOptions();
     private bool _initialized = false;
 
     public RouterOptions RouterOptions { get; set; } = new RouterOptions();
@@ -162,7 +161,7 @@ public class ChatHandler : SafeHandler
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
         
         // Route the message to the appropriate flow
-        var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions, SystemActivityOptions);
+        var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 

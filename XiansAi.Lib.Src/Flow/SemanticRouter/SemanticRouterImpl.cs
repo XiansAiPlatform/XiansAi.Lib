@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.Agents;
 using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Server;
@@ -18,11 +19,6 @@ internal class SemanticRouterHubImpl : IDisposable
 {
     private const string INCOMING_MESSAGE = "incoming";
     private const string OUTGOING_MESSAGE = "outgoing";
-    private const string HANDOVER_INSTRUCTION = @"First evaluate if you can accomplish the user request 
-        through your primary capabilities. If you can, respond with the answer. 
-        If you cannot, check if you can Handover to another bot. If you can, handover to another workflow.
-        If you cannot accomplish the user request through your primary capabilities, or handover to another bot,
-        respond with a message indicating that you cannot accomplish the user request.";
 
     private readonly ILogger _logger;
     private readonly FlowServerSettings _settings;
@@ -42,23 +38,59 @@ internal class SemanticRouterHubImpl : IDisposable
         return await SettingsService.GetSettingsFromServer();
     }
 
+    private ChatCompletionAgent CreateChatCompletionAgent(
+        string name,
+        string instructions,
+        Kernel kernel,
+        RouterOptions options,
+        bool enableFunctions = true)
+    {
+        var executionSettings = new OpenAIPromptExecutionSettings
+        {
+            FunctionChoiceBehavior = enableFunctions ? FunctionChoiceBehavior.Auto() : FunctionChoiceBehavior.None(),
+            MaxTokens = options.MaxTokens,
+            Temperature = options.Temperature
+        };
 
-    public async Task<string?> ChatCompletionAsync(string prompt, RouterOptions? options = null)
+        return new ChatCompletionAgent
+        {
+            Name = name,
+            Instructions = instructions,
+            Kernel = kernel,
+            Arguments = new KernelArguments(executionSettings)
+        };
+    }
+
+
+    public async Task<string?> CompletionAsync(string prompt, string? systemInstruction, RouterOptions? options = null)
     {
         options ??= new RouterOptions();
         
         try
         {
             var kernel = CreateKernel(options, Array.Empty<Type>(), new KernelPlugins());
-            var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-            var settings = CreatePromptExecutionSettings(options, enableFunctions: false);
+            var agent = CreateChatCompletionAgent(
+                name: "CompletionAgent",
+                instructions: systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.",
+                kernel: kernel,
+                options: options,
+                enableFunctions: false
+            );
             
-            var result = await chatCompletionService.GetChatMessageContentAsync(prompt, settings);
-            return result.Content ?? string.Empty;
+            // Create a simple thread for single-turn chat completion
+            var thread = new ChatHistoryAgentThread();
+            var userMessage = new ChatMessageContent(AuthorRole.User, prompt);
+            
+            var responses = new List<ChatMessageContent>();
+            await foreach (var response in agent.InvokeAsync(userMessage, thread))
+            {
+                responses.Add(response);
+            }
+            return string.Join(" ", responses.Select(r => r.Content));
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error in chat completion");
+            _logger.LogError(e, "Error in LLM completion");
             throw;
         }
     }
@@ -81,15 +113,36 @@ internal class SemanticRouterHubImpl : IDisposable
             messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
 
             // Create kernel with all plugins
-            var kernel = CreateKernelWithPlugins(options, capabilitiesPluginTypes, messageThread, plugins);
+            var kernel = CreateKernelWithStatefulPlugins(options, capabilitiesPluginTypes, messageThread, plugins);
+
+            // Create the agent with full instructions
+            // Sanitize the agent name to comply with OpenAI requirements
+            var sanitizedWorkflowType = SanitizeName(messageThread.WorkflowType);
+            var agent = CreateChatCompletionAgent(
+                name: $"RouterAgent_{sanitizedWorkflowType}",
+                instructions: systemPrompt,
+                kernel: kernel,
+                options: options,
+                enableFunctions: true
+            );
             
-            // Build chat history and get response
+            // Build chat history and create thread with proper history
             var chatHistory = await BuildChatHistoryAsync(messageThread, systemPrompt, options.HistorySizeToFetch);
-            var settings = CreatePromptExecutionSettings(options, enableFunctions: true);
+            var thread = new ChatHistoryAgentThread(chatHistory);
             
-            var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-            var result = await chatCompletionService.GetChatMessageContentAsync(chatHistory, settings, kernel);
-            var response = result.Content ?? string.Empty;
+            // Create the current user message from the latest message
+            var currentMessage = new ChatMessageContent(
+                AuthorRole.User, 
+                messageThread.LatestMessage?.Content ?? string.Empty
+            );
+            
+            // Invoke the agent with the message and thread
+            var responses = new List<ChatMessageContent>();
+            await foreach (var item in agent.InvokeAsync(currentMessage, thread))
+            {
+                responses.Add(item);
+            }
+            var response = string.Join(" ", responses.Select(r => r.Content));
 
             // Apply outgoing message interception
             response = await ApplyOutgoingInterceptorAsync(messageThread, response, interceptor);
@@ -142,7 +195,7 @@ internal class SemanticRouterHubImpl : IDisposable
         }
     }
 
-    private Kernel CreateKernelWithPlugins(
+    private Kernel CreateKernelWithStatefulPlugins(
         RouterOptions options, 
         Type[] capabilitiesPluginTypes, 
         MessageThread messageThread, 
@@ -244,28 +297,32 @@ internal class SemanticRouterHubImpl : IDisposable
         }
     }
 
-    private OpenAIPromptExecutionSettings CreatePromptExecutionSettings(RouterOptions options, bool enableFunctions)
-    {
-        return new OpenAIPromptExecutionSettings
-        {
-            FunctionChoiceBehavior = enableFunctions ? FunctionChoiceBehavior.Auto() : FunctionChoiceBehavior.None(),
-            MaxTokens = options.MaxTokens,
-            Temperature = options.Temperature
-        };
-    }
-
     private async Task<ChatHistory> BuildChatHistoryAsync(MessageThread messageThread, string systemPrompt, int historySizeToFetch)
     {
         var chatHistory = new ChatHistory(systemPrompt);
-        chatHistory.AddSystemMessage(HANDOVER_INSTRUCTION);
-
+        
         var historyFromServer = await messageThread.FetchThreadHistory(1, historySizeToFetch);
         historyFromServer.Reverse(); // Put most recent messages last
 
-        foreach (var message in historyFromServer)
+        // Get the current message content to exclude it from history
+        var currentMessageContent = messageThread.LatestMessage?.Content?.Trim();
+
+        for (int i = 0; i < historyFromServer.Count; i++)
         {
+            var message = historyFromServer[i];
+            
             if (string.IsNullOrWhiteSpace(message.Text))
                 continue;
+
+            // Only check the last message in history for duplication with current message
+            bool isLastMessage = i == historyFromServer.Count - 1;
+            if (isLastMessage && 
+                !string.IsNullOrEmpty(currentMessageContent) && 
+                message.Text?.Trim().Equals(currentMessageContent, StringComparison.OrdinalIgnoreCase) == true &&
+                message.Direction.Equals(INCOMING_MESSAGE, StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // Skip only the last message if it matches the current one
+            }
 
             var chatMessage = CreateChatMessage(message);
             if (chatMessage != null)
@@ -277,7 +334,6 @@ internal class SemanticRouterHubImpl : IDisposable
         return chatHistory;
     }
 
-#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates
     private ChatMessageContent? CreateChatMessage(DbMessage message)
     {
         return message.Direction switch
@@ -285,27 +341,39 @@ internal class SemanticRouterHubImpl : IDisposable
             var d when d.Equals(INCOMING_MESSAGE, StringComparison.OrdinalIgnoreCase) => new()
             {
                 Role = AuthorRole.User,
-                Content = message.Text,
-                AuthorName = SanitizeName(message.ParticipantId)
+                Content = message.Text
+                // AuthorName removed to avoid validation issues with ChatCompletionAgent
             },
             var d when d.Equals(OUTGOING_MESSAGE, StringComparison.OrdinalIgnoreCase) => new()
             {
                 Role = AuthorRole.Assistant,
-                Content = message.Text,
-                AuthorName = SanitizeName(message.WorkflowType)
+                Content = message.Text
+                // AuthorName removed to avoid validation issues with ChatCompletionAgent
             },
             _ => null // Skip other message types like "Handovers"
         };
     }
-#pragma warning restore SKEXP0001
 
     private static string SanitizeName(string? name)
     {
         if (string.IsNullOrEmpty(name))
             return "user";
 
-        // Replace spaces and disallowed characters with underscores
-        return System.Text.RegularExpressions.Regex.Replace(name, @"[\s<|\\/>]", "_");
+        // OpenAI API only allows alphanumeric characters, underscores, and hyphens
+        // First replace spaces and common separators with underscores
+        var sanitized = System.Text.RegularExpressions.Regex.Replace(name, @"[\s:;,\.]", "_");
+        
+        // Then remove any remaining characters that aren't alphanumeric, underscore, or hyphen
+        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"[^a-zA-Z0-9_-]", "");
+        
+        // Ensure we don't have multiple underscores in a row
+        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"_{2,}", "_");
+        
+        // Trim underscores from start and end
+        sanitized = sanitized.Trim('_', '-');
+        
+        // If the result is empty, return a default
+        return string.IsNullOrEmpty(sanitized) ? "default_agent" : sanitized;
     }
 
     public void Dispose()
