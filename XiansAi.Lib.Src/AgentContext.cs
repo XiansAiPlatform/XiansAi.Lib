@@ -68,32 +68,9 @@ public class AgentContext
     {
         get
         {
-            if (Workflow.InWorkflow) 
-            {
-                var memo = new MemoUtil(Workflow.Memo);
-                var agent = memo.GetAgent();
-                if (agent == null)
-                {
-                    throw new InvalidOperationException("Agent is not set, workflow Memo is missing agent info");
-                }
-                return agent;
-            }
-            else {
-                if (_agent == null)
-                {
-                    throw new InvalidOperationException("Agent is not set, create a agent runner first");
-                }
-                return _agent;
-            }
-        }
-        set
-        {
-            if (_agent != null && _agent != value)
-            {
-                throw new InvalidOperationException("Agent is already set, cannot change it");
-            }
-            _agent = value;
-
+            var workflowType = WorkflowType;
+            var agentName = workflowType.Split(':')[0];
+            return agentName;
         }
     }
     public static string WorkflowId { 

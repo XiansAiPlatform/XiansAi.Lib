@@ -19,7 +19,6 @@ public class Agent
         _uploadResources = uploadResources.GetValueOrDefault()
             || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
 
-        AgentContext.AgentName = name;
     }
 
     /// <summary>

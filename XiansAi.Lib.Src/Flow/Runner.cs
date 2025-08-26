@@ -45,7 +45,7 @@ public class Runner<TClass> where TClass : class
         AgentInfo = agentInfo;
         NumberOfWorkers = workers;
         // Set the agent name to Agent Context
-        AgentContext.AgentName = agentInfo.Name;
+        //AgentContext.AgentName = agentInfo.Name;
         // validate the runner
         Validate();
         // test the connection to the server

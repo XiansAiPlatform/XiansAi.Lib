@@ -87,7 +87,7 @@ public class ApiLogger : ILogger
             ?? context?.GetValueOrDefault("RunId")?.ToString()
             ?? "No RunId Available";
         var workflowType = context?.GetValueOrDefault("WorkflowType")?.ToString()  ?? "No Workflow Type Available";
-        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? AgentContext.AgentName ?? "No Agent Available";
+        var agent = context?.GetValueOrDefault("Agent")?.ToString() ?? "No Agent Available";
         var participantId = context?.GetValueOrDefault("ParticipantId")?.ToString() ?? "No Participant Id Available";
 
         var log = new Log
