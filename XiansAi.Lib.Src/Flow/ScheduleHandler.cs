@@ -47,7 +47,7 @@ public class ScheduleHandler: SafeHandler
         }
 
         // Wait for all schedule tasks (this won't block the workflow as each task manages its own timing)
-        await Task.WhenAll(scheduleTasks);
+        await Workflow.WhenAllAsync(scheduleTasks);
     }
 
 
@@ -99,28 +99,8 @@ public class ScheduleHandler: SafeHandler
             _logger.LogDebug($"Executing {method.Name} immediately due to runAtStart=true");
             try
             {
-                if (processInWorkflow)
-                {
-                    _logger.LogDebug($"Invoking scheduled method {method.Name} in workflow (runAtStart)");
-                    InvokeScheduledMethod(processorType, method);
-                }
-                else
-                {
-                    // IF processorType constructor has arguments, throw error
-                    if (processorType.GetConstructors().Any(c => c.GetParameters().Length > 0))
-                    {
-                        throw new InvalidOperationException($"Processor type {processorType.Name} has a constructor with arguments, but it is not supported in activity mode");
-                    }
-                    
-                    _logger.LogDebug($"Invoking scheduled method {method.Name} in activity (runAtStart)");
-                    if (processorType.AssemblyQualifiedName == null)
-                    {
-                        throw new InvalidOperationException($"Processor type {processorType.Name} has no assembly qualified name");
-                    }
-                    await Workflow.ExecuteLocalActivityAsync(
-                        (SystemActivities a) => a.InvokeScheduledMethod(processorType.AssemblyQualifiedName, method.Name),
-                        new SystemLocalActivityOptions());
-                }
+                // execute non blocking activity
+                ExecuteNonBlocking(processorType, processInWorkflow, method);
             }
             catch (Exception ex)
             {
@@ -133,6 +113,7 @@ public class ScheduleHandler: SafeHandler
         {
             try
             {
+                _logger.LogDebug($"Calculating next execution delay for {method.Name}");
                 // Calculate the next execution delay based on the method's schedule attributes
                 var delay = await GetDelayFromMethodAttributeAsync(method);
                 
@@ -141,31 +122,12 @@ public class ScheduleHandler: SafeHandler
                 // Wait for the scheduled time (non-blocking in workflow)
                 await Workflow.DelayAsync(delay);
 
-                if (processInWorkflow)
-                {
-                    _logger.LogDebug($"Invoking scheduled method {method.Name} in workflow");
-                    InvokeScheduledMethod(processorType, method);
-                }
-                else
-                {
-                    // IF processorType constructor has arguments, throw error
-                    if (processorType.GetConstructors().Any(c => c.GetParameters().Length > 0))
-                    {
-                        throw new InvalidOperationException($"Processor type {processorType.Name} has a constructor with arguments, but it is not supported in activity mode");
-                    }
-                    
-                    _logger.LogDebug($"Invoking scheduled method {method.Name} in activity");
-                    if (processorType.AssemblyQualifiedName == null)
-                    {
-                        throw new InvalidOperationException($"Processor type {processorType.Name} has no assembly qualified name");
-                    }
-                    await Workflow.ExecuteLocalActivityAsync(
-                        (SystemActivities a) => a.InvokeScheduledMethod(processorType.AssemblyQualifiedName, method.Name),
-                        new SystemLocalActivityOptions());
-                }
-                
                 // To manage the workflow history, we need to check if the workflow should continue as new after each execution
                 ContinueAsNew();
+
+                // execute non blocking activity
+                ExecuteNonBlocking(processorType, processInWorkflow, method);
+
             }
             catch (ContinueAsNewException)
             {
@@ -180,6 +142,35 @@ public class ScheduleHandler: SafeHandler
             }
         }
     }
+
+    private void ExecuteNonBlocking(Type processorType, bool processInWorkflow, MethodInfo method) {
+
+        _ = Workflow.RunTaskAsync(async () => {
+            if (processInWorkflow)
+            {
+                _logger.LogDebug($"Invoking scheduled method {method.Name} in workflow");
+                InvokeScheduledMethod(processorType, method);
+            }
+            else
+            {
+                // IF processorType constructor has arguments, throw error
+                if (processorType.GetConstructors().Any(c => c.GetParameters().Length > 0))
+                {
+                    throw new InvalidOperationException($"Processor type {processorType.Name} has a constructor with arguments, but it is not supported in activity mode");
+                }
+                
+                _logger.LogDebug($"Invoking scheduled method {method.Name} in activity");
+                if (processorType.AssemblyQualifiedName == null)
+                {
+                    throw new InvalidOperationException($"Processor type {processorType.Name} has no assembly qualified name");
+                }
+                await Workflow.ExecuteLocalActivityAsync(
+                    (SystemActivities a) => a.InvokeScheduledMethod(processorType.AssemblyQualifiedName, method.Name),
+                    new SystemLocalActivityOptions());
+            }
+        });
+    }
+
 
     public static string InvokeScheduledMethod(string processorTypeName, string methodName, params object[] args)
     {
