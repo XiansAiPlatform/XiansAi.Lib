@@ -8,25 +8,25 @@ public class SubWorkflowService
 
     private static readonly Logger<SubWorkflowService> _logger = Logger<SubWorkflowService>.For();
     public static async Task Start<TWorkflow>(string namePostfix, object[] args) {
-        var workflowType = AgentContext.GetWorkflowTypeFor(typeof(TWorkflow));
+        var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(typeof(TWorkflow));
         if (Workflow.InWorkflow) {
             _logger.LogInformation($"Starting sub workflow `{workflowType}` in workflow `{AgentContext.WorkflowId}`");
-            var options = new SubWorkflowOptions(namePostfix, workflowType);
+            var options = new SubWorkflowOptions(workflowType, namePostfix);
             await Workflow.StartChildWorkflowAsync(workflowType, args, options);
         } else {
-            await new WorkflowClientService().StartWorkflow(workflowType, args, namePostfix);
+            await new WorkflowClientService(AgentContext.AgentName).StartWorkflow(workflowType, args, namePostfix);
         }
     }
 
     public static async Task<TResult> Execute<TWorkflow, TResult>(string namePostfix, object[] args) {
-        var workflowType = AgentContext.GetWorkflowTypeFor(typeof(TWorkflow));
+        var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(typeof(TWorkflow));
         
         if (Workflow.InWorkflow) {
             _logger.LogInformation($"Executing sub workflow `{workflowType}` in workflow `{AgentContext.WorkflowId}`");
-            var options = new SubWorkflowOptions(namePostfix, workflowType);
+            var options = new SubWorkflowOptions(workflowType, namePostfix);
             return await Workflow.ExecuteChildWorkflowAsync<TResult>(workflowType, args, options);
         } else {
-            return await new WorkflowClientService().ExecuteWorkflow<TResult>(workflowType, args, namePostfix);
+            return await new WorkflowClientService(AgentContext.AgentName).ExecuteWorkflow<TResult>(workflowType, args, namePostfix);
         }
     }
 }

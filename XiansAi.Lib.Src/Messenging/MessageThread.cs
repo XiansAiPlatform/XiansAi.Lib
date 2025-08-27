@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using System.Text.Json.Serialization;
+using Temporal;
 
 namespace XiansAi.Messaging;
 public interface IMessageThread
@@ -79,8 +80,8 @@ public class MessageThread : IMessageThread
     public async Task<string?> SendHandoff(Type targetWorkflowType, string? message = null, object? data = null)
     {
         message ??= LatestMessage.Content ?? throw new Exception("User request is required for handoff");
-        var workflowId = AgentContext.GetSingletonWorkflowIdFor(targetWorkflowType);
-        var workflowTypeString = AgentContext.GetWorkflowTypeFor(targetWorkflowType);
+        var workflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var workflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         data ??= LatestMessage.Data;
         return await Handoff(message, data, workflowTypeString, workflowId);
     }
@@ -89,8 +90,8 @@ public class MessageThread : IMessageThread
     public async Task<string?> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null)
     {
         message ??= LatestMessage.Content ?? throw new Exception("User request is required for SendBotToBotMessage");
-        var workflowId = AgentContext.GetSingletonWorkflowIdFor(targetWorkflowType);
-        var workflowTypeString = AgentContext.GetWorkflowTypeFor(targetWorkflowType);
+        var workflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var workflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         var agent = AgentContext.AgentName;
         data ??= LatestMessage.Data;
         return await BotToBotMessage(message, data, workflowTypeString, workflowId, agent);

@@ -27,6 +27,7 @@ public class ScheduleSettings
 {
     public required string? ScheduleProcessorTypeName { get; set; }
     public required bool ShouldProcessScheduleInWorkflow { get; set; }
+    public required bool RunAtStart { get; set; }
 }
 
 public class SystemActivities
@@ -37,6 +38,7 @@ public class SystemActivities
     private readonly IChatInterceptor? _chatInterceptor;
     private readonly Type? _dataProcessorType;
     private readonly bool _processDataInWorkflow;
+    private readonly bool? _runAtStart;
     private readonly Type? _scheduleProcessorType;
     private readonly bool _processScheduleInWorkflow;
     private readonly KernelPlugins _plugins;
@@ -47,6 +49,7 @@ public class SystemActivities
         _chatInterceptor = flow.ChatInterceptor;
         _dataProcessorType = flow.DataProcessorType;
         _processDataInWorkflow = flow.ProcessDataInWorkflow;
+        _runAtStart = flow.RunAtStart;
         _scheduleProcessorType = flow.ScheduleProcessorType;
         _processScheduleInWorkflow = flow.ProcessScheduleInWorkflow;
         _plugins = flow.Plugins;
@@ -194,7 +197,8 @@ public class SystemActivities
     {
         return new ScheduleSettings {
             ScheduleProcessorTypeName = _scheduleProcessorType?.AssemblyQualifiedName,
-            ShouldProcessScheduleInWorkflow = _processScheduleInWorkflow
+            ShouldProcessScheduleInWorkflow = _processScheduleInWorkflow,
+            RunAtStart = _runAtStart ?? false
         };
     }
 

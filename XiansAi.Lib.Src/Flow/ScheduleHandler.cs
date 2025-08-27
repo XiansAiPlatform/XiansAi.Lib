@@ -25,6 +25,8 @@ public class ScheduleHandler: SafeHandler
             new SystemActivityOptions());
 
         Type? scheduleProcessorType = GetProcessorType(scheduleInformation);
+
+        var runAtStart = scheduleInformation.RunAtStart;
         
         // Get all scheduled methods from the processor type
         var scheduledMethods = GetScheduledMethods(scheduleProcessorType);
@@ -40,7 +42,7 @@ public class ScheduleHandler: SafeHandler
         
         foreach (var method in scheduledMethods)
         {
-            var task = ExecuteScheduledMethodAsync(scheduleProcessorType, scheduleInformation.ShouldProcessScheduleInWorkflow, method);
+            var task = ExecuteScheduledMethodAsync(scheduleProcessorType, scheduleInformation.ShouldProcessScheduleInWorkflow, method, runAtStart);
             scheduleTasks.Add(task);
         }
 
@@ -87,10 +89,45 @@ public class ScheduleHandler: SafeHandler
         return methods;
     }
 
-    private async Task ExecuteScheduledMethodAsync(Type processorType, bool processInWorkflow, MethodInfo method)
+    private async Task ExecuteScheduledMethodAsync(Type processorType, bool processInWorkflow, MethodInfo method, bool runAtStart = false)
     {
         _logger.LogDebug($"Starting scheduled execution for method: {method.Name}");
         
+        // Execute immediately if runAtStart is true
+        if (runAtStart)
+        {
+            _logger.LogDebug($"Executing {method.Name} immediately due to runAtStart=true");
+            try
+            {
+                if (processInWorkflow)
+                {
+                    _logger.LogDebug($"Invoking scheduled method {method.Name} in workflow (runAtStart)");
+                    InvokeScheduledMethod(processorType, method);
+                }
+                else
+                {
+                    // IF processorType constructor has arguments, throw error
+                    if (processorType.GetConstructors().Any(c => c.GetParameters().Length > 0))
+                    {
+                        throw new InvalidOperationException($"Processor type {processorType.Name} has a constructor with arguments, but it is not supported in activity mode");
+                    }
+                    
+                    _logger.LogDebug($"Invoking scheduled method {method.Name} in activity (runAtStart)");
+                    if (processorType.AssemblyQualifiedName == null)
+                    {
+                        throw new InvalidOperationException($"Processor type {processorType.Name} has no assembly qualified name");
+                    }
+                    await Workflow.ExecuteLocalActivityAsync(
+                        (SystemActivities a) => a.InvokeScheduledMethod(processorType.AssemblyQualifiedName, method.Name),
+                        new SystemLocalActivityOptions());
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error in initial execution of scheduled method {method.Name}: {ex.Message}");
+                // Continue to regular scheduling despite initial execution error
+            }
+        }
         
         while (true)
         {

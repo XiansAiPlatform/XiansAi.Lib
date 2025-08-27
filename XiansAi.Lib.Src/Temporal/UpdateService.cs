@@ -8,7 +8,7 @@ namespace Temporal;
 public class UpdateService 
 {
     public static async Task<TResult?> SendUpdateWithStart<TResult>(Type workflowType, string update, params object?[] args) {
-        var workflow = AgentContext.GetWorkflowTypeFor(workflowType);
+        var workflow = WorkflowIdentifier.GetWorkflowTypeFor(workflowType);
         return await SendUpdateWithStart<TResult>(workflow, update, args);
     }
 

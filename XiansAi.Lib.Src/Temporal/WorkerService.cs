@@ -12,13 +12,11 @@ internal class WorkerService
 {
     private readonly Logger<WorkerService> _logger;    
     private readonly CertificateReader _certificateReader;
-    private readonly WorkflowClientService _workflowService;
     private readonly RunnerOptions? _options;
     public WorkerService(RunnerOptions? options = null)
     {
         _logger = Logger<WorkerService>.For();
         _certificateReader = new CertificateReader();
-        _workflowService = new WorkflowClientService();
         _options = options;
         ValidateConfig();
 
@@ -105,8 +103,10 @@ internal class WorkerService
         // Start the workflow if it is configured to start automatically
         if (runner.StartAutomatically)
         {
-            _logger.LogInformation($"Starting workflow `{workFlowType}`");
-            await _workflowService.StartWorkflow(workFlowType, []);
+            _logger.LogInformation($"Starting workflow `{workFlowType}` for agent `{runner.AgentName}`");
+            var workflowService = new WorkflowClientService(runner.AgentName);
+
+            await workflowService.StartWorkflow(workFlowType, []);
         }
 
         // Create all worker tasks

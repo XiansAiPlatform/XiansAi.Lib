@@ -7,22 +7,8 @@ using Temporal;
 
 public class AgentContext
 {
-
-    private static string? _agent { get; set; }
     private static string? _tenantId { get; set; }
     private static CertificateInfo? _certificateInfo { get; set; }
-
-    public static string GetSingletonWorkflowIdFor(Type flowClassType)
-    {
-        var workflowId = $"{TenantId}:{GetWorkflowTypeFor(flowClassType)}";
-        return workflowId;
-    }
-
-    public static string GetWorkflowTypeFor(Type flowClassType)
-    {
-        var workflowAttr = flowClassType.GetCustomAttribute<WorkflowAttribute>();
-        return workflowAttr?.Name ?? throw new InvalidOperationException("WorkflowAttribute.Name is not set");
-    }
 
     public static async Task StartWorkflow<TWorkflow>(string namePostfix, object[] args) {
         await SubWorkflowService.Start<TWorkflow>(namePostfix, args);

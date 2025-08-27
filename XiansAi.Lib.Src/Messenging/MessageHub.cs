@@ -58,11 +58,15 @@ public class MessageHub: IMessageHub
 
     public static async Task<string?> SendConversationData(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
-        return await SendConversationChatOrData(MessageType.Data, participantId, content, data, requestId, scope);
+        var workflowId = AgentContext.WorkflowId;
+        var workflowType = AgentContext.WorkflowType;
+        return await SendConversationChatOrData(workflowId, workflowType, MessageType.Data, participantId, content, data, requestId, scope);
     }
     public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
-        return await SendConversationChatOrData(MessageType.Chat, participantId, content, data, requestId, scope);
+        var workflowId = AgentContext.WorkflowId;
+        var workflowType = AgentContext.WorkflowType;
+        return await SendConversationChatOrData(workflowId, workflowType, MessageType.Chat, participantId, content, data, requestId, scope);
     }
 
     public static async Task<TResult?> SendFlowUpdate<TResult>(Type flowClassType, string update, params object?[] args) 
@@ -71,8 +75,8 @@ public class MessageHub: IMessageHub
     }
 
     public static async Task SendFlowMessage(Type flowClassType, object? payload = null) {
-        var targetWorkflowType = AgentContext.GetWorkflowTypeFor(flowClassType);
-        var targetWorkflowId = AgentContext.GetSingletonWorkflowIdFor(flowClassType);
+        var targetWorkflowType = WorkflowIdentifier.GetWorkflowTypeFor(flowClassType);
+        var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(flowClassType);
 
         try {
             var eventDto = new EventSignal
@@ -103,14 +107,26 @@ public class MessageHub: IMessageHub
         }
     }
 
+    public static async Task SendChatAs(Type flowClassType, string participantId, string content, object? data = null, string? requestId = null, string? scope = null) {
+        var workflowId = WorkflowIdentifier.GetWorkflowIdFor(flowClassType);
+        var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(flowClassType);
+        await SendConversationChatOrData(workflowId, workflowType, MessageType.Chat, participantId, content, data, requestId, scope);
+    }
 
-    private static async Task<string?> SendConversationChatOrData(MessageType type, string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
+    public static async Task SendDataAs(Type flowClassType, string participantId, string content, object data, string? requestId = null, string? scope = null) {
+        var workflowId = WorkflowIdentifier.GetWorkflowIdFor(flowClassType);
+        var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(flowClassType);
+        await SendConversationChatOrData(workflowId, workflowType, MessageType.Data, participantId, content, data, requestId, scope);
+    }
+
+    private static async Task<string?> SendConversationChatOrData(string workflowId, string workflowType, MessageType type, string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
+
         var outgoingMessage = new ChatOrDataRequest
         {
             Agent = AgentContext.AgentName,
-            WorkflowId = AgentContext.WorkflowId,
-            WorkflowType = AgentContext.WorkflowType,
+            WorkflowId = workflowId,
+            WorkflowType = workflowType,
             Text = content,
             Data = data,
             ParticipantId = participantId,

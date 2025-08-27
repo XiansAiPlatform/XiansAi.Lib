@@ -31,6 +31,7 @@ public class Runner<TClass> where TClass : class
     private readonly List<Type> _capabilities = new();
     public Type? DataProcessorType { get; set; }
     public bool ProcessDataInWorkflow { get; set; } = false;
+    public bool RunAtStart { get; set; } = false;
     public Type? ScheduleProcessorType { get; set; }
     public bool ProcessScheduleInWorkflow { get; set; } = false;
     public bool StartAutomatically { get; set; } = false;
@@ -200,12 +201,13 @@ public class Runner<TClass> where TClass : class
         }
     }
 
-    internal string AgentName
+    public string AgentName
     {
         get
         {
             return AgentInfo.Name;
         }
+        
     }
 
     internal Dictionary<Type, object> ObjectActivities

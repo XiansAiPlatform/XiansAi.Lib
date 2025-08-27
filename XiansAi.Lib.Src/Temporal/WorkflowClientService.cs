@@ -7,17 +7,19 @@ public class WorkflowClientService
 {
     private readonly Logger<WorkflowClientService> _logger;
     private readonly ITemporalClient _client;
-    public WorkflowClientService()
+    private readonly string _agentName;
+    public WorkflowClientService(string agentName)
     {
         _logger = Logger<WorkflowClientService>.For();
         _client = TemporalClientService.Instance.GetClientAsync().Result;
+        _agentName = agentName;
     }
 
 
     public async Task<TResult> ExecuteWorkflow<TResult>(string workflowType, object[] args, string? postfix = null)
     {
-        var options = new NewWorkflowOptions(workflowType, postfix);
-        _logger.LogInformation($"Executing workflow using Temporal Client `{workflowType}` with id `{options.Id}`");
+        _logger.LogInformation($"Executing workflow `{workflowType}` with id postfix `{postfix}` for agent `{_agentName}`");
+        var options = new NewWorkflowOptions(workflowType, postfix, _agentName);
         return await _client.ExecuteWorkflowAsync<TResult>(
             workflowType,
             args,
@@ -27,8 +29,8 @@ public class WorkflowClientService
 
     public async Task StartWorkflow(string workflowType, object[] args, string? postfix = null)
     {
-        var options = new NewWorkflowOptions(workflowType, postfix);
-        _logger.LogInformation($"Starting workflow using Temporal Client `{workflowType}` with id postfix `{postfix}`");
+        _logger.LogInformation($"Starting workflow `{workflowType}` with id postfix `{postfix}` for agent `{_agentName}`");
+        var options = new NewWorkflowOptions(workflowType, postfix, _agentName);
         await _client.StartWorkflowAsync(
             workflowType,
             args,
