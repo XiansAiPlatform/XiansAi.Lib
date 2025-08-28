@@ -1,5 +1,6 @@
 using XiansAi.Messaging;
 
+
 namespace XiansAi.Lib.Tests.UnitTests.Flow
 {
     /*
@@ -19,6 +20,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task RegisterAsyncHandler_AddsHandlerToCollection()
         {
             // Arrange
@@ -44,6 +46,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task UnregisterHandler_RemovesHandlerFromCollection()
         {
             // Arrange
@@ -67,6 +70,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task UnregisterAsyncHandler_RemovesHandlerFromCollection()
         {
             // Arrange
@@ -94,6 +98,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task ReceiveMessage_CallsAllRegisteredHandlers()
         {
             // Arrange
@@ -123,6 +128,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task ReceiveMessage_CreatesProperMessageThread()
         {
             // Arrange
@@ -145,6 +151,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task RegisteringSameHandlerMultipleTimes_OnlyRegistersOnce()
         {
             // Arrange
@@ -168,6 +175,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         }
 
         [Fact]
+        [Obsolete]
         public async Task UnregisteringNonExistentHandler_DoesNotThrowException()
         {
             // Arrange

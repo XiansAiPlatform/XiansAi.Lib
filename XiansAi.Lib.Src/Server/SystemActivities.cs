@@ -36,6 +36,7 @@ public class SystemActivities
 
     private readonly List<Type> _capabilities = new();
     private readonly IChatInterceptor? _chatInterceptor;
+    private readonly IKernelModifier? _kernelModifier;
     private readonly Type? _dataProcessorType;
     private readonly bool _processDataInWorkflow;
     private readonly bool? _runAtStart;
@@ -47,6 +48,7 @@ public class SystemActivities
     {
         _capabilities = flow.Capabilities;
         _chatInterceptor = flow.ChatInterceptor;
+        _kernelModifier = flow.KernelModifier;
         _dataProcessorType = flow.DataProcessorType;
         _processDataInWorkflow = flow.ProcessDataInWorkflow;
         _runAtStart = flow.RunAtStart;
@@ -233,7 +235,7 @@ public class SystemActivities
     public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _plugins);
+        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _kernelModifier, _plugins);
     }
 
     [Activity]
@@ -264,12 +266,12 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<string?> SendBotToBotMessage(ChatOrDataRequest chatOrDataMessage) 
+    public async Task<MessageResponse> SendBotToBotMessage(ChatOrDataRequest chatOrDataMessage, MessageType type, int timeoutSeconds = 30) 
     {
-        return await SendBotToBotMessageStatic( chatOrDataMessage);
+        return await SendBotToBotMessageStatic( chatOrDataMessage, type, timeoutSeconds);
     }
 
-    public static async Task<string?> SendBotToBotMessageStatic(ChatOrDataRequest chatOrDataMessage) 
+    public static async Task<MessageResponse> SendBotToBotMessageStatic(ChatOrDataRequest chatOrDataMessage, MessageType type, int timeoutSeconds) 
     {
         if (!SecureApi.IsReady)
         {
@@ -279,11 +281,11 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?&type=Chat&timeoutSeconds=30", chatOrDataMessage);
+            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?&type={type}&timeoutSeconds={timeoutSeconds}", chatOrDataMessage);
             response.EnsureSuccessStatusCode();
-            var chatMessage = await response.Content.ReadFromJsonAsync<ApiResponse>();
+            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
             
-            return chatMessage?.Response.Text??$"No Response from {chatOrDataMessage.Agent}";
+            return apiResponse?.Response ?? throw new Exception("No Conversation response from the Agent");
         }
         catch (Exception ex)
         {

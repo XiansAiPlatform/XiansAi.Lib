@@ -164,7 +164,6 @@ public class ChatHandler : SafeHandler
         var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
-
         // Respond to the user
         await messageThread.SendChat(response);
     }

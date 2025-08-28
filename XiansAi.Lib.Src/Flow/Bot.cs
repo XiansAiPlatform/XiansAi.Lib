@@ -1,3 +1,5 @@
+using Microsoft.SemanticKernel;
+
 namespace XiansAi.Flow;
 
 /// <summary>
@@ -38,6 +40,12 @@ public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
     public Bot<TBot> SetChatInterceptor(IChatInterceptor interceptor)
     {
         _runner.ChatInterceptor = interceptor;
+        return this;
+    }
+
+    public Bot<TBot> SetKernelModifier(IKernelModifier modifier)
+    {
+        _runner.KernelModifier = modifier;
         return this;
     }
 

@@ -7,10 +7,11 @@ using Temporal;
 namespace XiansAi.Messaging;
 public interface IMessageThread
 {
-    Task<string?> SendChat(string content, object? data = null);
-    Task<string?> SendData(object data, string? content = null);
+    Task<List<DbMessage>> FetchThreadHistory(int page = 1, int pageSize = 10);
+    Task SendChat(string content, object? data = null);
+    Task SendData(object data, string? content = null);
     Task<string?> SendHandoff(Type workflowType, string? message = null, object? metadata = null);
-
+    Task<MessageResponse> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null, int timeoutSeconds = 30);
 }
 
 public class Message
@@ -67,14 +68,14 @@ public class MessageThread : IMessageThread
     }
 
 
-    public async Task<string?> SendData(object? data, string? content = null)
+    public async Task SendData(object? data, string? content = null)
     {
-        return await SendChatOrData(content, data, MessageType.Data);
+        await new Agent2User().SendData(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
     }
 
-    public async Task<string?> SendChat(string? content, object? data = null)
+    public async Task SendChat(string? content, object? data = null)
     {
-        return await SendChatOrData(content, data, MessageType.Chat);
+        await new Agent2User().SendChat(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
     }
 
     public async Task<string?> SendHandoff(Type targetWorkflowType, string? message = null, object? data = null)
@@ -86,15 +87,13 @@ public class MessageThread : IMessageThread
         return await Handoff(message, data, workflowTypeString, workflowId);
     }
 
-
-    public async Task<string?> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null)
+    public async Task<MessageResponse> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null, int timeoutSeconds = 30)
     {
         message ??= LatestMessage.Content ?? throw new Exception("User request is required for SendBotToBotMessage");
-        var workflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
-        var workflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
-        var agent = AgentContext.AgentName;
+        var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         data ??= LatestMessage.Data;
-        return await BotToBotMessage(message, data, workflowTypeString, workflowId, agent);
+        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, LatestMessage.Hint, timeoutSeconds);
     }
 
     public async Task<string?> SendHandoff(string targetWorkflowId, string? message = null, object? data = null)
@@ -103,35 +102,6 @@ public class MessageThread : IMessageThread
         data ??= LatestMessage.Data;
         return await Handoff(message, data, null, targetWorkflowId);
     }
-
-    private async Task<string?> SendChatOrData(string? content, object? data, MessageType type)
-    {
-        var outgoingMessage = new ChatOrDataRequest
-        {
-            Text = content,
-            Data = data,
-            RequestId = LatestMessage.RequestId,
-            Scope = LatestMessage.Scope,
-            ParticipantId = ParticipantId,
-            WorkflowId = WorkflowId,
-            WorkflowType = WorkflowType,
-            Agent = Agent
-        };
-
-        if (Workflow.InWorkflow)
-        {
-            var success = await Workflow.ExecuteLocalActivityAsync(
-                (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
-                new SystemLocalActivityOptions());
-            return success;
-        }
-        else
-        {
-            var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, type);
-            return success;
-        }
-    }
-
 
     private async Task<string?> Handoff(string userRequest, object? data, string? targetWorkflowType, string? targetWorkflowId)
     {
@@ -175,47 +145,5 @@ public class MessageThread : IMessageThread
         }
     }
     
-    private async Task<string?> BotToBotMessage(string userRequest, object? data, string? targetWorkflowType, string? targetWorkflowId, string? agent)
-    {
-        if(string.IsNullOrEmpty(userRequest)) 
-        {
-            throw new Exception("User request is required for bot to bot messaging");
-        }
-
-        if (string.IsNullOrEmpty(targetWorkflowId) && string.IsNullOrEmpty(targetWorkflowType) && string.IsNullOrEmpty(agent))
-        {
-            throw new Exception("Target workflowId or workflowType or agent is required for bot to bot messaging");
-        }
-
-        if (string.IsNullOrEmpty(targetWorkflowId)) throw new Exception("WorkflowId is required");
-        if (string.IsNullOrEmpty(targetWorkflowType)) throw new Exception("WorkflowType is required");
-        if (string.IsNullOrEmpty(agent)) throw new Exception("Agent name is required");
-
-        var outgoingChatOrDataMessage = new ChatOrDataRequest
-        {
-            WorkflowId = targetWorkflowId,
-            WorkflowType = targetWorkflowType,
-            Agent = agent,
-            Text = userRequest,
-            Data = data,
-            RequestId = LatestMessage.RequestId,
-            Scope = LatestMessage.Scope,
-            ParticipantId = ParticipantId,
-            Authorization=Authorization,
-            Hint = LatestMessage.Hint,
-            Origin = WorkflowId
-        };
-
-        _logger.LogDebug("Sending over thread: {Message}", JsonSerializer.Serialize(outgoingChatOrDataMessage));
-        if (Workflow.InWorkflow) {
-            var success = await Workflow.ExecuteLocalActivityAsync(
-                (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage),
-                new SystemLocalActivityOptions());
-            return success;
-        } else {
-            var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage);
-            return success;
-        }
-    }
     
 }

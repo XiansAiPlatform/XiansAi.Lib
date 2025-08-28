@@ -37,7 +37,6 @@ public class ChatOrDataRequest
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
-    public required string Agent { get; set; }
     public string? RequestId { get; set; }
     public string? Scope { get; set; }
     public object? Data { get; set; }
@@ -121,12 +120,6 @@ public class EventSignal
 
 public class ApiResponse
 {
-    [JsonPropertyName("requestId")]
-    public string? RequestId { get; set; }
-
-    [JsonPropertyName("threadId")]
-    public string? ThreadId { get; set; }
-
     [JsonPropertyName("response")]
     public required MessageResponse Response { get; set; }
 }
@@ -156,4 +149,10 @@ public class MessageResponse
 
     [JsonPropertyName("hint")]
     public string? Hint { get; set; }
+
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
+
+    [JsonPropertyName("threadId")]
+    public string? ThreadId { get; set; }
 }

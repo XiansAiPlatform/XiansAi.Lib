@@ -41,6 +41,8 @@ class MessengerLog {}
 
 public class MessageHub: IMessageHub
 {
+    public static Agent2User Agent2User { get; set; } = new Agent2User();
+    public static Agent2Agent Agent2Agent { get; set; } = new Agent2Agent();
     private readonly ConcurrentBag<Func<MessageThread, Task>> _chatHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
     private readonly ConcurrentBag<Func<MessageThread, Task>> _dataHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
     private readonly ConcurrentBag<Func<EventMetadata, object?, Task>> _flowMessageHandlers = new ConcurrentBag<Func<EventMetadata, object?, Task>>();
@@ -56,24 +58,13 @@ public class MessageHub: IMessageHub
     private readonly Dictionary<Delegate, Func<EventMetadata, object?, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<EventMetadata, object?, Task>>();
 
-    public static async Task<string?> SendConversationData(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
-    {
-        var workflowId = AgentContext.WorkflowId;
-        var workflowType = AgentContext.WorkflowType;
-        return await SendConversationChatOrData(workflowId, workflowType, MessageType.Data, participantId, content, data, requestId, scope);
-    }
-    public static async Task<string?> SendConversationChat(string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
-    {
-        var workflowId = AgentContext.WorkflowId;
-        var workflowType = AgentContext.WorkflowType;
-        return await SendConversationChatOrData(workflowId, workflowType, MessageType.Chat, participantId, content, data, requestId, scope);
-    }
-
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public static async Task<TResult?> SendFlowUpdate<TResult>(Type flowClassType, string update, params object?[] args) 
     {
         return await UpdateService.SendUpdateWithStart<TResult>(flowClassType, update, args);
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public static async Task SendFlowMessage(Type flowClassType, object? payload = null) {
         var targetWorkflowType = WorkflowIdentifier.GetWorkflowTypeFor(flowClassType);
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(flowClassType);
@@ -107,48 +98,7 @@ public class MessageHub: IMessageHub
         }
     }
 
-    public static async Task SendChatAs(Type flowClassType, string participantId, string content, object? data = null, string? requestId = null, string? scope = null) {
-        var workflowId = WorkflowIdentifier.GetWorkflowIdFor(flowClassType);
-        var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(flowClassType);
-        await SendConversationChatOrData(workflowId, workflowType, MessageType.Chat, participantId, content, data, requestId, scope);
-    }
-
-    public static async Task SendDataAs(Type flowClassType, string participantId, string content, object data, string? requestId = null, string? scope = null) {
-        var workflowId = WorkflowIdentifier.GetWorkflowIdFor(flowClassType);
-        var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(flowClassType);
-        await SendConversationChatOrData(workflowId, workflowType, MessageType.Data, participantId, content, data, requestId, scope);
-    }
-
-    private static async Task<string?> SendConversationChatOrData(string workflowId, string workflowType, MessageType type, string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
-    {
-
-        var outgoingMessage = new ChatOrDataRequest
-        {
-            Agent = AgentContext.AgentName,
-            WorkflowId = workflowId,
-            WorkflowType = workflowType,
-            Text = content,
-            Data = data,
-            ParticipantId = participantId,
-            RequestId = requestId,
-            Scope = scope
-        };
-
-        if (Workflow.InWorkflow)
-        {
-            var success = await Workflow.ExecuteLocalActivityAsync(
-                (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
-                new SystemLocalActivityOptions());
-            return success;
-        }
-        else
-        {
-            var success = await SystemActivities.SendChatOrDataStatic(outgoingMessage, type);
-            return success;
-        }
-
-    }
-
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void SubscribeAsyncFlowMessageHandler<T>(FlowMessageReceivedAsyncHandler<T> handler)
     {
         // Convert the delegate type with proper type casting
@@ -172,6 +122,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void SubscribeFlowMessageHandler<T>(FlowMessageReceivedHandler<T> handler)
     {
         // Wrap the synchronous handler to return a completed task with proper type casting
@@ -196,6 +147,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void UnsubscribeAsyncFlowMessageHandler<T>(FlowMessageReceivedHandler<T> handler)
     {
         if (_handlerMappings.TryGetValue(handler, out var funcHandler))
@@ -204,6 +156,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void UnsubscribeFlowMessageHandler<T>(FlowMessageReceivedAsyncHandler<T> handler)
     {
         if (_handlerMappings.TryGetValue(handler, out var funcHandler))
@@ -211,6 +164,8 @@ public class MessageHub: IMessageHub
             _handlerMappings.Remove(handler);
         }
     }
+
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void SubscribeAsyncChatHandler(ConversationReceivedAsyncHandler handler)
     {
         // Convert the delegate type
@@ -227,6 +182,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void SubscribeChatHandler(ConversationReceivedHandler handler)
     {
         // Wrap the synchronous handler to return a completed task
@@ -268,7 +224,8 @@ public class MessageHub: IMessageHub
             _logger.LogWarning($"Attempted to unregister non-existent sync message handler: {handler.Method.Name}");
         }
     }
-    
+
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void UnsubscribeAsyncChatHandler(ConversationReceivedAsyncHandler handler)
     {
         if (_chatHandlerMappings.TryRemove(handler, out var funcHandler))
@@ -281,6 +238,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void SubscribeAsyncDataHandler(ConversationReceivedAsyncHandler handler)
     {
         // Convert the delegate type
@@ -297,6 +255,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void SubscribeDataHandler(ConversationReceivedHandler handler)
     {
         // Wrap the synchronous handler to return a completed task
@@ -324,7 +283,7 @@ public class MessageHub: IMessageHub
             _logger.LogWarning($"Sync metadata handler already registered: {handler.Method.Name}");
         }
     }
-    
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void UnsubscribeDataHandler(ConversationReceivedHandler handler)
     {
         if (_dataHandlerMappings.TryRemove(handler, out var funcHandler))
@@ -336,7 +295,7 @@ public class MessageHub: IMessageHub
             _logger.LogWarning($"Attempted to unregister non-existent sync metadata handler: {handler.Method.Name}");
         }
     }
-    
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public void UnsubscribeAsyncDataHandler(ConversationReceivedAsyncHandler handler)
     {
         if (_dataHandlerMappings.TryRemove(handler, out var funcHandler))
@@ -349,6 +308,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     public async Task ReceiveConversationChatOrData(MessageSignal messageSignal)
     {
         _logger.LogDebug($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
@@ -383,6 +343,7 @@ public class MessageHub: IMessageHub
         }
     }
 
+    [Obsolete("Use Agent2Agent.SendChat or Agent2Agent.SendData instead")]
     private async Task ProcessConversationHandlers(IEnumerable<Func<MessageThread, Task>> handlers, MessageThread messageThread)
     {
         var handlerList = handlers.ToList();
