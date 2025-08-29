@@ -73,7 +73,7 @@ public class MessageThread : IMessageThread
         await new Agent2User().SendData(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
     }
 
-    public async Task SendChat(string? content, object? data = null)
+    public async Task SendChat(string content, object? data = null)
     {
         await new Agent2User().SendChat(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
     }

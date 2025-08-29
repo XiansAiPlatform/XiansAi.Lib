@@ -10,7 +10,7 @@ namespace XiansAi.Flow;
 /// </summary>
 public abstract class AbstractFlow
 {
-    protected readonly IMessageHub _messageHub;
+    protected readonly MessageHub _messageHub;
     //private readonly IEventHub _eventHub;
 
     /// <summary>
@@ -30,7 +30,7 @@ public abstract class AbstractFlow
     }
 
     [WorkflowSignal("HandleInboundChatOrData")]
-    public async Task HandleInboundChatOrData(MessageSignal messageSignal)
+    public async Task HandleInboundChatOrDataSignal(MessageSignal messageSignal)
     {
         await _messageHub.ReceiveConversationChatOrData(messageSignal);
     }

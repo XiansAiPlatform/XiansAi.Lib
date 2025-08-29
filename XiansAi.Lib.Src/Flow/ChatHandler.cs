@@ -16,14 +16,14 @@ public class ChatHandler : SafeHandler
 {
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<ChatHandler> _logger = Logger<ChatHandler>.For();
-    private readonly IMessageHub _messageHub;
+    private readonly MessageHub _messageHub;
     private MessageListenerDelegate? _messageListener;
     private Func<Task<string>>? _systemPromptProvider;
     private bool _initialized = false;
 
     public RouterOptions RouterOptions { get; set; } = new RouterOptions();
 
-    public ChatHandler(IMessageHub messageHub)
+    public ChatHandler(MessageHub messageHub)
     {
         _messageHub = messageHub;
         _messageHub.SubscribeChatHandler(EnqueueChatMessage);
@@ -164,6 +164,10 @@ public class ChatHandler : SafeHandler
         var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
+
+        if (response == null) {
+            throw new Exception("No response from router");
+        }
         // Respond to the user
         await messageThread.SendChat(response);
     }

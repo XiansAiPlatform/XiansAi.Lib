@@ -24,9 +24,9 @@ public static class SemanticRouterHub
         RouterOptions options)
     {
         // Go through a Temporal activity to perform IO operations
-        var response = await Workflow.ExecuteLocalActivityAsync(
+        var response = await Workflow.ExecuteActivityAsync(
             (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
-            new SystemLocalActivityOptions());
+            new SystemActivityOptions());
 
         return response;
     }

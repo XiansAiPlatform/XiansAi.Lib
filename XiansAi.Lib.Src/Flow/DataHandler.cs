@@ -7,13 +7,13 @@ using XiansAi.Messaging;
 namespace XiansAi.Flow;
 public class DataHandler : SafeHandler
 {
-    private readonly IMessageHub _messageHub;
+    private readonly MessageHub _messageHub;
     private readonly FlowBase _flow;
     private readonly ConcurrentQueue<MessageThread> _messageQueue = new();
     private static readonly Logger<DataHandler> _logger = Logger<DataHandler>.For();
     private bool _initialized = false;
 
-    public DataHandler(IMessageHub messageHub, FlowBase flow)
+    public DataHandler(MessageHub messageHub, FlowBase flow)
     {
         _messageHub = messageHub;
         _flow = flow;
@@ -48,14 +48,11 @@ public class DataHandler : SafeHandler
                 _logger.LogDebug($"Message received from thread id: {messageThread?.ThreadId}");
                 if (messageThread == null) continue;
 
-                var methodName = messageThread.LatestMessage.Content;
-                var parameters = messageThread.LatestMessage.Data?.ToString();
-
                 if (processDataInformation.ShouldProcessDataInWorkflow)
                 {
                     _logger.LogDebug("Processing data in workflow");
                     // process the data in workflow
-                    await ProcessData(dataProcessorType, messageThread, methodName, parameters);
+                    await ProcessData(dataProcessorType, messageThread);
                 }
                 else
                 {
@@ -67,7 +64,7 @@ public class DataHandler : SafeHandler
                     _logger.LogDebug("Processing data in activity");
                     // process the data in activity
                     await Workflow.ExecuteLocalActivityAsync(
-                        (SystemActivities a) => a.ProcessData(messageThread, methodName, parameters),
+                        (SystemActivities a) => a.ProcessData(messageThread),
                         new SystemLocalActivityOptions());
                 }
             }
@@ -135,12 +132,15 @@ public class DataHandler : SafeHandler
         }
         return thread;
     }
-    public async Task ProcessData(Type? dataProcessorType, MessageThread messageThread, string methodName, string? methodArgs) {
-        await ProcessDataStatic(dataProcessorType, messageThread, _flow, methodName, methodArgs);
+    public async Task ProcessData(Type? dataProcessorType, MessageThread messageThread) {
+        await ProcessDataStatic(dataProcessorType, messageThread, _flow);
     }
 
-    public static async Task ProcessDataStatic(Type? dataProcessorType, MessageThread messageThread, FlowBase? flow, string methodName, string? methodArgs)
+    public static async Task ProcessDataStatic(Type? dataProcessorType, MessageThread messageThread, FlowBase? flow)
     {
+        var methodName = messageThread.LatestMessage.Content;
+        var methodArgs = messageThread.LatestMessage.Data?.ToString();
+        
         if (dataProcessorType == null)
         {
             throw new Exception("Data processor type is not set for this flow. Use `flow.SetDataProcessor<DataProcessor>()` to set the data processor type.");

@@ -222,7 +222,7 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task ProcessData(MessageThread messageThread, string methodName, string? parameters)
+    public async Task ProcessData(MessageThread messageThread)
     {
         if (_processDataInWorkflow)
         {
@@ -230,7 +230,7 @@ public class SystemActivities
         }
         
         // do the routing
-        await DataHandler.ProcessDataStatic(_dataProcessorType, messageThread, null,methodName, parameters);
+        await DataHandler.ProcessDataStatic(_dataProcessorType, messageThread, null);
     }
 
     [Activity]
@@ -282,8 +282,9 @@ public class SystemActivities
 
         try
         {
+            _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(chatOrDataMessage));
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?&type={type}&timeoutSeconds={timeoutSeconds}", chatOrDataMessage);
+            var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?type={type}&timeoutSeconds={timeoutSeconds}", chatOrDataMessage);
             response.EnsureSuccessStatusCode();
             var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
             
@@ -373,7 +374,7 @@ public class SystemActivities
 
 public class SystemActivityOptions : ActivityOptions
 {
-    public SystemActivityOptions(int timeoutSeconds = 60)
+    public SystemActivityOptions(int timeoutSeconds = 10*60)
     {
         ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
     }
@@ -381,7 +382,7 @@ public class SystemActivityOptions : ActivityOptions
 
 public class SystemLocalActivityOptions : LocalActivityOptions
 {
-    public SystemLocalActivityOptions(int timeoutSeconds = 5*60)
+    public SystemLocalActivityOptions(int timeoutSeconds = 10*60)
     {
         ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
     }

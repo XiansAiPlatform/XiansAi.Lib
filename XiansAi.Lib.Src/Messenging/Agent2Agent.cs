@@ -176,6 +176,7 @@ public class Agent2Agent : IAgent2Agent {
         {
             WorkflowId = targetWorkflowId,
             WorkflowType = targetWorkflowType,
+            Type = type,
             Text = userRequest,
             Data = data,
             RequestId = requestId,
@@ -187,9 +188,9 @@ public class Agent2Agent : IAgent2Agent {
         };
 
         if (Workflow.InWorkflow) {
-            var success = await Workflow.ExecuteLocalActivityAsync(
+            var success = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage, type, timeoutSeconds),
-                new SystemLocalActivityOptions());
+                new SystemActivityOptions());
             return success;
         } else {
             var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage, type, timeoutSeconds);
