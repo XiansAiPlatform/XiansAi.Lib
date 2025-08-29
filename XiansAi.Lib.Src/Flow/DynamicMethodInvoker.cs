@@ -158,7 +158,18 @@ public static class DynamicMethodInvoker
         }
         catch (JsonException ex)
         {
-            throw new ParameterParsingException($"Invalid JSON parameters: {ex.Message}", ex);
+            // If JSON parsing fails, treat the entire string as a single string parameter
+            // This handles cases like simple strings that aren't wrapped in quotes
+            try
+            {
+                var wrappedJson = JsonSerializer.Serialize(parametersJson);
+                var jsonDocument = JsonDocument.Parse(wrappedJson);
+                return new[] { jsonDocument.RootElement };
+            }
+            catch (Exception)
+            {
+                throw new ParameterParsingException($"Invalid JSON parameters: {ex.Message}", ex);
+            }
         }
     }
 

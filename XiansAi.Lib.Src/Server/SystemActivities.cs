@@ -19,8 +19,8 @@ public class SendMessageResponse
     
 public class ProcessDataSettings
 {
-    public required bool ShouldProcessDataInWorkflow { get; set; }
-    public required string? DataProcessorTypeName { get; set; }
+    public bool ShouldProcessDataInWorkflow { get; set; }
+    public string? DataProcessorTypeName { get; set; }
 }
 
 public class ScheduleSettings
@@ -207,10 +207,12 @@ public class SystemActivities
     [Activity]
     public ProcessDataSettings GetProcessDataSettings()
     {
-        return new ProcessDataSettings {
+        var settings = new ProcessDataSettings {
             ShouldProcessDataInWorkflow = _processDataInWorkflow,
             DataProcessorTypeName = _dataProcessorType?.AssemblyQualifiedName
         };
+        _logger.LogDebug("ProcessDataSettings: {Settings}", JsonSerializer.Serialize(settings));
+        return settings;
     }
 
     [Activity]
