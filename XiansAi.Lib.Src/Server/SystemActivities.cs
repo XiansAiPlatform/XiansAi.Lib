@@ -379,7 +379,7 @@ public class SystemActivityOptions : ActivityOptions
 
 public class SystemLocalActivityOptions : LocalActivityOptions
 {
-    public SystemLocalActivityOptions(int timeoutSeconds = 60)
+    public SystemLocalActivityOptions(int timeoutSeconds = 5*60)
     {
         ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
     }

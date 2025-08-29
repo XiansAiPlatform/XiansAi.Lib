@@ -219,7 +219,7 @@ public class SecureApi : ISecureApiClient, IDisposable
         _client = new HttpClient(handler) { 
             BaseAddress = new Uri(serverUrl),
             // Reduce timeout for faster shutdown - 30 seconds should be sufficient
-            Timeout = TimeSpan.FromSeconds(30)
+            Timeout = TimeSpan.FromSeconds(5 * 60)
         };
 
         // Configure for faster shutdown
