@@ -192,7 +192,7 @@ public class Runner<TClass> where TClass : class
     }
 
     public IChatInterceptor? ChatInterceptor { get; set; }
-    public IKernelModifier? KernelModifier { get; set; }
+    public List<IKernelModifier> KernelModifiers { get; set; } = new();
 
     public List<Type> Capabilities
     {

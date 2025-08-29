@@ -43,9 +43,9 @@ public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
         return this;
     }
 
-    public Bot<TBot> SetKernelModifier(IKernelModifier modifier)
+    public Bot<TBot> AddKernelModifier(IKernelModifier modifier)
     {
-        _runner.KernelModifier = modifier;
+        _runner.KernelModifiers.Add(modifier);
         return this;
     }
 

@@ -11,7 +11,7 @@ public interface IMessageThread
     Task SendChat(string content, object? data = null);
     Task SendData(object data, string? content = null);
     Task<string?> SendHandoff(Type workflowType, string? message = null, object? metadata = null);
-    Task<MessageResponse> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null, int timeoutSeconds = 30);
+    Task<MessageResponse> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null, int timeoutSeconds = 60);
 }
 
 public class Message
@@ -87,7 +87,7 @@ public class MessageThread : IMessageThread
         return await Handoff(message, data, workflowTypeString, workflowId);
     }
 
-    public async Task<MessageResponse> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null, int timeoutSeconds = 30)
+    public async Task<MessageResponse> ForwardMessage(Type targetWorkflowType, string? message = null, object? data = null, int timeoutSeconds = 60)
     {
         message ??= LatestMessage.Content ?? throw new Exception("User request is required for SendBotToBotMessage");
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);

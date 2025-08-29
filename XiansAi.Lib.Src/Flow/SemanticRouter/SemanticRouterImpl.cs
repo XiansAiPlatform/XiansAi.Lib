@@ -68,7 +68,7 @@ internal class SemanticRouterHubImpl : IDisposable
         
         try
         {
-            var kernel = await CreateKernelAsync(options, Array.Empty<Type>(), null, new KernelPlugins());
+            var kernel = BuildKernelAsync(options);
             var agent = CreateChatCompletionAgent(
                 name: "CompletionAgent",
                 instructions: systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.",
@@ -102,7 +102,7 @@ internal class SemanticRouterHubImpl : IDisposable
         Type[] capabilitiesPluginTypes, 
         RouterOptions options, 
         IChatInterceptor? interceptor, 
-        IKernelModifier? kernelModifier,
+        List<IKernelModifier> kernelModifiers,
         KernelPlugins plugins)
     {
         if (string.IsNullOrWhiteSpace(systemPrompt))
@@ -114,7 +114,7 @@ internal class SemanticRouterHubImpl : IDisposable
             messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
 
             // Create kernel with all plugins
-            var kernel = await CreateKernelWithStatefulPluginsAsync(options, capabilitiesPluginTypes, messageThread, kernelModifier, plugins);
+            var kernel = await CreateKernelWithPlugins(options, capabilitiesPluginTypes, messageThread, kernelModifiers, plugins);
 
             // Create the agent with full instructions
             // Sanitize the agent name to comply with OpenAI requirements
@@ -196,22 +196,46 @@ internal class SemanticRouterHubImpl : IDisposable
         }
     }
 
-    private async Task<Kernel> CreateKernelWithStatefulPluginsAsync(
+    private async Task<Kernel> CreateKernelWithPlugins(
         RouterOptions options, 
         Type[] capabilitiesPluginTypes, 
         MessageThread messageThread, 
-        IKernelModifier? kernelModifier,
+        List<IKernelModifier> kernelModifiers,
         KernelPlugins plugins)
     {
-        var kernel = await CreateKernelAsync(options, capabilitiesPluginTypes, kernelModifier, plugins);
+        var kernel = BuildKernelAsync(options);
         
         // Register non-static plugins with MessageThread context
         RegisterNonStaticPlugins(kernel, capabilitiesPluginTypes, messageThread);
+
+        // Add static capability plugins
+        RegisterStaticPlugins(kernel, capabilitiesPluginTypes);
+
+        // Add system plugins
+        if (plugins.DatePlugin.Enabled)
+        {
+            _logger.LogDebug("Adding Date plugin");
+            kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
+        }
+
+        // Apply kernel modifiers sequentially if provided
+        foreach (var kernelModifier in kernelModifiers ?? new List<IKernelModifier>())
+        {
+            try
+            {
+                _logger.LogDebug("Modifying kernel with {KernelModifierType}", kernelModifier.GetType().Name);
+                kernel = await kernelModifier.ModifyKernelAsync(kernel);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error modifying kernel with {KernelModifierType}", kernelModifier.GetType().Name);
+            }
+        }
         
         return kernel;
     }
 
-    private async Task<Kernel> CreateKernelAsync(RouterOptions options, Type[] capabilitiesPluginTypes, IKernelModifier? kernelModifier, KernelPlugins plugins)
+    private Kernel BuildKernelAsync(RouterOptions options)
     {
         var builder = ConfigureKernelBuilder(options);
         
@@ -223,22 +247,6 @@ internal class SemanticRouterHubImpl : IDisposable
         });
 
         var kernel = builder.Build() ?? throw new InvalidOperationException("Failed to build Semantic Kernel");
-
-        // Add system plugins
-        if (plugins.DatePlugin.Enabled)
-        {
-            _logger.LogDebug("Adding Date plugin");
-            kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
-        }
-
-        // Add static capability plugins
-        RegisterStaticPlugins(kernel, capabilitiesPluginTypes);
-
-        // Apply kernel modifier if provided
-        if (kernelModifier != null)
-        {
-            kernel = await kernelModifier.ModifyKernelAsync(kernel);
-        }
 
         return kernel;
     }
@@ -283,6 +291,7 @@ internal class SemanticRouterHubImpl : IDisposable
     {
         foreach (var type in capabilitiesPluginTypes.Where(t => t.IsAbstract && t.IsSealed))
         {
+            _logger.LogDebug("Adding static plugin {PluginType}", type.Name);
             var functions = PluginReader.GetFunctionsFromStaticType(type);
             kernel.Plugins.AddFromFunctions(type.Name, functions);
         }
@@ -292,6 +301,7 @@ internal class SemanticRouterHubImpl : IDisposable
     {
         foreach (var type in capabilitiesPluginTypes.Where(t => !(t.IsAbstract && t.IsSealed)))
         {
+            _logger.LogDebug("Adding non-static plugin {PluginType}", type.Name);
             var instance = TypeActivator.CreateWithOptionalArgs(type, messageThread);
             var functions = PluginReader.GetFunctionsFromInstanceType(type, instance);
             

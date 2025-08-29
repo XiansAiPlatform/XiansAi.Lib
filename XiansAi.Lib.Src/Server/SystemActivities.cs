@@ -36,7 +36,7 @@ public class SystemActivities
 
     private readonly List<Type> _capabilities = new();
     private readonly IChatInterceptor? _chatInterceptor;
-    private readonly IKernelModifier? _kernelModifier;
+    private readonly List<IKernelModifier> _kernelModifiers;
     private readonly Type? _dataProcessorType;
     private readonly bool _processDataInWorkflow;
     private readonly bool? _runAtStart;
@@ -48,7 +48,7 @@ public class SystemActivities
     {
         _capabilities = flow.Capabilities;
         _chatInterceptor = flow.ChatInterceptor;
-        _kernelModifier = flow.KernelModifier;
+        _kernelModifiers = flow.KernelModifiers;
         _dataProcessorType = flow.DataProcessorType;
         _processDataInWorkflow = flow.ProcessDataInWorkflow;
         _runAtStart = flow.RunAtStart;
@@ -235,7 +235,7 @@ public class SystemActivities
     public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _kernelModifier, _plugins);
+        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _kernelModifiers, _plugins);
     }
 
     [Activity]
@@ -266,7 +266,7 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<MessageResponse> SendBotToBotMessage(ChatOrDataRequest chatOrDataMessage, MessageType type, int timeoutSeconds = 30) 
+    public async Task<MessageResponse> SendBotToBotMessage(ChatOrDataRequest chatOrDataMessage, MessageType type, int timeoutSeconds) 
     {
         return await SendBotToBotMessageStatic( chatOrDataMessage, type, timeoutSeconds);
     }
