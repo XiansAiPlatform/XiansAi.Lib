@@ -6,7 +6,6 @@ public class ApiLoggerProvider : ILoggerProvider
 {
     private bool _isDisposed = false;
 
-
     public ILogger CreateLogger(string categoryName)
     {
         return new ApiLogger();
@@ -23,6 +22,21 @@ public class ApiLogger : ILogger
 {
     private static readonly AsyncLocal<IDisposable?> _currentScope = new AsyncLocal<IDisposable?>();
     private static readonly AsyncLocal<Dictionary<string, object>?> _currentContext = new AsyncLocal<Dictionary<string, object>?>();
+
+    private static LogLevel GetApiLogLevel()
+    {
+        var apiLogLevel = Environment.GetEnvironmentVariable(Constants.ApiLogLevelEnvVar)?.ToUpper();
+        return apiLogLevel switch
+        {
+            "TRACE" => LogLevel.Trace,
+            "DEBUG" => LogLevel.Debug,
+            "INFORMATION" or "INFO" => LogLevel.Information,
+            "WARNING" or "WARN" => LogLevel.Warning,
+            "ERROR" => LogLevel.Error,
+            "CRITICAL" => LogLevel.Critical,
+            _ => LogLevel.Error // Default to Error if not set or invalid
+        };
+    }
 
     private LogLevel ProcessTemporalMessage(string message, LogLevel originalLevel)
     {
@@ -70,15 +84,28 @@ public class ApiLogger : ILogger
 
     public bool IsEnabled(LogLevel logLevel)
     {
-        return true;
+        var apiLogLevel = GetApiLogLevel();
+        return logLevel >= apiLogLevel;
     }
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
+        // Check if this log level should be processed
+        if (!IsEnabled(logLevel))
+        {
+            return;
+        }
+
         var logMessage = formatter(state, exception);
         var context = _currentContext.Value;
 
         logLevel = ProcessTemporalMessage(logMessage, logLevel);
+
+        // Check again after processing temporal message in case level changed
+        if (!IsEnabled(logLevel))
+        {
+            return;
+        }
 
         var workflowId = context?.GetValueOrDefault("WorkflowId")?.ToString() ?? "Outside Workflows";
 
