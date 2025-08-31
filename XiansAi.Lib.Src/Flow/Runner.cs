@@ -8,23 +8,12 @@ using XiansAi.Models;
 
 namespace XiansAi.Flow;
 
-public class KernelPluginOptions {
-    public bool Enabled { get; set; } = true;
-}
-
-internal class KernelPlugins {
-    public KernelPluginOptions DatePlugin { get; set; } = new();
-}
-
-
 /// <summary>
 /// Manages workflow activity registration and metadata for a specific workflow class.
 /// </summary>
 /// <typeparam name="TClass">The workflow class type</typeparam>
 public class Runner<TClass> where TClass : class
 {
-    internal KernelPlugins Plugins { get; set; } = new();
-
     private readonly Dictionary<Type, object> _objectActivities = new();
 
     private readonly Dictionary<Type, object> _activityProxies = new();

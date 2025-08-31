@@ -102,25 +102,22 @@ internal class SemanticRouterHubImpl : IDisposable
         Type[] capabilitiesPluginTypes, 
         RouterOptions options, 
         IChatInterceptor? interceptor, 
-        List<IKernelModifier> kernelModifiers,
-        KernelPlugins plugins)
+        List<IKernelModifier> kernelModifiers)
     {
         if (string.IsNullOrWhiteSpace(systemPrompt))
             throw new ArgumentException("System prompt is required", nameof(systemPrompt));
 
         try
         {
-            // Apply incoming message interception
-            messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
+            // Sanitize the agent name to comply with OpenAI requirements
+            var agentId = $"RouterAgent_{SanitizeName(messageThread.WorkflowId)}";
 
             // Create kernel with all plugins
-            var kernel = await CreateKernelWithPlugins(options, capabilitiesPluginTypes, messageThread, kernelModifiers, plugins);
+            var kernel = await CreateKernelWithPlugins(options, capabilitiesPluginTypes, messageThread, kernelModifiers);
 
             // Create the agent with full instructions
-            // Sanitize the agent name to comply with OpenAI requirements
-            var sanitizedWorkflowType = SanitizeName(messageThread.WorkflowType);
             var agent = CreateChatCompletionAgent(
-                name: $"RouterAgent_{sanitizedWorkflowType}",
+                name: agentId,
                 instructions: systemPrompt,
                 kernel: kernel,
                 options: options,
@@ -136,6 +133,9 @@ internal class SemanticRouterHubImpl : IDisposable
                 AuthorRole.User, 
                 messageThread.LatestMessage?.Content ?? string.Empty
             );
+
+            // Apply incoming message interception
+            messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
             
             // Invoke the agent with the message and thread
             var responses = new List<ChatMessageContent>();
@@ -200,8 +200,7 @@ internal class SemanticRouterHubImpl : IDisposable
         RouterOptions options, 
         Type[] capabilitiesPluginTypes, 
         MessageThread messageThread, 
-        List<IKernelModifier> kernelModifiers,
-        KernelPlugins plugins)
+        List<IKernelModifier> kernelModifiers)
     {
         var kernel = BuildKernelAsync(options);
         
@@ -212,11 +211,9 @@ internal class SemanticRouterHubImpl : IDisposable
         RegisterStaticPlugins(kernel, capabilitiesPluginTypes);
 
         // Add system plugins
-        if (plugins.DatePlugin.Enabled)
-        {
-            _logger.LogDebug("Adding Date plugin");
-            kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
-        }
+        _logger.LogDebug("Adding Date plugin");
+        kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
+        
 
         // Apply kernel modifiers sequentially if provided
         foreach (var kernelModifier in kernelModifiers ?? new List<IKernelModifier>())

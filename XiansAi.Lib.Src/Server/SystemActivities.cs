@@ -43,7 +43,6 @@ public class SystemActivities
     private readonly bool? _runAtStart;
     private readonly Type? _scheduleProcessorType;
     private readonly bool _processScheduleInWorkflow;
-    private readonly KernelPlugins _plugins;
     
     internal SystemActivities(dynamic flow)
     {
@@ -55,7 +54,6 @@ public class SystemActivities
         _runAtStart = flow.RunAtStart;
         _scheduleProcessorType = flow.ScheduleProcessorType;
         _processScheduleInWorkflow = flow.ProcessScheduleInWorkflow;
-        _plugins = flow.Plugins;
     }
 
     [Activity]
@@ -238,7 +236,7 @@ public class SystemActivities
     public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _kernelModifiers, _plugins);
+        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _kernelModifiers);
     }
 
     [Activity]

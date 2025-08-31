@@ -21,11 +21,6 @@ public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
     {
     }
 
-    public void EnableDatePlugin(KernelPluginOptions? options = null)
-    {
-        _runner.Plugins.DatePlugin = options ?? new KernelPluginOptions();
-    }
-
     /// <summary>
     /// Adds capabilities to this bot.
     /// </summary>
