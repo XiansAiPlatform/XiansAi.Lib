@@ -11,6 +11,7 @@ using XiansAi.Flow;
 using System.Text.Json;
 using Temporal;
 using XiansAi.Memory;
+using Temporalio.Common;
 
 public class SendMessageResponse
 {
@@ -377,6 +378,12 @@ public class SystemActivityOptions : ActivityOptions
     public SystemActivityOptions(int timeoutSeconds = 10*60)
     {
         ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
+        RetryPolicy = new RetryPolicy {
+            MaximumAttempts = 5,
+            InitialInterval = TimeSpan.FromSeconds(1),
+            MaximumInterval = TimeSpan.FromSeconds(10),
+            BackoffCoefficient = 2,
+        };
     }
 }
 
@@ -385,5 +392,11 @@ public class SystemLocalActivityOptions : LocalActivityOptions
     public SystemLocalActivityOptions(int timeoutSeconds = 10*60)
     {
         ScheduleToCloseTimeout = TimeSpan.FromSeconds(timeoutSeconds);
+        RetryPolicy = new RetryPolicy {
+            MaximumAttempts = 5,
+            InitialInterval = TimeSpan.FromSeconds(1),
+            MaximumInterval = TimeSpan.FromSeconds(10),
+            BackoffCoefficient = 2,
+        };
     }
 }

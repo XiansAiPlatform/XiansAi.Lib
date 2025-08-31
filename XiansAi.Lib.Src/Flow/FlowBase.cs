@@ -6,6 +6,7 @@ public abstract class FlowBase : AbstractFlow
 {
     protected readonly ChatHandler _chatHandler;
     protected readonly DataHandler _dataHandler;
+    protected readonly WebhookHandler _webhookHandler;
     protected readonly ScheduleHandler _scheduleHandler;
     public RouterOptions RouterOptions 
     { 
@@ -26,6 +27,7 @@ public abstract class FlowBase : AbstractFlow
     {
         _chatHandler = new ChatHandler(_messageHub);
         _dataHandler = new DataHandler(_messageHub, this);
+        _webhookHandler = new WebhookHandler();
         _scheduleHandler = new ScheduleHandler(this);
     }
 
@@ -36,6 +38,11 @@ public abstract class FlowBase : AbstractFlow
     public void SubscribeToMessages(MessageListenerDelegate messageListener)
     {
         _chatHandler.SubscribeToMessages(messageListener);
+    }
+
+    protected async Task InitWebhookProcessing()
+    {
+        await _webhookHandler.InitWebhookProcessing();
     }
 
     protected async Task InitDataProcessing()
