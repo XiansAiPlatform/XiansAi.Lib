@@ -109,53 +109,66 @@ internal class WorkerService
             await workflowService.StartWorkflow(workFlowType, []);
         }
 
-        // Create all worker tasks
+        // Create all worker tasks with proper disposal
+        var workers = new List<TemporalWorker>();
         var workerTasks = new List<Task>();
-        
-        for (int i = 0; i < runner.NumberOfWorkers; i++)
-        {
-            var worker = new TemporalWorker(
-                client,
-                options
-            );
-            _logger.LogDebug($"Worker {i + 1} to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
-
-
-            
-            // Create task for this worker
-            var workerIndex = i + 1; // Capture the current value
-            var workerTask = Task.Run(async () =>
-            {
-                try
-                {
-                    await worker.ExecuteAsync(cancellationToken!);
-                    _logger.LogInformation($"Worker {workerIndex} execution completed on queue `{taskQueue}`");
-                }
-                catch (OperationCanceledException)
-                {
-                    _logger.LogInformation($"Worker {workerIndex} execution cancelled");
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Worker {workerIndex} encountered an error: {ex.Message}");
-                    throw;
-                }
-            }, cancellationToken);
-            
-            workerTasks.Add(workerTask);
-        }
         
         try
         {
+            for (int i = 0; i < runner.NumberOfWorkers; i++)
+            {
+                var worker = new TemporalWorker(
+                    client,
+                    options
+                );
+                workers.Add(worker);
+                _logger.LogDebug($"Worker {i + 1} to run `{workFlowType}` on queue `{taskQueue}` created. Ready to run!!");
+
+                // Create task for this worker
+                var workerIndex = i + 1; // Capture the current value
+                var workerTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await worker.ExecuteAsync(cancellationToken!);
+                        _logger.LogInformation($"Worker {workerIndex} execution completed on queue `{taskQueue}`");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.LogInformation($"Worker {workerIndex} execution cancelled");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Worker {workerIndex} encountered an error: {ex.Message}");
+                        throw;
+                    }
+                }, cancellationToken);
+                
+                workerTasks.Add(workerTask);
+            }
+            
             // Wait for all workers to complete
             await Task.WhenAll(workerTasks);
         }
         finally
         {
-            // Ensure proper cleanup when all workers stop
+            // Dispose all workers first to ensure proper shutdown
+            foreach (var worker in workers)
+            {
+                try
+                {
+                    worker?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Error disposing worker: {ex.Message}");
+                }
+            }
+            
+            // Log completion but don't cleanup TemporalClientService here
+            // Let CommandLineHelper handle the global cleanup to avoid race conditions
             _logger.LogInformation($"All workers execution completed on queue `{taskQueue}`. Cleaning up temporal connections...");
-            await TemporalClientService.CleanupAsync();
         }
 
     }

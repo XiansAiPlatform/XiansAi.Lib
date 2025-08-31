@@ -1,5 +1,6 @@
 using Server;
 using XiansAi.Models;
+using Temporal;
 
 namespace XiansAi.Flow;
 
@@ -50,27 +51,46 @@ public class Agent
     /// </summary>
     public async Task RunAsync(RunnerOptions? options = null)
     {
+        // Setup graceful shutdown handling first
+        CommandLineHelper.SetupGracefulShutdown();
+        
         var tasks = new List<Task>();        
         await new ResourceUploader(_uploadResources).UploadResource();
 
-        // Run all flows
-        foreach (var flow in _flows)
-        {
-            tasks.Add(flow.RunAsync(options));
-        }
+        // Get the shared cancellation token for coordinated shutdown
+        var cancellationToken = CommandLineHelper.GetShutdownToken();
 
-        // Run all bots
-        foreach (var bot in _bots)
+        try
         {
-            tasks.Add(bot.RunAsync(options));
-        }
+            // Run all flows
+            foreach (var flow in _flows)
+            {
+                tasks.Add(flow.RunAsync(options));
+            }
 
-        if (tasks.Count == 0)
+            // Run all bots
+            foreach (var bot in _bots)
+            {
+                tasks.Add(bot.RunAsync(options));
+            }
+
+            if (tasks.Count == 0)
+            {
+                throw new InvalidOperationException("No flows or bots have been added to the agent");
+            }
+
+            await Task.WhenAll(tasks);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException("No flows or bots have been added to the agent");
+            // Expected during graceful shutdown
+            Console.WriteLine("Agent shutdown requested. All bots are shutting down gracefully...");
         }
-
-        await Task.WhenAll(tasks);
+        finally
+        {
+            // Ensure cleanup happens once for all services
+            await CommandLineHelper.CleanupResourcesAsync();
+        }
     }
 
 #pragma warning disable CS0618 // Type or member is obsolete

@@ -60,7 +60,7 @@ public class ActivityUploader
         
         foreach (var kvp in inputs)
         {
-            sanitizedInputs[kvp.Key] = TruncateIfTooLarge(kvp.Value, Constants.MaxActivityInputSize);
+            sanitizedInputs[kvp.Key] = RedactIfTooLarge(kvp.Value, Constants.MaxActivityInputSize);
         }
         
         return sanitizedInputs;
@@ -68,10 +68,10 @@ public class ActivityUploader
 
     private object? SanitizeResult(object? result)
     {
-        return TruncateIfTooLarge(result, Constants.MaxActivityResultSize);
+        return RedactIfTooLarge(result, Constants.MaxActivityResultSize);
     }
 
-    private object? TruncateIfTooLarge(object? value, int maxSizeBytes)
+    private object? RedactIfTooLarge(object? value, int maxSizeBytes)
     {
         if (value == null) return null;
 
@@ -85,16 +85,7 @@ public class ActivityUploader
                 return value;
             }
 
-            _logger.LogWarning("Activity data too large ({SizeInBytes} bytes), truncating to {MaxSize} bytes", 
-                sizeInBytes, maxSizeBytes);
-
-            // Truncate the JSON string to fit within the size limit
-            var maxStringLength = maxSizeBytes / 3; // Conservative estimate for UTF-8 encoding
-            var truncatedString = jsonString.Length > maxStringLength 
-                ? jsonString.Substring(0, maxStringLength) + "...[TRUNCATED]"
-                : jsonString;
-
-            return $"[LARGE_DATA_TRUNCATED] Original size: {sizeInBytes} bytes. Data: {truncatedString}";
+            return $"[LARGE_DATA_REDACTED] Original size: {sizeInBytes} bytes.";
         }
         catch (Exception ex)
         {
