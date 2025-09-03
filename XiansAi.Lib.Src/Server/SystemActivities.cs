@@ -303,7 +303,7 @@ public class SystemActivities
 
     public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
 
-        _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(message));
+        _logger.LogDebug("Message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
 
         if (!SecureApi.IsReady)
         {

@@ -37,9 +37,6 @@ public class ChatOrDataRequest
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
-    
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public MessageType? Type { get; set; }
     public string? RequestId { get; set; }
     public string? Scope { get; set; }
     public object? Data { get; set; }

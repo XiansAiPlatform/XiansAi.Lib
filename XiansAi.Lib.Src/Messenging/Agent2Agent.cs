@@ -176,7 +176,6 @@ public class Agent2Agent : IAgent2Agent {
         {
             WorkflowId = targetWorkflowId,
             WorkflowType = targetWorkflowType,
-            Type = type,
             Text = userRequest,
             Data = data,
             RequestId = requestId,
