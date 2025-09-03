@@ -109,11 +109,14 @@ public class ChatHandler : SafeHandler
                     }
                 }
 
-                // Get the system prompt using the provider
-                var systemPrompt = await _systemPromptProvider!();
-
                 // Asynchronously process the message
-                await ProcessMessage(messageThread, systemPrompt);
+                var response = await ProcessMessage(messageThread);
+
+                if (response == null) {
+                    throw new Exception("No response from router");
+                }
+                // Respond to the user
+                await messageThread.SendChat(response);
 
             }
             catch (ContinueAsNewException)
@@ -156,20 +159,19 @@ public class ChatHandler : SafeHandler
         return _messageQueue.TryDequeue(out var thread) ? thread : null;
     }
 
-    private async Task ProcessMessage(MessageThread messageThread, string systemPrompt)
+    public async Task<string?> ProcessMessage(MessageThread messageThread)
     {
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
-        
+
+        // Get the system prompt using the provider
+        var systemPrompt = await _systemPromptProvider!();
+
         // Route the message to the appropriate flow
         var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
-        if (response == null) {
-            throw new Exception("No response from router");
-        }
-        // Respond to the user
-        await messageThread.SendChat(response);
+        return response;
     }
 
     /// <summary>
