@@ -7,12 +7,12 @@ namespace Temporal;
 
 public class UpdateService 
 {
-    public static async Task<TResult?> SendUpdateWithStart<TResult>(Type workflowType, string update, params object?[] args) {
+    public static async Task<TResult?> SendUpdateWithStart<TResult>(Type workflowType, string update, int timeoutSeconds, params object?[] args) {
         var workflow = WorkflowIdentifier.GetWorkflowTypeFor(workflowType);
-        return await SendUpdateWithStart<TResult>(workflow, update, args);
+        return await SendUpdateWithStart<TResult>(workflow, update, timeoutSeconds, args);
     }
 
-    public static async Task<TResult?> SendUpdateWithStart<TResult>(string workflow, string update, params object?[] args) {
+    public static async Task<TResult?> SendUpdateWithStart<TResult>(string workflow, string update, int timeoutSeconds, params object?[] args ) {
 
         object? result = null;
         if (Workflow.InWorkflow) {
@@ -89,11 +89,13 @@ internal class UpdateServiceImpl
 {
     public static async Task<object?> SendUpdateWithStart(string workflow, string update, params object?[] args) {
         ITemporalClient client = await TemporalClientService.Instance.GetClientAsync();
+
+        var workflowIdentifier = new WorkflowIdentifier(workflow);
         
-        var options = new NewWorkflowOptions(workflow);
+        var options = new NewWorkflowOptions(workflowIdentifier.WorkflowType, null, workflowIdentifier.AgentName);
         // Create the start operation
         var startOperation = WithStartWorkflowOperation.Create(
-            workflow,
+            workflowIdentifier.WorkflowType,
             [],
             options);
         

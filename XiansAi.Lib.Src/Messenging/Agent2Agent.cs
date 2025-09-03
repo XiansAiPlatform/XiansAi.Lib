@@ -1,5 +1,7 @@
+using Microsoft.SemanticKernel.Data;
 using Temporal;
 using Temporalio.Workflows;
+using XiansAi.Logging;
 
 namespace XiansAi.Messaging;
 
@@ -77,7 +79,37 @@ interface IAgent2Agent {
 /// </remarks>
 public class Agent2Agent : IAgent2Agent {
 
-    /// <inheritdoc />
+
+    private readonly Logger<Agent2Agent> _logger = Logger<Agent2Agent>.For();
+
+
+    public async Task<TResult?> Rpc<TResult>(Type workflowType, string methodName, object[] args,int timeoutSeconds = 300) 
+    {
+        var workflow = WorkflowIdentifier.GetWorkflowTypeFor(workflowType);
+        return await Rpc<TResult>(workflow, methodName, args, timeoutSeconds);
+    }
+    public async Task<TResult?> Rpc<TResult>(string workflowIdOrType, string methodName, object[] args,int timeoutSeconds = 300) 
+    {
+        var workflow = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+        return await UpdateService.SendUpdateWithStart<TResult>(workflow, methodName, timeoutSeconds, args);
+    }
+
+    public async Task<MessageResponse> Chat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+    {
+        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
+        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+        var participantId = AgentContext.WorkflowId;
+        return await BotToBotMessageWithoutHistory(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+    }
+
+    public async Task<MessageResponse> Chat(Type targetWorkflowType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+    {
+        var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
+        var participantId = AgentContext.WorkflowId;
+        return await BotToBotMessageWithoutHistory(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+    }
+
     public async Task<MessageResponse> SendData(string workflowIdOrType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
     {
         var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
@@ -86,21 +118,7 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
-
-    }
-    
-    /// <inheritdoc />
-    public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
-    {
-        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
-        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
-
-        // Use the current workflow's id as the participant id
-        var participantId = AgentContext.WorkflowId;
-
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
-
+        return await BotToBotMessageWithHistory(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
     }
 
     /// <inheritdoc />
@@ -112,8 +130,22 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+        return await BotToBotMessageWithHistory(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
     }
+
+    /// <inheritdoc />
+    public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+    {
+        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
+        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+
+        // Use the current workflow's id as the participant id
+        var participantId = AgentContext.WorkflowId;
+
+        return await BotToBotMessageWithHistory(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+
+    }
+
 
     /// <inheritdoc />
     public async Task<MessageResponse> SendChat(Type targetWorkflowType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
@@ -124,7 +156,8 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+        return await BotToBotMessageWithHistory(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+
     }
 
     /// <summary>
@@ -148,7 +181,7 @@ public class Agent2Agent : IAgent2Agent {
     /// This method automatically detects whether it's running within a workflow context and uses
     /// the appropriate execution path (local activity for in-workflow, static method for out-of-workflow).
     /// </remarks>
-    public async Task<MessageResponse> BotToBotMessage(
+    public async Task<MessageResponse> BotToBotMessageWithHistory(
         MessageType type,
         string participantId,
         string userRequest, 
@@ -195,6 +228,50 @@ public class Agent2Agent : IAgent2Agent {
         } else {
             var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage, type, timeoutSeconds);
             return success;
+        }
+    }
+
+    private async Task<MessageResponse> BotToBotMessageWithoutHistory(
+        MessageType type,
+        string participantId,
+        string userRequest, 
+        object? data, 
+        string targetWorkflowType, 
+        string targetWorkflowId,
+        string? requestId,
+        string? scope,
+        string? authorization,
+        string? hint,
+        int timeoutSeconds
+    )
+    {
+
+        var outgoingMessageThread = new MessageThread()
+        {
+            WorkflowId = targetWorkflowId,
+            WorkflowType = targetWorkflowType,
+            ParticipantId = participantId,
+            Authorization=authorization,
+            ThreadId = null, // No history for stateless messaging
+            LatestMessage = new Message()
+            {
+                Content = userRequest,
+                Data = data,
+                Type = type,
+                RequestId = requestId ?? Guid.NewGuid().ToString(),
+                Scope = scope,
+                Hint = hint,
+                Origin = AgentContext.WorkflowId
+            }
+        };
+        if (Workflow.InWorkflow) {
+            var response = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.SendStatelessB2BMessage(outgoingMessageThread, timeoutSeconds),
+                new SystemActivityOptions());
+            return response;
+        } else {
+            var response = await SystemActivities.SendStatelessB2BMessageStatic(outgoingMessageThread, timeoutSeconds);
+            return response;
         }
     }
 }

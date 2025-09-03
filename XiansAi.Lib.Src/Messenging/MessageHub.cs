@@ -26,8 +26,8 @@ class MessengerLog {}
 
 public class MessageHub: IMessageHub
 {
-    public static Agent2User Agent2User { get; } = new Agent2User();
-    public static Agent2Agent Agent2Agent { get; } = new Agent2Agent();
+    public static Agent2User Agent2User() { return new Agent2User(); }
+    public static Agent2Agent Agent2Agent() { return new Agent2Agent(); }
 
     private readonly ConcurrentBag<Func<MessageThread, Task>> _chatHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
     private readonly ConcurrentBag<Func<MessageThread, Task>> _dataHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
@@ -44,9 +44,9 @@ public class MessageHub: IMessageHub
     private readonly Dictionary<Delegate, Func<EventMetadata, object?, Task>> _handlerMappings =
         new Dictionary<Delegate, Func<EventMetadata, object?, Task>>();
 
-    public static async Task<TResult?> SendFlowUpdate<TResult>(Type flowClassType, string update, params object?[] args) 
+    public static async Task<TResult?> SendFlowUpdate<TResult>(Type flowClassType, string update, int timeoutSeconds, params object?[] args) 
     {
-        return await UpdateService.SendUpdateWithStart<TResult>(flowClassType, update, args);
+        return await UpdateService.SendUpdateWithStart<TResult>(flowClassType, update, timeoutSeconds, args);
     }
 
     public static async Task SendFlowMessage(Type flowClassType, object? payload = null) {
@@ -294,7 +294,6 @@ public class MessageHub: IMessageHub
         var messageThread = new MessageThread {
             WorkflowId = AgentContext.WorkflowId,
             WorkflowType = AgentContext.WorkflowType,
-            Agent = AgentContext.AgentName,
             ThreadId = messageSignal.Payload.ThreadId,
             ParticipantId = messageSignal.Payload.ParticipantId,
             Authorization = messageSignal.Payload.Authorization,

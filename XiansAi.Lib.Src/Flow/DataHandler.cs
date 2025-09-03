@@ -13,6 +13,9 @@ public class DataHandler : SafeHandler
     private static readonly Logger<DataHandler> _logger = Logger<DataHandler>.For();
     private bool _initialized = false;
 
+    private ProcessDataSettings? _processDataInformation = null;
+    private Type? _dataProcessorType = null;
+
     public DataHandler(MessageHub messageHub, FlowBase flow)
     {
         _messageHub = messageHub;
@@ -33,11 +36,11 @@ public class DataHandler : SafeHandler
         _initialized = true;
         
         // check if the data processing should be done in workflow
-        var processDataInformation = await Workflow.ExecuteLocalActivityAsync(
+        _processDataInformation = await Workflow.ExecuteLocalActivityAsync(
             (SystemActivities a) => a.GetProcessDataSettings(),
             new SystemLocalActivityOptions());
 
-        Type? dataProcessorType = GetProcessorType(processDataInformation);
+        _dataProcessorType = GetProcessorType(_processDataInformation);
 
         while (true)
         {
@@ -48,25 +51,9 @@ public class DataHandler : SafeHandler
                 _logger.LogDebug($"Message received from thread id: {messageThread?.ThreadId}");
                 if (messageThread == null) continue;
 
-                if (processDataInformation.ShouldProcessDataInWorkflow)
-                {
-                    _logger.LogDebug("Processing data in workflow");
-                    // process the data in workflow
-                    await ProcessData(dataProcessorType, messageThread);
-                }
-                else
-                {
-                    // In activity mode, dataProcessorType should not have more than one constructor args
-                    if (dataProcessorType.GetConstructors().Any(c => c.GetParameters().Length > 1))
-                    {
-                        throw new Exception("Data processor type has more than one constructor parameter, which is not supported in activity mode");
-                    }
-                    _logger.LogDebug("Processing data in activity");
-                    // process the data in activity
-                    await Workflow.ExecuteLocalActivityAsync(
-                        (SystemActivities a) => a.ProcessData(messageThread),
-                        new SystemLocalActivityOptions());
-                }
+                object? result = await ProcessData(messageThread);
+
+                await messageThread.SendData(result);
             }
             catch (ContinueAsNewException)
             {
@@ -91,6 +78,40 @@ public class DataHandler : SafeHandler
                 }
             }
         }
+    }
+
+    public async Task<object?> ProcessData(MessageThread messageThread)
+    {
+        object? result = null;
+        if (_processDataInformation == null)
+        {
+            throw new Exception("Process data information is not set. Have you initialized the data handler?");
+        }
+        if (_dataProcessorType == null)
+        {
+            throw new Exception("Data processor type is not set. Have you initialized the data handler?");
+        }
+        if (_processDataInformation.ShouldProcessDataInWorkflow)
+        {
+            _logger.LogDebug("Processing data in workflow");
+            // process the data in workflow
+            result = await ProcessDataStatic(_dataProcessorType, messageThread, _flow);
+        }
+        else
+        {
+            // In activity mode, dataProcessorType should not have more than one constructor args
+            if (_dataProcessorType.GetConstructors().Any(c => c.GetParameters().Length > 1))
+            {
+                throw new Exception("Data processor type has more than one constructor parameter, which is not supported in activity mode");
+            }
+            _logger.LogDebug("Processing data in activity");
+            // process the data in activity
+            await Workflow.ExecuteLocalActivityAsync(
+                (SystemActivities a) => a.ProcessData(messageThread),
+                new SystemLocalActivityOptions());
+        }
+
+        return result;
     }
 
     private static Type GetProcessorType(ProcessDataSettings processDataInformation)
@@ -132,18 +153,16 @@ public class DataHandler : SafeHandler
         }
         return thread;
     }
-    public async Task ProcessData(Type? dataProcessorType, MessageThread messageThread) {
-        await ProcessDataStatic(dataProcessorType, messageThread, _flow);
-    }
 
-    public static async Task ProcessDataStatic(Type? dataProcessorType, MessageThread messageThread, FlowBase? flow)
+
+    public static async Task<object?> ProcessDataStatic(Type? dataProcessorType, MessageThread messageThread, FlowBase? flow)
     {
         var methodName = messageThread.LatestMessage.Content;
         var methodArgs = messageThread.LatestMessage.Data?.ToString();
-        
+
         if (dataProcessorType == null)
         {
-            throw new Exception("Data processor type is not set for this flow. Use `flow.SetDataProcessor<DataProcessor>()` to set the data processor type.");
+            throw new Exception("Data processor type is not set for this flow or Processing is not initialized. Use `flow.SetDataProcessor<DataProcessor>()` to set the data processor type.");
         }
 
         try
@@ -160,7 +179,8 @@ public class DataHandler : SafeHandler
 
             _logger.LogDebug($"Result returned from {methodName}: {result}");
 
-            await messageThread.SendData(result);
+            return result;
+
         }
         catch (DynamicInvokerException ex)
         {

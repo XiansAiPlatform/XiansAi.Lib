@@ -17,8 +17,8 @@ public class MessagePayload
     public string? Authorization { get; set; }
     public required string Text { get; set; }
     public required string RequestId { get; set; }
-    public required string Hint { get; set; }
-    public required string Scope { get; set; }
+    public string? Hint { get; set; }
+    public string? Scope { get; set; }
     public required object Data { get; set; }
     public required string Type { get; set; }
     public List<DbMessage>? History { get; set; }
@@ -39,7 +39,7 @@ public class ChatOrDataRequest
     public required string WorkflowType { get; set; }
     
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public MessageType? Type { get; set; }
+    public MessageType Type { get; set; }
     public string? RequestId { get; set; }
     public string? Scope { get; set; }
     public object? Data { get; set; }
@@ -121,19 +121,16 @@ public class EventSignal
 
 
 
-public class ApiResponse
-{
-    [JsonPropertyName("response")]
-    public required MessageResponse Response { get; set; }
-}
+// public class ApiResponse
+// {
+//     [JsonPropertyName("response")]
+//     public required MessageResponse Response { get; set; }
+// }
 
 public class MessageResponse
 {
-    [JsonPropertyName("id")]
-    public required string Id { get; set; }
-
     [JsonPropertyName("text")]
-    public required string Text { get; set; }
+    public string? Text { get; set; }
 
     [JsonPropertyName("data")]
     public object? Data { get; set; }
@@ -141,11 +138,8 @@ public class MessageResponse
     [JsonPropertyName("createdAt")]
     public DateTime Timestamp { get; set; } // Mapped to 'createdAt' in JSON
 
-    [JsonPropertyName("direction")]
-    public int Direction { get; set; }
-
     [JsonPropertyName("messageType")]
-    public int MessageType { get; set; }
+    public MessageType MessageType { get; set; }
 
     [JsonPropertyName("scope")]
     public string? Scope { get; set; }
@@ -158,4 +152,7 @@ public class MessageResponse
 
     [JsonPropertyName("threadId")]
     public string? ThreadId { get; set; }
+
+    [JsonPropertyName("participantId")]
+    public required string ParticipantId { get; set; }
 }

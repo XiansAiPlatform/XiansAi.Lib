@@ -221,7 +221,7 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task ProcessData(MessageThread messageThread)
+    public async Task<object?> ProcessData(MessageThread messageThread)
     {
         if (_processDataInWorkflow)
         {
@@ -229,7 +229,7 @@ public class SystemActivities
         }
         
         // do the routing
-        await DataHandler.ProcessDataStatic(_dataProcessorType, messageThread, null);
+        return await DataHandler.ProcessDataStatic(_dataProcessorType, messageThread, null);
     }
 
     [Activity]
@@ -285,9 +285,9 @@ public class SystemActivities
             var client = SecureApi.Instance.Client;
             var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?type={type}&timeoutSeconds={timeoutSeconds}", chatOrDataMessage);
             response.EnsureSuccessStatusCode();
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
+            var apiResponse = await response.Content.ReadFromJsonAsync<MessageResponse>();
             
-            return apiResponse?.Response ?? throw new Exception("No Conversation response from the Agent");
+            return apiResponse ?? throw new Exception("No Conversation response from the Agent");
         }
         catch (Exception ex)
         {
@@ -344,11 +344,12 @@ public class SystemActivities
 
         if (!SecureApi.IsReady)
         {
-            _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
-            return new List<DbMessage>();
+            _logger.LogError("App server secure API is not ready");
+            throw new Exception("App server secure API is not ready. Failed to get message history");
         }
         try
         {
+
             var client = SecureApi.Instance.Client;
             var response = await client.GetAsync($"api/agent/conversation/history?&workflowType={workflowType}&participantId={participantId}&page={page}&pageSize={pageSize}&scope={scope}");
             response.EnsureSuccessStatusCode();
@@ -368,6 +369,19 @@ public class SystemActivities
             _logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
             throw;
         }
+    }
+
+    [Activity]
+    public async Task<MessageResponse> SendStatelessB2BMessage(MessageThread targetMessageThread, int timeoutSeconds)
+    {
+        return await SendStatelessB2BMessageStatic(targetMessageThread, timeoutSeconds);
+    }
+
+    public static async Task<MessageResponse> SendStatelessB2BMessageStatic(MessageThread targetMessageThread, int timeoutSeconds)
+    {
+        var workflow = targetMessageThread.WorkflowId ?? targetMessageThread.WorkflowType ?? throw new Exception("WorkflowId or WorkflowType is required for stateless bot to bot messaging");
+        var response = await UpdateService.SendUpdateWithStart<MessageResponse>(workflow, "ProcessMessageStateless", timeoutSeconds, targetMessageThread);
+        return response ?? throw new Exception("No response from the workflow");
     }
 }
 

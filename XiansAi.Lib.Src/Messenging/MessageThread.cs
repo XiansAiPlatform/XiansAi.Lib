@@ -25,9 +25,9 @@ public class Message
     [JsonPropertyName("request_id")]
     public required string RequestId { get; set; }
     [JsonPropertyName("hint")]
-    public required string Hint { get; set; }
+    public string? Hint { get; set; }
     [JsonPropertyName("scope")]
-    public required string Scope { get; set; }
+    public string? Scope { get; set; }
     [JsonPropertyName("origin")]
     public string? Origin { get; set; }
 }
@@ -41,8 +41,6 @@ public class MessageThread : IMessageThread
     public required string WorkflowId { get; set; }
     [JsonPropertyName("workflow_type")]
     public required string WorkflowType { get; set; }
-    [JsonPropertyName("agent")]
-    public required string Agent { get; set; }
     [JsonPropertyName("thread_id")]
     public string? ThreadId { get; set; }
     [JsonPropertyName("authorization")]
@@ -51,6 +49,8 @@ public class MessageThread : IMessageThread
     public required Message LatestMessage { get; set; }
     [JsonIgnore]
     private readonly ILogger<MessageThread> _logger;
+    [JsonPropertyName("stateful")]
+    public bool Stateful { get; set; } = true;
 
     [JsonPropertyName("skip_response")]
     public bool SkipResponse { get; set; } = false;
@@ -93,7 +93,7 @@ public class MessageThread : IMessageThread
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
         var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         data ??= LatestMessage.Data;
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, LatestMessage.Hint, timeoutSeconds);
+        return await new Agent2Agent().BotToBotMessageWithHistory(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, LatestMessage.Hint, timeoutSeconds);
     }
 
     public async Task<string?> SendHandoff(string targetWorkflowId, string? message = null, object? data = null)
@@ -119,7 +119,7 @@ public class MessageThread : IMessageThread
         {
             TargetWorkflowId = targetWorkflowId,
             TargetWorkflowType = targetWorkflowType,
-            SourceAgent = Agent,
+            SourceAgent = AgentContext.AgentName,
             SourceWorkflowId = WorkflowId,
             ThreadId = ThreadId ?? throw new Exception("ThreadId is required for handoff"),
             ParticipantId = ParticipantId,

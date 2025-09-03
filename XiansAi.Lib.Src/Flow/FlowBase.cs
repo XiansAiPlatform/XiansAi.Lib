@@ -1,4 +1,6 @@
+using Temporalio.Workflows;
 using XiansAi.Flow.Router;
+using XiansAi.Messaging;
 
 namespace XiansAi.Flow;
 
@@ -21,6 +23,46 @@ public abstract class FlowBase : AbstractFlow
     public string SystemPromptName 
     { 
         set => _chatHandler.SystemPromptName = value;
+    }
+
+    [WorkflowUpdate("ProcessMessageStateless")]
+    public async Task<MessageResponse?> ProcessMessageStateless(MessageThread messageThread) {
+
+        if(messageThread.LatestMessage.Type == MessageType.Chat) {
+            // Set the message thread to stateless
+            messageThread.Stateful = false;
+            // Process the message
+            var response = await _chatHandler.ProcessMessage(messageThread);
+            // Return the response
+            return new MessageResponse {
+                Text = response ?? string.Empty,
+                MessageType = MessageType.Chat,
+                Timestamp = DateTime.UtcNow,
+                Scope = messageThread.LatestMessage.Scope,
+                Hint = messageThread.LatestMessage.Hint,
+                RequestId = messageThread.LatestMessage.RequestId,
+                ThreadId = messageThread.ThreadId,
+                ParticipantId = messageThread.ParticipantId,
+            };
+        } else if (messageThread.LatestMessage.Type == MessageType.Data) {
+            // Set the message thread to stateless
+            messageThread.Stateful = false;
+
+            // Process the message
+            var response = await _dataHandler.ProcessData(messageThread);
+            return new MessageResponse {
+                Data = response,
+                MessageType = MessageType.Data,
+                Timestamp = DateTime.UtcNow,
+                Scope = messageThread.LatestMessage.Scope,
+                Hint = messageThread.LatestMessage.Hint,
+                RequestId = messageThread.LatestMessage.RequestId,
+                ThreadId = messageThread.ThreadId,
+                ParticipantId = messageThread.ParticipantId,
+            };
+        } else {
+            throw new Exception("Latest message is not a chat or data message");
+        }
     }
 
     public FlowBase() : base()  
@@ -63,18 +105,4 @@ public abstract class FlowBase : AbstractFlow
         await _chatHandler.InitConversation();
     }
 
-    /// <summary>
-    /// Initializes the conversation with a specific system prompt
-    /// </summary>
-    /// <param name="knowledgeContent">The system prompt content</param>
-    [Obsolete("Use InitConversation() instead after setting the SystemPrompt/SystemPromptName on constructor.")]
-    protected async Task InitConversation(string? knowledgeContent = null)
-    {
-        if (knowledgeContent != null)
-        {
-            _chatHandler.SystemPrompt = knowledgeContent;
-        }
-
-        await InitConversation();
-    }
 }

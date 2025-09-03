@@ -315,7 +315,15 @@ internal class SemanticRouterHubImpl : IDisposable
     private async Task<ChatHistory> BuildChatHistoryAsync(MessageThread messageThread, string systemPrompt, int historySizeToFetch)
     {
         var chatHistory = new ChatHistory(systemPrompt);
-        
+
+        // If the message thread is stateless, add the latest message to the chat history
+        if (!messageThread.Stateful)
+        {
+            _logger.LogDebug("Message thread is stateless, skipping chat history");
+            return chatHistory;
+        }
+
+        // If the message thread is stateful, fetch the history from the server
         var historyFromServer = await messageThread.FetchThreadHistory(1, historySizeToFetch);
         historyFromServer.Reverse(); // Put most recent messages last
 
