@@ -8,14 +8,14 @@ namespace XiansAi.Flow.Router;
 /// </summary>
 internal class LlmConfigurationResolver
 {
-    private readonly FlowServerSettings _settings;
+    private readonly ServerSettings _settings;
     private readonly string? _envProvider;
     private readonly string? _envApiKey;
     private readonly string? _envEndpoint;
     private readonly string? _envDeploymentName;
     private readonly string? _envModelName;
 
-    public LlmConfigurationResolver(FlowServerSettings settings)
+    public LlmConfigurationResolver(ServerSettings settings)
     {
         _settings = settings;
         _envProvider = Environment.GetEnvironmentVariable("LLM_PROVIDER");

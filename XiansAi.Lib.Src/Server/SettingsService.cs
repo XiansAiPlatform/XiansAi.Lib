@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Server;
 
 
-public class FlowServerSettings
+public class ServerSettings
 {
     public required string FlowServerUrl { get; set; }
     public required string FlowServerNamespace { get; set; }
@@ -21,17 +21,17 @@ public class FlowServerSettings
 
 public static class SettingsService
 {
-    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<FlowServerSettings>();
+    private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<ServerSettings>();
     private const string SETTINGS_URL = "api/agent/settings/flowserver";
 
-    private static readonly Lazy<Task<FlowServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
+    private static readonly Lazy<Task<ServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
 
 
     /// <summary>
     /// Loads settings from the server. Caches the settings after the first fetch.
     /// </summary>
     /// <returns>The flow server settings</returns>
-    public static async Task<FlowServerSettings> GetSettingsFromServer()
+    public static async Task<ServerSettings> GetSettingsFromServer()
     {
         return await _settingsLazy.Value;
     }
@@ -39,7 +39,7 @@ public static class SettingsService
     /// <summary>
     /// Internal method that actually loads settings from the server
     /// </summary>
-    private static async Task<FlowServerSettings> LoadSettingsFromServer()
+    private static async Task<ServerSettings> LoadSettingsFromServer()
     {
         if (!SecureApi.IsReady)
         {
@@ -71,7 +71,7 @@ public static class SettingsService
     /// <summary>
     /// Parses the server response into a Knowledge object
     /// </summary>
-    private static async Task<FlowServerSettings> ParseSettingsResponse(HttpResponseMessage httpResult)
+    private static async Task<ServerSettings> ParseSettingsResponse(HttpResponseMessage httpResult)
     {
         var response = await httpResult.Content.ReadAsStringAsync();
 
@@ -83,7 +83,7 @@ public static class SettingsService
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
             
-            var settings = JsonSerializer.Deserialize<FlowServerSettings>(response, options);
+            var settings = JsonSerializer.Deserialize<ServerSettings>(response, options);
 
             if (settings == null)
             {
@@ -100,6 +100,14 @@ public static class SettingsService
             if (settings.FlowServerCertBase64 == null || settings.FlowServerPrivateKeyBase64 == null)
             {
                 _logger.LogWarning("Flow server cert or private key is not set, using default TLS config");
+            }
+
+            // Override FlowServerUrl with environment variable if available
+            var workflowServerUrl = Environment.GetEnvironmentVariable("TEMPORAL_SERVER_URL");
+            if (!string.IsNullOrWhiteSpace(workflowServerUrl))
+            {
+                _logger.LogInformation($"Overriding FlowServerUrl from '{settings.FlowServerUrl}' to '{workflowServerUrl}' using WORKFLOW_SERVER_URL environment variable");
+                settings.FlowServerUrl = workflowServerUrl;
             }
 
             _logger.LogInformation($"Settings successfully loaded from server. e.g. Temporal server: {settings.FlowServerUrl}");

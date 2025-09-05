@@ -45,7 +45,7 @@ public class RouterOptions
     /// <summary>
     /// Gets or sets the maximum number of tokens to generate in the response.
     /// </summary>
-    public int HistorySizeToFetch { get; set; } = 20;
+    public int HistorySizeToFetch { get; set; } = 10;
 
     /// <summary>
     /// Gets or sets the welcome message to send when a user sends a null or empty message.

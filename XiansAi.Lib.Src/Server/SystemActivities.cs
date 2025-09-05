@@ -347,6 +347,7 @@ public class SystemActivities
             _logger.LogWarning("App server secure API is not ready, skipping message history fetch");
             return new List<DbMessage>();
         }
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             var client = SecureApi.Instance.Client;
@@ -354,8 +355,9 @@ public class SystemActivities
             response.EnsureSuccessStatusCode();
 
             var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
+            stopwatch.Stop();
 
-
+            _logger.LogDebug("Message history fetched: {Messages} messages in {ElapsedMs}ms", messages?.Count, stopwatch.ElapsedMilliseconds);
             return messages ?? new List<DbMessage>();
         }
         catch (ObjectDisposedException ex)
@@ -367,6 +369,10 @@ public class SystemActivities
         {
             _logger.LogError(ex, "Error fetching message history for thread: {WorkflowType} {ParticipantId}", workflowType, participantId);
             throw;
+        }
+        finally
+        {
+            stopwatch.Stop();
         }
     }
 }

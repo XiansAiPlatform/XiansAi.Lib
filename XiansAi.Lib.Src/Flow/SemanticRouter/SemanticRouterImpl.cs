@@ -21,7 +21,7 @@ internal class SemanticRouterHubImpl : IDisposable
     private const string OUTGOING_MESSAGE = "outgoing";
 
     private readonly ILogger _logger;
-    private readonly FlowServerSettings _settings;
+    private readonly ServerSettings _settings;
     private readonly LlmConfigurationResolver _configResolver;
     private readonly Lazy<HttpClient> _httpClient;
 
@@ -33,7 +33,7 @@ internal class SemanticRouterHubImpl : IDisposable
         _httpClient = new Lazy<HttpClient>(() => new HttpClient());
     }
 
-    private static async Task<FlowServerSettings> LoadSettingsAsync()
+    private static async Task<ServerSettings> LoadSettingsAsync()
     {
         return await SettingsService.GetSettingsFromServer();
     }

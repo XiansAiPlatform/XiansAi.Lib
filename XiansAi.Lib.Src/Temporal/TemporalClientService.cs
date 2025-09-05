@@ -131,7 +131,7 @@ public class TemporalClientService : IDisposable
         return await TemporalClient.ConnectAsync(options);
     }
 
-    private static TlsOptions? getTlsConfig(FlowServerSettings settings)
+    private static TlsOptions? getTlsConfig(ServerSettings settings)
     {
         if (settings.FlowServerCertBase64 == null || settings.FlowServerPrivateKeyBase64 == null)
         {
