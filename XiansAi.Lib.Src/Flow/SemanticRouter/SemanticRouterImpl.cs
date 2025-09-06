@@ -7,6 +7,7 @@ using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Server;
 using Microsoft.Extensions.DependencyInjection;
+using System.Threading.Tasks;
 
 namespace XiansAi.Flow.Router;
 
@@ -21,21 +22,14 @@ internal class SemanticRouterHubImpl : IDisposable
     private const string OUTGOING_MESSAGE = "outgoing";
 
     private readonly ILogger _logger;
-    private readonly ServerSettings _settings;
-    private readonly LlmConfigurationResolver _configResolver;
+    //private readonly ServerSettings _settings;
+    //private readonly LlmConfigurationResolver _configResolver;
     private readonly Lazy<HttpClient> _httpClient;
 
     public SemanticRouterHubImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterHubImpl>();
-        _settings = LoadSettingsAsync().GetAwaiter().GetResult();
-        _configResolver = new LlmConfigurationResolver(_settings);
         _httpClient = new Lazy<HttpClient>(() => new HttpClient());
-    }
-
-    private static async Task<ServerSettings> LoadSettingsAsync()
-    {
-        return await SettingsService.GetSettingsFromServer();
     }
 
     private ChatCompletionAgent CreateChatCompletionAgent(
@@ -99,8 +93,8 @@ internal class SemanticRouterHubImpl : IDisposable
     internal async Task<string?> RouteAsync(
         MessageThread messageThread, 
         string systemPrompt, 
-        Type[] capabilitiesPluginTypes, 
         RouterOptions options, 
+        List<Type> capabilitiesPluginTypes, 
         IChatInterceptor? interceptor, 
         List<IKernelModifier> kernelModifiers)
     {
@@ -113,7 +107,7 @@ internal class SemanticRouterHubImpl : IDisposable
             var agentId = $"RouterAgent_{SanitizeName(messageThread.WorkflowId)}";
 
             // Create kernel with all plugins
-            var kernel = await CreateKernelWithPlugins(options, capabilitiesPluginTypes, messageThread, kernelModifiers);
+            var kernel = await CreateKernelWithPlugins(options, capabilitiesPluginTypes.ToArray(), messageThread, kernelModifiers);
 
             // Create the agent with full instructions
             var agent = CreateChatCompletionAgent(
@@ -250,7 +244,8 @@ internal class SemanticRouterHubImpl : IDisposable
 
     private IKernelBuilder ConfigureKernelBuilder(RouterOptions options)
     {
-        var providerName = _configResolver.GetProviderName(options);
+        var configResolver = new LlmConfigurationResolver();
+        var providerName = configResolver.GetProviderName(options);
         var builder = Kernel.CreateBuilder();
         
         var httpClient = _httpClient.Value;
@@ -259,21 +254,21 @@ internal class SemanticRouterHubImpl : IDisposable
         switch (providerName?.ToLower())
         {
             case "openai":
-                var modelName = _configResolver.GetModelName(options);
+                var modelName = configResolver.GetModelName(options);
                 _logger.LogDebug("Configuring OpenAI with model {ModelName}", modelName);
                 builder.AddOpenAIChatCompletion(
                     modelId: modelName,
-                    apiKey: _configResolver.GetApiKey(options),
+                    apiKey: configResolver.GetApiKey(options),
                     httpClient: httpClient);
                 break;
 
             case "azureopenai":
-                var deploymentName = _configResolver.GetDeploymentName(options);
+                var deploymentName = configResolver.GetDeploymentName(options);
                 _logger.LogDebug("Configuring Azure OpenAI with deployment {DeploymentName}", deploymentName);
                 builder.AddAzureOpenAIChatCompletion(
                     deploymentName: deploymentName,
-                    endpoint: _configResolver.GetEndpoint(options),
-                    apiKey: _configResolver.GetApiKey(options),
+                    endpoint: configResolver.GetEndpoint(options),
+                    apiKey: configResolver.GetApiKey(options),
                     httpClient: httpClient);
                 break;
 

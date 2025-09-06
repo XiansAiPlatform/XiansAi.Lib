@@ -145,7 +145,7 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<string?> ChatCompletionAsync(string prompt, string? systemInstruction, RouterOptions? routerOptions) {
+    public async Task<string?> CompletionAsync(string prompt, string? systemInstruction, RouterOptions? routerOptions) {
         return await new SemanticRouterHubImpl().CompletionAsync(prompt, systemInstruction, routerOptions);
     }
 
@@ -236,7 +236,7 @@ public class SystemActivities
     public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
     {
         // do the routing
-        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, _capabilities.ToArray(), options, _chatInterceptor, _kernelModifiers);
+        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, _capabilities, _chatInterceptor, _kernelModifiers);
     }
 
     [Activity]

@@ -31,6 +31,13 @@ public static class SemanticRouterHub
         return response;
     }
 
+    [Obsolete("Use CompletionAsync instead")]
+    public static async Task<string?> ChatCompletionAsync(
+        string prompt, string? systemInstruction, RouterOptions? routerOptions)
+    {
+        return await CompletionAsync(prompt, systemInstruction, routerOptions);
+    }
+
     /// <summary>
     /// Performs a simple chat completion without message history or function calling.
     /// </summary>
@@ -38,14 +45,14 @@ public static class SemanticRouterHub
     /// <param name="routerOptions">Optional router configuration</param>
     /// <param name="systemActivityOptions">Optional Temporal activity options</param>
     /// <returns>The chat completion response</returns>
-    public static async Task<string?> ChatCompletionAsync(
+    public static async Task<string?> CompletionAsync(
         string prompt, string? systemInstruction = null,
         RouterOptions? routerOptions = null)
     {
         if (Workflow.InWorkflow)
         {
             var response = await Workflow.ExecuteLocalActivityAsync(
-                (SystemActivities a) => a.ChatCompletionAsync(prompt, systemInstruction, routerOptions),
+                (SystemActivities a) => a.CompletionAsync(prompt, systemInstruction, routerOptions),
                 new SystemLocalActivityOptions());
 
             return response;
