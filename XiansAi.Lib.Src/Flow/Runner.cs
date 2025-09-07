@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections.Concurrent;
 using Server;
 using Temporal;
 using Temporalio.Workflows;
@@ -9,10 +10,80 @@ using XiansAi.Models;
 namespace XiansAi.Flow;
 
 /// <summary>
+/// Non-generic static helper class for accessing runner registry.
+/// </summary>
+public static class RunnerRegistry
+{
+    private static readonly ConcurrentDictionary<Type, IRunner> _globalRunnerRegistry = new();
+
+    /// <summary>
+    /// Gets a runner instance for the specified workflow class type.
+    /// </summary>
+    /// <param name="workflowType">The workflow class type</param>
+    /// <returns>The runner instance for the specified type, or null if not found</returns>
+    public static IRunner? GetRunner(Type workflowType)
+    {
+        return _globalRunnerRegistry.TryGetValue(workflowType, out var runner) ? runner : null;
+    }
+
+    /// <summary>
+    /// Gets all registered runner instances.
+    /// </summary>
+    /// <returns>A dictionary of workflow types to runner instances</returns>
+    public static IReadOnlyDictionary<Type, IRunner> GetAllRunners()
+    {
+        return _globalRunnerRegistry;
+    }
+
+    /// <summary>
+    /// Removes a runner instance from the registry.
+    /// </summary>
+    /// <param name="workflowType">The workflow class type</param>
+    /// <returns>True if the runner was removed, false if it wasn't found</returns>
+    public static bool RemoveRunner(Type workflowType)
+    {
+        return _globalRunnerRegistry.TryRemove(workflowType, out _);
+    }
+
+    /// <summary>
+    /// Removes a runner instance from the registry.
+    /// </summary>
+    /// <typeparam name="T">The workflow class type</typeparam>
+    /// <returns>True if the runner was removed, false if it wasn't found</returns>
+    public static bool RemoveRunner<T>() where T : class
+    {
+        return _globalRunnerRegistry.TryRemove(typeof(T), out _);
+    }
+
+    /// <summary>
+    /// Clears all runner instances from the registry.
+    /// </summary>
+    public static void ClearRegistry()
+    {
+        _globalRunnerRegistry.Clear();
+    }
+
+    /// <summary>
+    /// Internal method used by Runner<T> instances to register themselves.
+    /// </summary>
+    internal static void RegisterRunner(Type workflowType, IRunner runner)
+    {
+        _globalRunnerRegistry.AddOrUpdate(workflowType, runner, (key, oldValue) => runner);
+    }
+}
+
+public interface IRunner
+{
+    List<Type> Capabilities { get; }
+    List<IKernelModifier> KernelModifiers { get; }
+    IChatInterceptor? ChatInterceptor { get; set; }
+}
+
+/// <summary>
 /// Manages workflow activity registration and metadata for a specific workflow class.
 /// </summary>
 /// <typeparam name="TClass">The workflow class type</typeparam>
-public class Runner<TClass> where TClass : class
+public class Runner<TClass> : IRunner where TClass : class
 {
     private readonly Dictionary<Type, object> _objectActivities = new();
 
@@ -38,13 +109,8 @@ public class Runner<TClass> where TClass : class
         //AgentContext.AgentName = agentInfo.Name;
         // validate the runner
         Validate();
-        // test the connection to the server
-        SecureApi.InitializeClient(
-                PlatformConfig.APP_SERVER_API_KEY!,
-                PlatformConfig.APP_SERVER_URL!
-            );
-        SecureApi.Instance.TestConnection();
-
+        // Register this runner instance
+        RegisterRunner();
     }
 #pragma warning restore CS0618 // Type or member is obsolete
 
@@ -227,6 +293,15 @@ public class Runner<TClass> where TClass : class
             }).ToList() ?? [];
         }
     }
+
+    /// <summary>
+    /// Registers this runner instance in the global registry.
+    /// </summary>
+    private void RegisterRunner()
+    {
+        RunnerRegistry.RegisterRunner(typeof(TClass), this);
+    }
+
 
 }
 

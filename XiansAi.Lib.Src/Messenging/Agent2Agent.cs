@@ -1,5 +1,7 @@
 using Temporal;
+using Temporalio.Activities;
 using Temporalio.Workflows;
+using XiansAi.Flow;
 
 namespace XiansAi.Messaging;
 
@@ -178,7 +180,7 @@ public class Agent2Agent : IAgent2Agent {
             WorkflowType = targetWorkflowType,
             Text = userRequest,
             Data = data,
-            RequestId = requestId,
+            RequestId = requestId ?? Guid.NewGuid().ToString(),
             Scope = scope,
             ParticipantId = participantId,
             Authorization=authorization,
@@ -191,9 +193,34 @@ public class Agent2Agent : IAgent2Agent {
                 (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage, type, timeoutSeconds),
                 new SystemActivityOptions());
             return success;
-        } else {
+        } else if (ActivityExecutionContext.HasCurrent) {
             var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage, type, timeoutSeconds);
             return success;
+        } else if (AgentContext.InLocalContext()) {
+            var workflowType = WorkflowIdentifier.GetWorkflowType(targetWorkflowId);
+            var targetFlow =  FlowBase.GetInstance(workflowType);
+            requestId ??= Guid.NewGuid().ToString();
+            var response = await targetFlow._chatHandler.ProcessMessage(new MessageThread {
+                ParticipantId = participantId,
+                WorkflowId = targetWorkflowId,
+                WorkflowType = targetWorkflowType,
+                Agent = AgentContext.AgentName,
+                LatestMessage = new Message {
+                    Content = userRequest,
+                    Data = data,
+                    Type = type,
+                    RequestId = requestId,
+                    Hint = hint,
+                    Scope = scope
+                }
+            });
+            return new MessageResponse {
+                Id = Guid.NewGuid().ToString(),
+                Text = response,
+                RequestId = requestId
+            };
+        } else {
+            throw new Exception("Not in workflow or activity. Has no local context.");
         }
     }
 }

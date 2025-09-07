@@ -37,7 +37,7 @@ public class ChatOrDataRequest
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
-    public string? RequestId { get; set; }
+    public required string RequestId { get; set; }
     public string? Scope { get; set; }
     public object? Data { get; set; }
     public string? Authorization { get; set; }
@@ -45,6 +45,7 @@ public class ChatOrDataRequest
     public string? ThreadId { get; set;}
     public string? Hint { get; set; }
     public string? Origin { get; set; }
+
 }
 
 public class HandoffRequest
@@ -116,21 +117,13 @@ public class EventSignal
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 }
 
-
-
-public class ApiResponse
-{
-    [JsonPropertyName("response")]
-    public required MessageResponse Response { get; set; }
-}
-
 public class MessageResponse
 {
     [JsonPropertyName("id")]
-    public required string Id { get; set; }
+    public string? Id { get; set; }
 
     [JsonPropertyName("text")]
-    public required string Text { get; set; }
+    public string? Text { get; set; }
 
     [JsonPropertyName("data")]
     public object? Data { get; set; }
@@ -151,7 +144,7 @@ public class MessageResponse
     public string? Hint { get; set; }
 
     [JsonPropertyName("requestId")]
-    public string? RequestId { get; set; }
+    public required string RequestId { get; set; }
 
     [JsonPropertyName("threadId")]
     public string? ThreadId { get; set; }

@@ -285,9 +285,20 @@ public class SystemActivities
             var client = SecureApi.Instance.Client;
             var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?type={type}&timeoutSeconds={timeoutSeconds}", chatOrDataMessage);
             response.EnsureSuccessStatusCode();
-            var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
             
-            return apiResponse?.Response ?? throw new Exception("No Conversation response from the Agent");
+            // Read the raw response first for debugging
+            var rawResponse = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("Raw response: {Response}", rawResponse);
+            
+            // Try to deserialize the response
+            var messageResponse = JsonSerializer.Deserialize<MessageResponse>(rawResponse);
+            
+            return messageResponse ?? throw new Exception("No Conversation response from the Agent");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON deserialization error. Raw response may be malformed: {Message}", chatOrDataMessage);
+            throw new Exception($"Failed to deserialize response: {ex.Message}");
         }
         catch (Exception ex)
         {
@@ -303,7 +314,7 @@ public class SystemActivities
 
     public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
 
-        _logger.LogDebug("Message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
+        _logger.LogDebug("Sending message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
 
         if (!SecureApi.IsReady)
         {

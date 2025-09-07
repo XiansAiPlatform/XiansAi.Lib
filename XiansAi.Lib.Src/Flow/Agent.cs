@@ -19,7 +19,12 @@ public class Agent
         Name = name ?? throw new ArgumentNullException(nameof(name));
         _uploadResources = uploadResources.GetValueOrDefault()
             || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
-
+        // test the connection to the server
+        SecureApi.InitializeClient(
+                PlatformConfig.APP_SERVER_API_KEY!,
+                PlatformConfig.APP_SERVER_URL!
+            );
+        SecureApi.Instance.TestConnection();
     }
 
     /// <summary>

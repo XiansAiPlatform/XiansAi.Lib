@@ -71,6 +71,16 @@ public class WorkflowIdentifier
         }
     }
 
+    public static string GetTenantId(string workflowId)
+    {
+        if (workflowId.Count(c => c == ':') >= 2) {
+            return workflowId.Split(":")[0];
+        }
+        else {
+            throw new Exception($"Invalid workflow identifier `{workflowId}`. Expected to have at least 2 `:`");
+        }
+    }
+
     public static string GetAgentName(string workflow)
     {
         if (workflow.Count(c => c == ':') == 1) {

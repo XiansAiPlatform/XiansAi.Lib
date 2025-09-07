@@ -23,12 +23,23 @@ public static class SemanticRouterHub
         string systemPrompt, 
         RouterOptions options)
     {
-        // Go through a Temporal activity to perform IO operations
-        var response = await Workflow.ExecuteActivityAsync(
-            (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
-            new SystemActivityOptions());
-
-        return response;
+        if (Workflow.InWorkflow) {
+            // Go through a Temporal activity to perform IO operations
+            return await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
+                new SystemActivityOptions());
+        }
+        else if (AgentContext.InLocalContext()) {
+            var type = FlowBase.GetTypeByWorkflowType(messageThread.WorkflowType);
+            var runner = RunnerRegistry.GetRunner(type) ?? throw new InvalidOperationException($"Runner not found for workflow type: {messageThread.WorkflowType}");
+            var capabilities = runner.Capabilities;
+            var kernelModifiers = runner.KernelModifiers;
+            var chatInterceptor = runner.ChatInterceptor;
+            return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, capabilities, chatInterceptor, kernelModifiers);
+        }
+        else {
+            throw new InvalidOperationException("Not in workflow or activity. Has no local context.");
+        }
     }
 
     [Obsolete("Use CompletionAsync instead")]

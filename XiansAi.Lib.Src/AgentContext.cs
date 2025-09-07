@@ -1,14 +1,27 @@
-using System.Reflection;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using XiansAi.Models;
 using XiansAi.Server;
 using Temporal;
 
+public interface IAgentContext
+{
+    string UserId { get; }
+    string WorkflowId { get; }
+}
+
 public class AgentContext
 {
-    private static string? _tenantId { get; set; }
     private static CertificateInfo? _certificateInfo { get; set; }
+    private static IAgentContext? _localContext { get; set; }
+
+    public static void SetLocalContext(IAgentContext context) {
+        _localContext = context;
+    }
+
+    public static bool InLocalContext() {
+        return _localContext != null;
+    }
 
     public static async Task StartWorkflow<TWorkflow>(string namePostfix, object[] args) {
         await SubWorkflowService.Start<TWorkflow>(namePostfix, args);
@@ -18,7 +31,7 @@ public class AgentContext
         return await SubWorkflowService.Execute<TWorkflow, TResult>(namePostfix, args);
     }
 
-    public static CertificateInfo? CertificateInfo { 
+    private static CertificateInfo? CertificateInfo { 
         get
         {
             if (_certificateInfo != null)
@@ -33,11 +46,18 @@ public class AgentContext
     public static string TenantId {
         get
         {
-            if (_tenantId != null)
+            if (CertificateInfo?.TenantId  != null)
             {
-                return _tenantId;
+                return CertificateInfo.TenantId ;
+            } 
+            else if (_localContext?.WorkflowId != null)
+            {
+                return WorkflowIdentifier.GetTenantId(WorkflowId);
             }
-            return CertificateInfo?.TenantId ?? throw new InvalidOperationException("Tenant ID is not set, certificate is missing tenant ID info");
+            else
+            {
+                throw new InvalidOperationException("Tenant ID is not set, certificate is missing tenant ID info");
+            }
         }
     }
 
@@ -45,20 +65,21 @@ public class AgentContext
     public static string UserId {
         get
         {
-            return CertificateInfo?.UserId ?? throw new InvalidOperationException("User ID is not set, certificate is missing user ID info");
+            return 
+                CertificateInfo?.UserId ??
+                _localContext?.UserId ??
+                throw new InvalidOperationException("User ID is not set, certificate is missing user ID info");
         }
     }
-
 
     public static string AgentName
     {
         get
         {
-            var workflowType = WorkflowType;
-            var agentName = workflowType.Split(':')[0];
-            return agentName;
+            return WorkflowIdentifier.GetAgentName(WorkflowId ?? WorkflowType);
         }
     }
+
     public static string WorkflowId { 
         get 
         {
@@ -69,6 +90,18 @@ public class AgentContext
             else if (ActivityExecutionContext.HasCurrent)
             {
                 return ActivityExecutionContext.Current.Info.WorkflowId;
+            }
+            else if (_localContext?.WorkflowId != null)
+            {
+                // WorkflowId should have 2 ":"
+                if(_localContext.WorkflowId.Count(c => c == ':') >= 2)
+                {
+                    return _localContext.WorkflowId;
+                }
+                else
+                {
+                    throw new InvalidOperationException("Custom context workflow id should have the format `tenantId:AgentName:workflowName:optionalId`. But got `" + _localContext.WorkflowId + "`");
+                }
             }
             else
             {
@@ -87,23 +120,9 @@ public class AgentContext
             {
                 return ActivityExecutionContext.Current.Info.WorkflowType;
             }
-            else
+            else if (WorkflowId != null)
             {
-                throw new InvalidOperationException("Not in workflow or activity");
-            }
-        }
-    }
-
-    public static string WorkflowRunId { 
-        get 
-        {
-            if (Workflow.InWorkflow)
-            {
-                return Workflow.Info.RunId;
-            }
-            else if (ActivityExecutionContext.HasCurrent)
-            {
-                return ActivityExecutionContext.Current.Info.WorkflowRunId;
+                return WorkflowIdentifier.GetWorkflowType(WorkflowId);
             }
             else
             {

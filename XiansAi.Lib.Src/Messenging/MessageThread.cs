@@ -25,9 +25,9 @@ public class Message
     [JsonPropertyName("request_id")]
     public required string RequestId { get; set; }
     [JsonPropertyName("hint")]
-    public required string Hint { get; set; }
+    public string? Hint { get; set; }
     [JsonPropertyName("scope")]
-    public required string Scope { get; set; }
+    public string? Scope { get; set; }
     [JsonPropertyName("origin")]
     public string? Origin { get; set; }
 }
@@ -66,7 +66,6 @@ public class MessageThread : IMessageThread
         var scope = LatestMessage.Scope;
         return await new ThreadHistoryService().GetMessageHistory(WorkflowType, ParticipantId, scope, page, pageSize);;
     }
-
 
     public async Task SendData(object? data, string? content = null)
     {

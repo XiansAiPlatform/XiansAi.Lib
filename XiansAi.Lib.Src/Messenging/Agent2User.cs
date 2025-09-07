@@ -146,7 +146,7 @@ public class Agent2User : IAgent2User {
             Text = content,
             Data = data,
             ParticipantId = participantId,
-            RequestId = requestId,
+            RequestId = requestId ?? Guid.NewGuid().ToString(),
             Scope = scope
         };
 

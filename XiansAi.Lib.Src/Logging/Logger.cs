@@ -116,19 +116,39 @@ public class Logger<T>
         try
         {
             contextData["WorkflowId"] = AgentContext.WorkflowId;
-            contextData["WorkflowRunId"] = AgentContext.WorkflowRunId;
             contextData["WorkflowType"] = AgentContext.WorkflowType;
             contextData["Agent"] = AgentContext.AgentName;
-            contextData["ParticipantId"] = "TODO";
+            if (WorkflowRunId != null)
+            {
+                contextData["WorkflowRunId"] = WorkflowRunId;
+            }
         }
         catch (InvalidOperationException)
         {
+            Console.WriteLine("FAILED: Logger get context data not in workflow or activity");
             //ignore, not in workflow or activity
         }
 
         return contextData;
     }
 
+    private static string? WorkflowRunId { 
+        get 
+        {
+            if (Workflow.InWorkflow)
+            {
+                return Workflow.Info.RunId;
+            }
+            else if (ActivityExecutionContext.HasCurrent)
+            {
+                return ActivityExecutionContext.Current.Info.WorkflowRunId;
+            }
+            else
+            {
+                return null;
+            }
+        }
+    }
     public void LogTrace(string message)
     {
         Log(LogLevel.Trace, message, null);
