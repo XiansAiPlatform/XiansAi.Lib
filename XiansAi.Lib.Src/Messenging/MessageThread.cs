@@ -92,7 +92,7 @@ public class MessageThread : IMessageThread
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
         var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         data ??= LatestMessage.Data;
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, LatestMessage.Hint, timeoutSeconds);
+        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, timeoutSeconds);
     }
 
     public async Task<string?> SendHandoff(string targetWorkflowId, string? message = null, object? data = null)

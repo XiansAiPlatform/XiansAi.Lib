@@ -84,7 +84,7 @@ internal class SemanticRouterHubImpl : IDisposable
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error in LLM completion");
+            _logger.LogError(e, $"Error in LLM completion in processing message: `{prompt}` and system instruction: `{systemInstruction}`");
             throw;
         }
     }
@@ -255,21 +255,22 @@ internal class SemanticRouterHubImpl : IDisposable
         {
             case "openai":
                 var modelName = configResolver.GetModelName(options);
-                _logger.LogDebug("Configuring OpenAI with model {ModelName}", modelName);
                 builder.AddOpenAIChatCompletion(
                     modelId: modelName,
                     apiKey: configResolver.GetApiKey(options),
                     httpClient: httpClient);
+                _logger.LogDebug("Configured OpenAI with model {ModelName}", modelName);
+
                 break;
 
             case "azureopenai":
                 var deploymentName = configResolver.GetDeploymentName(options);
-                _logger.LogDebug("Configuring Azure OpenAI with deployment {DeploymentName}", deploymentName);
                 builder.AddAzureOpenAIChatCompletion(
                     deploymentName: deploymentName,
                     endpoint: configResolver.GetEndpoint(options),
                     apiKey: configResolver.GetApiKey(options),
                     httpClient: httpClient);
+                 _logger.LogDebug("Configured Azure OpenAI with deployment {DeploymentName}", deploymentName);
                 break;
 
             default:
@@ -310,6 +311,13 @@ internal class SemanticRouterHubImpl : IDisposable
     private async Task<ChatHistory> BuildChatHistoryAsync(MessageThread messageThread, string systemPrompt, int historySizeToFetch)
     {
         var chatHistory = new ChatHistory(systemPrompt);
+
+        // If the latest message is stateless, don't add any history
+        if (messageThread.LatestMessage.Hint == Constants.HINT_STATELESS)
+        {
+            _logger.LogDebug("Latest message is stateless, not adding any history");
+            return chatHistory;
+        }
         
         var historyFromServer = await messageThread.FetchThreadHistory(1, historySizeToFetch);
         historyFromServer.Reverse(); // Put most recent messages last

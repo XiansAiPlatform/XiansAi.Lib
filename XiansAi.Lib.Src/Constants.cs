@@ -13,4 +13,6 @@ static class Constants {
     // Environment variable names for logging configuration
     public const string ConsoleLogLevelEnvVar = "CONSOLE_LOG_LEVEL";
     public const string ApiLogLevelEnvVar = "API_LOG_LEVEL";
+
+    public const string HINT_STATELESS = "stateless";
 }

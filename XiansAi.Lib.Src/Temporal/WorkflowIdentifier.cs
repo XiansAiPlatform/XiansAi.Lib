@@ -88,7 +88,7 @@ public class WorkflowIdentifier
         }
         else if (workflow.Count(c => c == ':') >= 2) 
         {
-            return workflow.Split(":")[0];
+            return workflow.Split(":")[1];
         }
         else {
             throw new Exception($"Invalid workflow identifier `{workflow}`. Expected to have at least 1 `:`");
@@ -112,5 +112,26 @@ public class WorkflowIdentifier
     {
         var workflowAttr = flowClassType.GetCustomAttribute<WorkflowAttribute>();
         return workflowAttr?.Name ?? throw new InvalidOperationException("WorkflowAttribute.Name is not set");
+    }
+
+    public static Type? GetClassTypeFor(string workflowType)
+    {
+        // Find all types in the current app domain that have WorkflowAttribute
+        var workflowTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type.GetCustomAttribute<WorkflowAttribute>() != null)
+            .ToList();
+
+        // Find the type with matching WorkflowAttribute.Name
+        foreach (var type in workflowTypes)
+        {
+            var workflowAttr = type.GetCustomAttribute<WorkflowAttribute>();
+            if (workflowAttr != null && workflowAttr.Name == workflowType)
+            {
+                return type;
+            }
+        }
+
+        return null;
     }
 }

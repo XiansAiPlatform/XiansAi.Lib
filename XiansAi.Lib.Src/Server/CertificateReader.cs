@@ -1,17 +1,18 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Concurrent;
 using XiansAi.Models;
+using Microsoft.Extensions.Logging;
 
 namespace XiansAi.Server;
 
 public class CertificateReader
 {
-    private readonly Logging.Logger<CertificateReader> _logger;
+    private readonly ILogger<CertificateReader> _logger;
     private static readonly ConcurrentDictionary<string, Lazy<CertificateInfo>> _certificateCache = new();
 
     public CertificateReader()
     {
-        _logger = Logging.Logger<CertificateReader>.For();
+        _logger = Globals.LogFactory.CreateLogger<CertificateReader>();
     }
 
     public CertificateInfo? ReadCertificate(string? base64EncodedCertificate = null)
@@ -65,12 +66,12 @@ public class CertificateReader
         }
         catch (FormatException ex)
         {
-            _logger.LogError("Failed to decode base64 certificate", ex);
+            _logger.LogError(ex, "Failed to decode base64 certificate");
             throw new InvalidOperationException("Invalid base64 encoded certificate", ex);
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to read certificate", ex);
+            _logger.LogError(ex, "Failed to read certificate");
             throw new InvalidOperationException("Failed to load certificate", ex);
         }
     }
@@ -112,7 +113,7 @@ public class CertificateReader
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to extract tenant ID from certificate", ex);
+            _logger.LogError(ex, "Failed to extract tenant ID from certificate");
             return null;
         }
     }
@@ -146,7 +147,7 @@ public class CertificateReader
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to extract user ID from certificate", ex);
+            _logger.LogError(ex, "Failed to extract user ID from certificate");
             return null;
         }
     }

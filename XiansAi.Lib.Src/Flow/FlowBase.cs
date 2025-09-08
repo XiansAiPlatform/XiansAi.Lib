@@ -1,4 +1,5 @@
 using System.Reflection;
+using Temporal;
 using Temporalio.Workflows;
 using XiansAi.Flow.Router;
 
@@ -80,28 +81,12 @@ public abstract class FlowBase : AbstractFlow
         await InitConversation();
     }
 
-    public static Type GetTypeByWorkflowType(string workflowType) {
-        // Find all types in the current app domain that inherit from FlowBase
-        var flowTypes = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => typeof(FlowBase).IsAssignableFrom(type) && !type.IsAbstract)
-            .ToList();
-
-        // Find the type with matching WorkflowAttribute.Name
-        foreach (var type in flowTypes)
-        {
-            var workflowAttr = type.GetCustomAttribute<WorkflowAttribute>();
-            if (workflowAttr != null && workflowAttr.Name == workflowType)
-            {
-                return type;
-            }
-        }
-
-        throw new InvalidOperationException($"No FlowBase implementation found with WorkflowAttribute.Name = '{workflowType}'");
-    }
 
     public static FlowBase GetInstance(string workflowType) {
-        var type = GetTypeByWorkflowType(workflowType);
+        var type = WorkflowIdentifier.GetClassTypeFor(workflowType);
+        if (type == null) {
+            throw new InvalidOperationException($"No FlowBase implementation found with WorkflowAttribute.Name = '{workflowType}'");
+        }
         return (FlowBase)Activator.CreateInstance(type)!;
     }
 }

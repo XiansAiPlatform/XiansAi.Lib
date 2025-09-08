@@ -1,16 +1,16 @@
+using Microsoft.Extensions.Logging;
 using Temporalio.Client;
-using XiansAi.Logging;
 
 namespace Temporal;
 
 public class WorkflowClientService
 {
-    private readonly Logger<WorkflowClientService> _logger;
+    private readonly ILogger<WorkflowClientService> _logger;
     private readonly ITemporalClient _client;
     private readonly string _agentName;
     public WorkflowClientService(string agentName)
     {
-        _logger = Logger<WorkflowClientService>.For();
+        _logger = Globals.LogFactory.CreateLogger<WorkflowClientService>();
         _client = TemporalClientService.Instance.GetClientAsync().Result;
         _agentName = agentName;
     }

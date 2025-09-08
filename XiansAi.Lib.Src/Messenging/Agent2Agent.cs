@@ -22,7 +22,7 @@ interface IAgent2Agent {
     /// <param name="hint">Optional hint for processing</param>
     /// <param name="timeoutSeconds">Timeout in seconds (default: 300)</param>
     /// <returns>Response from the target agent, or null if no response</returns>
-    public Task<MessageResponse> SendData(string workflowIdOrType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300);
+    public Task<MessageResponse> SendData(string workflowIdOrType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300);
     
     /// <summary>
     /// Sends a chat message to another agent identified by workflow ID or type.
@@ -36,7 +36,7 @@ interface IAgent2Agent {
     /// <param name="hint">Optional hint for processing</param>
     /// <param name="timeoutSeconds">Timeout in seconds (default: 300)</param>
     /// <returns>Response from the target agent, or null if no response</returns>
-    public Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300);
+    public Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300);
     
     /// <summary>
     /// Sends data to another agent identified by workflow type.
@@ -50,7 +50,7 @@ interface IAgent2Agent {
     /// <param name="hint">Optional hint for processing</param>
     /// <param name="timeoutSeconds">Timeout in seconds (default: 300)</param>
     /// <returns>Response from the target agent, or null if no response</returns>
-    public Task<MessageResponse> SendData(Type targetWorkflowType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300);
+    public Task<MessageResponse> SendData(Type targetWorkflowType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300);
     
     /// <summary>
     /// Sends a chat message to another agent identified by workflow type.
@@ -64,7 +64,7 @@ interface IAgent2Agent {
     /// <param name="hint">Optional hint for processing</param>
     /// <param name="timeoutSeconds">Timeout in seconds (default: 300)</param>
     /// <returns>Response from the target agent, or null if no response</returns>
-    public Task<MessageResponse> SendChat(Type targetWorkflowType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300);
+    public Task<MessageResponse> SendChat(Type targetWorkflowType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300);
 }
 
 /// <summary>
@@ -80,7 +80,7 @@ interface IAgent2Agent {
 public class Agent2Agent : IAgent2Agent {
 
     /// <inheritdoc />
-    public async Task<MessageResponse> SendData(string workflowIdOrType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+    public async Task<MessageResponse> SendData(string workflowIdOrType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
         var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
         var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
@@ -88,12 +88,12 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
 
     }
     
     /// <inheritdoc />
-    public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+    public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
         var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
         var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
@@ -101,12 +101,12 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
 
     }
 
     /// <inheritdoc />
-     public async Task<MessageResponse> SendData(Type targetWorkflowType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+     public async Task<MessageResponse> SendData(Type targetWorkflowType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
         var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
@@ -114,11 +114,11 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
     }
 
     /// <inheritdoc />
-    public async Task<MessageResponse> SendChat(Type targetWorkflowType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, string? hint = null, int timeoutSeconds = 300)
+    public async Task<MessageResponse> SendChat(Type targetWorkflowType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
         var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
@@ -126,7 +126,7 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, hint, timeoutSeconds);
+        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization,timeoutSeconds);
     }
 
     /// <summary>
@@ -160,7 +160,6 @@ public class Agent2Agent : IAgent2Agent {
         string? requestId,
         string? scope,
         string? authorization,
-        string? hint,
         int timeoutSeconds
     )
     {
@@ -174,29 +173,12 @@ public class Agent2Agent : IAgent2Agent {
             throw new Exception("Target workflowId or workflowType is required for bot to bot messaging");
         }
 
-        var outgoingChatOrDataMessage = new ChatOrDataRequest
-        {
-            WorkflowId = targetWorkflowId,
-            WorkflowType = targetWorkflowType,
-            Text = userRequest,
-            Data = data,
-            RequestId = requestId ?? Guid.NewGuid().ToString(),
-            Scope = scope,
-            ParticipantId = participantId,
-            Authorization=authorization,
-            Hint = hint,
-            Origin = AgentContext.WorkflowId
-        };
+        targetWorkflowType = targetWorkflowType ?? WorkflowIdentifier.GetWorkflowType(targetWorkflowId);
 
-        if (Workflow.InWorkflow) {
-            var success = await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage, type, timeoutSeconds),
-                new SystemActivityOptions());
-            return success;
-        } else if (ActivityExecutionContext.HasCurrent) {
-            var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage, type, timeoutSeconds);
-            return success;
-        } else if (AgentContext.InLocalContext()) {
+        Type? targetWorkflowClassType = WorkflowIdentifier.GetClassTypeFor(targetWorkflowType);
+
+        if (RunnerRegistry.GetRunner(targetWorkflowClassType) != null && type == MessageType.Chat) {
+            // The target workflow is running in the same process, so we can use the local context
             var workflowType = WorkflowIdentifier.GetWorkflowType(targetWorkflowId);
             var targetFlow =  FlowBase.GetInstance(workflowType);
             requestId ??= Guid.NewGuid().ToString();
@@ -210,7 +192,7 @@ public class Agent2Agent : IAgent2Agent {
                     Data = data,
                     Type = type,
                     RequestId = requestId,
-                    Hint = hint,
+                    Hint = Constants.HINT_STATELESS,
                     Scope = scope
                 }
             });
@@ -219,6 +201,30 @@ public class Agent2Agent : IAgent2Agent {
                 Text = response,
                 RequestId = requestId
             };
+        }
+
+        var outgoingChatOrDataMessage = new ChatOrDataRequest
+        {
+            WorkflowId = targetWorkflowId,
+            WorkflowType = targetWorkflowType,
+            Text = userRequest,
+            Data = data,
+            RequestId = requestId ?? Guid.NewGuid().ToString(),
+            Scope = scope,
+            ParticipantId = participantId,
+            Authorization=authorization,
+            Hint = Constants.HINT_STATELESS,
+            Origin = AgentContext.WorkflowId
+        };
+
+        if (Workflow.InWorkflow) {
+            var success = await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.SendBotToBotMessage(outgoingChatOrDataMessage, type, timeoutSeconds),
+                new SystemActivityOptions());
+            return success;
+        } else if (ActivityExecutionContext.HasCurrent) {
+            var success = await SystemActivities.SendBotToBotMessageStatic(outgoingChatOrDataMessage, type, timeoutSeconds);
+            return success;
         } else {
             throw new Exception("Not in workflow or activity. Has no local context.");
         }

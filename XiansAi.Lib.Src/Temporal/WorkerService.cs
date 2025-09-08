@@ -2,20 +2,20 @@
 using Temporalio.Worker;
 using Server;
 using XiansAi.Server;
-using XiansAi.Logging;
 using XiansAi.Flow;
 using XiansAi;
+using Microsoft.Extensions.Logging;
 
 namespace Temporal;
 
 internal class WorkerService
 {
-    private readonly Logger<WorkerService> _logger;    
+    private readonly ILogger<WorkerService> _logger;    
     private readonly CertificateReader _certificateReader;
     private readonly RunnerOptions? _options;
     public WorkerService(RunnerOptions? options = null)
     {
-        _logger = Logger<WorkerService>.For();
+        _logger = Globals.LogFactory.CreateLogger<WorkerService>();
         _certificateReader = new CertificateReader();
         _options = options;
         ValidateConfig();

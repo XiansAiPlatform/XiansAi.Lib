@@ -5,17 +5,16 @@ namespace Temporal;
 
 public class SubWorkflowOptions : ChildWorkflowOptions
 {
-    public SubWorkflowOptions(string workflowType, string? idPostfix = null)
+    public SubWorkflowOptions(string workflowType, string? idPostfix = null, RetryPolicy? retryPolicy = null)
     {
         var newOptions = new NewWorkflowOptions(workflowType, idPostfix);
-        var workflowId = AgentContext.WorkflowId + (idPostfix != null ? ":" + idPostfix : "");
-        Id = workflowId;
         TaskQueue = AgentContext.TenantId + ":" + workflowType;
+        Id = AgentContext.TenantId + ":" + workflowType + (idPostfix != null ? ":" + idPostfix : "");;
         Memo = newOptions.GetMemo();
         TypedSearchAttributes = newOptions.GetSearchAttributes();
         StaticSummary = $"Sub workflow of `{AgentContext.WorkflowId }` with name `{idPostfix}`";
-        RetryPolicy = new RetryPolicy{
-            MaximumAttempts = 5
+        RetryPolicy = retryPolicy ?? new RetryPolicy{
+            MaximumAttempts = 1
         };
         ParentClosePolicy = ParentClosePolicy.Abandon;
     }

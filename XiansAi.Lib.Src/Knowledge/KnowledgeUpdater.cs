@@ -1,5 +1,5 @@
+using Microsoft.Extensions.Logging;
 using Server;
-using XiansAi.Logging;
 
 namespace XiansAi.Knowledge;
 
@@ -24,7 +24,7 @@ public interface IKnowledgeUpdater
 /// </summary>
 public class KnowledgeUpdaterImpl : IKnowledgeUpdater
 {
-    private readonly Logger<KnowledgeUpdaterImpl> _logger = Logger<KnowledgeUpdaterImpl>.For();
+    private readonly ILogger<KnowledgeUpdaterImpl> _logger = Globals.LogFactory.CreateLogger<KnowledgeUpdaterImpl>();
     private readonly KnowledgeService _knowledgeService = new KnowledgeService();
 
     /// <summary>

@@ -1,11 +1,11 @@
+using Microsoft.Extensions.Logging;
 using Server;
-using XiansAi.Logging;
 
 namespace XiansAi.Knowledge;
 
 public class KnowledgeSync
 {
-    private readonly Logger<KnowledgeSync> _logger = Logger<KnowledgeSync>.For();
+    private readonly ILogger<KnowledgeSync> _logger = Globals.LogFactory.CreateLogger<KnowledgeSync>();
     private readonly KnowledgeService _knowledgeService = new KnowledgeService();
 
     private readonly string _agent;

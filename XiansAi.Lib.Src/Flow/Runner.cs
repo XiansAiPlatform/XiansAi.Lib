@@ -4,8 +4,8 @@ using Server;
 using Temporal;
 using Temporalio.Workflows;
 using XiansAi.Activity;
-using XiansAi.Logging;
 using XiansAi.Models;
+using Microsoft.Extensions.Logging;
 
 namespace XiansAi.Flow;
 
@@ -21,8 +21,11 @@ public static class RunnerRegistry
     /// </summary>
     /// <param name="workflowType">The workflow class type</param>
     /// <returns>The runner instance for the specified type, or null if not found</returns>
-    public static IRunner? GetRunner(Type workflowType)
+    public static IRunner? GetRunner(Type? workflowType)
     {
+        if (workflowType == null) {
+            return null;
+        }
         return _globalRunnerRegistry.TryGetValue(workflowType, out var runner) ? runner : null;
     }
 
@@ -99,7 +102,7 @@ public class Runner<TClass> : IRunner where TClass : class
 
 #pragma warning disable CS0618 // Type or member is obsolete
     public AgentInfo AgentInfo { get; private set; }
-    private readonly Logger<Runner<TClass>> _logger = Logger<Runner<TClass>>.For();
+    private readonly ILogger<Runner<TClass>> _logger = Globals.LogFactory.CreateLogger<Runner<TClass>>();
 
     public Runner(AgentInfo agentInfo, int workers)
     {
