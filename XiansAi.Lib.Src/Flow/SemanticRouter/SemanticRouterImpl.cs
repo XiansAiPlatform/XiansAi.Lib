@@ -71,7 +71,18 @@ internal class SemanticRouterHubImpl : IDisposable
             );
             
             // Create a simple thread for single-turn chat completion
-            var thread = new ChatHistoryAgentThread();
+            var chatHistory = new ChatHistory(systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.");
+            
+            // Apply chat history reduction if token limits are configured
+            if (options.TokenLimit > 0)
+            {
+                var chatService = kernel.GetRequiredService<IChatCompletionService>();
+                var reducerLogger = Globals.LogFactory.CreateLogger<ChatHistoryReducer>();
+                var reducer = new ChatHistoryReducer(reducerLogger, options, chatService);
+                chatHistory = await reducer.ReduceAsync(chatHistory);
+            }
+            
+            var thread = new ChatHistoryAgentThread(chatHistory);
             var userMessage = new ChatMessageContent(AuthorRole.User, prompt);
             
             var responses = new List<ChatMessageContent>();
@@ -119,6 +130,18 @@ internal class SemanticRouterHubImpl : IDisposable
             
             // Build chat history and create thread with proper history
             var chatHistory = await BuildChatHistoryAsync(messageThread, systemPrompt, options.HistorySizeToFetch);
+            
+            // Apply chat history reduction if token limits are configured
+            if (options.TokenLimit > 0)
+            {
+                var chatService = kernel.GetRequiredService<IChatCompletionService>();
+                var reducerLogger = Globals.LogFactory.CreateLogger<ChatHistoryReducer>();
+                var reducer = new ChatHistoryReducer(reducerLogger, options, chatService);
+                
+                // Apply reduction to prevent token limit issues
+                chatHistory = await reducer.ReduceAsync(chatHistory);
+            }
+            
             var thread = new ChatHistoryAgentThread(chatHistory);
             
             // Create the current user message from the latest message
