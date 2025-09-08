@@ -46,7 +46,7 @@ public static class SemanticRouterHub
 
     [Obsolete("Use CompletionAsync instead")]
     public static async Task<string?> ChatCompletionAsync(
-        string prompt, string? systemInstruction, RouterOptions? routerOptions)
+        string prompt, string? systemInstruction = "", RouterOptions? routerOptions = null)
     {
         return await CompletionAsync(prompt, systemInstruction, routerOptions);
     }
