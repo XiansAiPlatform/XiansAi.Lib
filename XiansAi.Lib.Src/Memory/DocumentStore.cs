@@ -9,7 +9,7 @@ namespace XiansAi.Memory;
 /// <summary>
 /// Implementation of document storage operations using the secure API backend.
 /// </summary>
-public class DocumentStore : IDocumentStore {
+internal class DocumentStore : IDocumentStore {
     
     public async Task<Document> SaveAsync(Document document, DocumentOptions? options = null)
     {

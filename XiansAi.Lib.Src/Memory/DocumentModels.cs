@@ -23,7 +23,7 @@ public class Document
     /// <summary>
     /// The actual content of the document.
     /// </summary>
-    public required JsonElement Content { get; set; }
+    public JsonElement? Content { get; set; }
 
     /// <summary>
     /// Optional metadata for categorization and querying.
@@ -77,9 +77,9 @@ public class Document
 public class DocumentOptions
 {
     /// <summary>
-    /// Time-to-live in minutes. Document will be automatically deleted after this time.
+    /// Time-to-live in minutes. Document will be automatically deleted after this time. Default is 30 days.
     /// </summary>
-    public int? TtlMinutes { get; set; }
+    public int? TtlMinutes { get; set; } = 60 * 24 * 30; // 30 days
 
     /// <summary>
     /// Whether to overwrite if a document with the same ID exists.

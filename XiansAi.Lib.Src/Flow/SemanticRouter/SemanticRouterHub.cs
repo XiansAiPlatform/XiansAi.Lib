@@ -30,17 +30,14 @@ public static class SemanticRouterHub
                 (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
                 new SystemActivityOptions());
         }
-        
-        else if (ActivityExecutionContext.HasCurrent || AgentContext.InLocalContext()) {
+        else  
+        {
             var type = WorkflowIdentifier.GetClassTypeFor(messageThread.WorkflowType);
             var runner = RunnerRegistry.GetRunner(type) ?? throw new InvalidOperationException($"Runner not found for workflow type: {messageThread.WorkflowType}");
             var capabilities = runner.Capabilities;
             var kernelModifiers = runner.KernelModifiers;
             var chatInterceptor = runner.ChatInterceptor;
             return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, capabilities, chatInterceptor, kernelModifiers);
-        }
-        else {
-            throw new InvalidOperationException("Not in workflow or activity. Has no local context. Routing fails.");
         }
     }
 

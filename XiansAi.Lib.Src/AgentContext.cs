@@ -4,23 +4,15 @@ using XiansAi.Models;
 using XiansAi.Server;
 using Temporal;
 
-public interface IAgentContext
-{
-    string UserId { get; }
-    string WorkflowId { get; }
-}
-
 public class AgentContext
 {
     private static CertificateInfo? _certificateInfo { get; set; }
-    private static IAgentContext? _localContext { get; set; }
+    private static string? _userId { get; set; }
+    private static string? _workflowId { get; set; }
 
-    public static void SetLocalContext(IAgentContext context) {
-        _localContext = context;
-    }
-
-    public static bool InLocalContext() {
-        return _localContext != null;
+    public static void SetLocalContext(string userId, string workflowId) {
+        _userId = userId;
+        _workflowId = workflowId;
     }
 
     public static async Task StartWorkflow<TWorkflow>(string namePostfix, object[] args) {
@@ -50,7 +42,7 @@ public class AgentContext
             {
                 return CertificateInfo.TenantId ;
             } 
-            else if (_localContext?.WorkflowId != null)
+            else if (WorkflowId != null)
             {
                 return WorkflowIdentifier.GetTenantId(WorkflowId);
             }
@@ -67,7 +59,7 @@ public class AgentContext
         {
             return 
                 CertificateInfo?.UserId ??
-                _localContext?.UserId ??
+                _userId ??
                 throw new InvalidOperationException("User ID is not set, certificate is missing user ID info");
         }
     }
@@ -91,16 +83,16 @@ public class AgentContext
             {
                 return ActivityExecutionContext.Current.Info.WorkflowId;
             }
-            else if (_localContext?.WorkflowId != null)
+            else if (_workflowId != null)
             {
                 // WorkflowId should have 2 ":"
-                if(_localContext.WorkflowId.Count(c => c == ':') >= 2)
+                if(_workflowId.Count(c => c == ':') >= 2)
                 {
-                    return _localContext.WorkflowId;
+                    return _workflowId;
                 }
                 else
                 {
-                    throw new InvalidOperationException("Custom context workflow id should have the format `tenantId:AgentName:workflowName:optionalId`. But got `" + _localContext.WorkflowId + "`");
+                    throw new InvalidOperationException("Custom context workflow id should have the format `tenantId:AgentName:workflowName:optionalId`. But got `" + _workflowId + "`");
                 }
             }
             else
