@@ -5,7 +5,7 @@ namespace XiansAi.Flow.Router;
 
 /// <summary>
 /// Configuration resolver for LLM settings with fallback hierarchy:
-/// RouterOptions -> Environment Variables -> Server Settings
+/// RouterOptions -> AgentContext.RouterOptions -> Environment Variables -> Server Settings
 /// </summary>
 internal class LlmConfigurationResolver
 {
@@ -31,6 +31,11 @@ internal class LlmConfigurationResolver
             return options.ApiKey;
         }
         
+        if (!string.IsNullOrEmpty(AgentContext.RouterOptions?.ApiKey))
+        {
+            return AgentContext.RouterOptions.ApiKey;
+        }
+        
         if (!string.IsNullOrEmpty(_envApiKey))
         {
             return _envApiKey;
@@ -52,6 +57,11 @@ internal class LlmConfigurationResolver
             return options.ProviderName;
         }
         
+        if (!string.IsNullOrEmpty(AgentContext.RouterOptions?.ProviderName))
+        {
+            return AgentContext.RouterOptions.ProviderName;
+        }
+        
         if (!string.IsNullOrEmpty(_envProvider))
         {
             return _envProvider;
@@ -71,6 +81,11 @@ internal class LlmConfigurationResolver
         if (!string.IsNullOrWhiteSpace(options.DeploymentName))
         {
             return options.DeploymentName;
+        }
+        
+        if (!string.IsNullOrWhiteSpace(AgentContext.RouterOptions?.DeploymentName))
+        {
+            return AgentContext.RouterOptions.DeploymentName;
         }
         
         if (!string.IsNullOrWhiteSpace(_envDeploymentName))
@@ -95,6 +110,11 @@ internal class LlmConfigurationResolver
             return options.Endpoint;
         }
         
+        if (!string.IsNullOrWhiteSpace(AgentContext.RouterOptions?.Endpoint))
+        {
+            return AgentContext.RouterOptions.Endpoint;
+        }
+        
         if (!string.IsNullOrWhiteSpace(_envEndpoint))
         {
             return _envEndpoint;
@@ -114,6 +134,11 @@ internal class LlmConfigurationResolver
         if (!string.IsNullOrWhiteSpace(options.ModelName))
         {
             return options.ModelName;
+        }
+        
+        if (!string.IsNullOrWhiteSpace(AgentContext.RouterOptions?.ModelName))
+        {
+            return AgentContext.RouterOptions.ModelName;
         }
         
         if (!string.IsNullOrWhiteSpace(_envModelName))

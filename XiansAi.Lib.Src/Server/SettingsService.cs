@@ -15,7 +15,7 @@ public class ServerSettings
     public required string? ProviderName { get; set; }
     public required string ModelName { get; set; }
     public Dictionary<string, string>? AdditionalConfig { get; set; }
-    public required string? BaseUrl { get; set; }
+    public string? BaseUrl { get; set; }
 
 }
 
@@ -25,6 +25,7 @@ public static class SettingsService
     private const string SETTINGS_URL = "api/agent/settings/flowserver";
 
     private static readonly Lazy<Task<ServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
+    private static readonly object _settingsLock = new object();
 
 
     /// <summary>
@@ -33,6 +34,15 @@ public static class SettingsService
     /// <returns>The flow server settings</returns>
     public static async Task<ServerSettings> GetSettingsFromServer()
     {
+        lock (_settingsLock)
+        {
+            if (AgentContext.ServerSettings != null)
+            {
+                _logger.LogInformation("Using externally set server settings");
+                return AgentContext.ServerSettings;
+            }
+        }
+
         return await _settingsLazy.Value;
     }
 

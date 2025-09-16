@@ -3,12 +3,16 @@ using Temporalio.Workflows;
 using XiansAi.Models;
 using XiansAi.Server;
 using Temporal;
+using XiansAi.Flow.Router;
+using Server;
 
 public class AgentContext
 {
     private static CertificateInfo? _certificateInfo { get; set; }
     private static string? _userId { get; set; }
     private static string? _workflowId { get; set; }
+    public static RouterOptions? RouterOptions { get; set; }
+    public static ServerSettings? ServerSettings { get; set; }
 
     public static void SetLocalContext(string userId, string workflowId) {
         _userId = userId;
