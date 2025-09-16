@@ -186,6 +186,7 @@ public class Agent2Agent : IAgent2Agent {
                 ParticipantId = participantId,
                 WorkflowId = targetWorkflowId,
                 WorkflowType = targetWorkflowType,
+                Authorization = authorization,
                 Agent = AgentContext.AgentName,
                 LatestMessage = new Message {
                     Content = userRequest,
