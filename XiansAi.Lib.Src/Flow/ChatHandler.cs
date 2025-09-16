@@ -1,10 +1,10 @@
 using Temporalio.Workflows;
-using XiansAi.Messaging;
-using XiansAi.Logging;
-using XiansAi.Flow.Router;
-using XiansAi.Knowledge;
+using Agentri.Messaging;
+using Agentri.Logging;
+using Agentri.Flow.Router;
+using Agentri.Knowledge;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 // Define delegate for message listening
 public delegate Task MessageListenerDelegate(MessageThread messageThread);

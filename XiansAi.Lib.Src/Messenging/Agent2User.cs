@@ -1,7 +1,7 @@
 using Temporal;
 using Temporalio.Workflows;
 
-namespace XiansAi.Messaging;
+namespace Agentri.Messaging;
 
 interface IAgent2User {
     /// <summary>

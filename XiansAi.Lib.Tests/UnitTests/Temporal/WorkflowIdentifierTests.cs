@@ -1,6 +1,6 @@
 using Temporal;
 
-namespace XiansAi.Lib.Tests.UnitTests.Temporal
+namespace Agentri.SDK.Tests.UnitTests.Temporal
 {
     /*
     dotnet test --filter "FullyQualifiedName~WorkflowIdentifierTests"

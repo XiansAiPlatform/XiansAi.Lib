@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Text.Json;
-using XiansAi.Models;
+using Agentri.Models;
 
-namespace Server;
+namespace Agentri.Server;
 
 public class ActivityUploader
 {

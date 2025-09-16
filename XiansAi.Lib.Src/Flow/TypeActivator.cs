@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 internal static class TypeActivator
 {

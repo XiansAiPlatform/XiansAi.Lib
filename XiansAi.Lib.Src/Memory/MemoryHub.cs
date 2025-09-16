@@ -1,6 +1,6 @@
-using Server;
+using Agentri.Server;
 
-namespace XiansAi.Memory;
+namespace Agentri.Memory;
 
 public static class MemoryHub
 {

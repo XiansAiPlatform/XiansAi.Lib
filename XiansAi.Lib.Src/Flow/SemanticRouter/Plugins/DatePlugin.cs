@@ -1,4 +1,4 @@
-namespace XiansAi.Flow.Router.Plugins;
+namespace Agentri.Flow.Router.Plugins;
 
 /// <summary>
 /// A plugin that provides date and time functionalities. 

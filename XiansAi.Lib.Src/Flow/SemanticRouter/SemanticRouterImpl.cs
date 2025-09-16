@@ -3,12 +3,12 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Agents;
-using XiansAi.Messaging;
-using XiansAi.Flow.Router.Plugins;
+using Agentri.Messaging;
+using Agentri.Flow.Router.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 
 
-namespace XiansAi.Flow.Router;
+namespace Agentri.Flow.Router;
 
 /// <summary>
 /// Core implementation of the semantic router functionality.

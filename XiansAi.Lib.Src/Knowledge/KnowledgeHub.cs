@@ -1,6 +1,6 @@
 using Temporalio.Workflows;
 
-namespace XiansAi.Knowledge;
+namespace Agentri.Knowledge;
 
 public static class KnowledgeHub
 {

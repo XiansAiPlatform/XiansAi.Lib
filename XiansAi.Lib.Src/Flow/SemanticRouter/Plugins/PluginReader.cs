@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using XiansAi.Activity;
-using XiansAi.Knowledge;
-using XiansAi.Messaging;
+using Agentri.Activity;
+using Agentri.Knowledge;
+using Agentri.Messaging;
 
-namespace XiansAi.Flow.Router.Plugins;
+namespace Agentri.Flow.Router.Plugins;
 
 internal class PluginReaderLogger { }
 

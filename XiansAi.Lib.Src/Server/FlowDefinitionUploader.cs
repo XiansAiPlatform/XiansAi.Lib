@@ -4,12 +4,12 @@ using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using System.Text.Encodings.Web;
-using XiansAi.Flow;
-using XiansAi.Knowledge;
-using XiansAi.Models;
+using Agentri.Flow;
+using Agentri.Knowledge;
+using Agentri.Models;
 using System.Security.Cryptography;
 
-namespace Server;
+namespace Agentri.Server;
 
 /// <summary>
 /// Defines a service for uploading flow definitions to the server.

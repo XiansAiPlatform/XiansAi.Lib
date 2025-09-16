@@ -1,4 +1,4 @@
-namespace XiansAi.Flow.Router.Plugins;
+namespace Agentri.Flow.Router.Plugins;
 
 /// <summary>
 /// Provides a list of predefined plugins that are available for use with the DynamicOrchestrator.

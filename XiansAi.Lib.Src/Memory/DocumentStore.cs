@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Server;
+using Agentri.Server;
 using Temporalio.Workflows;
 
-namespace XiansAi.Memory;
+namespace Agentri.Memory;
 
 /// <summary>
 /// Implementation of document storage operations using the secure API backend.

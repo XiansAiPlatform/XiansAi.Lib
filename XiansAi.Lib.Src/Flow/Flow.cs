@@ -1,5 +1,5 @@
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 /// <summary>
 /// Interface for type-erased flow storage.

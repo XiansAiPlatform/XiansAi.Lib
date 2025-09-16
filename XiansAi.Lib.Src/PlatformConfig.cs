@@ -1,4 +1,4 @@
-namespace XiansAi;
+namespace Agentri;
 
 public static class PlatformConfig
 {

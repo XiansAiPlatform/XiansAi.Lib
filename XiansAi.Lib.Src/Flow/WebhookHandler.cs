@@ -1,7 +1,7 @@
 using Temporalio.Workflows;
-using XiansAi.Logging;
+using Agentri.Logging;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 /// <summary>
 /// Handles chat message processing and conversation management for flows

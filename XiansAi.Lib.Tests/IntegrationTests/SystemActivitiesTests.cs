@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
-using Server;
+using Agentri.Server;
 using DotNetEnv;
 
 
-namespace XiansAi.Lib.Tests.IntegrationTests;
+namespace Agentri.SDK.Tests.IntegrationTests;
 
 [Collection("SecureApi Tests")]
 public class SystemActivitiesTests

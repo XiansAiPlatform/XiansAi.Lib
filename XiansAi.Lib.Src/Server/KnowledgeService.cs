@@ -3,9 +3,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using XiansAi.Models;
+using Agentri.Models;
 
-namespace Server;
+namespace Agentri.Server;
 
 public class KnowledgeService
 {
@@ -23,7 +23,7 @@ public class KnowledgeService
     /// </summary>
     /// <param name="knowledgeName">The name of the knowledge to load</param>
     /// <returns>The loaded knowledge, or null if not found</returns>
-    public async Task<Knowledge?> GetKnowledgeFromServer(string knowledgeName, string agent)
+    public async Task<Models.Knowledge?> GetKnowledgeFromServer(string knowledgeName, string agent)
     {
         if (!SecureApi.IsReady)
         {
@@ -65,7 +65,7 @@ public class KnowledgeService
     /// </summary>
     /// <param name="knowledge">The knowledge to upload</param>
     /// <returns>True if upload was successful</returns>
-    public async Task<bool> UploadKnowledgeToServer(Knowledge knowledge)
+    public async Task<bool> UploadKnowledgeToServer(Models.Knowledge knowledge)
     {
         if (!SecureApi.IsReady)
         {
@@ -108,7 +108,7 @@ public class KnowledgeService
     /// <summary>
     /// Parses the server response into a Knowledge object
     /// </summary>
-    private async Task<Knowledge?> ParseKnowledgeResponse(HttpResponseMessage httpResult)
+    private async Task<Models.Knowledge?> ParseKnowledgeResponse(HttpResponseMessage httpResult)
     {
         var response = await httpResult.Content.ReadAsStringAsync();
 
@@ -120,7 +120,7 @@ public class KnowledgeService
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
             
-            var knowledge = JsonSerializer.Deserialize<Knowledge>(response, options);
+            var knowledge = JsonSerializer.Deserialize<Models.Knowledge>(response, options);
 
             if (knowledge?.Content == null || knowledge.Name == null)
             {

@@ -1,4 +1,4 @@
-namespace XiansAi.Models;
+namespace Agentri.Models;
 
 public class Knowledge
 {

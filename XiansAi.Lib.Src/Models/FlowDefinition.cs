@@ -2,7 +2,7 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 
-namespace XiansAi.Models;
+namespace Agentri.Models;
 
 public class FlowDefinition
 {

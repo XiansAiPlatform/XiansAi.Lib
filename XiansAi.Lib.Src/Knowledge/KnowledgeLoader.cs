@@ -1,7 +1,7 @@
-using Server;
-using XiansAi.Logging;
+using Agentri.Server;
+using Agentri.Logging;
 
-namespace XiansAi.Knowledge;
+namespace Agentri.Knowledge;
 
 /// <summary>
 /// Defines a service for loading instructions from either a server or local filesystem.

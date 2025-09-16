@@ -1,7 +1,7 @@
-using XiansAi.Knowledge;
-using XiansAi.Logging;
+using Agentri.Knowledge;
+using Agentri.Logging;
 
-namespace Server;
+namespace Agentri.Server;
 
 /// <summary>
 /// Defines a service for uploading flow definitions to the server.

@@ -1,4 +1,4 @@
-namespace XiansAi.Models;
+namespace Agentri.Models;
 using System.Text.Json.Serialization;
 
 public class ActivityDefinition

@@ -1,5 +1,5 @@
 
-namespace XiansAi.Flow.Router.Plugins;
+namespace Agentri.Flow.Router.Plugins;
 
 /// <summary>
 /// Marks a parameter with a name and description for use in kernel functions.

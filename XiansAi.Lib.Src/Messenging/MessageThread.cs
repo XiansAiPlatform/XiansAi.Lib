@@ -4,7 +4,7 @@ using Temporalio.Workflows;
 using System.Text.Json.Serialization;
 using Temporal;
 
-namespace XiansAi.Messaging;
+namespace Agentri.Messaging;
 public interface IMessageThread
 {
     Task<List<DbMessage>> FetchThreadHistory(int page = 1, int pageSize = 10);

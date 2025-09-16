@@ -1,4 +1,4 @@
-namespace XiansAi.Models;
+namespace Agentri.Models;
 
 [Obsolete("Use of AgentInfo is now obsolete. Refer to the online documentation for more information on how to create an agent.")]
 public class AgentInfo

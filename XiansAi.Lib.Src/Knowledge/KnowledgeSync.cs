@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
-using Server;
+using Agentri.Server;
 
-namespace XiansAi.Knowledge;
+namespace Agentri.Knowledge;
 
 public class KnowledgeSync
 {

@@ -1,13 +1,13 @@
 using System.Reflection;
 using System.Collections.Concurrent;
-using Server;
+using Agentri.Server;
 using Temporal;
 using Temporalio.Workflows;
-using XiansAi.Activity;
-using XiansAi.Models;
+using Agentri.Activity;
+using Agentri.Models;
 using Microsoft.Extensions.Logging;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 /// <summary>
 /// Non-generic static helper class for accessing runner registry.
