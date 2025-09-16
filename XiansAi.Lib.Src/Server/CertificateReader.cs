@@ -1,9 +1,9 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Collections.Concurrent;
-using XiansAi.Models;
+using Agentri.Models;
 using Microsoft.Extensions.Logging;
 
-namespace XiansAi.Server;
+namespace Agentri.Server;
 
 public class CertificateReader
 {

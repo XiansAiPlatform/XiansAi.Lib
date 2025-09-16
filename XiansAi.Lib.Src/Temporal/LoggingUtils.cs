@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
-using XiansAi.Logging;
+using Agentri.Logging;
 
 namespace Temporal;
 

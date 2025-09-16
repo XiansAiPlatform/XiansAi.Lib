@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
-using XiansAi.Models;
-namespace XiansAi.Logging;
+using Agentri.Models;
+namespace Agentri.Logging;
 
 public class ApiLoggerProvider : ILoggerProvider
 {

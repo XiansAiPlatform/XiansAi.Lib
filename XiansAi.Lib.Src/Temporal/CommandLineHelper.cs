@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using XiansAi.Flow;
-using XiansAi.Activity;
-using XiansAi.Logging;
-using Server;
+using Agentri.Flow;
+using Agentri.Activity;
+using Agentri.Logging;
+using Agentri.Server;
 
 namespace Temporal;
 

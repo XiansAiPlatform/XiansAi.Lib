@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace XiansAi.Models
+namespace Agentri.Models
 {
     public class Log
     {

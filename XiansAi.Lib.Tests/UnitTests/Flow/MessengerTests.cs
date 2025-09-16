@@ -1,7 +1,7 @@
-using XiansAi.Messaging;
+using Agentri.Messaging;
 
 
-namespace XiansAi.Lib.Tests.UnitTests.Flow
+namespace Agentri.SDK.Tests.UnitTests.Flow
 {
     /*
     dotnet test --filter "FullyQualifiedName~MessengerTests"

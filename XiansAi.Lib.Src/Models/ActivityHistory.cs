@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace XiansAi.Models;
+namespace Agentri.Models;
 
 public class ActivityHistory
 {

@@ -3,7 +3,7 @@ using Temporalio.Activities;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
-namespace XiansAi.Logging;
+namespace Agentri.Logging;
 
 public class Logger<T>
 {

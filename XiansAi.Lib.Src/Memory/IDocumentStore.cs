@@ -1,4 +1,4 @@
-namespace XiansAi.Memory;
+namespace Agentri.Memory;
 
 /// <summary>
 /// Provides document storage operations for AI agents to save, retrieve, and manage JSON documents.

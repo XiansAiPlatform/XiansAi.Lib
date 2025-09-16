@@ -1,11 +1,11 @@
 using System.Net;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
-using Server;
+using Agentri.Server;
 using DotNetEnv;
-using XiansAi.Knowledge;
+using Agentri.Knowledge;
 
-namespace XiansAi.Lib.Tests.IntegrationTests;
+namespace Agentri.SDK.Tests.IntegrationTests;
 
 [Collection("SecureApi Tests")]
 public class InstructionLoaderTests

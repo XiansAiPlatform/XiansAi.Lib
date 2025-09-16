@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
-using XiansAi.Messaging;
+using Agentri.Messaging;
 
 public class ThreadHistoryService
 {

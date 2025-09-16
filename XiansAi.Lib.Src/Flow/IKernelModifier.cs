@@ -1,6 +1,6 @@
 using Microsoft.SemanticKernel;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 public interface IKernelModifier
 {

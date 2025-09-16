@@ -1,8 +1,8 @@
-using Server;
-using XiansAi.Models;
+using Agentri.Server;
+using Agentri.Models;
 using Temporal;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 /// <summary>
 /// Main entry point for creating and managing flows and bots.

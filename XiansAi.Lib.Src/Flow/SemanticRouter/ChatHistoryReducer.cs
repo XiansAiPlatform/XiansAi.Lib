@@ -3,7 +3,7 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using System.Text;
 
-namespace XiansAi.Flow.Router;
+namespace Agentri.Flow.Router;
 
 /// <summary>
 /// Provides chat history reduction strategies to keep conversations within token limits.

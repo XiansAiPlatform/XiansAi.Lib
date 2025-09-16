@@ -2,9 +2,9 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Temporal;
 using Temporalio.Workflows;
-using XiansAi.Logging;
+using Agentri.Logging;
 
-namespace XiansAi.Messaging;
+namespace Agentri.Messaging;
 
 public delegate Task ConversationReceivedAsyncHandler(MessageThread conversation);
 public delegate void ConversationReceivedHandler(MessageThread conversation);

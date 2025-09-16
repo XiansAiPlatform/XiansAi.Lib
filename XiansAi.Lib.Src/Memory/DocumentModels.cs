@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace XiansAi.Memory;
+namespace Agentri.Memory;
 
 /// <summary>
 /// Represents a document stored in the database with metadata.

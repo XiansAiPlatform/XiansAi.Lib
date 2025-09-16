@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
-using Server;
+using Agentri.Server;
 
-namespace XiansAi.Flow.Router;
+namespace Agentri.Flow.Router;
 
 /// <summary>
 /// Configuration resolver for LLM settings with fallback hierarchy:

@@ -1,16 +1,16 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
-using Server;
+using Agentri.Server;
 using Temporalio.Activities;
 using Temporalio.Workflows;
-using XiansAi.Knowledge;
-using XiansAi.Messaging;
-using XiansAi.Models;
-using XiansAi.Flow.Router;
-using XiansAi.Flow;
+using Agentri.Knowledge;
+using Agentri.Messaging;
+using Agentri.Models;
+using Agentri.Flow.Router;
+using Agentri.Flow;
 using System.Text.Json;
 using Temporal;
-using XiansAi.Memory;
+using Agentri.Memory;
 using Temporalio.Common;
 
 public class SendMessageResponse

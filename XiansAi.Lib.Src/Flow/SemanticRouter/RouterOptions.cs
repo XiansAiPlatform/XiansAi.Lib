@@ -1,5 +1,5 @@
 
-namespace XiansAi.Flow.Router;
+namespace Agentri.Flow.Router;
 
 /// <summary>
 /// Configuration options for the DynamicOrchestrator.

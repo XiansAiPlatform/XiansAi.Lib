@@ -1,7 +1,7 @@
 using Temporalio.Activities;
-using XiansAi.Models;
+using Agentri.Models;
 
-namespace XiansAi.Activity;
+namespace Agentri.Activity;
 public static class ActivityContext
 {
     internal static bool IsInWorkflow() 

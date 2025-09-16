@@ -1,9 +1,9 @@
 using Temporal;
 using Temporalio.Activities;
 using Temporalio.Workflows;
-using XiansAi.Messaging;
+using Agentri.Messaging;
 
-namespace XiansAi.Flow.Router;
+namespace Agentri.Flow.Router;
 
 /// <summary>
 /// Public API for semantic routing operations within Temporal workflows.

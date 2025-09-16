@@ -1,10 +1,10 @@
 using System.Reflection;
 using System.Text.Json;
 using Temporalio.Activities;
-using Server;
-using XiansAi.Logging;
+using Agentri.Server;
+using Agentri.Logging;
 
-namespace XiansAi.Activity;
+namespace Agentri.Activity;
 
 /// <summary>
 /// Activity tracker proxy that intercepts activity method calls to track and log them

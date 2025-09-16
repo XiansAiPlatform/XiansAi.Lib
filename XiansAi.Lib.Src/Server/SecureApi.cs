@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Server;
+namespace Agentri.Server;
 
 /// <summary>
 /// Defines a client for secure API communications.

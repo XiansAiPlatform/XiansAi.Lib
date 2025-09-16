@@ -1,8 +1,8 @@
 using System.Reflection;
-using XiansAi.Flow.Router.Plugins;
+using Agentri.Flow.Router.Plugins;
 
 
-namespace XiansAi.Lib.Tests.UnitTests.Router.Plugins
+namespace Agentri.SDK.Tests.UnitTests.Router.Plugins
 {
     /*
     dotnet test --filter "FullyQualifiedName~Router.Plugins.CapabilityKnowledgeLoaderTests"

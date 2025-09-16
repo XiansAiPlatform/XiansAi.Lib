@@ -1,9 +1,9 @@
 using System.Reflection;
 using Temporal;
 using Temporalio.Workflows;
-using XiansAi.Flow.Router;
+using Agentri.Flow.Router;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 public abstract class FlowBase : AbstractFlow
 {

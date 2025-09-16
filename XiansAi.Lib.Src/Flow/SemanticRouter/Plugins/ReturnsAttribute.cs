@@ -1,4 +1,4 @@
-namespace XiansAi.Flow.Router.Plugins;
+namespace Agentri.Flow.Router.Plugins;
 
 /// <summary>
 /// Marks a method as a return value for a capability.

@@ -1,6 +1,6 @@
-using XiansAi.Logging;
+using Agentri.Logging;
 
-namespace XiansAi.Activity;
+namespace Agentri.Activity;
 
 /// <summary>
 /// Non-static class just for logger type reference

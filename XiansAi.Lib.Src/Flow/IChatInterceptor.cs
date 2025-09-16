@@ -1,6 +1,6 @@
-using XiansAi.Messaging;
+using Agentri.Messaging;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 public interface IChatInterceptor
 {

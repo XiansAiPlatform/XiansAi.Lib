@@ -1,9 +1,9 @@
 using Temporalio.Workflows;
-using XiansAi.Messaging;
-using XiansAi.Memory;
+using Agentri.Messaging;
+using Agentri.Memory;
 using Temporal;
 
-namespace XiansAi.Flow;
+namespace Agentri.Flow;
 
 /// <summary>
 /// Base class for all workflow implementations providing common functionality.

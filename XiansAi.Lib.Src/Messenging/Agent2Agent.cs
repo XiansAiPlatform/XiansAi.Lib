@@ -1,9 +1,9 @@
 using Temporal;
 using Temporalio.Activities;
 using Temporalio.Workflows;
-using XiansAi.Flow;
+using Agentri.Flow;
 
-namespace XiansAi.Messaging;
+namespace Agentri.Messaging;
 
 /// <summary>
 /// Interface for agent-to-agent communication within the XiansAi workflow system.

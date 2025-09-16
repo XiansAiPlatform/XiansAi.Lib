@@ -1,11 +1,11 @@
-using Server;
+using Agentri.Server;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using XiansAi.Models;
+using Agentri.Models;
 using System.Net.Http.Json;
 
-namespace XiansAi.Logging;
+namespace Agentri.Logging;
 
 /// <summary>
 /// Static class providing logging service management and shutdown handling

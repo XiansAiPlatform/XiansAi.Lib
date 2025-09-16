@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Server;
-
-namespace XiansAi.Knowledge;
+using Agentri.Server;
+namespace Agentri.Knowledge;
 
 /// <summary>
 /// Defines a service for updating knowledges either on a server or locally.

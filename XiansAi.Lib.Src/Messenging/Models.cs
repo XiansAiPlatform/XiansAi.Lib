@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
     
-namespace XiansAi.Messaging;
+namespace Agentri.Messaging;
 public class MessageSignal
 {
     public required MessagePayload Payload { get; set; }

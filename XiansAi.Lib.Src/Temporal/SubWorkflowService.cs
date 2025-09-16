@@ -1,5 +1,5 @@
 using Temporalio.Workflows;
-using XiansAi.Logging;
+using Agentri.Logging;
 
 namespace Temporal;
 

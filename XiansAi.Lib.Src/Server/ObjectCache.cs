@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 
-namespace Server;
+namespace Agentri.Server;
 
 public interface IObjectCache
 {

@@ -1,6 +1,6 @@
 # NuGet Package Documentation
 
-This document provides comprehensive instructions for building, publishing, and consuming the XiansAi.Lib NuGet package.
+This document provides comprehensive instructions for building, publishing, and consuming the Agentri.SDK NuGet package.
 
 ## Table of Contents
 
@@ -159,9 +159,9 @@ Add this to your `.csproj` file:
 ### Using in Code
 
 ```csharp
-using XiansAi.Lib;
-using XiansAi.Lib.Flow;
-using XiansAi.Lib.Knowledge;
+using Agentri.SDK;
+using Agentri.Flow;
+using Agentri.Knowledge;
 
 // Example usage
 var agent = new Agent();
@@ -227,7 +227,7 @@ var knowledgeHub = new KnowledgeHub();
 3. **Test the package:**
 
    ```csharp
-   using XiansAi.Lib;
+   using Agentri.SDK;
    
    Console.WriteLine("Testing XiansAi.Lib package");
    ```

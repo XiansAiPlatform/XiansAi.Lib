@@ -1,6 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 
-namespace XiansAi.Models;
+namespace Agentri.Models;
 
 public class CertificateInfo
 {

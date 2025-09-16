@@ -1,4 +1,4 @@
-namespace XiansAi.Knowledge;
+namespace Agentri.Knowledge;
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, Inherited = false)]
 public sealed class KnowledgeAttribute: Attribute
