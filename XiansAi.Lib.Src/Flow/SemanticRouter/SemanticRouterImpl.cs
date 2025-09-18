@@ -237,7 +237,7 @@ internal class SemanticRouterHubImpl : IDisposable
             try
             {
                 _logger.LogDebug("Modifying kernel with {KernelModifierType}", kernelModifier.GetType().Name);
-                kernel = await kernelModifier.ModifyKernelAsync(kernel);
+                kernel = await kernelModifier.ModifyKernelAsync(kernel, messageThread);
             }
             catch (Exception e)
             {
