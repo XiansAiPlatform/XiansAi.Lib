@@ -90,33 +90,56 @@ public class ChatHandler : SafeHandler
                 messageThread = await DequeueMessage();
                 if (messageThread == null) continue;
                 
-                // Check if we should send a welcome message
-                var welcomeMessageSent = await HandleWelcomeMessage(messageThread);
+
                 
-                // Skip processing if welcome message was sent
-                if (welcomeMessageSent) continue;
-                
-                // Invoke the message listener if provided
-                if (_messageListener != null)
+                // Process message in non-blocking way
+                _ =  Workflow.RunTaskAsync(async () =>
                 {
-                    try 
+                    try
                     {
-                        await _messageListener(messageThread);
+                        // Check if we should send a welcome message
+                        var welcomeMessageSent = await HandleWelcomeMessage(messageThread);
+                        
+                        // Skip processing if welcome message was sent
+                        if (welcomeMessageSent) return;
+
+                        // Invoke the message listener if provided
+                        if (_messageListener != null)
+                        {
+                            try 
+                            {
+                                await _messageListener(messageThread);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError("Error processing message in custom listener", ex);
+                            }
+                        }
+
+                        // Asynchronously process the message
+                        var response = await ProcessMessage(messageThread);
+
+                        if (response == null) {
+                            throw new Exception("No response from router");
+                        }
+                        // Respond to the user
+                        await messageThread.SendChat(response);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError("Error processing message in custom listener", ex);
+                        _logger.LogError("Error processing message in background task", ex);
+                        
+                        // Send error message back to the caller
+                        try
+                        {
+                            await messageThread.SendData(new { error = ex.Message }, "Error occurred while processing message");
+                        }
+                        catch (Exception sendEx)
+                        {
+                            _logger.LogError("Failed to send error message", sendEx);
+                        }
                     }
-                }
-
-                // Asynchronously process the message
-                var response = await ProcessMessage(messageThread);
-
-                if (response == null) {
-                    throw new Exception("No response from router");
-                }
-                // Respond to the user
-                await messageThread.SendChat(response);
+                });
 
             }
             catch (ContinueAsNewException)

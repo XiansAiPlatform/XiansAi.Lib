@@ -261,9 +261,9 @@ public class SecureApi : ISecureApiClient, IDisposable
         {
             throw new InvalidOperationException("Failed to get settings from server");
         }
-        if (settings.FlowServerCertBase64 == null || settings.FlowServerUrl == null)
+        if (settings.FlowServerUrl == null)
         {
-            throw new InvalidOperationException("Failed to get settings from server: FlowServerCertBase64 or FlowServerUrl is null");
+            throw new InvalidOperationException("Failed to get settings from server: lowServerUrl is null");
         }
     }
 
@@ -321,9 +321,9 @@ public class SecureApi : ISecureApiClient, IDisposable
             {
                 throw new InvalidOperationException("Failed to get settings from server");
             }
-            if (settings.FlowServerCertBase64 == null || settings.FlowServerUrl == null)
+            if (settings.FlowServerUrl == null)
             {
-                throw new InvalidOperationException("Failed to get settings from server: FlowServerCertBase64 or FlowServerUrl is null");
+                throw new InvalidOperationException("Failed to get settings from server: FlowServerUrl is null");
             }
         });
     }
