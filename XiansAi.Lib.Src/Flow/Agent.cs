@@ -11,20 +11,14 @@ public class Agent
 {
     private readonly List<IFlow> _flows = new();
     private readonly List<IBot> _bots = new();
-    private readonly bool _uploadResources;
     public string Name { get; }
+
+    private readonly bool? _uploadResources;
 
     public Agent(string name, bool? uploadResources=null)
     {
         Name = name ?? throw new ArgumentNullException(nameof(name));
-        _uploadResources = uploadResources.GetValueOrDefault()
-            || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
-        // test the connection to the server
-        SecureApi.InitializeClient(
-                PlatformConfig.APP_SERVER_API_KEY!,
-                PlatformConfig.APP_SERVER_URL!
-            );
-        SecureApi.Instance.TestConnection();
+        _uploadResources = uploadResources;
     }
 
     /// <summary>
@@ -56,11 +50,19 @@ public class Agent
     /// </summary>
     public async Task RunAsync(RunnerOptions? options = null)
     {
+            
+        // test the connection to the server
+        SecureApi.InitializeClient(
+                PlatformConfig.APP_SERVER_API_KEY!,
+                PlatformConfig.APP_SERVER_URL!
+            );
+        await SecureApi.Instance.TestConnection();
         // Setup graceful shutdown handling first
         CommandLineHelper.SetupGracefulShutdown();
         
-        var tasks = new List<Task>();        
-        await new ResourceUploader(_uploadResources).UploadResource();
+        var tasks = new List<Task>();   
+        var uploadResources = _uploadResources.GetValueOrDefault() || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
+        await new ResourceUploader(uploadResources).UploadResource();
 
         // Get the shared cancellation token for coordinated shutdown
         var cancellationToken = CommandLineHelper.GetShutdownToken();
