@@ -251,13 +251,16 @@ internal class SemanticRouterHubImpl : IDisposable
     private Kernel BuildKernelAsync(RouterOptions options)
     {
         var builder = ConfigureKernelBuilder(options);
-        
+
         // Configure logging
         builder.Services.AddLogging(configure => 
         {
             configure.AddConsole();
             configure.SetMinimumLevel(LogLevel.Information);
         });
+
+        // To avoid infinite loops, we need to add the termination filter as a scoped service.
+        builder.Services.AddScoped<IAutoFunctionInvocationFilter>(_ => new TerminationFilter(options.MaxConsecutiveCalls));
 
         var kernel = builder.Build() ?? throw new InvalidOperationException("Failed to build Semantic Kernel");
 

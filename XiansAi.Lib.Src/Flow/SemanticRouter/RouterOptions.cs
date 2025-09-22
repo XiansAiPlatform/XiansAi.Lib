@@ -99,5 +99,11 @@ public class RouterOptions
     /// Default is 5000 tokens (~20,000 characters) to handle large scraped content.
     /// </summary>
     public int MaxTokensPerFunctionResult { get; set; } = 10000;
+
+    /// <summary>
+    /// Gets or sets the maximum number of consecutive calls to a function before terminating.
+    /// Default is 10.
+    /// </summary>
+    public int MaxConsecutiveCalls { get; set; } = 10;
 }
 
