@@ -72,12 +72,17 @@ internal class WorkerService
         var client = await TemporalClientService.Instance.GetClientAsync();
 
         var workFlowType = runner.WorkflowName;
-        var taskQueue = _certificateReader.ReadCertificate()?.TenantId + ":" + workFlowType; 
+        var taskQueue = workFlowType; 
 
-        if (!string.IsNullOrEmpty(_options?.QueuePrefix))
+        if (_options != null && !_options.TenantScoped)
         {
-            taskQueue = _options.QueuePrefix + taskQueue;
+            // This agent will run activities from all tenants
+            taskQueue = workFlowType;
         } 
+        else {
+            // Default behaviour. This agent will run activities from the tenant of the certificate
+            taskQueue = AgentContext.TenantId + ":" + workFlowType;
+        }
 
         var options = new TemporalWorkerOptions()
         {

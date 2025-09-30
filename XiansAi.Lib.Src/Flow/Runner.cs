@@ -311,7 +311,7 @@ public class Runner<TClass> : IRunner where TClass : class
 
 public class RunnerOptions
 {
-    public string? QueuePrefix { get; set; }
+    public bool TenantScoped { get; set; } = true;
 }
 
 public class FlowInfo
