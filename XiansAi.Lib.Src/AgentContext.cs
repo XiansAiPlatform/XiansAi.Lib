@@ -14,6 +14,8 @@ public class AgentContext
     public static RouterOptions? RouterOptions { get; set; }
     public static ServerSettings? ServerSettings { get; set; }
 
+    private static bool? _systemScoped { get; set; }
+
     public static void SetLocalContext(string userId, string workflowId) {
         _userId = userId;
         _workflowId = workflowId;
@@ -42,14 +44,20 @@ public class AgentContext
     public static string TenantId {
         get
         {
+            try {
+                if (WorkflowId != null)
+                {
+                    return WorkflowIdentifier.GetTenantId(WorkflowId);
+                }
+            } catch (InvalidOperationException) {
+                // not in workflow
+            }
+            
+            
             if (CertificateInfo?.TenantId  != null)
             {
                 return CertificateInfo.TenantId ;
             } 
-            else if (WorkflowId != null)
-            {
-                return WorkflowIdentifier.GetTenantId(WorkflowId);
-            }
             else
             {
                 throw new InvalidOperationException("Tenant ID is not set, certificate is missing tenant ID info");
@@ -65,6 +73,35 @@ public class AgentContext
                 CertificateInfo?.UserId ??
                 _userId ??
                 throw new InvalidOperationException("User ID is not set, certificate is missing user ID info");
+        }
+    }
+
+    public static bool SystemScoped {
+        get
+        {
+            if (_systemScoped != null)
+            {
+                return _systemScoped.Value;
+            }
+            else if (Workflow.InWorkflow)
+            {
+                return Workflow.Memo.TryGetValue(Constants.SystemScopedKey, out var value) && value.Payload.Data.ToStringUtf8() == "true";
+            }
+            else
+            {
+                 throw new InvalidOperationException("Not in workflow. One can only check if the workflow is system scoped if in a workflow.");
+            }
+        }
+        set
+        {
+            if (_systemScoped == null)
+            {
+                _systemScoped = value;
+            } 
+            else if (_systemScoped != value)
+            {
+                throw new InvalidOperationException("System scoped can only be set once. All agents in the same runtime should have the same system scoped value.");
+            }
         }
     }
 

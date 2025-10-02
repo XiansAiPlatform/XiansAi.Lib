@@ -8,7 +8,12 @@ public class SubWorkflowOptions : ChildWorkflowOptions
     public SubWorkflowOptions(string workflowType, string? idPostfix = null, RetryPolicy? retryPolicy = null)
     {
         var newOptions = new NewWorkflowOptions(workflowType, idPostfix);
-        TaskQueue = AgentContext.TenantId + ":" + workflowType;
+        var systemScoped = AgentContext.SystemScoped;
+        if (systemScoped) {
+            TaskQueue = workflowType;
+        } else {
+            TaskQueue = AgentContext.TenantId + ":" + workflowType;
+        }
         Id = AgentContext.TenantId + ":" + workflowType + (idPostfix != null ? ":" + idPostfix : "");;
         Memo = newOptions.GetMemo();
         TypedSearchAttributes = newOptions.GetSearchAttributes();

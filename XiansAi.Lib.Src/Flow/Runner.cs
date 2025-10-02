@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Collections.Concurrent;
-using Server;
 using Temporal;
 using Temporalio.Workflows;
 using XiansAi.Activity;
@@ -311,7 +310,10 @@ public class Runner<TClass> : IRunner where TClass : class
 
 public class RunnerOptions
 {
-    public bool TenantScoped { get; set; } = true;
+    // If true, the agent will run activities from all tenants
+    public bool SystemScoped { get; set; } = false;
+
+    public string? OnboardingJson { get; set; }
 }
 
 public class FlowInfo

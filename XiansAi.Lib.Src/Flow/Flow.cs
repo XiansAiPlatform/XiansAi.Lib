@@ -74,6 +74,14 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
         return this;
     }
 
+    /// <summary>
+    /// Sets the schedule processor for this flow.
+    /// </summary>
+    /// <typeparam name="TProcessor"></typeparam>
+    /// <param name="processInWorkflow"> If true, the schedule processor will be processed in the Temporal workflow. If false, the schedule processor will be processed in the Temporal activity.</param>
+    /// <param name="startAutomatically"> If true, the schedule processor will start automatically. If false, the schedule processor will not start automatically. Ignored if systemScoped is true.</param>
+    /// <param name="runAtStart"> If true, the first execution of the schedule processor will run at start. If false, the schedule processor will not run at start but wait for the wait time to start.</param>
+    /// <returns></returns>
     public Flow<TWorkflow> SetScheduleProcessor<TProcessor>(
         bool processInWorkflow = false,
         bool startAutomatically = true,

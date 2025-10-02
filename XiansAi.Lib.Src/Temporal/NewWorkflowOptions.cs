@@ -8,12 +8,18 @@ namespace Temporal;
 public class NewWorkflowOptions : WorkflowOptions
 {
     private readonly string? _agentName;
+    private readonly bool _systemScoped;
     public NewWorkflowOptions(string workflowType, string? idPostfix = null, string? agentName = null)
     {
-        _agentName = agentName;
-
+        _agentName = agentName ?? WorkflowIdentifier.GetAgentName(workflowType);
+        _systemScoped = AgentContext.SystemScoped;
         Id = AgentContext.TenantId + ":" + workflowType + (idPostfix != null ? ":" + idPostfix : "");
-        TaskQueue = AgentContext.TenantId + ":" + workflowType;
+
+        if (_systemScoped) {
+            TaskQueue = workflowType;
+        } else {
+            TaskQueue = AgentContext.TenantId + ":" + workflowType;
+        }
         Memo = GetMemo();
         TypedSearchAttributes = GetSearchAttributes();
         IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting;
@@ -32,10 +38,12 @@ public class NewWorkflowOptions : WorkflowOptions
 
     public Dictionary<string, object> GetMemo()
     {
+
         var memo = new Dictionary<string, object> {
             { Constants.TenantIdKey, AgentContext.TenantId },
             { Constants.AgentKey, _agentName ?? AgentContext.AgentName },
             { Constants.UserIdKey, AgentContext.UserId },
+            { Constants.SystemScopedKey, _systemScoped },
         };
 
         return memo;

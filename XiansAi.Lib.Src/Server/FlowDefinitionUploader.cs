@@ -3,11 +3,9 @@ using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using System.Text.Encodings.Web;
 using XiansAi.Flow;
 using XiansAi.Knowledge;
 using XiansAi.Models;
-using System.Security.Cryptography;
 
 namespace Server;
 
@@ -23,7 +21,7 @@ public interface IFlowDefinitionUploader
     /// <param name="flow">The flow information</param>
     /// <param name="source">Optional source code of the flow</param>
     /// <returns>A task representing the upload operation</returns>
-    Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow, string? source = null) 
+    Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow,  RunnerOptions? options) 
         where TFlow : class;
 }
 
@@ -57,10 +55,11 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="source">Optional source code of the flow</param>
     /// <returns>A task representing the upload operation</returns>
     /// <exception cref="InvalidOperationException">Thrown if upload fails</exception>
-    public async Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow, string? source = null)
+    public async Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow,  RunnerOptions? options)
         where TFlow : class
     {
-        var flowDefinition = CreateFlowDefinition(flow, source);
+        
+        var flowDefinition = CreateFlowDefinition(flow, options);
         _logger.LogDebug("Uploading flow definition of {TypeName} to App server...", typeof(TFlow).FullName);
         
         await UploadToServer(flowDefinition);
@@ -73,15 +72,19 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     /// <param name="flow">The flow information</param>
     /// <param name="source">Optional source code</param>
     /// <returns>A flow definition ready to be uploaded</returns>
-    private FlowDefinition CreateFlowDefinition<TFlow>(Runner<TFlow> flow, string? source)
+    private FlowDefinition CreateFlowDefinition<TFlow>(Runner<TFlow> flow, RunnerOptions? options)
         where TFlow : class
     {
+        var systemScoped = options?.SystemScoped ?? false;
+        var onboardingJson = options?.OnboardingJson;
         return new FlowDefinition {
             WorkflowType = flow.WorkflowName,
             Agent = flow.AgentName,
             ParameterDefinitions = flow.WorkflowParameters,
             ActivityDefinitions = GetAllActivities(flow.ActivityInterfaces).ToArray(),
-            Source = source ?? ReadSource(typeof(TFlow))
+            Source = ReadSource(typeof(TFlow)),
+            SystemScoped = systemScoped,
+            OnboardingJson = onboardingJson
         };
     }
 
@@ -105,7 +108,9 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             string serializedDefinition = JsonSerializer.Serialize(flowDefinition);
             string hash = ComputeHash(serializedDefinition);
 
-            string checkUrl = $"{API_ENDPOINT}/check?workflowType={flowDefinition.WorkflowType}&hash={hash}";
+            bool systemScoped = flowDefinition.SystemScoped;
+
+            string checkUrl = $"{API_ENDPOINT}/check?workflowType={flowDefinition.WorkflowType}&systemScoped={systemScoped}&hash={hash}";
             var hashCheckResponse = await client.GetAsync(checkUrl);
 
             switch (hashCheckResponse.StatusCode)

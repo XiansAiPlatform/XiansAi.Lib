@@ -60,6 +60,8 @@ public class CertificateReader
                 ExpiresAt = certificate.NotAfter
             };
 
+            _logger.LogInformation($"Certificate parsed successfully for user: `{userId}`, tenant: `{tenantId}`");
+
             _logger.LogTrace($"Certificate parsed and cached - Subject: {certificate.Subject}, Thumbprint: {certificate.Thumbprint}, Expires: {certificate.NotAfter}");
             
             return certificateInfo;

@@ -48,6 +48,13 @@ internal class WorkerService
         where TFlow : class
     {
 
+        var systemScoped = _options?.SystemScoped == true;
+        AgentContext.SystemScoped = systemScoped;
+
+        var workFlowType = runner.WorkflowName;
+        var agentName = runner.AgentName;
+
+
         if (cancellationToken == default) {
             // Only set up cancellation token if CommandLineHelper hasn't already done it
             // This prevents conflicts between multiple Console.CancelKeyPress handlers
@@ -66,23 +73,18 @@ internal class WorkerService
         }
 
         // Upload the flow definition to the server
-        await new FlowDefinitionUploader().UploadFlowDefinition(runner);
+        await new FlowDefinitionUploader().UploadFlowDefinition(runner, _options);
 
         // Run the worker for the flow
         var client = await TemporalClientService.Instance.GetClientAsync();
 
-        var workFlowType = runner.WorkflowName;
-        var taskQueue = workFlowType; 
+        var taskQueue = AgentContext.TenantId + ":" + workFlowType;
 
-        if (_options != null && !_options.TenantScoped)
+        if (systemScoped)
         {
-            // This agent will run activities from all tenants
+            // This agent will run activities from all tenants. Override the task queue
             taskQueue = workFlowType;
         } 
-        else {
-            // Default behaviour. This agent will run activities from the tenant of the certificate
-            taskQueue = AgentContext.TenantId + ":" + workFlowType;
-        }
 
         var options = new TemporalWorkerOptions()
         {
@@ -106,10 +108,10 @@ internal class WorkerService
         }
 
         // Start the workflow if it is configured to start automatically
-        if (runner.StartAutomatically)
+        if (!systemScoped && runner.StartAutomatically)
         {
-            _logger.LogInformation($"Starting workflow `{workFlowType}` for agent `{runner.AgentName}`");
-            var workflowService = new WorkflowClientService(runner.AgentName);
+            _logger.LogInformation($"Starting workflow `{workFlowType}` for agent `{agentName}`");
+            var workflowService = new WorkflowClientService(agentName);
 
             await workflowService.StartWorkflow(workFlowType, []);
         }

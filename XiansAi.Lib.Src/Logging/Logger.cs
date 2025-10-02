@@ -125,7 +125,6 @@ public class Logger<T>
         }
         catch (InvalidOperationException)
         {
-            Console.WriteLine("FAILED: Logger get context data not in workflow or activity");
             //ignore, not in workflow or activity
         }
 

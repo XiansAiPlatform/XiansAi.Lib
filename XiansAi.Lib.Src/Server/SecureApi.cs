@@ -6,6 +6,24 @@ using System.Net.Sockets;
 namespace Server;
 
 /// <summary>
+/// HTTP handler that automatically adds X-Tenant-Id header to requests going to /api/agent/ endpoints.
+/// </summary>
+internal class TenantIdHandler : DelegatingHandler
+{
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        // Add X-Tenant-Id header for /api/agent/ requests
+        if (request.RequestUri?.PathAndQuery.Contains("/api/agent/") == true)
+        {
+            var tenantId = AgentContext.TenantId;
+            request.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        }
+        
+        return await base.SendAsync(request, cancellationToken);
+    }
+}
+
+/// <summary>
 /// Defines a client for secure API communications.
 /// </summary>
 public interface ISecureApiClient
@@ -208,7 +226,7 @@ public class SecureApi : ISecureApiClient, IDisposable
     private Task CreateClientAsync(string certificateBase64, string serverUrl)
     {
         // Configure HttpClient with optimized settings for console applications
-        var handler = new SocketsHttpHandler()
+        var socketsHandler = new SocketsHttpHandler()
         {
             // Connection pool settings for better resource management
             MaxConnectionsPerServer = 10,
@@ -216,7 +234,13 @@ public class SecureApi : ISecureApiClient, IDisposable
             PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
         };
 
-        _client = new HttpClient(handler) { 
+        // Wrap with TenantIdHandler to automatically add X-Tenant-Id header
+        var tenantIdHandler = new TenantIdHandler()
+        {
+            InnerHandler = socketsHandler
+        };
+
+        _client = new HttpClient(tenantIdHandler) { 
             BaseAddress = new Uri(serverUrl),
             // Reduce timeout for faster shutdown - 30 seconds should be sufficient
             Timeout = TimeSpan.FromSeconds(5 * 60)
