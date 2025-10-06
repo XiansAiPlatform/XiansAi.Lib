@@ -120,7 +120,12 @@ public class ChatHandler : SafeHandler
                         var response = await ProcessMessage(messageThread);
 
                         if (response == null) {
-                            throw new Exception("No response from router");
+                            if (messageThread.SkipResponse) {
+                                _logger.LogDebug("Skipping response from router due to skip response flag");
+                                return;
+                            } else {
+                                throw new Exception("Null response received from router");
+                            }
                         }
                         // Respond to the user
                         await messageThread.SendChat(response);
