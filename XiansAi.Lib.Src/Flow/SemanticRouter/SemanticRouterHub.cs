@@ -61,9 +61,9 @@ public static class SemanticRouterHub
     {
         if (Workflow.InWorkflow)
         {
-            var response = await Workflow.ExecuteLocalActivityAsync(
+            var response = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.CompletionAsync(prompt, systemInstruction, routerOptions),
-                new SystemLocalActivityOptions());
+                new SystemActivityOptions());
 
             return response;
         }

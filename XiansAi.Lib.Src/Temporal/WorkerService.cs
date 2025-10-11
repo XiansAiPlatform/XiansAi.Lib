@@ -19,15 +19,6 @@ internal class WorkerService
         _certificateReader = new CertificateReader();
         _options = options;
         ValidateConfig();
-
-        // Initialize SecureApi first
-        if (!SecureApi.IsReady)
-        {
-            SecureApi.InitializeClient(
-                PlatformConfig.APP_SERVER_API_KEY!,
-                PlatformConfig.APP_SERVER_URL!
-            );
-        }
     }
 
     private void ValidateConfig()
@@ -47,10 +38,6 @@ internal class WorkerService
     public async Task RunFlowAsync<TFlow>(Runner<TFlow> runner, CancellationToken cancellationToken = default)
         where TFlow : class
     {
-
-        var systemScoped = _options?.SystemScoped == true;
-        AgentContext.SystemScoped = systemScoped;
-
         var workFlowType = runner.WorkflowName;
         var agentName = runner.AgentName;
 
@@ -80,7 +67,7 @@ internal class WorkerService
 
         var taskQueue = AgentContext.TenantId + ":" + workFlowType;
 
-        if (systemScoped)
+        if (AgentContext.SystemScoped)
         {
             // This agent will run activities from all tenants. Override the task queue
             taskQueue = workFlowType;
@@ -108,7 +95,7 @@ internal class WorkerService
         }
 
         // Start the workflow if it is configured to start automatically
-        if (!systemScoped && runner.StartAutomatically)
+        if (!AgentContext.SystemScoped && runner.StartAutomatically)
         {
             _logger.LogInformation($"Starting workflow `{workFlowType}` for agent `{agentName}`");
             var workflowService = new WorkflowClientService(agentName);

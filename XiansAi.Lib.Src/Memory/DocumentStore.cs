@@ -105,6 +105,21 @@ public class DocumentStoreImpl : IDocumentStore
             throw new InvalidOperationException("SecureApi is not ready");
         }
 
+        // Validate UseKeyAsIdentifier requirements
+        if (options?.UseKeyAsIdentifier == true)
+        {
+            var missingFields = new List<string>();
+            if (string.IsNullOrEmpty(document.Type)) missingFields.Add("Type");
+            if (string.IsNullOrEmpty(document.Key)) missingFields.Add("Key");
+            
+            if (missingFields.Any())
+            {
+                var message = $"UseKeyAsIdentifier requires both Type and Key properties. Missing: {string.Join(", ", missingFields)}";
+                _logger.LogError("Document save validation failed: {Message}", message);
+                throw new ArgumentException(message);
+            }
+        }
+
         try
         {
             var client = SecureApi.Instance.Client;

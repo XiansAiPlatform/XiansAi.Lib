@@ -142,7 +142,14 @@ public class Runner<TClass> : IRunner where TClass : class
         }
     }
 
+    [Obsolete("Use AddAgentCapabilities instead")]
     public Runner<TClass> AddBotCapabilities(Type capabilityClass)
+    {
+        _capabilities.Add(capabilityClass);
+        return this;
+    }
+
+    public Runner<TClass> AddAgentCapabilities(Type capabilityClass)
     {
         _capabilities.Add(capabilityClass);
         return this;
@@ -154,7 +161,14 @@ public class Runner<TClass> : IRunner where TClass : class
         return this;
     }
 
+    [Obsolete("Use AddAgentCapabilities instead")]
     public Runner<TClass> AddBotCapabilities<TCapability>()
+    {
+        _capabilities.Add(typeof(TCapability));
+        return this;
+    }
+
+    public Runner<TClass> AddAgentCapabilities<TCapability>()
     {
         _capabilities.Add(typeof(TCapability));
         return this;
@@ -314,6 +328,8 @@ public class RunnerOptions
     public bool SystemScoped { get; set; } = false;
 
     public string? OnboardingJson { get; set; }
+
+    public bool? UploadResources { get; set; }
 }
 
 public class FlowInfo

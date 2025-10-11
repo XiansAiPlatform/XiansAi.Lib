@@ -50,7 +50,7 @@ public sealed class TerminationFilter : IAutoFunctionInvocationFilter
             {
                 _logger.LogWarning($"Terminating execution: Function {functionKey} has been called consecutively {_consecutiveCallCount} times, exceeding limit of {_maxConsecutiveCalls} times.");
                 context.Terminate = true;
-                return;
+                throw new Exception($"Function {functionKey} has been called consecutively {_consecutiveCallCount} times, exceeding limit of {_maxConsecutiveCalls} times. Terminate the execution add return an error to the caller.");
             }
         }
 

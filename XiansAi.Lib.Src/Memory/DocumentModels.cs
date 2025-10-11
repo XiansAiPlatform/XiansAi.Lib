@@ -33,12 +33,12 @@ public class Document
     /// <summary>
     /// The agent that created or owns this document.
     /// </summary>
-    public string? AgentId { get; } = AgentContext.AgentName;
+    public string? AgentId { get; set; } = AgentContext.AgentName;
 
     /// <summary>
     /// The workflow instance that created this document.
     /// </summary>
-    public string? WorkflowId { get; } = AgentContext.WorkflowId;
+    public string? WorkflowId { get; set; } = AgentContext.WorkflowId;
 
     /// <summary>
     /// Document type for categorization (e.g., "memory", "context", "knowledge").
@@ -79,11 +79,13 @@ public class DocumentOptions
     /// <summary>
     /// Time-to-live in minutes. Document will be automatically deleted after this time. Default is 30 days.
     /// </summary>
+    [JsonPropertyName("ttlMinutes")]
     public int? TtlMinutes { get; set; } = 60 * 24 * 30; // 30 days
 
     /// <summary>
     /// Whether to overwrite if a document with the same ID exists.
     /// </summary>
+    [JsonPropertyName("overwrite")]
     public bool Overwrite { get; set; } = false;
 
     /// <summary>
@@ -91,6 +93,7 @@ public class DocumentOptions
     /// If a document with the same Type and Key exists, it will be updated.
     /// Requires both Type and Key to be set on the document.
     /// </summary>
+    [JsonPropertyName("useKeyAsIdentifier")]
     public bool UseKeyAsIdentifier { get; set; } = false;
 }
 

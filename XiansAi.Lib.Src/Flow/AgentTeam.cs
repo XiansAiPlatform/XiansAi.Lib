@@ -7,18 +7,45 @@ namespace XiansAi.Flow;
 /// <summary>
 /// Main entry point for creating and managing flows and bots.
 /// </summary>
-public class Agent
+[Obsolete("Use AgentTeam instead")]
+public class Agent : AgentTeam
 {
+    public Agent(string name, RunnerOptions? options = null) : base(name, options){}
+
+}
+
+public class AgentTeam {
     private readonly List<IFlow> _flows = new();
     private readonly List<IBot> _bots = new();
     public string Name { get; }
 
     private readonly bool? _uploadResources;
+    private readonly RunnerOptions? _runnerOptions;
 
-    public Agent(string name, bool? uploadResources=null)
+    public AgentTeam(string name, bool? uploadResources=null)
     {
         Name = name ?? throw new ArgumentNullException(nameof(name));
         _uploadResources = uploadResources;
+    }
+
+    public AgentTeam(string name, RunnerOptions? options)
+    {
+        Name = name ?? throw new ArgumentNullException(nameof(name));
+        _runnerOptions = options;
+        _uploadResources = options?.UploadResources;
+
+        // Set the system scoped flag
+        var systemScoped = options?.SystemScoped == true;
+        AgentContext.SystemScoped = systemScoped;
+
+        // Initialize SecureApi first
+        if (!SecureApi.IsReady)
+        {
+            SecureApi.InitializeClient(
+                PlatformConfig.APP_SERVER_API_KEY!,
+                PlatformConfig.APP_SERVER_URL!
+            );
+        }
     }
 
     /// <summary>
@@ -26,6 +53,7 @@ public class Agent
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type</typeparam>
     /// <returns>A flow instance for configuring activities</returns>
+    [Obsolete("Use AddAgent instead")]
     public Flow<TWorkflow> AddFlow<TWorkflow>(int numberOfWorkers = 1) where TWorkflow : FlowBase
     {
         var flow = new Flow<TWorkflow>(this, numberOfWorkers);
@@ -38,7 +66,20 @@ public class Agent
     /// </summary>
     /// <typeparam name="TBot">The bot class type</typeparam>
     /// <returns>A bot instance for configuring capabilities</returns>
+    [Obsolete("Use AddAgent instead")]
     public Bot<TBot> AddBot<TBot>(int numberOfWorkers = 1) where TBot : FlowBase
+    {
+        var bot = new Bot<TBot>(this, numberOfWorkers);
+        _bots.Add(bot);
+        return bot;
+    }
+
+    /// <summary>
+    /// Adds a new agent for the specified agent type.
+    /// </summary>
+    /// <typeparam name="TBot">The agent class type</typeparam>
+    /// <returns>A bot instance for configuring capabilities</returns>
+    public Bot<TBot> AddAgent<TBot>(int numberOfWorkers = 1) where TBot : FlowBase
     {
         var bot = new Bot<TBot>(this, numberOfWorkers);
         _bots.Add(bot);
@@ -48,9 +89,23 @@ public class Agent
     /// <summary>
     /// Runs all configured flows and bots.
     /// </summary>
-    public async Task RunAsync(RunnerOptions? options = null)
+    public async Task RunAsync()
     {
-            
+        await RunAsyncInternal(_runnerOptions);
+    }
+
+    /// <summary>
+    /// Runs all configured flows and bots.
+    /// </summary>
+    /// <param name="options">Runner options (deprecated: pass options to constructor instead)</param>
+    [Obsolete("Pass RunnerOptions to the Agent constructor instead. This method will be removed in a future version.")]
+    public async Task RunAsync(RunnerOptions? options)
+    {
+        await RunAsyncInternal(options ?? _runnerOptions);
+    }
+
+    private async Task RunAsyncInternal(RunnerOptions? options)
+    {
         // test the connection to the server
         SecureApi.InitializeClient(
                 PlatformConfig.APP_SERVER_API_KEY!,

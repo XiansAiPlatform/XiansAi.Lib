@@ -17,7 +17,7 @@ internal interface IBot
 public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
 {
 
-    internal Bot(Agent agent, int numberOfWorkers) : base(agent, numberOfWorkers)
+    internal Bot(AgentTeam agentTeam, int numberOfWorkers) : base(agentTeam, numberOfWorkers)
     {
     }
 
@@ -28,7 +28,7 @@ public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
     /// <returns>This bot instance for method chaining</returns>
     public Bot<TBot> AddCapabilities(Type capabilityType)
     {
-        _runner.AddBotCapabilities(capabilityType);
+        _runner.AddAgentCapabilities(capabilityType);
         return this;
     }
 
@@ -51,7 +51,7 @@ public class Bot<TBot> : Flow<TBot>, IBot where TBot : FlowBase
     /// <returns>This bot instance for method chaining</returns>
     public Bot<TBot> AddCapabilities<TCapability>()
     {
-        _runner.AddBotCapabilities<TCapability>();
+        _runner.AddAgentCapabilities<TCapability>();
         return this;
     }
 }

@@ -152,9 +152,9 @@ public class Agent2User : IAgent2User {
 
         if (Workflow.InWorkflow)
         {
-            var success = await Workflow.ExecuteLocalActivityAsync(
+            var success = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.SendChatOrData(outgoingMessage, type),
-                new SystemLocalActivityOptions());
+                new SystemActivityOptions());
             return success;
         }
         else

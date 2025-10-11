@@ -132,9 +132,9 @@ public class MessageThread : IMessageThread
 
         if (Workflow.InWorkflow)
         {
-            var success = await Workflow.ExecuteLocalActivityAsync(
+            var success = await Workflow.ExecuteActivityAsync(
                 (SystemActivities a) => a.SendHandoff(outgoingMessage),
-                new SystemLocalActivityOptions());
+                new SystemActivityOptions());
             return success;
         }
         else

@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Logging;
 using Temporal;
 using Temporalio.Client;
 using Temporalio.Client.Schedules;
-using XiansAi.Flow;
+using Temporalio.Common;
 
 namespace XiansAi.Scheduler;
+
 
 /// <summary>
 /// Provides scheduling capabilities for FlowBase temporal workflows.
@@ -11,12 +13,10 @@ namespace XiansAi.Scheduler;
 /// </summary>
 public class SchedulerHub
 {
-    private readonly ITemporalClient _client;
-
-    public SchedulerHub()
+    private static readonly ILogger<SchedulerHub> _logger = Globals.LogFactory.CreateLogger<SchedulerHub>();
+    private static async Task<ITemporalClient> GetTemporalClient()
     {
-        var client = TemporalClientService.Instance.GetClientAsync().Result;
-        _client = client ?? throw new ArgumentNullException(nameof(client));
+        return await TemporalClientService.Instance.GetClientAsync();
     }
 
     /// <summary>
@@ -28,29 +28,40 @@ public class SchedulerHub
     /// <param name="workflowId">Optional workflow ID for the scheduled executions</param>
     /// <param name="taskQueue">Optional task queue (defaults to workflow type)</param>
     /// <returns>Schedule handle for the created schedule</returns>
-    public async Task<ScheduleHandle> CreateScheduleAsync(
-        string scheduleName,
+    public static async Task<ScheduleHandle> CreateScheduleAsync(
         string workflowIdOrType,
-        ScheduleSpec spec)
+        ScheduleSpec spec,
+        string scheduleName, WorkflowOptions? options = null)
     {
         var identifier = new WorkflowIdentifier(workflowIdOrType);
         var workflowType = identifier.WorkflowType;
         var classType = WorkflowIdentifier.GetClassTypeFor(workflowType);
-        var scheduleId = $"{scheduleName}-{Guid.NewGuid()}";
 
         if (classType == null)
             throw new InvalidOperationException($"No FlowBase implementation found for workflow type '{workflowType}'");
 
         var taskQueue = AgentContext.SystemScoped ? workflowType : $"{AgentContext.TenantId}:{workflowType}";
-        var workflowId = $"{identifier.WorkflowId}-{scheduleId}";
+        var workflowId = $"{identifier.WorkflowId}-{scheduleName}";
+
+        var defaultOptions = new WorkflowOptions(
+            id: workflowId, 
+            taskQueue: taskQueue
+        );
+        defaultOptions.RetryPolicy = new RetryPolicy{
+            MaximumAttempts = 3
+        };
+        defaultOptions.RunTimeout = TimeSpan.FromSeconds(10*60);
+
+        options = options ?? defaultOptions;
 
         var action = ScheduleActionStartWorkflow.Create(
             workflowType,
-            Array.Empty<object>(),
-            new(id: workflowId, taskQueue: taskQueue));
+            [ scheduleName ],
+            options);
 
-        return await _client.CreateScheduleAsync(
-            scheduleId,
+        var client = await GetTemporalClient();
+        return await client.CreateScheduleAsync(
+            scheduleName,
             new Schedule(Action: action, Spec: spec));
     }
 
@@ -63,17 +74,17 @@ public class SchedulerHub
     /// <param name="workflowId">Optional workflow ID for the scheduled executions</param>
     /// <param name="taskQueue">Optional task queue (defaults to workflow type)</param>
     /// <returns>Schedule handle for the created schedule</returns>
-    public async Task<ScheduleHandle> CreateScheduleAsync(
-        string scheduleId,
+    public static async Task<ScheduleHandle> CreateScheduleAsync(
         Type targetWorkflowType,
-        ScheduleSpec spec)
+        ScheduleSpec spec,
+        string scheduleName)
     {
         var workflowType = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         
         if (string.IsNullOrEmpty(workflowType))
             throw new InvalidOperationException($"No workflow type found for {targetWorkflowType.Name}");
 
-        return await CreateScheduleAsync(scheduleId, workflowType, spec);
+        return await CreateScheduleAsync(workflowType, spec, scheduleName);
     }
 
     /// <summary>
@@ -83,7 +94,8 @@ public class SchedulerHub
     /// <param name="backfills">List of backfill specifications</param>
     public async Task BackfillAsync(string scheduleId, IReadOnlyCollection<ScheduleBackfill> backfills)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        var handle = client.GetScheduleHandle(scheduleId);
         await handle.BackfillAsync(backfills);
     }
 
@@ -91,10 +103,22 @@ public class SchedulerHub
     /// Deletes a scheduled workflow. Does not affect workflows already started by the schedule.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
-    public async Task DeleteAsync(string scheduleId)
+    public static async Task DeleteAsync(string scheduleId)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
-        await handle.DeleteAsync();
+        try {
+            var client = await GetTemporalClient();
+            var handle = client.GetScheduleHandle(scheduleId);
+            await handle.DeleteAsync();
+        } catch (Temporalio.Exceptions.RpcException ex) when (
+            ex.Message?.Contains("workflow not found", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            _logger.LogWarning($"Schedule {scheduleId} not found or already deleted.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error deleting schedule {scheduleId}: {ex}");
+        }
+
     }
 
     /// <summary>
@@ -102,9 +126,10 @@ public class SchedulerHub
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
     /// <returns>Schedule description with detailed information</returns>
-    public async Task<ScheduleDescription> DescribeAsync(string scheduleId)
+    public static async Task<ScheduleDescription> DescribeAsync(string scheduleId)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        var handle = client.GetScheduleHandle(scheduleId);
         return await handle.DescribeAsync();
     }
 
@@ -112,9 +137,10 @@ public class SchedulerHub
     /// Lists all available schedules.
     /// </summary>
     /// <returns>Async enumerable of schedule descriptions</returns>
-    public IAsyncEnumerable<ScheduleListDescription> ListSchedulesAsync()
+    public static async Task<IAsyncEnumerable<ScheduleListDescription>> ListSchedulesAsync()
     {
-        return _client.ListSchedulesAsync();
+        var client = await GetTemporalClient();
+        return client.ListSchedulesAsync();
     }
 
     /// <summary>
@@ -122,9 +148,10 @@ public class SchedulerHub
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
     /// <param name="note">Optional note explaining why the schedule is paused</param>
-    public async Task PauseAsync(string scheduleId, string? note = null)
+    public static async Task PauseAsync(string scheduleId, string? note = null)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        var handle = client.GetScheduleHandle(scheduleId);
         await handle.PauseAsync(note);
     }
 
@@ -133,9 +160,10 @@ public class SchedulerHub
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
     /// <param name="note">Optional note explaining why the schedule is unpaused</param>
-    public async Task UnpauseAsync(string scheduleId, string? note = null)
+    public static async Task UnpauseAsync(string scheduleId, string? note = null)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        var handle = client.GetScheduleHandle(scheduleId);
         await handle.UnpauseAsync(note);
     }
 
@@ -143,9 +171,10 @@ public class SchedulerHub
     /// Triggers an immediate execution of a scheduled workflow.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
-    public async Task TriggerAsync(string scheduleId)
+    public static async Task TriggerAsync(string scheduleId)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        var handle = client.GetScheduleHandle(scheduleId);
         await handle.TriggerAsync();
     }
 
@@ -154,9 +183,10 @@ public class SchedulerHub
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
     /// <param name="updater">Function to update the schedule</param>
-    public async Task UpdateAsync(string scheduleId, Func<ScheduleUpdateInput, ScheduleUpdate> updater)
+    public static async Task UpdateAsync(string scheduleId, Func<ScheduleUpdateInput, ScheduleUpdate> updater)
     {
-        var handle = _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        var handle = client.GetScheduleHandle(scheduleId);
         await handle.UpdateAsync(updater);
     }
 
@@ -165,9 +195,10 @@ public class SchedulerHub
     /// </summary>
     /// <param name="scheduleId">The schedule identifier</param>
     /// <returns>Schedule handle</returns>
-    public ScheduleHandle GetScheduleHandle(string scheduleId)
+    public static async Task<ScheduleHandle> GetScheduleHandle(string scheduleId)
     {
-        return _client.GetScheduleHandle(scheduleId);
+        var client = await GetTemporalClient();
+        return client.GetScheduleHandle(scheduleId);
     }
 }
 

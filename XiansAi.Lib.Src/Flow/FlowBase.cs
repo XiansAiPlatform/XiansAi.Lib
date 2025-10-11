@@ -1,32 +1,35 @@
 using System.Reflection;
 using Temporal;
+using Temporalio.Client.Schedules;
 using Temporalio.Workflows;
 using XiansAi.Flow.Router;
+using XiansAi.Messaging;
+using XiansAi.Scheduler;
 
 namespace XiansAi.Flow;
 
 public abstract class FlowBase : AbstractFlow
 {
-    internal readonly ChatHandler _chatHandler;
+    protected internal readonly ChatHandler _chatHandler;
     protected readonly DataHandler _dataHandler;
     protected readonly WebhookHandler _webhookHandler;
     protected readonly ScheduleHandler _scheduleHandler;
-    public RouterOptions RouterOptions 
-    { 
-        get => _chatHandler.RouterOptions; 
-        set => _chatHandler.RouterOptions = value; 
+    public RouterOptions RouterOptions
+    {
+        get => _chatHandler.RouterOptions;
+        set => _chatHandler.RouterOptions = value;
     }
-    public string SystemPrompt 
-    { 
+    public string SystemPrompt
+    {
         set => _chatHandler.SystemPrompt = value;
     }
 
-    public string SystemPromptName 
-    { 
+    public string SystemPromptName
+    {
         set => _chatHandler.SystemPromptName = value;
     }
 
-    public FlowBase() : base()  
+    public FlowBase() : base()
     {
         _chatHandler = new ChatHandler(_messageHub);
         _dataHandler = new DataHandler(_messageHub, this);
@@ -51,6 +54,27 @@ public abstract class FlowBase : AbstractFlow
     protected async Task InitDataProcessing()
     {
         await _dataHandler.InitDataProcessing();
+    }
+
+    protected async Task<string?> CompletionAsync(string prompt, string? participantId = null, string? authorization = null)
+    {
+        return await _chatHandler.ProcessMessage(new MessageThread
+        {
+            ParticipantId = participantId ?? AgentContext.UserId,
+            WorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(this.GetType()),
+            WorkflowType = WorkflowIdentifier.GetWorkflowTypeFor(this.GetType()),
+            Authorization = authorization,
+            Agent = AgentContext.AgentName,
+            LatestMessage = new Message
+            {
+                Content = prompt,
+                Data = null,
+                Type = MessageType.Chat,
+                RequestId = Guid.NewGuid().ToString(),
+                Hint = Constants.HINT_STATELESS,
+                Scope = null
+            }
+        });
     }
 
     protected async Task InitSchedule()
@@ -82,9 +106,11 @@ public abstract class FlowBase : AbstractFlow
     }
 
 
-    public static FlowBase GetInstance(string workflowType) {
+    public static FlowBase GetInstance(string workflowType)
+    {
         var type = WorkflowIdentifier.GetClassTypeFor(workflowType);
-        if (type == null) {
+        if (type == null)
+        {
             throw new InvalidOperationException($"No FlowBase implementation found with WorkflowAttribute.Name = '{workflowType}'");
         }
         return (FlowBase)Activator.CreateInstance(type)!;

@@ -192,7 +192,10 @@ public class ChatHandler : SafeHandler
         _logger.LogDebug($"Processing message from '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
         // Get the system prompt using the provider
-        var systemPrompt = await _systemPromptProvider!();
+        if (_systemPromptProvider == null) {
+            throw new InvalidOperationException("System prompt provider has not been set. Set SystemPrompt or SystemPromptName in the Agent's constructor.");
+        }
+        var systemPrompt = await _systemPromptProvider();
 
         // Route the message to the appropriate flow
         var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);

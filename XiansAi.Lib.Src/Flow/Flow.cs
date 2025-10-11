@@ -1,4 +1,8 @@
 
+using Temporal;
+using Temporalio.Client.Schedules;
+using XiansAi.Scheduler;
+
 namespace XiansAi.Flow;
 
 /// <summary>
@@ -16,14 +20,14 @@ internal interface IFlow
 /// <typeparam name="TWorkflow">The workflow class type</typeparam>
 public class Flow<TWorkflow> : IFlow where TWorkflow : class
 {
-    protected readonly Agent _agent;
+    protected readonly AgentTeam _agentTeam;
     protected readonly Runner<TWorkflow> _runner;
 
-    internal Flow(Agent agent, int numberOfWorkers)
+    internal Flow(AgentTeam agentTeam, int numberOfWorkers)
     {
-        _agent = agent;
+        _agentTeam = agentTeam;
 
-        var agentInfo = agent.GetAgentInfo();
+        var agentInfo = agentTeam.GetAgentInfo();
         _runner = new Runner<TWorkflow>(agentInfo, numberOfWorkers);
     }
 
@@ -71,6 +75,18 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
     {
         _runner.DataProcessorType = typeof(TDataProcessor);
         _runner.ProcessDataInWorkflow = processInWorkflow;
+        return this;
+    }
+
+    public async Task<Flow<TWorkflow>> SetScheduleAsync(
+        ScheduleSpec spec,
+        string? scheduleName = null
+    )
+    {
+        scheduleName = scheduleName ?? WorkflowIdentifier.GetWorkflowTypeFor(typeof(TWorkflow)) + "__default_schedule";
+        await SchedulerHub.DeleteAsync(scheduleName);
+
+        await SchedulerHub.CreateScheduleAsync(typeof(TWorkflow), spec, scheduleName);
         return this;
     }
 
