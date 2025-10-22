@@ -324,10 +324,61 @@ public class Runner<TClass> : IRunner where TClass : class
 
 public class RunnerOptions
 {
+    private string? _onboardingJson;
+    
     // If true, the agent will run activities from all tenants
     public bool SystemScoped { get; set; } = false;
 
-    public string? OnboardingJson { get; set; }
+    /// <summary>
+    /// Onboarding JSON with automatic file:// and embedded:// reference resolution.
+    /// When set, automatically parses the JSON and resolves any file references.
+    /// For embedded:// references, provide the assembly via SetOnboardingJsonWithAssembly().
+    /// </summary>
+    public string? OnboardingJson 
+    { 
+        get => _onboardingJson;
+        set 
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                // Automatically parse and resolve file references
+                // For embedded resources, use SetOnboardingJsonWithAssembly() instead
+                _onboardingJson = XiansAi.Onboarding.OnboardingParser.Parse(value);
+            }
+            else
+            {
+                _onboardingJson = value;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Sets onboarding JSON with embedded resource support.
+    /// Automatically parses file:// and embedded:// references using the calling assembly.
+    /// </summary>
+    /// <param name="onboardingJson">The onboarding JSON with file/embedded references</param>
+    /// <param name="callingAssembly">The assembly containing embedded resources (optional, defaults to calling assembly)</param>
+    public void SetOnboardingJsonWithAssembly(string onboardingJson, Assembly? callingAssembly = null)
+    {
+        if (!string.IsNullOrWhiteSpace(onboardingJson))
+        {
+            // Use the calling assembly or detect it automatically
+            var assembly = callingAssembly ?? Assembly.GetCallingAssembly();
+            _onboardingJson = XiansAi.Onboarding.OnboardingParser.Parse(onboardingJson, null, assembly);
+        }
+        else
+        {
+            _onboardingJson = onboardingJson;
+        }
+    }
+    
+    /// <summary>
+    /// Sets raw onboarding JSON without parsing (for testing or pre-processed JSON).
+    /// </summary>
+    public void SetRawOnboardingJson(string? json)
+    {
+        _onboardingJson = json;
+    }
 
     public bool? UploadResources { get; set; }
 }
