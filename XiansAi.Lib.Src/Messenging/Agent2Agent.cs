@@ -106,6 +106,14 @@ public class Agent2Agent : IAgent2Agent {
     }
 
     /// <inheritdoc />
+    public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, MessageThread messageThread, int timeoutSeconds = 300)
+    {
+        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
+        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, messageThread.ParticipantId, message, messageThread.LatestMessage.Data, targetWorkflowTypeString, targetWorkflowId, messageThread.LatestMessage.RequestId, messageThread.LatestMessage.Scope, messageThread.Authorization, timeoutSeconds);
+    }
+
+    /// <inheritdoc />
      public async Task<MessageResponse> SendData(Type targetWorkflowType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
@@ -115,6 +123,15 @@ public class Agent2Agent : IAgent2Agent {
         var participantId = AgentContext.WorkflowId;
 
         return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
+    }
+
+   /// <inheritdoc />
+    public async Task<MessageResponse> SendChat(Type targetWorkflowType, string message, MessageThread messageThread, int timeoutSeconds = 300)
+    {
+        var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
+        var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
+
+        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, messageThread.ParticipantId, message, messageThread.LatestMessage.Data, targetWorkflowTypeString, targetWorkflowId, messageThread.LatestMessage.RequestId, messageThread.LatestMessage.Scope, messageThread.Authorization, timeoutSeconds);
     }
 
     /// <inheritdoc />
@@ -128,6 +145,7 @@ public class Agent2Agent : IAgent2Agent {
 
         return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization,timeoutSeconds);
     }
+
 
     /// <summary>
     /// Core method that handles the actual bot-to-bot message transmission.
