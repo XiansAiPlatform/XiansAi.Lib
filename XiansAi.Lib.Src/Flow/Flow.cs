@@ -1,4 +1,5 @@
 
+using Server;
 using Temporal;
 using Temporalio.Client.Schedules;
 using XiansAi.Scheduler;
@@ -10,6 +11,7 @@ namespace XiansAi.Flow;
 /// </summary>
 internal interface IFlow
 {
+    Task UploadDefinitionAsync(RunnerOptions? options);
     Task RunAsync(RunnerOptions? options);
 }
 
@@ -121,6 +123,14 @@ public class Flow<TWorkflow> : IFlow where TWorkflow : class
     {
         _runner.DataProcessorType = dataProcessorType;
         return this;
+    }
+
+    /// <summary>
+    /// Uploads the flow definition to the server.
+    /// </summary>
+    public async Task UploadDefinitionAsync(RunnerOptions? options)
+    {
+        await new FlowDefinitionUploader().UploadFlowDefinition(_runner, options);
     }
 
     /// <summary>

@@ -115,7 +115,6 @@ public class AgentTeam {
         // Setup graceful shutdown handling first
         CommandLineHelper.SetupGracefulShutdown();
         
-        var tasks = new List<Task>();   
         var uploadResources = _uploadResources.GetValueOrDefault() || (bool.TryParse(Environment.GetEnvironmentVariable("UPLOAD_RESOURCES"), out var flag) && flag);
         await new ResourceUploader(uploadResources).UploadResource();
 
@@ -124,13 +123,26 @@ public class AgentTeam {
 
         try
         {
-            // Run all flows
+            // IMPORTANT: Upload all flow definitions FIRST before starting any workers
+            // This ensures that if any upload fails, we exit before starting workers
+            foreach (var flow in _flows)
+            {
+                await flow.UploadDefinitionAsync(options);
+            }
+
+            foreach (var bot in _bots)
+            {
+                await bot.UploadDefinitionAsync(options);
+            }
+
+            // Now start all workers (they will skip the upload since it's already done)
+            var tasks = new List<Task>();
+            
             foreach (var flow in _flows)
             {
                 tasks.Add(flow.RunAsync(options));
             }
 
-            // Run all bots
             foreach (var bot in _bots)
             {
                 tasks.Add(bot.RunAsync(options));

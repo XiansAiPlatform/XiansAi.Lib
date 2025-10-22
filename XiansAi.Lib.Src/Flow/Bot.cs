@@ -7,6 +7,7 @@ namespace XiansAi.Flow;
 /// </summary>
 internal interface IBot
 {
+    Task UploadDefinitionAsync(RunnerOptions? options);
     Task RunAsync(RunnerOptions? options);
 }
 

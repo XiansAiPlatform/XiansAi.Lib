@@ -32,6 +32,8 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
 {
     private readonly ILogger<FlowDefinitionUploader> _logger;
     private readonly ISecureApiClient _secureApi;
+    private static readonly HashSet<string> _uploadedDefinitions = new();
+    private static readonly object _uploadLock = new();
     
     private const string API_ENDPOINT = "api/agent/definitions";
 
@@ -58,11 +60,28 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     public async Task UploadFlowDefinition<TFlow>(Runner<TFlow> flow,  RunnerOptions? options)
         where TFlow : class
     {
-        
         var flowDefinition = CreateFlowDefinition(flow, options);
+        var workflowKey = $"{flowDefinition.WorkflowType}:{flowDefinition.SystemScoped}";
+        
+        // Check if already uploaded in this session
+        lock (_uploadLock)
+        {
+            if (_uploadedDefinitions.Contains(workflowKey))
+            {
+                _logger.LogDebug("Flow definition for {TypeName} already uploaded in this session, skipping", typeof(TFlow).FullName);
+                return;
+            }
+        }
+        
         _logger.LogDebug("Uploading flow definition of {TypeName} to App server...", typeof(TFlow).FullName);
         
         await UploadToServer(flowDefinition);
+        
+        // Mark as uploaded
+        lock (_uploadLock)
+        {
+            _uploadedDefinitions.Add(workflowKey);
+        }
     }
 
     /// <summary>
@@ -155,7 +174,13 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
                 }
             }
             
-            response.EnsureSuccessStatusCode();
+            // Handle other error status codes
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMessage = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Server error ({StatusCode}): {ErrorMessage}", response.StatusCode, errorMessage);
+                throw new InvalidOperationException($"Server error ({response.StatusCode}): {errorMessage}");
+            }
             var responseBody = await response.Content.ReadAsStringAsync();
             _logger.LogInformation("Flow definition for {TypeName} uploaded successfully: {ResponseBody}", flowDefinition.WorkflowType, responseBody);
         }
