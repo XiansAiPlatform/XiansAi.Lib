@@ -1,7 +1,32 @@
 using Server;
 using XiansAi.Logging;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace XiansAi.Knowledge;
+
+/// <summary>
+/// Shared cache for knowledge items.
+/// </summary>
+internal static class KnowledgeCache
+{
+    public static readonly IMemoryCache Cache = new MemoryCache(new MemoryCacheOptions());
+    
+    public static MemoryCacheEntryOptions GetCacheOptions()
+    {
+        var ttlMinutes = Environment.GetEnvironmentVariable("KNOWLEDGE_CACHE_TTL_MINUTES");
+        var minutes = 5; // Default to 5 minutes
+        
+        if (!string.IsNullOrEmpty(ttlMinutes) && int.TryParse(ttlMinutes, out var parsedMinutes) && parsedMinutes > 0)
+        {
+            minutes = parsedMinutes;
+        }
+        
+        return new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(minutes)
+        };
+    }
+}
 
 /// <summary>
 /// Defines a service for loading instructions from either a server or local filesystem.
@@ -41,14 +66,35 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
             throw new ArgumentException("Instruction name cannot be null or empty", nameof(instructionName));
         }
         
+        // Check cache first
+        if (KnowledgeCache.Cache.TryGetValue(instructionName, out Models.Knowledge? cached))
+        {
+            _logger.LogDebug($"Fetching Knowledge from cache: {instructionName}");
+            return cached;
+        }
+        
+        _logger.LogDebug($"Fetching Knowledge from source: {instructionName}");
+        
         // Fall back to local loading if server connection isn't available
+        Models.Knowledge? knowledge;
         if (!string.IsNullOrEmpty(_localFolder))
         { 
             _logger.LogWarning($"Loading instruction locally - {instructionName}");
-            return await LoadFromLocal(instructionName);
+            knowledge = await LoadFromLocal(instructionName);
         }
-        _logger.LogDebug($"Loading instruction from server - {instructionName}");
-        return await LoadFromServer(instructionName);
+        else
+        {
+            _logger.LogDebug($"Loading instruction from server - {instructionName}");
+            knowledge = await LoadFromServer(instructionName);
+        }
+        
+        // Cache if found
+        if (knowledge != null)
+        {
+            KnowledgeCache.Cache.Set(instructionName, knowledge, KnowledgeCache.GetCacheOptions());
+        }
+        
+        return knowledge;
     }
 
     /// <summary>

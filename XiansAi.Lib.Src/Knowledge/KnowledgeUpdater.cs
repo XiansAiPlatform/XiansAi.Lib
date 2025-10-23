@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using Server;
 
 namespace XiansAi.Knowledge;
@@ -77,6 +78,10 @@ public class KnowledgeUpdaterImpl : IKnowledgeUpdater
 
         // Upload knowledge to server
         await _knowledgeService.UploadKnowledgeToServer(knowledge);
+        
+        // Invalidate cache
+        KnowledgeCache.Cache.Remove(knowledgeName);
+        
         return await Task.FromResult(true);
     }
 }
