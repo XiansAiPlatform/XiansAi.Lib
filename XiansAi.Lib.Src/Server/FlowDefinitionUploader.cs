@@ -162,14 +162,28 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
             {
                 var warningJson = await response.Content.ReadAsStringAsync();
                 try {
-                    var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson);
+                    // Security: Validate response size
+                    const int MaxResponseSize = 10 * 1024; // 10 KB for error messages
+                    if (warningJson.Length > MaxResponseSize)
+                    {
+                        _logger.LogError($"Warning response size {warningJson.Length} exceeds maximum allowed size");
+                        throw new InvalidOperationException("Permission denied for this flow definition");
+                    }
+
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        MaxDepth = 16
+                    };
+                    
+                    var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson, options);
                     _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
                     throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
 
                 } 
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error deserializing warning response: {ErrorMessage}", ex.Message);
+                    _logger.LogError(ex, "Error deserializing warning response");
                     throw new InvalidOperationException("Error deserializing warning response. Is the server running on the correct port?", ex);
                 }
             }

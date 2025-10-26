@@ -21,7 +21,9 @@ public static class DynamicMethodInvoker
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new JsonStringEnumConverter() },
+        // Security: Limit JSON depth to prevent deeply nested attacks
+        MaxDepth = 32
     };
 
     /// <summary>
@@ -133,9 +135,20 @@ public static class DynamicMethodInvoker
             return Array.Empty<JsonElement>();
         }
 
+        // Security: Validate JSON size to prevent DoS
+        const int MaxJsonSize = 1 * 1024 * 1024; // 1 MB
+        if (parametersJson.Length > MaxJsonSize)
+        {
+            throw new ParameterParsingException($"Parameters JSON size {parametersJson.Length} exceeds maximum allowed size of {MaxJsonSize} bytes");
+        }
+
         try
         {
-            var jsonDocument = JsonDocument.Parse(parametersJson);
+            var jsonOptions = new JsonDocumentOptions
+            {
+                MaxDepth = 32 // Security: Limit depth
+            };
+            var jsonDocument = JsonDocument.Parse(parametersJson, jsonOptions);
             var root = jsonDocument.RootElement;
 
             // Handle array of parameters

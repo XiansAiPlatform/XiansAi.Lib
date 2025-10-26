@@ -368,11 +368,26 @@ public class MessageHub: IMessageHub
             return default!;
         }
         try {
-            return JsonSerializer.Deserialize<T>(obj.ToString()!)!;
+            var payloadStr = obj.ToString();
+            
+            // Security: Validate payload size to prevent DoS
+            const int MaxPayloadSize = 5 * 1024 * 1024; // 5 MB
+            if (payloadStr != null && payloadStr.Length > MaxPayloadSize)
+            {
+                throw new InvalidOperationException($"Payload size {payloadStr.Length} exceeds maximum allowed size of {MaxPayloadSize} bytes");
+            }
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                MaxDepth = 32
+            };
+            
+            return JsonSerializer.Deserialize<T>(payloadStr!, options)!;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to cast event payload `{obj}` to `{typeof(T).Name}`");
+            throw new InvalidOperationException($"Failed to cast event payload to `{typeof(T).Name}`: {ex.Message}");
         }
     }
 

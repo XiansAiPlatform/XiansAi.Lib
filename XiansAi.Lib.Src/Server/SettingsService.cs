@@ -87,18 +87,28 @@ public static class SettingsService
 
         try
         {
+            // Security: Validate response size to prevent DoS
+            const int MaxResponseSize = 1 * 1024 * 1024; // 1 MB for settings
+            if (response.Length > MaxResponseSize)
+            {
+                _logger.LogError($"Response size {response.Length} exceeds maximum allowed size of {MaxResponseSize} bytes");
+                throw new Exception("Response size exceeds maximum allowed limit");
+            }
+
             var options = new JsonSerializerOptions
             { 
                 PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                // Security: Limit JSON depth to prevent deeply nested attacks
+                MaxDepth = 32
             };
             
             var settings = JsonSerializer.Deserialize<ServerSettings>(response, options);
 
             if (settings == null)
             {
-                _logger.LogError($"Failed to deserialize settings from server: {response}");
-                throw new Exception($"Failed to deserialize settings from server: {response}");
+                _logger.LogError("Failed to deserialize settings from server: invalid response");
+                throw new Exception("Failed to deserialize settings from server");
             }
 
             if (settings.FlowServerUrl == null || settings.FlowServerNamespace == null)

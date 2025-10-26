@@ -25,6 +25,28 @@ public class KnowledgeService
     /// <returns>The loaded knowledge, or null if not found</returns>
     public async Task<Knowledge?> GetKnowledgeFromServer(string knowledgeName, string agent)
     {
+        // Security: Validate input parameters
+        if (string.IsNullOrWhiteSpace(knowledgeName))
+        {
+            throw new ArgumentException("Knowledge name cannot be null or empty", nameof(knowledgeName));
+        }
+
+        if (string.IsNullOrWhiteSpace(agent))
+        {
+            throw new ArgumentException("Agent name cannot be null or empty", nameof(agent));
+        }
+
+        // Security: Validate length to prevent DoS
+        if (knowledgeName.Length > 256)
+        {
+            throw new ArgumentException("Knowledge name exceeds maximum length of 256 characters", nameof(knowledgeName));
+        }
+
+        if (agent.Length > 256)
+        {
+            throw new ArgumentException("Agent name exceeds maximum length of 256 characters", nameof(agent));
+        }
+
         if (!SecureApi.IsReady)
         {
             _logger.LogWarning("App server secure API is not ready, cannot load knowledge from server");
@@ -114,17 +136,27 @@ public class KnowledgeService
 
         try
         {
+            // Security: Validate response size to prevent DoS
+            const int MaxResponseSize = 10 * 1024 * 1024; // 10 MB
+            if (response.Length > MaxResponseSize)
+            {
+                _logger.LogError($"Response size {response.Length} exceeds maximum allowed size of {MaxResponseSize} bytes");
+                throw new InvalidOperationException("Response size exceeds maximum allowed limit");
+            }
+
             var options = new JsonSerializerOptions
             { 
                 PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                // Security: Limit JSON depth to prevent deeply nested attacks
+                MaxDepth = 32
             };
             
             var knowledge = JsonSerializer.Deserialize<Knowledge>(response, options);
 
             if (knowledge?.Content == null || knowledge.Name == null)
             {
-                _logger.LogError($"Failed to deserialize knowledge from server: {response}");
+                _logger.LogError("Failed to deserialize knowledge from server: invalid response structure");
                 return null;
             }
             
@@ -132,7 +164,7 @@ public class KnowledgeService
         } 
         catch (Exception e)
         {
-            _logger.LogError($"Failed to deserialize knowledge from server: {response}", e);
+            _logger.LogError(e, "Failed to deserialize knowledge from server");
             return null;
         }
     }

@@ -110,26 +110,63 @@ public static class OnboardingParser
     {
         try
         {
-            var fullPath = Path.Combine(baseDirectory, relativePath);
+            // Security: Prevent path traversal attacks
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                throw new ArgumentException("File path cannot be null or empty", nameof(relativePath));
+            }
+
+            // Normalize the path and check for path traversal
+            var normalizedPath = relativePath.Replace('\\', '/');
+            if (normalizedPath.Contains("..") || Path.IsPathRooted(relativePath))
+            {
+                throw new ArgumentException(
+                    $"Invalid file path: {relativePath}. Path traversal or absolute paths are not allowed.", 
+                    nameof(relativePath));
+            }
+
+            // Use GetFullPath to resolve the path and ensure it's within baseDirectory
+            var fullPath = Path.GetFullPath(Path.Combine(baseDirectory, relativePath));
+            var normalizedBaseDirectory = Path.GetFullPath(baseDirectory);
+            
+            // Ensure the resolved path is still within baseDirectory
+            if (!fullPath.StartsWith(normalizedBaseDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    $"File path '{relativePath}' resolves outside of base directory.", 
+                    nameof(relativePath));
+            }
             
             if (File.Exists(fullPath))
             {
                 return File.ReadAllText(fullPath);
             }
 
-            // Try alternative paths
+            // Try alternative paths with same security checks
             var alternatives = new[]
             {
                 Path.Combine(AppContext.BaseDirectory, relativePath),
-                Path.Combine(Directory.GetCurrentDirectory(), relativePath),
-                relativePath // Try as absolute path
+                Path.Combine(Directory.GetCurrentDirectory(), relativePath)
             };
 
             foreach (var altPath in alternatives)
             {
-                if (File.Exists(altPath))
+                try
                 {
-                    return File.ReadAllText(altPath);
+                    var resolvedAltPath = Path.GetFullPath(altPath);
+                    var altBase = Path.GetFullPath(Path.GetDirectoryName(altPath) ?? ".");
+                    
+                    // Ensure alternative path is also safe
+                    if (resolvedAltPath.StartsWith(altBase, StringComparison.OrdinalIgnoreCase) && 
+                        File.Exists(resolvedAltPath))
+                    {
+                        return File.ReadAllText(resolvedAltPath);
+                    }
+                }
+                catch
+                {
+                    // Skip invalid alternative paths
+                    continue;
                 }
             }
 
@@ -137,7 +174,7 @@ public static class OnboardingParser
                 $"Could not find file: {relativePath}. " +
                 $"Searched in {baseDirectory} and alternative locations.");
         }
-        catch (Exception ex) when (ex is not FileNotFoundException)
+        catch (Exception ex) when (ex is not FileNotFoundException && ex is not ArgumentException)
         {
             throw new IOException($"Error reading file '{relativePath}': {ex.Message}", ex);
         }

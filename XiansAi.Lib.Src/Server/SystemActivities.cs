@@ -281,28 +281,44 @@ public class SystemActivities
 
         try
         {
-            _logger.LogDebug("Sending message: {Message}", JsonSerializer.Serialize(chatOrDataMessage));
+            _logger.LogDebug("Sending bot-to-bot message");
             var client = SecureApi.Instance.Client;
             var response = await client.PostAsJsonAsync($"api/agent/conversation/converse?type={type}&timeoutSeconds={timeoutSeconds}", chatOrDataMessage);
             response.EnsureSuccessStatusCode();
             
             // Read the raw response first for debugging
             var rawResponse = await response.Content.ReadAsStringAsync();
-            _logger.LogDebug("Raw response: {Response}", rawResponse);
             
-            // Try to deserialize the response
-            var messageResponse = JsonSerializer.Deserialize<MessageResponse>(rawResponse);
+            // Security: Validate response size to prevent DoS
+            const int MaxResponseSize = 5 * 1024 * 1024; // 5 MB
+            if (rawResponse.Length > MaxResponseSize)
+            {
+                _logger.LogError($"Response size {rawResponse.Length} exceeds maximum allowed size");
+                throw new Exception("Response size exceeds maximum allowed limit");
+            }
+            
+            _logger.LogDebug("Received response of length: {Length}", rawResponse.Length);
+            
+            // Try to deserialize the response with security options
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                MaxDepth = 32
+            };
+            
+            var messageResponse = JsonSerializer.Deserialize<MessageResponse>(rawResponse, options);
             
             return messageResponse ?? throw new Exception("No Conversation response from the Agent");
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "JSON deserialization error. Raw response may be malformed: {Message}", chatOrDataMessage);
+            _logger.LogError(ex, "JSON deserialization error");
             throw new Exception($"Failed to deserialize response: {ex.Message}");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message: {Message}", chatOrDataMessage);
+            _logger.LogError(ex, "Error sending message");
             throw new Exception($"Failed to send message: {ex.Message}");
         }
     }

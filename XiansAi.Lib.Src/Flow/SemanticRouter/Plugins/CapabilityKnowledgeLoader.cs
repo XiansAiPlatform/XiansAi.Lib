@@ -34,9 +34,19 @@ public class CapabilityKnowledgeLoader
             }
 
             var jsonContent = knowledge.Content;
+            
+            // Security: Validate content size
+            const int MaxContentSize = 1 * 1024 * 1024; // 1 MB
+            if (jsonContent.Length > MaxContentSize)
+            {
+                throw new InvalidOperationException($"Capability knowledge content size {jsonContent.Length} exceeds maximum allowed size of {MaxContentSize} bytes");
+            }
+
             var options = new JsonSerializerOptions
             { 
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                // Security: Limit JSON depth to prevent deeply nested attacks
+                MaxDepth = 32
             };
             
             var knowledgeModel = JsonSerializer.Deserialize<CapabilityKnowledgeModel>(jsonContent, options);
@@ -85,9 +95,19 @@ public class CapabilityKnowledgeLoader
             }
 
             var jsonContent = knowledge.Content;
+            
+            // Security: Validate content size
+            const int MaxContentSize = 1 * 1024 * 1024; // 1 MB
+            if (jsonContent.Length > MaxContentSize)
+            {
+                throw new InvalidOperationException($"Capability knowledge content size {jsonContent.Length} exceeds maximum allowed size of {MaxContentSize} bytes");
+            }
+
             var options = new JsonSerializerOptions
             { 
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                // Security: Limit JSON depth to prevent deeply nested attacks
+                MaxDepth = 32
             };
             
             var knowledgeModel = JsonSerializer.Deserialize<CapabilityKnowledgeModel>(jsonContent, options);

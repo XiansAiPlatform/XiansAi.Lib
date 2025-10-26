@@ -47,8 +47,21 @@ public class CertificateReader
 #pragma warning restore SYSLIB0057 // Type or member is obsolete
 
             // Extract tenant ID from the certificate subject
-            var tenantId = ExtractTenantIdFromCertificate(certificate) ?? throw new InvalidOperationException("Tenant ID is found in the certificate");
-            var userId = ExtractUserIdFromCertificate(certificate) ?? throw new InvalidOperationException("User ID is found in the certificate");
+            var tenantId = ExtractTenantIdFromCertificate(certificate);
+            var userId = ExtractUserIdFromCertificate(certificate);
+            
+            // Security: Use generic error messages to avoid information disclosure
+            if (tenantId == null)
+            {
+                _logger.LogError("Failed to extract tenant ID from certificate");
+                throw new InvalidOperationException("Certificate validation failed: missing required attributes");
+            }
+            
+            if (userId == null)
+            {
+                _logger.LogError("Failed to extract user ID from certificate");
+                throw new InvalidOperationException("Certificate validation failed: missing required attributes");
+            }
             
             var certificateInfo = new CertificateInfo
             {

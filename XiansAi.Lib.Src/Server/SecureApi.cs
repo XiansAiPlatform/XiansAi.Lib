@@ -232,6 +232,21 @@ public class SecureApi : ISecureApiClient, IDisposable
             MaxConnectionsPerServer = 10,
             PooledConnectionLifetime = TimeSpan.FromMinutes(15),
             PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+            // Security: Enforce TLS 1.2 and 1.3 only
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12 | 
+                                     System.Security.Authentication.SslProtocols.Tls13,
+                // Validate server certificates
+                RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+                {
+                    if (errors == System.Net.Security.SslPolicyErrors.None)
+                        return true;
+                    
+                    _logger.LogWarning("SSL certificate validation failed: {Errors}", errors);
+                    return false;
+                }
+            }
         };
 
         // Wrap with TenantIdHandler to automatically add X-Tenant-Id header
@@ -260,7 +275,21 @@ public class SecureApi : ISecureApiClient, IDisposable
             _clientCertificate = new X509Certificate2(certificateBytes);
             #pragma warning restore SYSLIB0057
 
+            // Always check certificate expiration regardless of chain validation
+            if (_clientCertificate.NotAfter < DateTime.UtcNow)
+            {
+                _logger.LogError("Client certificate expired on {ExpirationDate}", _clientCertificate.NotAfter);
+                throw new InvalidOperationException($"Client certificate has expired on {_clientCertificate.NotAfter:yyyy-MM-dd}");
+            }
+
+            if (_clientCertificate.NotBefore > DateTime.UtcNow)
+            {
+                _logger.LogError("Client certificate not valid until {ValidFrom}", _clientCertificate.NotBefore);
+                throw new InvalidOperationException($"Client certificate is not yet valid until {_clientCertificate.NotBefore:yyyy-MM-dd}");
+            }
+
             // Export the certificate as Base64 and add it to the request headers for authentication
+            // Note: This is application-specific auth. For true mTLS, consider using ClientCertificates on the handler
             var exportedCertBytes = _clientCertificate.Export(X509ContentType.Cert);
             var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
             _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");

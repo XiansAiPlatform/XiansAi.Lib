@@ -55,7 +55,12 @@ public class UpdateService
                 return (TResult)(object)jsonElement.GetGuid();
 
             // For complex types, deserialize from JSON
-            return JsonSerializer.Deserialize<TResult>(jsonElement.GetRawText());
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                MaxDepth = 32
+            };
+            return JsonSerializer.Deserialize<TResult>(jsonElement.GetRawText(), options);
         }
 
         // If it's a string representation, try to deserialize it
@@ -63,7 +68,19 @@ public class UpdateService
         {
             try
             {
-                return JsonSerializer.Deserialize<TResult>(jsonString);
+                // Security: Validate string size
+                const int MaxJsonSize = 5 * 1024 * 1024; // 5 MB
+                if (jsonString.Length > MaxJsonSize)
+                {
+                    throw new InvalidOperationException($"Result JSON size {jsonString.Length} exceeds maximum allowed size");
+                }
+
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    MaxDepth = 32
+                };
+                return JsonSerializer.Deserialize<TResult>(jsonString, options);
             }
             catch (JsonException)
             {

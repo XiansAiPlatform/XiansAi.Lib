@@ -104,11 +104,25 @@ public class KnowledgeLoaderImpl : IKnowledgeLoader
     /// <returns>The loaded instruction</returns>
     /// <exception cref="InvalidOperationException">Thrown if local instructions folder is not configured or multiple matching files found</exception>
     /// <exception cref="FileNotFoundException">Thrown if instruction file not found</exception>
+    /// <exception cref="ArgumentException">Thrown if instructionName contains path traversal characters</exception>
     private async Task<Models.Knowledge?> LoadFromLocal(string instructionName)
     {
         if (string.IsNullOrEmpty(_localFolder))
         {
             throw new InvalidOperationException("LOCAL_INSTRUCTIONS_FOLDER environment variable is not set. Please set it to the path of the local instructions folder.");
+        }
+
+        // Security: Validate instructionName to prevent path traversal attacks
+        if (string.IsNullOrWhiteSpace(instructionName))
+        {
+            throw new ArgumentException("Instruction name cannot be null or empty", nameof(instructionName));
+        }
+
+        if (instructionName.Contains("..") || instructionName.Contains("/") || instructionName.Contains("\\") || 
+            instructionName.Contains(":") || Path.IsPathRooted(instructionName))
+        {
+            _logger.LogWarning($"Potential path traversal attempt detected: {instructionName}");
+            throw new ArgumentException("Invalid instruction name. Path traversal or absolute paths are not allowed.", nameof(instructionName));
         }
 
         var fileNameWithoutExt = Path.GetFileNameWithoutExtension(instructionName);
