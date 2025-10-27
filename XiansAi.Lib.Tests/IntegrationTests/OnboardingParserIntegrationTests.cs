@@ -62,10 +62,12 @@ You are an AI assistant specialized in data analysis.
             
             // Assert
             Assert.NotNull(options.OnboardingJson);
-            Assert.Contains(promptContent, options.OnboardingJson);
-            Assert.DoesNotContain("file://knowledge-base/system-prompt.md", options.OnboardingJson);
+            // Check for parts of the content (avoiding newline escaping issues)
             Assert.Contains("System Prompt", options.OnboardingJson);
             Assert.Contains("data analysis", options.OnboardingJson);
+            Assert.Contains("Always verify data quality", options.OnboardingJson);
+            Assert.Contains("Generate actionable insights", options.OnboardingJson);
+            Assert.DoesNotContain("file://knowledge-base/system-prompt.md", options.OnboardingJson);
         }
         finally
         {

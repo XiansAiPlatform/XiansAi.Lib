@@ -36,4 +36,12 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Knowledge\TestCapability.json" />
+    <EmbeddedResource Include="Knowledge\InvalidCapability.json" />
+    <EmbeddedResource Include="Knowledge\ExampleOnboarding.md" />
+    <EmbeddedResource Include="Knowledge\ExampleUsage.cs" />
+    <EmbeddedResource Include="Knowledge\How To Collect Links.md" />
+  </ItemGroup>
+
 </Project>

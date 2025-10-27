@@ -183,7 +183,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Temporal
             var result = WorkflowIdentifier.GetAgentName(TestWorkflowIdWithPostfix);
 
             // Assert
-            Assert.Equal(TestTenantId, result); // First part of workflow ID is tenant, not agent
+            Assert.Equal(TestAgentName, result); // GetAgentName extracts agent name from workflow ID
         }
 
         [Fact]
@@ -193,7 +193,7 @@ namespace XiansAi.Lib.Tests.UnitTests.Temporal
             var result = WorkflowIdentifier.GetAgentName(TestWorkflowIdWithoutPostfix);
 
             // Assert
-            Assert.Equal(TestTenantId, result); // First part of workflow ID is tenant, not agent
+            Assert.Equal(TestAgentName, result); // GetAgentName extracts agent name from workflow ID
         }
 
         [Fact]

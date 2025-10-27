@@ -14,9 +14,8 @@ namespace XiansAi.Lib.Tests.UnitTests.Flow
         */
         public MessengerTests()
         {
-            //AgentContext.AgentName = "test-agent";
-            // AgentContext.WorkflowId = "test-workflow-id";
-            // AgentContext.WorkflowType = "test-workflow-type";
+            // Set up test context with proper workflow ID format: tenantId:agentName:flowName
+            AgentContext.SetLocalContext("test-user", "test-tenant:test-agent:test-flow");
         }
 
         [Fact]

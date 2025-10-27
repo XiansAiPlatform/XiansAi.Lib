@@ -13,7 +13,7 @@ public class EmbeddedResourceTests
         // Arrange - This test uses the test knowledge files already embedded
         var json = @"{
             ""workflow"": [{
-                ""value"": ""embedded://TestCapability.json""
+                ""value"": ""embedded://Knowledge/TestCapability.json""
             }]
         }";
         
@@ -61,7 +61,7 @@ public class EmbeddedResourceTests
             var json = $@"{{
                 ""workflow"": [
                     {{""value"": ""file://test.md""}},
-                    {{""value"": ""embedded://TestCapability.json""}}
+                    {{""value"": ""embedded://Knowledge/TestCapability.json""}}
                 ]
             }}";
             
@@ -92,7 +92,7 @@ public class EmbeddedResourceTests
             ""display-name"": ""Test"",
             ""version"": ""1.0.0"",
             ""workflow"": [{
-                ""value"": ""embedded://TestCapability.json""
+                ""value"": ""embedded://Knowledge/TestCapability.json""
             }]
         }";
         
@@ -173,10 +173,10 @@ public class EmbeddedResourceTests
     [Fact]
     public void Parse_WithEmbeddedProtocol_HandlesBackslashes()
     {
-        // Arrange - Test with backslash path separator
+        // Arrange - Test with backslash path separator (escaped for JSON)
         var json = @"{
             ""workflow"": [{
-                ""value"": ""embedded://TestCapability.json""
+                ""value"": ""embedded://Knowledge\\TestCapability.json""
             }]
         }";
         
@@ -196,7 +196,7 @@ public class EmbeddedResourceTests
         // Arrange - Test with forward slash path separator
         var json = @"{
             ""workflow"": [{
-                ""value"": ""embedded://TestCapability.json""
+                ""value"": ""embedded://Knowledge/TestCapability.json""
             }]
         }";
         
