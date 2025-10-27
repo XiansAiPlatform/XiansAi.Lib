@@ -104,8 +104,13 @@ public class WorkflowIdentifier
 
     public static string GetWorkflowIdFor(Type flowClassType, string? idPostfix = null)
     {
-        var workflowId = $"{AgentContext.TenantId}:{GetWorkflowTypeFor(flowClassType)}:{idPostfix}";
-        return workflowId;
+        if(String.IsNullOrEmpty(idPostfix))
+        {
+            return $"{AgentContext.TenantId}:{GetWorkflowTypeFor(flowClassType)}";
+        } else
+        {
+            return $"{AgentContext.TenantId}:{GetWorkflowTypeFor(flowClassType)}:{idPostfix}";
+        }
     }
 
     public static string GetWorkflowTypeFor(Type flowClassType)
