@@ -79,9 +79,9 @@ public class AgentTeam {
     /// </summary>
     /// <typeparam name="TBot">The agent class type</typeparam>
     /// <returns>A bot instance for configuring capabilities</returns>
-    public Bot<TBot> AddAgent<TBot>(int numberOfWorkers = 1) where TBot : FlowBase
+    public Agent<TAgent> AddAgent<TAgent>(int numberOfWorkers = 1) where TAgent : FlowBase
     {
-        var bot = new Bot<TBot>(this, numberOfWorkers);
+        var bot = new Agent<TAgent>(this, numberOfWorkers);
         _bots.Add(bot);
         return bot;
     }

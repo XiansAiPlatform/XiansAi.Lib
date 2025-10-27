@@ -11,6 +11,13 @@ internal interface IBot
     Task RunAsync(RunnerOptions? options);
 }
 
+public class Agent<TAgent> : Bot<TAgent> where TAgent : FlowBase
+{
+    internal Agent(AgentTeam agentTeam, int numberOfWorkers) : base(agentTeam, numberOfWorkers)
+    {
+    }
+}
+
 /// <summary>
 /// Manages capabilities for a specific bot type.
 /// </summary>
