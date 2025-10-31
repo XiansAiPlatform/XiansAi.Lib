@@ -1,11 +1,12 @@
 using System.Threading.Tasks;
 using Server;
+using XiansAi.Flow.Router.Orchestration.SemanticKernel;
 
 namespace XiansAi.Flow.Router;
 
 /// <summary>
 /// Configuration resolver for LLM settings with fallback hierarchy:
-/// RouterOptions -> AgentContext.RouterOptions -> Environment Variables -> Server Settings
+/// SemanticKernelConfig -> AgentContext.RouterOptions -> Environment Variables -> Server Settings
 /// </summary>
 internal class LlmConfigurationResolver
 {
@@ -24,7 +25,7 @@ internal class LlmConfigurationResolver
         _envModelName = Environment.GetEnvironmentVariable("LLM_MODEL_NAME");
     }
 
-    public string GetApiKey(RouterOptions options)
+    public string GetApiKey(SemanticKernelConfig options)
     {
         if (!string.IsNullOrEmpty(options.ApiKey))
         {
@@ -50,7 +51,7 @@ internal class LlmConfigurationResolver
         throw new InvalidOperationException("LLM API Key is not available");
     }
 
-    public string GetProviderName(RouterOptions options)
+    public string GetProviderName(SemanticKernelConfig options)
     {
         if (!string.IsNullOrEmpty(options.ProviderName))
         {
@@ -76,7 +77,7 @@ internal class LlmConfigurationResolver
         throw new InvalidOperationException("LLM Provider is not available");
     }
 
-    public string GetDeploymentName(RouterOptions options)
+    public string GetDeploymentName(SemanticKernelConfig options)
     {
         if (!string.IsNullOrWhiteSpace(options.DeploymentName))
         {
@@ -103,7 +104,7 @@ internal class LlmConfigurationResolver
         throw new InvalidOperationException("LLM DeploymentName is not available");
     }
 
-    public string GetEndpoint(RouterOptions options)
+    public string GetEndpoint(SemanticKernelConfig options)
     {
         if (!string.IsNullOrWhiteSpace(options.Endpoint))
         {
@@ -129,7 +130,7 @@ internal class LlmConfigurationResolver
         throw new InvalidOperationException("LLM BaseUrl is not available");
     }
 
-    public string GetModelName(RouterOptions options)
+    public string GetModelName(SemanticKernelConfig options)
     {
         if (!string.IsNullOrWhiteSpace(options.ModelName))
         {

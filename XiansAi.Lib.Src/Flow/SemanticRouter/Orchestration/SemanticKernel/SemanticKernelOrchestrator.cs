@@ -7,66 +7,124 @@ using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 
-
-namespace XiansAi.Flow.Router;
+namespace XiansAi.Flow.Router.Orchestration.SemanticKernel;
 
 /// <summary>
-/// Core implementation of the semantic router functionality.
+/// Semantic Kernel implementation of the AI orchestrator.
 /// Handles kernel creation, plugin registration, chat history construction,
 /// and message routing with LLM providers (OpenAI/Azure OpenAI).
 /// </summary>
-internal class SemanticRouterHubImpl : IDisposable
+public class SemanticKernelOrchestrator : IAIOrchestrator
 {
     private const string INCOMING_MESSAGE = "incoming";
     private const string OUTGOING_MESSAGE = "outgoing";
 
     private readonly ILogger _logger;
-    //private readonly ServerSettings _settings;
-    //private readonly LlmConfigurationResolver _configResolver;
     private readonly Lazy<HttpClient> _httpClient;
 
-    public SemanticRouterHubImpl()
+    public SemanticKernelOrchestrator()
     {
-        _logger = Globals.LogFactory.CreateLogger<SemanticRouterHubImpl>();
+        _logger = Globals.LogFactory.CreateLogger<SemanticKernelOrchestrator>();
         _httpClient = new Lazy<HttpClient>(() => new HttpClient());
     }
 
-    private ChatCompletionAgent CreateChatCompletionAgent(
-        string name,
-        string instructions,
-        Kernel kernel,
-        RouterOptions options,
-        bool enableFunctions = true)
+    public async Task<string?> RouteAsync(OrchestratorRequest request)
     {
-        var executionSettings = new OpenAIPromptExecutionSettings
-        {
-            FunctionChoiceBehavior = enableFunctions ? FunctionChoiceBehavior.Auto() : FunctionChoiceBehavior.None(),
-            MaxTokens = options.MaxTokens,
-            Temperature = options.Temperature
-        };
+        if (string.IsNullOrWhiteSpace(request.SystemPrompt))
+            throw new ArgumentException("System prompt is required", nameof(request.SystemPrompt));
 
-        return new ChatCompletionAgent
+        if (request.Config is not SemanticKernelConfig skConfig)
+            throw new ArgumentException("Config must be SemanticKernelConfig for SemanticKernelOrchestrator", nameof(request.Config));
+
+        try
         {
-            Name = name,
-            Instructions = instructions,
-            Kernel = kernel,
-            Arguments = new KernelArguments(executionSettings)
-        };
+            // Sanitize the agent name to comply with OpenAI requirements
+            var agentId = $"RouterAgent_{SanitizeName(request.MessageThread.WorkflowId)}";
+
+            // Create kernel with all plugins
+            var kernel = await CreateKernelWithPlugins(
+                skConfig, 
+                request.CapabilityTypes.ToArray(), 
+                request.MessageThread, 
+                request.KernelModifiers);
+
+            // Create the agent with full instructions
+            var agent = CreateChatCompletionAgent(
+                name: agentId,
+                instructions: request.SystemPrompt,
+                kernel: kernel,
+                config: skConfig,
+                enableFunctions: true
+            );
+            
+            // Build chat history and create thread with proper history
+            var chatHistory = await BuildChatHistoryAsync(
+                request.MessageThread, 
+                request.SystemPrompt, 
+                skConfig.HistorySizeToFetch);
+            
+            // Apply chat history reduction if token limits are configured
+            if (skConfig.TokenLimit > 0)
+            {
+                var chatService = kernel.GetRequiredService<IChatCompletionService>();
+                var reducerLogger = Globals.LogFactory.CreateLogger<ChatHistoryReducer>();
+                var reducer = new ChatHistoryReducer(reducerLogger, skConfig, chatService);
+                
+                // Apply reduction to prevent token limit issues
+                chatHistory = await reducer.ReduceAsync(chatHistory);
+            }
+            
+            var thread = new ChatHistoryAgentThread(chatHistory);
+            
+            // Create the current user message from the latest message
+            var currentMessage = new ChatMessageContent(
+                AuthorRole.User, 
+                request.MessageThread.LatestMessage?.Content ?? string.Empty
+            );
+
+            // Apply incoming message interception
+            var messageThread = await ApplyIncomingInterceptorAsync(request.MessageThread, request.Interceptor);
+            
+            // Invoke the agent with the message and thread
+            var responses = new List<ChatMessageContent>();
+            await foreach (var item in agent.InvokeAsync(currentMessage, thread))
+            {
+                responses.Add(item);
+            }
+            var response = string.Join(" ", responses.Select(r => r.Content));
+
+            // Apply outgoing message interception
+            response = await ApplyOutgoingInterceptorAsync(messageThread, response, request.Interceptor);
+
+            // Handle skip response flag
+            if (messageThread.SkipResponse)
+            {
+                messageThread.SkipResponse = false;
+                return null;
+            }
+
+            return response;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error routing message for workflow {WorkflowType}", request.MessageThread.WorkflowType);
+            throw;
+        }
     }
 
-
-    public async Task<string?> CompletionAsync(string prompt, string? systemInstruction, RouterOptions? options = null)
+    public async Task<string?> CompletionAsync(string prompt, string? systemInstruction, OrchestratorConfig config)
     {
-        options ??= new RouterOptions();
+        if (config is not SemanticKernelConfig skConfig)
+            throw new ArgumentException("Config must be SemanticKernelConfig for SemanticKernelOrchestrator", nameof(config));
         
         try
         {
-            var kernel = BuildKernelAsync(options);
+            var kernel = BuildKernel(skConfig);
             var agent = CreateChatCompletionAgent(
                 name: "CompletionAgent",
                 instructions: systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.",
                 kernel: kernel,
-                options: options,
+                config: skConfig,
                 enableFunctions: false
             );
             
@@ -74,11 +132,11 @@ internal class SemanticRouterHubImpl : IDisposable
             var chatHistory = new ChatHistory(systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.");
             
             // Apply chat history reduction if token limits are configured
-            if (options.TokenLimit > 0)
+            if (skConfig.TokenLimit > 0)
             {
                 var chatService = kernel.GetRequiredService<IChatCompletionService>();
                 var reducerLogger = Globals.LogFactory.CreateLogger<ChatHistoryReducer>();
-                var reducer = new ChatHistoryReducer(reducerLogger, options, chatService);
+                var reducer = new ChatHistoryReducer(reducerLogger, skConfig, chatService);
                 chatHistory = await reducer.ReduceAsync(chatHistory);
             }
             
@@ -99,88 +157,28 @@ internal class SemanticRouterHubImpl : IDisposable
         }
     }
 
-
-    internal async Task<string?> RouteAsync(
-        MessageThread messageThread, 
-        string systemPrompt, 
-        RouterOptions options, 
-        List<Type> capabilitiesPluginTypes, 
-        IChatInterceptor? interceptor, 
-        List<IKernelModifier> kernelModifiers)
+    private ChatCompletionAgent CreateChatCompletionAgent(
+        string name,
+        string instructions,
+        Kernel kernel,
+        SemanticKernelConfig config,
+        bool enableFunctions = true)
     {
-        if (string.IsNullOrWhiteSpace(systemPrompt))
-            throw new ArgumentException("System prompt is required", nameof(systemPrompt));
-
-        try
+        var executionSettings = new OpenAIPromptExecutionSettings
         {
-            // Sanitize the agent name to comply with OpenAI requirements
-            var agentId = $"RouterAgent_{SanitizeName(messageThread.WorkflowId)}";
+            FunctionChoiceBehavior = enableFunctions ? FunctionChoiceBehavior.Auto() : FunctionChoiceBehavior.None(),
+            MaxTokens = config.MaxTokens,
+            Temperature = config.Temperature
+        };
 
-            // Create kernel with all plugins
-            var kernel = await CreateKernelWithPlugins(options, capabilitiesPluginTypes.ToArray(), messageThread, kernelModifiers);
-
-            // Create the agent with full instructions
-            var agent = CreateChatCompletionAgent(
-                name: agentId,
-                instructions: systemPrompt,
-                kernel: kernel,
-                options: options,
-                enableFunctions: true
-            );
-            
-            // Build chat history and create thread with proper history
-            var chatHistory = await BuildChatHistoryAsync(messageThread, systemPrompt, options.HistorySizeToFetch);
-            
-            // Apply chat history reduction if token limits are configured
-            if (options.TokenLimit > 0)
-            {
-                var chatService = kernel.GetRequiredService<IChatCompletionService>();
-                var reducerLogger = Globals.LogFactory.CreateLogger<ChatHistoryReducer>();
-                var reducer = new ChatHistoryReducer(reducerLogger, options, chatService);
-                
-                // Apply reduction to prevent token limit issues
-                chatHistory = await reducer.ReduceAsync(chatHistory);
-            }
-            
-            var thread = new ChatHistoryAgentThread(chatHistory);
-            
-            // Create the current user message from the latest message
-            var currentMessage = new ChatMessageContent(
-                AuthorRole.User, 
-                messageThread.LatestMessage?.Content ?? string.Empty
-            );
-
-            // Apply incoming message interception
-            messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
-            
-            // Invoke the agent with the message and thread
-            var responses = new List<ChatMessageContent>();
-            await foreach (var item in agent.InvokeAsync(currentMessage, thread))
-            {
-                responses.Add(item);
-            }
-            var response = string.Join(" ", responses.Select(r => r.Content));
-
-            // Apply outgoing message interception
-            response = await ApplyOutgoingInterceptorAsync(messageThread, response, interceptor);
-
-            // Handle skip response flag
-            if (messageThread.SkipResponse)
-            {
-                messageThread.SkipResponse = false;
-                return null;
-            }
-
-            return response;
-        }
-        catch (Exception e)
+        return new ChatCompletionAgent
         {
-            _logger.LogError(e, "Error routing message for workflow {WorkflowType}", messageThread.WorkflowType);
-            throw;
-        }
+            Name = name,
+            Instructions = instructions,
+            Kernel = kernel,
+            Arguments = new KernelArguments(executionSettings)
+        };
     }
-
-
 
     private async Task<MessageThread> ApplyIncomingInterceptorAsync(MessageThread messageThread, IChatInterceptor? interceptor)
     {
@@ -213,12 +211,12 @@ internal class SemanticRouterHubImpl : IDisposable
     }
 
     private async Task<Kernel> CreateKernelWithPlugins(
-        RouterOptions options, 
+        SemanticKernelConfig config,
         Type[] capabilitiesPluginTypes, 
         MessageThread messageThread, 
         List<IKernelModifier> kernelModifiers)
     {
-        var kernel = BuildKernelAsync(options);
+        var kernel = BuildKernel(config);
         
         // Register non-static plugins with MessageThread context
         RegisterNonStaticPlugins(kernel, capabilitiesPluginTypes, messageThread);
@@ -229,7 +227,6 @@ internal class SemanticRouterHubImpl : IDisposable
         // Add system plugins
         _logger.LogDebug("Adding Date plugin");
         kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
-        
 
         // Apply kernel modifiers sequentially if provided
         foreach (var kernelModifier in kernelModifiers ?? new List<IKernelModifier>())
@@ -248,9 +245,9 @@ internal class SemanticRouterHubImpl : IDisposable
         return kernel;
     }
 
-    private Kernel BuildKernelAsync(RouterOptions options)
+    private Kernel BuildKernel(SemanticKernelConfig config)
     {
-        var builder = ConfigureKernelBuilder(options);
+        var builder = ConfigureKernelBuilder(config);
 
         // Configure logging
         builder.Services.AddLogging(configure => 
@@ -260,40 +257,39 @@ internal class SemanticRouterHubImpl : IDisposable
         });
 
         // To avoid infinite loops, we need to add the termination filter as a scoped service.
-        builder.Services.AddScoped<IAutoFunctionInvocationFilter>(_ => new TerminationFilter(options.MaxConsecutiveCalls));
+        builder.Services.AddScoped<IAutoFunctionInvocationFilter>(_ => new TerminationFilter(config.MaxConsecutiveCalls));
 
         var kernel = builder.Build() ?? throw new InvalidOperationException("Failed to build Semantic Kernel");
 
         return kernel;
     }
 
-    private IKernelBuilder ConfigureKernelBuilder(RouterOptions options)
+    private IKernelBuilder ConfigureKernelBuilder(SemanticKernelConfig config)
     {
         var configResolver = new LlmConfigurationResolver();
-        var providerName = configResolver.GetProviderName(options);
+        var providerName = configResolver.GetProviderName(config);
         var builder = Kernel.CreateBuilder();
         
         var httpClient = _httpClient.Value;
-        httpClient.Timeout = TimeSpan.FromSeconds(options.HTTPTimeoutSeconds);
+        httpClient.Timeout = TimeSpan.FromSeconds(config.HTTPTimeoutSeconds);
 
         switch (providerName?.ToLower())
         {
             case "openai":
-                var modelName = configResolver.GetModelName(options);
+                var modelName = configResolver.GetModelName(config);
                 builder.AddOpenAIChatCompletion(
                     modelId: modelName,
-                    apiKey: configResolver.GetApiKey(options),
+                    apiKey: configResolver.GetApiKey(config),
                     httpClient: httpClient);
                 _logger.LogDebug("Configured OpenAI with model {ModelName}", modelName);
-
                 break;
 
             case "azureopenai":
-                var deploymentName = configResolver.GetDeploymentName(options);
+                var deploymentName = configResolver.GetDeploymentName(config);
                 builder.AddAzureOpenAIChatCompletion(
                     deploymentName: deploymentName,
-                    endpoint: configResolver.GetEndpoint(options),
-                    apiKey: configResolver.GetApiKey(options),
+                    endpoint: configResolver.GetEndpoint(config),
+                    apiKey: configResolver.GetApiKey(config),
                     httpClient: httpClient);
                  _logger.LogDebug("Configured Azure OpenAI with deployment {DeploymentName}", deploymentName);
                 break;
@@ -385,13 +381,11 @@ internal class SemanticRouterHubImpl : IDisposable
             {
                 Role = AuthorRole.User,
                 Content = message.Text
-                // AuthorName removed to avoid validation issues with ChatCompletionAgent
             },
             var d when d.Equals(OUTGOING_MESSAGE, StringComparison.OrdinalIgnoreCase) => new()
             {
                 Role = AuthorRole.Assistant,
                 Content = message.Text
-                // AuthorName removed to avoid validation issues with ChatCompletionAgent
             },
             _ => null // Skip other message types like "Handovers"
         };
@@ -427,3 +421,4 @@ internal class SemanticRouterHubImpl : IDisposable
         }
     }
 }
+

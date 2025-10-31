@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using System.Text;
+using XiansAi.Flow.Router.Orchestration;
 
 namespace XiansAi.Flow.Router;
 
@@ -13,17 +14,17 @@ public class ChatHistoryReducer
 {
     private readonly ILogger<ChatHistoryReducer> _logger;
     private readonly IChatCompletionService? _chatService;
-    private readonly RouterOptions _options;
+    private readonly OrchestratorConfig _options;
     
     /// <summary>
     /// Initializes a new instance of the ChatHistoryReducer class.
     /// </summary>
     /// <param name="logger">Logger instance for diagnostic output</param>
-    /// <param name="options">Router options containing token limits</param>
+    /// <param name="options">Orchestrator config containing token limits</param>
     /// <param name="chatService">Optional chat service for summarization. If null, only truncation is available.</param>
     public ChatHistoryReducer(
         ILogger<ChatHistoryReducer> logger,
-        RouterOptions options,
+        OrchestratorConfig options,
         IChatCompletionService? chatService = null)
     {
         _logger = logger;

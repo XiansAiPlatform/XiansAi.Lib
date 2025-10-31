@@ -2,12 +2,13 @@ using Temporal;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using XiansAi.Messaging;
+using XiansAi.Flow.Router.Orchestration;
 
 namespace XiansAi.Flow.Router;
 
 /// <summary>
 /// Public API for semantic routing operations within Temporal workflows.
-/// Provides routing and chat completion capabilities.
+/// Provides routing and chat completion capabilities with support for multiple AI orchestrators.
 /// </summary>
 public static class SemanticRouterHub
 {
@@ -52,8 +53,8 @@ public static class SemanticRouterHub
     /// Performs a simple chat completion without message history or function calling.
     /// </summary>
     /// <param name="prompt">The prompt to send to the LLM</param>
+    /// <param name="systemInstruction">Optional system instruction to guide the AI</param>
     /// <param name="routerOptions">Optional router configuration</param>
-    /// <param name="systemActivityOptions">Optional Temporal activity options</param>
     /// <returns>The chat completion response</returns>
     public static async Task<string?> CompletionAsync(
         string prompt, string? systemInstruction = null,
@@ -71,6 +72,51 @@ public static class SemanticRouterHub
         {
             using var impl = new SemanticRouterHubImpl();
             return await impl.CompletionAsync(prompt, systemInstruction, routerOptions);
+        }
+    }
+
+    /// <summary>
+    /// Routes a message through the AI orchestrator with the specified configuration.
+    /// This is the modern API that supports multiple orchestrator types.
+    /// </summary>
+    /// <param name="request">The orchestration request containing message context and configuration</param>
+    /// <returns>The orchestrated response or null if response is skipped</returns>
+    public static async Task<string?> RouteWithOrchestratorAsync(OrchestratorRequest request)
+    {
+        if (Workflow.InWorkflow)
+        {
+            // TODO: Add Temporal activity support for orchestrator-based routing
+            throw new NotSupportedException("Orchestrator-based routing is not yet supported in Temporal workflows. Use RouteAsync with RouterOptions instead.");
+        }
+        else
+        {
+            using var orchestrator = OrchestratorFactory.Create(request.Config);
+            return await orchestrator.RouteAsync(request);
+        }
+    }
+
+    /// <summary>
+    /// Performs a completion using the AI orchestrator directly.
+    /// This is the modern API that supports multiple orchestrator types.
+    /// </summary>
+    /// <param name="prompt">The prompt to send to the AI</param>
+    /// <param name="systemInstruction">Optional system instruction to guide the AI</param>
+    /// <param name="config">Orchestrator configuration</param>
+    /// <returns>The completion response</returns>
+    public static async Task<string?> CompletionWithOrchestratorAsync(
+        string prompt, 
+        string? systemInstruction, 
+        OrchestratorConfig config)
+    {
+        if (Workflow.InWorkflow)
+        {
+            // TODO: Add Temporal activity support for orchestrator-based completion
+            throw new NotSupportedException("Orchestrator-based completion is not yet supported in Temporal workflows. Use CompletionAsync with RouterOptions instead.");
+        }
+        else
+        {
+            using var orchestrator = OrchestratorFactory.Create(config);
+            return await orchestrator.CompletionAsync(prompt, systemInstruction, config);
         }
     }
 }
