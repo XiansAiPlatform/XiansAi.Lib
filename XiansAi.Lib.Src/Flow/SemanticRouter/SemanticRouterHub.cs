@@ -23,12 +23,14 @@ public static class SemanticRouterHub
     public static async Task<string?> RouteAsync(
         MessageThread messageThread, 
         string systemPrompt, 
-        RouterOptions options)
+        RouterOptions options,
+        OrchestratorConfig orchestratorConfig)
+
     {
         if (Workflow.InWorkflow) {
             // Go through a Temporal activity to perform IO operations
             return await Workflow.ExecuteActivityAsync(
-                (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options),
+                (SystemActivities a) => a.RouteAsync(messageThread, systemPrompt, options, orchestratorConfig),
                 new SystemActivityOptions());
         }
         else  
@@ -38,7 +40,7 @@ public static class SemanticRouterHub
             var capabilities = runner.Capabilities;
             var kernelModifiers = runner.KernelModifiers;
             var chatInterceptor = runner.ChatInterceptor;
-            return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, capabilities, chatInterceptor, kernelModifiers);
+            return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, capabilities, chatInterceptor, kernelModifiers, orchestratorConfig);
         }
     }
 
@@ -85,8 +87,9 @@ public static class SemanticRouterHub
     {
         if (Workflow.InWorkflow)
         {
-            // TODO: Add Temporal activity support for orchestrator-based routing
-            throw new NotSupportedException("Orchestrator-based routing is not yet supported in Temporal workflows. Use RouteAsync with RouterOptions instead.");
+            return await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.RouteWithOrchestratorAsync(request),
+                new SystemActivityOptions());
         }
         else
         {
@@ -110,8 +113,9 @@ public static class SemanticRouterHub
     {
         if (Workflow.InWorkflow)
         {
-            // TODO: Add Temporal activity support for orchestrator-based completion
-            throw new NotSupportedException("Orchestrator-based completion is not yet supported in Temporal workflows. Use CompletionAsync with RouterOptions instead.");
+            return await Workflow.ExecuteActivityAsync(
+                (SystemActivities a) => a.CompletionWithOrchestratorAsync(prompt, systemInstruction, config),
+                new SystemActivityOptions());
         }
         else
         {

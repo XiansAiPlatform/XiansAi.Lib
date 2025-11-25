@@ -52,30 +52,65 @@ public static class OrchestratorFactory
     }
 
     /// <summary>
-    /// Converts legacy RouterOptions to SemanticKernelConfig for backward compatibility.
+    /// Converts legacy RouterOptions to OrchestratorConfig for backward compatibility.
+    /// If a config is provided, merges base properties from RouterOptions into it.
+    /// Otherwise, creates a SemanticKernelConfig from RouterOptions.
     /// </summary>
     /// <param name="options">Legacy RouterOptions</param>
-    /// <returns>SemanticKernelConfig with equivalent settings</returns>
-    public static SemanticKernelConfig ConvertFromRouterOptions(RouterOptions options)
+    /// <param name="config">Optional existing config to merge properties into</param>
+    /// <returns>OrchestratorConfig with equivalent settings</returns>
+    public static OrchestratorConfig ConvertFromRouterOptions(RouterOptions options, OrchestratorConfig? config = null)
     {
-        return new SemanticKernelConfig
+        if (config is AWSBedrockConfig bedrockConfig)
         {
-            OrchestratorType = OrchestratorType.SemanticKernel,
-            ProviderName = options.ProviderName,
-            ApiKey = options.ApiKey,
-            ModelName = options.ModelName,
-            DeploymentName = options.DeploymentName,
-            Endpoint = options.Endpoint,
-            Temperature = options.Temperature,
-            MaxTokens = options.MaxTokens,
-            HistorySizeToFetch = options.HistorySizeToFetch,
-            WelcomeMessage = options.WelcomeMessage,
-            HTTPTimeoutSeconds = options.HTTPTimeoutSeconds,
-            TokenLimit = options.TokenLimit,
-            TargetTokenCount = options.TargetTokenCount,
-            MaxTokensPerFunctionResult = options.MaxTokensPerFunctionResult,
-            MaxConsecutiveCalls = options.MaxConsecutiveCalls
-        };
+            // Merge base properties from RouterOptions into existing AWSBedrockConfig
+            bedrockConfig.Temperature = options.Temperature;
+            bedrockConfig.MaxTokens = options.MaxTokens;
+            bedrockConfig.HistorySizeToFetch = options.HistorySizeToFetch;
+            bedrockConfig.WelcomeMessage = options.WelcomeMessage;
+            bedrockConfig.HTTPTimeoutSeconds = options.HTTPTimeoutSeconds;
+            bedrockConfig.TokenLimit = options.TokenLimit;
+            bedrockConfig.TargetTokenCount = options.TargetTokenCount;
+            bedrockConfig.MaxTokensPerFunctionResult = options.MaxTokensPerFunctionResult;
+            bedrockConfig.MaxConsecutiveCalls = options.MaxConsecutiveCalls;
+            return bedrockConfig;
+        }
+        else if (config is AzureAIFoundryConfig azureConfig)
+        {
+            // Merge base properties from RouterOptions into existing AzureAIFoundryConfig
+            azureConfig.Temperature = options.Temperature;
+            azureConfig.MaxTokens = options.MaxTokens;
+            azureConfig.HistorySizeToFetch = options.HistorySizeToFetch;
+            azureConfig.WelcomeMessage = options.WelcomeMessage;
+            azureConfig.HTTPTimeoutSeconds = options.HTTPTimeoutSeconds;
+            azureConfig.TokenLimit = options.TokenLimit;
+            azureConfig.TargetTokenCount = options.TargetTokenCount;
+            azureConfig.MaxTokensPerFunctionResult = options.MaxTokensPerFunctionResult;
+            azureConfig.MaxConsecutiveCalls = options.MaxConsecutiveCalls;
+            return azureConfig;
+        }
+        else
+        {
+            // Default: Create SemanticKernelConfig from RouterOptions
+            return new SemanticKernelConfig
+            {
+                OrchestratorType = OrchestratorType.SemanticKernel,
+                ProviderName = options.ProviderName,
+                ApiKey = options.ApiKey,
+                ModelName = options.ModelName,
+                DeploymentName = options.DeploymentName,
+                Endpoint = options.Endpoint,
+                Temperature = options.Temperature,
+                MaxTokens = options.MaxTokens,
+                HistorySizeToFetch = options.HistorySizeToFetch,
+                WelcomeMessage = options.WelcomeMessage,
+                HTTPTimeoutSeconds = options.HTTPTimeoutSeconds,
+                TokenLimit = options.TokenLimit,
+                TargetTokenCount = options.TargetTokenCount,
+                MaxTokensPerFunctionResult = options.MaxTokensPerFunctionResult,
+                MaxConsecutiveCalls = options.MaxConsecutiveCalls
+            };
+        }
     }
 }
 

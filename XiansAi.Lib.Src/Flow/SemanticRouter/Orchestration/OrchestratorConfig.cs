@@ -1,9 +1,18 @@
+using System.Text.Json.Serialization;
+using XiansAi.Flow.Router.Orchestration.SemanticKernel;
+using XiansAi.Flow.Router.Orchestration.AWSBedrock;
+using XiansAi.Flow.Router.Orchestration.AzureAIFoundry;
+
 namespace XiansAi.Flow.Router.Orchestration;
 
 /// <summary>
 /// Base configuration for AI orchestrators.
 /// Derived classes add provider-specific settings.
 /// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(SemanticKernelConfig), typeDiscriminator: "sk")]
+[JsonDerivedType(typeof(AWSBedrockConfig), typeDiscriminator: "bedrock")]
+[JsonDerivedType(typeof(AzureAIFoundryConfig), typeDiscriminator: "azure_foundry")]
 public abstract class OrchestratorConfig
 {
     /// <summary>

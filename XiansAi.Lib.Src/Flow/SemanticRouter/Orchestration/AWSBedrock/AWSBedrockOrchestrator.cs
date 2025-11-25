@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using XiansAi.Messaging;
+using System.Text;
 
 // NOTE: This implementation requires the Amazon.BedrockAgentRuntime NuGet package
 // Add this to your .csproj: <PackageReference Include="Amazon.BedrockAgentRuntime" Version="..." />
@@ -98,10 +98,18 @@ public class AWSBedrockOrchestrator : IAIOrchestrator
                 throw new InvalidOperationException("Completion is undefined in the Bedrock response.");
             }
 
-            // Process the response stream
-            using var responseStream = response.Completion.ResponseStream;
-            using var reader = new StreamReader(responseStream);
-            var result = await reader.ReadToEndAsync();
+            var responseBuilder = new StringBuilder();
+
+            await foreach (var item in response.Completion)
+            {
+                if (item is PayloadPart payloadPart)
+                {
+                    var chunk = Encoding.UTF8.GetString(payloadPart.Bytes.ToArray());
+                    responseBuilder.Append(chunk);
+                }
+            }
+
+            var result = responseBuilder.ToString();
 
             _logger.LogDebug("Bedrock Agent Response: {Response}", result);
 
@@ -125,9 +133,9 @@ public class AWSBedrockOrchestrator : IAIOrchestrator
             throw;
         }
 #else
-        return Task.FromException<string?>(new NotSupportedException(
-            "AWS Bedrock orchestrator is not available. " +
-            "Add the Amazon.BedrockAgentRuntime NuGet package and define ENABLE_AWS_BEDROCK to enable this orchestrator."));
+         return Task.FromException<string?>(new NotSupportedException(
+             "AWS Bedrock orchestrator is not available. " +
+             "Add the Amazon.BedrockAgentRuntime NuGet package and define ENABLE_AWS_BEDROCK to enable this orchestrator."));
 #endif
     }
 
@@ -136,7 +144,7 @@ public class AWSBedrockOrchestrator : IAIOrchestrator
 #if ENABLE_AWS_BEDROCK
         return CompletionAsyncImpl(prompt, systemInstruction, config);
 #else
-        return Task.FromException<string?>(new NotSupportedException(
+         return Task.FromException<string?>(new NotSupportedException(
             "AWS Bedrock orchestrator is not available. " +
             "Add the Amazon.BedrockAgentRuntime NuGet package and define ENABLE_AWS_BEDROCK to enable this orchestrator."));
 #endif
@@ -186,10 +194,18 @@ public class AWSBedrockOrchestrator : IAIOrchestrator
                 throw new InvalidOperationException("Completion is undefined in the Bedrock response.");
             }
 
-            // Process the response stream
-            using var responseStream = response.Completion.ResponseStream;
-            using var reader = new StreamReader(responseStream);
-            var result = await reader.ReadToEndAsync();
+            var responseBuilder = new StringBuilder();
+
+            await foreach (var item in response.Completion)
+            {
+                if (item is PayloadPart payloadPart)
+                {
+                    var chunk = Encoding.UTF8.GetString(payloadPart.Bytes.ToArray());
+                    responseBuilder.Append(chunk);
+                }
+            }
+
+            var result = responseBuilder.ToString();
 
             _logger.LogDebug("Bedrock Completion Response: {Response}", result);
 

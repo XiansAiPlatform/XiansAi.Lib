@@ -9,7 +9,7 @@ public class AWSBedrockConfig : OrchestratorConfig
     {
         OrchestratorType = OrchestratorType.AWSBedrock;
     }
-
+     
     /// <summary>
     /// AWS access key ID for authentication
     /// </summary>

@@ -11,6 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);SKEXP0001;SKEXP0110</NoWarn>
+    <DefineConstants>$(DefineConstants);ENABLE_AWS_BEDROCK</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -39,6 +40,8 @@
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.63.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.63.0" />
     <PackageReference Include="NCrontab" Version="3.3.3" />
+    <!-- AWS Bedrock Support -->
+    <PackageReference Include="AWSSDK.BedrockAgentRuntime" Version="4.0.7.2" />
   </ItemGroup>
 
 </Project>

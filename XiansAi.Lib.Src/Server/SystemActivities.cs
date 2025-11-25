@@ -12,6 +12,7 @@ using System.Text.Json;
 using Temporal;
 using XiansAi.Memory;
 using Temporalio.Common;
+using XiansAi.Flow.Router.Orchestration;
 
 public class SendMessageResponse
 {
@@ -233,10 +234,24 @@ public class SystemActivities
     }
 
     [Activity]
-    public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options)
+    public async Task<string?> RouteAsync(MessageThread messageThread, string systemPrompt, RouterOptions options, OrchestratorConfig orchestratorConfig)
     {
         // do the routing
-        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, _capabilities, _chatInterceptor, _kernelModifiers);
+        return await new SemanticRouterHubImpl().RouteAsync(messageThread, systemPrompt, options, _capabilities, _chatInterceptor, _kernelModifiers, orchestratorConfig);
+    }
+
+    [Activity]
+    public async Task<string?> RouteWithOrchestratorAsync(OrchestratorRequest request)
+    {
+        using var orchestrator = OrchestratorFactory.Create(request.Config);
+        return await orchestrator.RouteAsync(request);
+    }
+
+    [Activity]
+    public async Task<string?> CompletionWithOrchestratorAsync(string prompt, string? systemInstruction, OrchestratorConfig config)
+    {
+        using var orchestrator = OrchestratorFactory.Create(config);
+        return await orchestrator.CompletionAsync(prompt, systemInstruction, config);
     }
 
     [Activity]

@@ -1,8 +1,10 @@
+using Microsoft.Extensions.Options;
 using System.Reflection;
 using Temporal;
 using Temporalio.Client.Schedules;
 using Temporalio.Workflows;
 using XiansAi.Flow.Router;
+using XiansAi.Flow.Router.Orchestration;
 using XiansAi.Messaging;
 using XiansAi.Scheduler;
 
@@ -28,13 +30,21 @@ public abstract class FlowBase : AbstractFlow
     {
         set => _chatHandler.SystemPromptName = value;
     }
-
+    public OrchestratorConfig OrchestratorConfig
+    {
+        set
+        {
+            var routerOptions = RouterOptions ?? new RouterOptions();
+            _chatHandler.OrchestratorConfig = OrchestratorFactory.ConvertFromRouterOptions(routerOptions, value);
+        }
+    }
     public FlowBase() : base()
     {
         _chatHandler = new ChatHandler(_messageHub);
+        _chatHandler.OrchestratorConfig = OrchestratorFactory.ConvertFromRouterOptions(_chatHandler.RouterOptions);
         _dataHandler = new DataHandler(_messageHub, this);
         _webhookHandler = new WebhookHandler();
-        _scheduleHandler = new ScheduleHandler(this);
+        _scheduleHandler = new ScheduleHandler(this);       
     }
 
     /// <summary>

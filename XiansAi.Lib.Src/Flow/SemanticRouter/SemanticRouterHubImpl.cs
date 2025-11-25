@@ -46,7 +46,8 @@ internal class SemanticRouterHubImpl : IDisposable
         RouterOptions options, 
         List<Type> capabilitiesPluginTypes, 
         IChatInterceptor? interceptor, 
-        List<IKernelModifier> kernelModifiers)
+        List<IKernelModifier> kernelModifiers,
+        OrchestratorConfig orchestratorConfig)
     {
         if (string.IsNullOrWhiteSpace(systemPrompt))
             throw new ArgumentException("System prompt is required", nameof(systemPrompt));
@@ -54,10 +55,10 @@ internal class SemanticRouterHubImpl : IDisposable
         try
         {
             // Convert RouterOptions to SemanticKernelConfig for backward compatibility
-            var config = OrchestratorFactory.ConvertFromRouterOptions(options);
-            
+            var config = OrchestratorFactory.ConvertFromRouterOptions(options, orchestratorConfig);
+
             // Create orchestrator
-            _orchestrator = OrchestratorFactory.Create(config);
+            _orchestrator = OrchestratorFactory.Create(orchestratorConfig);
             
             // Build request
             var request = new OrchestratorRequest

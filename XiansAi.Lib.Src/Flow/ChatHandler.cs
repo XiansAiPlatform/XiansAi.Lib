@@ -3,6 +3,7 @@ using XiansAi.Messaging;
 using XiansAi.Logging;
 using XiansAi.Flow.Router;
 using XiansAi.Knowledge;
+using XiansAi.Flow.Router.Orchestration;
 
 namespace XiansAi.Flow;
 
@@ -19,6 +20,7 @@ public class ChatHandler : SafeHandler
     private readonly MessageHub _messageHub;
     private MessageListenerDelegate? _messageListener;
     private Func<Task<string>>? _systemPromptProvider;
+    protected internal Func<Task<OrchestratorConfig>>? _orchestratorConfigProvider;
     private bool _initialized = false;
 
     public RouterOptions RouterOptions { get; set; } = new RouterOptions();
@@ -57,6 +59,17 @@ public class ChatHandler : SafeHandler
                 var knowledge = await KnowledgeHub.Fetch(value);
                 return knowledge?.Content ?? throw new Exception($"Knowledge '{value}' not found");
             };
+        }
+    }
+
+    /// <summary>
+    /// Sets the OrchestratorConfig directly
+    /// </summary>
+    public OrchestratorConfig OrchestratorConfig
+    {
+        set
+        {
+            _orchestratorConfigProvider = () => Task.FromResult(value);
         }
     }
 
@@ -197,8 +210,14 @@ public class ChatHandler : SafeHandler
         }
         var systemPrompt = await _systemPromptProvider();
 
+        // Get the orchestrator config using the provider
+        if (_orchestratorConfigProvider == null) {
+            throw new InvalidOperationException("Orchestrator config provider has not been set. Set OrchestratorConfig first.");
+        }
+        var orchestratorConfig = await _orchestratorConfigProvider();
+
         // Route the message to the appropriate flow
-        var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);
+        var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions, orchestratorConfig);
 
         _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
