@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
 using System.Net;
@@ -6,7 +7,7 @@ using System.Net.Sockets;
 namespace Server;
 
 /// <summary>
-/// HTTP handler that automatically adds X-Tenant-Id header to requests going to /api/agent/ endpoints.
+/// HTTP handler that automatically adds X-Tenant-Id header and propagates trace context to requests going to /api/agent/ endpoints.
 /// </summary>
 internal class TenantIdHandler : DelegatingHandler
 {
@@ -17,6 +18,23 @@ internal class TenantIdHandler : DelegatingHandler
         {
             var tenantId = AgentContext.TenantId;
             request.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        }
+        
+        // Propagate trace context to ensure all HTTP calls from Lib to Server are part of the same trace
+        // This is critical for distributed tracing - without this, each HTTP call creates a new trace
+        var currentActivity = Activity.Current;
+        if (currentActivity != null)
+        {
+            // Inject W3C Trace Context headers to propagate trace context
+            // This ensures the server continues the same trace when it receives the request
+            var traceParent = $"00-{currentActivity.TraceId}-{currentActivity.SpanId}-{(currentActivity.ActivityTraceFlags.HasFlag(ActivityTraceFlags.Recorded) ? "01" : "00")}";
+            request.Headers.TryAddWithoutValidation("traceparent", traceParent);
+            
+            // Also propagate tracestate if present
+            if (!string.IsNullOrEmpty(currentActivity.TraceStateString))
+            {
+                request.Headers.TryAddWithoutValidation("tracestate", currentActivity.TraceStateString);
+            }
         }
         
         return await base.SendAsync(request, cancellationToken);

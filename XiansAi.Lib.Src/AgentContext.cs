@@ -15,6 +15,11 @@ public class AgentContext
     public static ServerSettings? ServerSettings { get; set; }
 
     private static bool? _systemScoped { get; set; }
+    
+    // Store the current trace activity for OpenTelemetry
+    // This is needed because Activity.Current doesn't persist through Temporal workflow async boundaries
+    // We store it here so it can be accessed throughout the workflow execution
+    public static System.Diagnostics.Activity? CurrentTraceActivity { get; set; }
 
     public static void SetLocalContext(string userId, string workflowId) {
         _userId = userId;

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -6,6 +8,7 @@ using Microsoft.SemanticKernel.Agents;
 using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using XiansAi.Telemetry;
 
 
 namespace XiansAi.Flow.Router;
@@ -59,6 +62,15 @@ internal class SemanticRouterHubImpl : IDisposable
     {
         options ??= new RouterOptions();
         
+        // Create a parent span for this SemanticKernel operation to group all LLM calls under a single trace
+        using var activity = OpenTelemetryExtensions.StartSemanticKernelOperation(
+            "SemanticKernel.Completion",
+            new Dictionary<string, object>
+            {
+                ["semantic_kernel.operation_type"] = "completion",
+                ["semantic_kernel.prompt_length"] = prompt?.Length ?? 0
+            });
+        
         try
         {
             var kernel = BuildKernelAsync(options);
@@ -89,6 +101,39 @@ internal class SemanticRouterHubImpl : IDisposable
             await foreach (var response in agent.InvokeAsync(userMessage, thread))
             {
                 responses.Add(response);
+                
+                // Record token usage if available
+                try 
+                {
+                    dynamic itemDyn = response;
+                    ChatMessageContent? content = null;
+                    
+                    // Try to get content from Message property (AgentResponseItem)
+                    try { content = itemDyn.Message; } catch {}
+                    
+                    // Fallback: treat item as content
+                    if (content == null) content = itemDyn as ChatMessageContent;
+
+                    if (content != null && content.Metadata != null && content.Metadata.TryGetValue("Usage", out var usageObj))
+                    {
+                        dynamic usage = usageObj;
+                        long totalTokens = 0;
+                        try { totalTokens = (long)usage.TotalTokens; } catch { }
+                        
+                        if (totalTokens > 0)
+                        {
+                            var tags = new Dictionary<string, object>
+                            {
+                                ["model"] = options.ModelName ?? "unknown",
+                                ["operation"] = "completion",
+                                ["workflow.id"] = "single-turn"
+                            };
+                            
+                            OpenTelemetryExtensions.RecordTokenUsage(totalTokens, tags);
+                        }
+                    }
+                }
+                catch { /* Ignore extraction errors */ }
             }
             return string.Join(" ", responses.Select(r => r.Content));
         }
@@ -110,6 +155,17 @@ internal class SemanticRouterHubImpl : IDisposable
     {
         if (string.IsNullOrWhiteSpace(systemPrompt))
             throw new ArgumentException("System prompt is required", nameof(systemPrompt));
+
+        // Create a parent span for this SemanticKernel operation to group all LLM calls under a single trace
+        using var activity = OpenTelemetryExtensions.StartSemanticKernelOperation(
+            "SemanticKernel.Route",
+            new Dictionary<string, object>
+            {
+                ["semantic_kernel.operation_type"] = "route",
+                ["semantic_kernel.workflow_id"] = messageThread.WorkflowId ?? "",
+                ["semantic_kernel.workflow_type"] = messageThread.WorkflowType ?? "",
+                ["semantic_kernel.participant_id"] = messageThread.ParticipantId ?? ""
+            });
 
         try
         {
@@ -158,6 +214,78 @@ internal class SemanticRouterHubImpl : IDisposable
             await foreach (var item in agent.InvokeAsync(currentMessage, thread))
             {
                 responses.Add(item);
+                
+                // Record token usage if available
+                try 
+                {
+                    dynamic itemDyn = item;
+                    Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Item Type: {item.GetType().FullName}");
+                    
+                    ChatMessageContent? content = null;
+                    
+                    // Try to get content from Message property (AgentResponseItem)
+                    try 
+                    { 
+                        content = itemDyn.Message; 
+                        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Accessed Message property. Content is {(content == null ? "null" : "not null")}");
+                    } 
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Failed to access Message property: {ex.Message}");
+                    }
+                    
+                    // Fallback: treat item as content
+                    if (content == null) 
+                    {
+                        content = itemDyn as ChatMessageContent;
+                        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Fallback cast to ChatMessageContent. Content is {(content == null ? "null" : "not null")}");
+                    }
+
+                    if (content != null)
+                    {
+                        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Metadata Keys: {(content.Metadata == null ? "null" : string.Join(", ", content.Metadata.Keys))}");
+                        
+                        if (content.Metadata != null && content.Metadata.TryGetValue("Usage", out var usageObj))
+                        {
+                            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Usage Object Type: {usageObj?.GetType().FullName}");
+                            if (usageObj != null)
+                            {
+                                var props = usageObj.GetType().GetProperties().Select(p => $"{p.Name}={p.GetValue(usageObj)}");
+                                Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Usage Properties: {string.Join(", ", props)}");
+                            }
+
+                            dynamic usage = usageObj;
+                            long totalTokens = 0;
+                            try { totalTokens = (long)usage.TotalTokens; } catch { }
+                            
+                            // Try other common property names if TotalTokens is 0
+                            if (totalTokens == 0)
+                            {
+                                try { totalTokens = (long)usage.TotalTokenCount; } catch { }
+                            }
+                            
+                            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route TotalTokens: {totalTokens}");
+                            
+                            if (totalTokens > 0)
+                            {
+                                var tags = new Dictionary<string, object>
+                                {
+                                    ["model"] = options.ModelName ?? "unknown",
+                                    ["operation"] = "route",
+                                    ["workflow.id"] = messageThread.WorkflowId ?? "unknown",
+                                    ["workflow.type"] = messageThread.WorkflowType ?? "unknown"
+                                };
+                                
+                                OpenTelemetryExtensions.RecordTokenUsage(totalTokens, tags);
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Route Usage key not found in metadata.");
+                        }
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Error in extraction block: {ex.Message}"); }
             }
             var response = string.Join(" ", responses.Select(r => r.Content));
 
@@ -197,6 +325,106 @@ internal class SemanticRouterHubImpl : IDisposable
         }
     }
 
+    public async IAsyncEnumerable<string> InvokeAsync(MessageThread messageThread, RouterOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: !!! SemanticRouterImpl.InvokeAsync (Routing) CALLED !!!");
+        
+        // Build kernel without plugins since we don't have them passed here
+        var kernel = BuildKernelAsync(options);
+        
+        var agent = new ChatCompletionAgent()
+        {
+            Name = "RouterAgent",
+            Instructions = "You are a helpful assistant.",
+            Kernel = kernel
+        };
+
+        // Create the history with system prompt
+        var history = new ChatHistory("You are a helpful assistant.");
+        
+        // Add relevant history
+        var threadHistory = await messageThread.FetchThreadHistory();
+        if (threadHistory != null && threadHistory.Any())
+        {
+            // Add existing messages to history (reversed because FetchThreadHistory returns most recent first usually? No, check implementation)
+            // FetchThreadHistory implementation in MessageThread.cs calls ThreadHistoryService.GetMessageHistory
+            // Usually we want chronological order for ChatHistory
+            
+            // Assuming threadHistory is ordered correctly or we need to reverse it. 
+            // BuildChatHistoryAsync reverses it.
+            var orderedHistory = new List<DbMessage>(threadHistory);
+            orderedHistory.Reverse();
+
+            foreach (var msg in orderedHistory)
+            {
+                if (msg.Direction == "incoming") // "incoming"
+                {
+                    history.AddUserMessage(msg.Text);
+                }
+                else if (msg.Direction == "outgoing") // "outgoing"
+                {
+                    history.AddAssistantMessage(msg.Text);
+                }
+            }
+        }
+
+        // Add the new user message
+        history.AddUserMessage(messageThread.LatestMessage.Content);
+
+        await foreach (var message in agent.InvokeAsync(history, cancellationToken: cancellationToken))
+        {
+            // Record token usage if available
+            try 
+            {
+                dynamic itemDyn = message;
+                ChatMessageContent? content = null;
+                
+                // Try to get content from Message property (AgentResponseItem)
+                try { content = itemDyn.Message; } catch {}
+                
+                // Fallback: treat item as content
+                if (content == null) content = itemDyn as ChatMessageContent;
+
+                if (content != null && content.Metadata != null && content.Metadata.TryGetValue("Usage", out var usageObj))
+                {
+                    dynamic usage = usageObj;
+                    long totalTokens = 0;
+                    try { totalTokens = (long)usage.TotalTokens; } catch { }
+                    
+                    if (totalTokens > 0)
+                    {
+                        var tags = new Dictionary<string, object>
+                        {
+                            ["model"] = options.ModelName ?? "unknown",
+                            ["operation"] = "route",
+                            ["workflow.id"] = messageThread.WorkflowId ?? "unknown",
+                            ["workflow.type"] = messageThread.WorkflowType ?? "unknown"
+                        };
+                        
+                        OpenTelemetryExtensions.RecordTokenUsage(totalTokens, tags);
+                    }
+                }
+            }
+            catch { /* Ignore extraction errors */ }
+
+            // Extract content from AgentResponseItem
+            string? contentStr = null;
+            try 
+            { 
+                dynamic msgDyn = message;
+                contentStr = msgDyn.Message?.Content; 
+            } 
+            catch {}
+            
+            if (contentStr == null)
+            {
+                // Fallback
+                try { contentStr = message.ToString(); } catch {}
+            }
+
+            yield return contentStr ?? "";
+        }
+    }
     private async Task<string> ApplyOutgoingInterceptorAsync(MessageThread messageThread, string response, IChatInterceptor? interceptor)
     {
         if (interceptor == null) return response;
@@ -272,6 +500,7 @@ internal class SemanticRouterHubImpl : IDisposable
         var configResolver = new LlmConfigurationResolver();
         var providerName = configResolver.GetProviderName(options);
         var builder = Kernel.CreateBuilder();
+        builder.AddOpenTelemetry();
         
         var httpClient = _httpClient.Value;
         httpClient.Timeout = TimeSpan.FromSeconds(options.HTTPTimeoutSeconds);

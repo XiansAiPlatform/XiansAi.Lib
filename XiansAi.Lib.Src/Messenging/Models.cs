@@ -22,6 +22,9 @@ public class MessagePayload
     public required object Data { get; set; }
     public required string Type { get; set; }
     public List<DbMessage>? History { get; set; }
+    // Trace context for OpenTelemetry propagation (for existing workflows where memo can't be updated)
+    public string? TraceParent { get; set; }
+    public string? TraceState { get; set; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

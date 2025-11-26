@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Server;
 using Temporalio.Client;
+using System.Diagnostics;
+using XiansAi.Telemetry;
 
 namespace Temporal;
 
@@ -114,6 +116,13 @@ public class TemporalClientService : IDisposable
 
     private static async Task<ITemporalClient> CreateClientAsync()
     {
+        using var activity = OpenTelemetryExtensions.StartTemporalOperation(
+            "Temporal.Connect",
+            new Dictionary<string, object>
+            {
+                ["temporal.operation_type"] = "connect"
+            });
+        
         var settings = await SettingsService.GetSettingsFromServer();
 
         var options = new TemporalClientConnectOptions(settings.FlowServerUrl)
@@ -125,6 +134,12 @@ public class TemporalClientService : IDisposable
                     AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ").
                     SetMinimumLevel(LogLevel.Information)),
         };
+
+        if (activity != null)
+        {
+            activity.SetTag("temporal.namespace", settings.FlowServerNamespace);
+            activity.SetTag("temporal.server_url", settings.FlowServerUrl);
+        }
 
         _logger.LogDebug($"Connecting to flow server at {settings.FlowServerUrl} with namespace {settings.FlowServerNamespace}");
 
