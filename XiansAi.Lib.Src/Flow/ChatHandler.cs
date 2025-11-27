@@ -1,4 +1,5 @@
 using Temporalio.Workflows;
+using XiansAi.Exceptions;
 using XiansAi.Messaging;
 using XiansAi.Logging;
 using XiansAi.Flow.Router;
@@ -17,16 +18,20 @@ public class ChatHandler : SafeHandler
     private readonly Queue<MessageThread> _messageQueue = new Queue<MessageThread>();
     private readonly Logger<ChatHandler> _logger = Logger<ChatHandler>.For();
     private readonly MessageHub _messageHub;
+    private readonly Func<MessageThread, string, RouterOptions, Task<string?>> _routeAsync;
     private MessageListenerDelegate? _messageListener;
     private Func<Task<string>>? _systemPromptProvider;
     private bool _initialized = false;
 
+    internal event Func<MessageThread, string, Task>? TokenLimitExceeded;
+
     public RouterOptions RouterOptions { get; set; } = new RouterOptions();
 
-    public ChatHandler(MessageHub messageHub)
+    public ChatHandler(MessageHub messageHub, Func<MessageThread, string, RouterOptions, Task<string?>>? routeFunc = null)
     {
         _messageHub = messageHub;
         _messageHub.SubscribeChatHandler(EnqueueChatMessage);
+        _routeAsync = routeFunc ?? SemanticRouterHub.RouteAsync;
     }
 
     public void EnqueueChatMessage(MessageThread thread) {
@@ -198,11 +203,24 @@ public class ChatHandler : SafeHandler
         var systemPrompt = await _systemPromptProvider();
 
         // Route the message to the appropriate flow
-        var response = await SemanticRouterHub.RouteAsync(messageThread, systemPrompt, RouterOptions);
+        try
+        {
+            var response = await _routeAsync(messageThread, systemPrompt, RouterOptions);
 
-        _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
+            _logger.LogDebug($"Response from router: '{response}' for '{messageThread.ParticipantId}' on '{messageThread.ThreadId}'");
 
-        return response;
+            return response;
+        }
+        catch (TokenLimitExceededException ex)
+        {
+            _logger.LogWarning($"Token usage exceeded while processing thread {messageThread.ThreadId}");
+            if (TokenLimitExceeded != null)
+            {
+                await TokenLimitExceeded.Invoke(messageThread, ex.Message);
+            }
+            await NotifyUsageExceededAsync(messageThread, ex.Message);
+            throw;
+        }
     }
 
     /// <summary>
@@ -226,4 +244,22 @@ public class ChatHandler : SafeHandler
         }
         return false; // Indicate that no welcome message was sent
     }
+
+    private async Task NotifyUsageExceededAsync(MessageThread messageThread, string details)
+    {
+        try
+        {
+            await messageThread.SendData(new
+            {
+                errorCode = "TOKEN_LIMIT_EXCEEDED",
+                message = "Token usage limit reached. Please try again later or contact your administrator.",
+                details
+            }, "Token limit exceeded");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to send token limit exceeded notification", ex);
+        }
+    }
+
 }

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Server;
+using XiansAi.Exceptions;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -24,11 +26,13 @@ internal class SemanticRouterHubImpl : IDisposable
     //private readonly ServerSettings _settings;
     //private readonly LlmConfigurationResolver _configResolver;
     private readonly Lazy<HttpClient> _httpClient;
+    private readonly TokenUsageClient _tokenUsageClient;
 
     public SemanticRouterHubImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterHubImpl>();
         _httpClient = new Lazy<HttpClient>(() => new HttpClient());
+        _tokenUsageClient = TokenUsageClient.Instance;
     }
 
     private ChatCompletionAgent CreateChatCompletionAgent(
@@ -61,6 +65,8 @@ internal class SemanticRouterHubImpl : IDisposable
         
         try
         {
+            await _tokenUsageClient.EnsureWithinLimitAsync(CancellationToken.None);
+
             var kernel = BuildKernelAsync(options);
             var agent = CreateChatCompletionAgent(
                 name: "CompletionAgent",
@@ -90,7 +96,23 @@ internal class SemanticRouterHubImpl : IDisposable
             {
                 responses.Add(response);
             }
-            return string.Join(" ", responses.Select(r => r.Content));
+            var completion = string.Join(" ", responses.Select(r => r.Content));
+
+            await _tokenUsageClient.ReportAsync(new TokenUsageReport(
+                WorkflowId: null,  // CompletionAsync is not tied to a workflow
+                RequestId: null,  // No request context in standalone completion
+                Model: options.ModelName,
+                PromptTokens: TokenUsageClient.EstimateTokens(systemInstruction) + TokenUsageClient.EstimateTokens(prompt),
+                CompletionTokens: TokenUsageClient.EstimateTokens(completion),
+                Source: "SemanticRouter.Completion",
+                UserId: AgentContext.UserId,  // Use authenticated user for quota enforcement
+                Metadata: null));
+
+            return completion;
+        }
+        catch (TokenLimitExceededException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -113,6 +135,9 @@ internal class SemanticRouterHubImpl : IDisposable
 
         try
         {
+            // Enforce limits for the authenticated user (AgentContext.UserId)
+            await _tokenUsageClient.EnsureWithinLimitAsync();
+
             // Sanitize the agent name to comply with OpenAI requirements
             var agentId = $"RouterAgent_{SanitizeName(messageThread.WorkflowId)}";
 
@@ -171,7 +196,31 @@ internal class SemanticRouterHubImpl : IDisposable
                 return null;
             }
 
+            var metadata = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(messageThread.WorkflowType))
+            {
+                metadata["workflowType"] = messageThread.WorkflowType;
+            }
+            if (!string.IsNullOrEmpty(messageThread.ParticipantId))
+            {
+                metadata["participantId"] = messageThread.ParticipantId;
+            }
+
+            await _tokenUsageClient.ReportAsync(new TokenUsageReport(
+                WorkflowId: messageThread.WorkflowId,
+                RequestId: messageThread.LatestMessage?.RequestId,
+                Model: options.ModelName,
+                PromptTokens: EstimatePromptTokens(chatHistory, messageThread.LatestMessage?.Content),
+                CompletionTokens: TokenUsageClient.EstimateTokens(response),
+                Source: "SemanticRouter.Route",
+                UserId: AgentContext.UserId,
+                Metadata: metadata.Count > 0 ? metadata : null));
+
             return response;
+        }
+        catch (TokenLimitExceededException)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -425,5 +474,22 @@ internal class SemanticRouterHubImpl : IDisposable
         {
             _httpClient.Value?.Dispose();
         }
+    }
+    private static long EstimatePromptTokens(ChatHistory history, string? latestMessage)
+    {
+        long total = 0;
+
+        foreach (var entry in history)
+        {
+            if (entry.Content == null)
+            {
+                continue;
+            }
+
+            total += TokenUsageClient.EstimateTokens(entry.Content.ToString());
+        }
+
+        total += TokenUsageClient.EstimateTokens(latestMessage);
+        return total;
     }
 }
