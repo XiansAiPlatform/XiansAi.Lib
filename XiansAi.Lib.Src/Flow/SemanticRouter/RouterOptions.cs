@@ -1,4 +1,6 @@
 
+using XiansAi.Models;
+
 namespace XiansAi.Flow.Router;
 
 /// <summary>
@@ -105,5 +107,12 @@ public class RouterOptions
     /// Default is 10.
     /// </summary>
     public int MaxConsecutiveCalls { get; set; } = 10;
+
+    /// <summary>
+    /// Gets or sets the timezone to use for date/time operations in DatePlugin.
+    /// If set to Timezone.AgentDecision (default), the agent will decide which timezone to use when calling date/time functions.
+    /// Otherwise, this timezone will be used strictly for all date/time operations.
+    /// </summary>
+    public Timezone TimeZone { get; set; } = Timezone.Utc;
 }
 

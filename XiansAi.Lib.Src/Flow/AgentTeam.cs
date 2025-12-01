@@ -1,4 +1,5 @@
 using Server;
+using XiansAi.Flow.Router;
 using XiansAi.Models;
 using Temporal;
 
@@ -37,6 +38,7 @@ public class AgentTeam {
         // Set the system scoped flag
         var systemScoped = options?.SystemScoped == true;
         AgentContext.SystemScoped = systemScoped;
+        ApplyRunnerOptions(options);
 
         // Initialize SecureApi first
         if (!SecureApi.IsReady)
@@ -106,6 +108,9 @@ public class AgentTeam {
 
     private async Task RunAsyncInternal(RunnerOptions? options)
     {
+        options ??= _runnerOptions;
+        ApplyRunnerOptions(options);
+
         // test the connection to the server
         SecureApi.InitializeClient(
                 PlatformConfig.APP_SERVER_API_KEY!,
@@ -174,5 +179,16 @@ public class AgentTeam {
 #pragma warning disable CS0618 // Type or member is obsolete
         return new AgentInfo(Name);
 #pragma warning restore CS0618 // Type or member is obsolete
+    }
+
+    private static void ApplyRunnerOptions(RunnerOptions? options)
+    {
+        if (options == null)
+        {
+            return;
+        }
+
+        AgentContext.RouterOptions ??= new RouterOptions();
+        AgentContext.RouterOptions.TimeZone = options.TimeZone;
     }
 }

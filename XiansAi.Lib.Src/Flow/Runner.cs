@@ -381,6 +381,12 @@ public class RunnerOptions
     }
 
     public bool? UploadResources { get; set; }
+
+    /// <summary>
+    /// Optional timezone preference to apply to all router operations for this runner.
+    /// Defaults to UTC, allowing the agent to pick a timezone at runtime.
+    /// </summary>
+    public Timezone TimeZone { get; set; } = Timezone.Utc;
 }
 
 public class FlowInfo

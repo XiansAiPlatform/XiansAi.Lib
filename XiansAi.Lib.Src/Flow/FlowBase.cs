@@ -35,6 +35,15 @@ public abstract class FlowBase : AbstractFlow
         _dataHandler = new DataHandler(_messageHub, this);
         _webhookHandler = new WebhookHandler();
         _scheduleHandler = new ScheduleHandler(this);
+
+        if (AgentContext.RouterOptions != null)
+        {
+            _chatHandler.RouterOptions = AgentContext.RouterOptions;
+        }
+        else
+        {
+            AgentContext.RouterOptions = _chatHandler.RouterOptions;
+        }
     }
 
     /// <summary>

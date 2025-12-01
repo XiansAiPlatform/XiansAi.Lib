@@ -228,7 +228,7 @@ internal class SemanticRouterHubImpl : IDisposable
 
         // Add system plugins
         _logger.LogDebug("Adding Date plugin");
-        kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions());
+        kernel.Plugins.AddFromFunctions("System_DatePlugin", DatePlugin.GetFunctions(options));
         
 
         // Apply kernel modifiers sequentially if provided
