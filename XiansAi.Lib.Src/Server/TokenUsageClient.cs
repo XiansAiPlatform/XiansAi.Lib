@@ -262,4 +262,5 @@ public record TokenUsageReport(
     long TotalTokens,
     long MessageCount,
     string Source,
-    Dictionary<string, string>? Metadata);
+    Dictionary<string, string>? Metadata,
+    long? ResponseTimeMs = null);

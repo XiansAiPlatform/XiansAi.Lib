@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Server;
 using XiansAi.Exceptions;
@@ -92,11 +93,16 @@ internal class SemanticRouterHubImpl : IDisposable
             var thread = new ChatHistoryAgentThread(chatHistory);
             var userMessage = new ChatMessageContent(AuthorRole.User, prompt);
             
+            // Measure response time for the LLM call
+            var stopwatch = Stopwatch.StartNew();
             var responses = new List<ChatMessageContent>();
             await foreach (var response in agent.InvokeAsync(userMessage, thread))
             {
                 responses.Add(response);
             }
+            stopwatch.Stop();
+            long responseTimeMs = stopwatch.ElapsedMilliseconds;
+            
             var completion = string.Join(" ", responses.Select(r => r.Content));
 
             // Extract actual token usage from LLM response
@@ -124,7 +130,8 @@ internal class SemanticRouterHubImpl : IDisposable
                 TotalTokens: totalTokens,
                 MessageCount: reducedMessageCount,
                 Source: "SemanticRouter.Completion",
-                Metadata: metadata.Count > 0 ? metadata : null));
+                Metadata: metadata.Count > 0 ? metadata : null,
+                ResponseTimeMs: responseTimeMs));
 
             return completion;
         }
@@ -196,12 +203,16 @@ internal class SemanticRouterHubImpl : IDisposable
             // Apply incoming message interception
             messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
             
-            // Invoke the agent with the message and thread
+            // Measure response time for the LLM call
+            var stopwatch = Stopwatch.StartNew();
             var responses = new List<ChatMessageContent>();
             await foreach (var item in agent.InvokeAsync(currentMessage, thread))
             {
                 responses.Add(item);
             }
+            stopwatch.Stop();
+            long responseTimeMs = stopwatch.ElapsedMilliseconds;
+            
             var response = string.Join(" ", responses.Select(r => r.Content));
 
             // Apply outgoing message interception
@@ -243,7 +254,8 @@ internal class SemanticRouterHubImpl : IDisposable
                 TotalTokens: totalTokens,
                 MessageCount: reducedMessageCount,
                 Source: "SemanticRouter.Route",
-                Metadata: metadata.Count > 0 ? metadata : null));
+                Metadata: metadata.Count > 0 ? metadata : null,
+                ResponseTimeMs: responseTimeMs));
 
             return response;
         }
