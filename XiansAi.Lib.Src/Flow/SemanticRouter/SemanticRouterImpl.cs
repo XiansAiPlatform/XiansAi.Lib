@@ -78,7 +78,7 @@ internal class SemanticRouterHubImpl : IDisposable
             
             // Create a simple thread for single-turn chat completion
             var chatHistory = new ChatHistory(systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.");
-            
+            long historyMessageCount = chatHistory.Count;
             // Apply chat history reduction if token limits are configured
             if (options.TokenLimit > 0)
             {
@@ -87,7 +87,8 @@ internal class SemanticRouterHubImpl : IDisposable
                 var reducer = new ChatHistoryReducer(reducerLogger, options, chatService);
                 chatHistory = await reducer.ReduceAsync(chatHistory);
             }
-            
+
+            long reducedMessageCount = chatHistory.Count;
             var thread = new ChatHistoryAgentThread(chatHistory);
             var userMessage = new ChatMessageContent(AuthorRole.User, prompt);
             
@@ -98,15 +99,32 @@ internal class SemanticRouterHubImpl : IDisposable
             }
             var completion = string.Join(" ", responses.Select(r => r.Content));
 
+            // Extract actual token usage from LLM response
+            var (promptTokens, completionTokens, totalTokens, actualModel, completionId) = 
+                _tokenUsageClient.ExtractUsageFromResponses(responses);
+
+            var metadata = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(completionId))
+                metadata["completionId"] = completionId;
+            if (!string.IsNullOrEmpty(actualModel))
+                metadata["configuredModel"] = actualModel;
+
+            metadata["historyMessageCount"] = historyMessageCount.ToString();
+            metadata["reducedMessageCount"] = reducedMessageCount.ToString();
+            metadata["messagesDropped"] = (historyMessageCount - reducedMessageCount).ToString();
+
             await _tokenUsageClient.ReportAsync(new TokenUsageReport(
-                WorkflowId: null,  // CompletionAsync is not tied to a workflow
-                RequestId: null,  // No request context in standalone completion
-                Model: options.ModelName,
-                PromptTokens: TokenUsageClient.EstimateTokens(systemInstruction) + TokenUsageClient.EstimateTokens(prompt),
-                CompletionTokens: TokenUsageClient.EstimateTokens(completion),
+                TenantId: AgentContext.TenantId,
+                UserId: AgentContext.UserId,
+                WorkflowId: null,
+                RequestId: null,
+                Model: actualModel,
+                PromptTokens: promptTokens,
+                CompletionTokens: completionTokens,
+                TotalTokens: totalTokens,
+                MessageCount: reducedMessageCount,
                 Source: "SemanticRouter.Completion",
-                UserId: AgentContext.UserId,  // Use authenticated user for quota enforcement
-                Metadata: null));
+                Metadata: metadata.Count > 0 ? metadata : null));
 
             return completion;
         }
@@ -155,7 +173,7 @@ internal class SemanticRouterHubImpl : IDisposable
             
             // Build chat history and create thread with proper history
             var chatHistory = await BuildChatHistoryAsync(messageThread, systemPrompt, options.HistorySizeToFetch);
-            
+            long historyMessageCount = chatHistory.Count;
             // Apply chat history reduction if token limits are configured
             if (options.TokenLimit > 0)
             {
@@ -166,7 +184,7 @@ internal class SemanticRouterHubImpl : IDisposable
                 // Apply reduction to prevent token limit issues
                 chatHistory = await reducer.ReduceAsync(chatHistory);
             }
-            
+            long reducedMessageCount = chatHistory.Count;
             var thread = new ChatHistoryAgentThread(chatHistory);
             
             // Create the current user message from the latest message
@@ -196,24 +214,35 @@ internal class SemanticRouterHubImpl : IDisposable
                 return null;
             }
 
+            // Extract actual token usage from LLM response
+            var (promptTokens, completionTokens, totalTokens, actualModel, completionId) = 
+                _tokenUsageClient.ExtractUsageFromResponses(responses);
+
             var metadata = new Dictionary<string, string>();
             if (!string.IsNullOrEmpty(messageThread.WorkflowType))
-            {
                 metadata["workflowType"] = messageThread.WorkflowType;
-            }
             if (!string.IsNullOrEmpty(messageThread.ParticipantId))
-            {
                 metadata["participantId"] = messageThread.ParticipantId;
-            }
+            if (!string.IsNullOrEmpty(completionId))
+                metadata["completionId"] = completionId;
+            if (!string.IsNullOrEmpty(actualModel))
+                metadata["configuredModel"] = actualModel;
+
+            metadata["historyMessageCount"] = historyMessageCount.ToString();
+            metadata["reducedMessageCount"] = reducedMessageCount.ToString();
+            metadata["messagesDropped"] = (historyMessageCount - reducedMessageCount).ToString();
 
             await _tokenUsageClient.ReportAsync(new TokenUsageReport(
+                TenantId: AgentContext.TenantId,
+                UserId: AgentContext.UserId,
                 WorkflowId: messageThread.WorkflowId,
                 RequestId: messageThread.LatestMessage?.RequestId,
-                Model: options.ModelName,
-                PromptTokens: EstimatePromptTokens(chatHistory, messageThread.LatestMessage?.Content),
-                CompletionTokens: TokenUsageClient.EstimateTokens(response),
+                Model: actualModel,
+                PromptTokens: promptTokens,
+                CompletionTokens: completionTokens,
+                TotalTokens: totalTokens,
+                MessageCount: reducedMessageCount,
                 Source: "SemanticRouter.Route",
-                UserId: AgentContext.UserId,
                 Metadata: metadata.Count > 0 ? metadata : null));
 
             return response;
@@ -474,22 +503,5 @@ internal class SemanticRouterHubImpl : IDisposable
         {
             _httpClient.Value?.Dispose();
         }
-    }
-    private static long EstimatePromptTokens(ChatHistory history, string? latestMessage)
-    {
-        long total = 0;
-
-        foreach (var entry in history)
-        {
-            if (entry.Content == null)
-            {
-                continue;
-            }
-
-            total += TokenUsageClient.EstimateTokens(entry.Content.ToString());
-        }
-
-        total += TokenUsageClient.EstimateTokens(latestMessage);
-        return total;
     }
 }
