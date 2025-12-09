@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Server;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -24,11 +26,13 @@ internal class SemanticRouterHubImpl : IDisposable
     //private readonly ServerSettings _settings;
     //private readonly LlmConfigurationResolver _configResolver;
     private readonly Lazy<HttpClient> _httpClient;
+    private readonly UsageEventsClient _usageEventsClient;
 
     public SemanticRouterHubImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterHubImpl>();
         _httpClient = new Lazy<HttpClient>(() => new HttpClient());
+        _usageEventsClient = UsageEventsClient.Instance;
     }
 
     private ChatCompletionAgent CreateChatCompletionAgent(
@@ -72,7 +76,7 @@ internal class SemanticRouterHubImpl : IDisposable
             
             // Create a simple thread for single-turn chat completion
             var chatHistory = new ChatHistory(systemInstruction ?? "You are a helpful assistant. Perform the user's request accurately and concisely.");
-            
+            long historyMessageCount = chatHistory.Count;
             // Apply chat history reduction if token limits are configured
             if (options.TokenLimit > 0)
             {
@@ -81,16 +85,33 @@ internal class SemanticRouterHubImpl : IDisposable
                 var reducer = new ChatHistoryReducer(reducerLogger, options, chatService);
                 chatHistory = await reducer.ReduceAsync(chatHistory);
             }
-            
+
+            long reducedMessageCount = chatHistory.Count;
             var thread = new ChatHistoryAgentThread(chatHistory);
             var userMessage = new ChatMessageContent(AuthorRole.User, prompt);
             
+            // Measure response time for the LLM call
+            var stopwatch = Stopwatch.StartNew();
             var responses = new List<ChatMessageContent>();
             await foreach (var response in agent.InvokeAsync(userMessage, thread))
             {
                 responses.Add(response);
             }
-            return string.Join(" ", responses.Select(r => r.Content));
+            stopwatch.Stop();
+            long responseTimeMs = stopwatch.ElapsedMilliseconds;
+            
+            var completion = string.Join(" ", responses.Select(r => r.Content));
+
+            // Record usage events asynchronously
+            _ = RecordUsageEvents(
+                responses,
+                null,
+                responseTimeMs,
+                historyMessageCount,
+                reducedMessageCount,
+                "SemanticRouter.Completion");
+
+            return completion;
         }
         catch (Exception e)
         {
@@ -130,7 +151,7 @@ internal class SemanticRouterHubImpl : IDisposable
             
             // Build chat history and create thread with proper history
             var chatHistory = await BuildChatHistoryAsync(messageThread, systemPrompt, options.HistorySizeToFetch);
-            
+            long historyMessageCount = chatHistory.Count;
             // Apply chat history reduction if token limits are configured
             if (options.TokenLimit > 0)
             {
@@ -141,7 +162,7 @@ internal class SemanticRouterHubImpl : IDisposable
                 // Apply reduction to prevent token limit issues
                 chatHistory = await reducer.ReduceAsync(chatHistory);
             }
-            
+            long reducedMessageCount = chatHistory.Count;
             var thread = new ChatHistoryAgentThread(chatHistory);
             
             // Create the current user message from the latest message
@@ -153,12 +174,16 @@ internal class SemanticRouterHubImpl : IDisposable
             // Apply incoming message interception
             messageThread = await ApplyIncomingInterceptorAsync(messageThread, interceptor);
             
-            // Invoke the agent with the message and thread
+            // Measure response time for the LLM call
+            var stopwatch = Stopwatch.StartNew();
             var responses = new List<ChatMessageContent>();
             await foreach (var item in agent.InvokeAsync(currentMessage, thread))
             {
                 responses.Add(item);
             }
+            stopwatch.Stop();
+            long responseTimeMs = stopwatch.ElapsedMilliseconds;
+            
             var response = string.Join(" ", responses.Select(r => r.Content));
 
             // Apply outgoing message interception
@@ -170,6 +195,15 @@ internal class SemanticRouterHubImpl : IDisposable
                 messageThread.SkipResponse = false;
                 return null;
             }
+
+            // Record usage events asynchronously
+            _ = RecordUsageEvents(
+                responses,
+                messageThread,
+                responseTimeMs,
+                historyMessageCount,
+                reducedMessageCount,
+                "SemanticRouter.Route");
 
             return response;
         }
@@ -210,6 +244,60 @@ internal class SemanticRouterHubImpl : IDisposable
             _logger.LogError(e, "Error intercepting outgoing message");
             return response; // Continue with original response on error
         }
+    }
+
+    /// <summary>
+    /// Records usage events by extracting token usage from LLM responses and reporting to the usage service.
+    /// </summary>
+    private async Task RecordUsageEvents(
+        List<ChatMessageContent> responses,
+        MessageThread? messageThread,
+        long responseTimeMs,
+        long historyMessageCount,
+        long reducedMessageCount,
+        string source)
+    {
+
+        _logger.LogInformation("Recording usage events for {Source}", source);
+        // Extract actual token usage from LLM response
+        var (promptTokens, completionTokens, totalTokens, actualModel, completionId) = 
+            _usageEventsClient.ExtractUsageFromResponses(responses);
+
+        var metadata = new Dictionary<string, string>();
+        
+        // Add message thread metadata if available
+        if (messageThread != null)
+        {
+            if (!string.IsNullOrEmpty(messageThread.WorkflowType))
+                metadata["workflowType"] = messageThread.WorkflowType;
+            if (!string.IsNullOrEmpty(messageThread.ParticipantId))
+                metadata["participantId"] = messageThread.ParticipantId;
+        }
+        
+        // Add completion and model metadata
+        if (!string.IsNullOrEmpty(completionId))
+            metadata["completionId"] = completionId;
+        if (!string.IsNullOrEmpty(actualModel))
+            metadata["configuredModel"] = actualModel;
+
+        // Add history reduction metadata
+        metadata["historyMessageCount"] = historyMessageCount.ToString();
+        metadata["reducedMessageCount"] = reducedMessageCount.ToString();
+        metadata["messagesDropped"] = (historyMessageCount - reducedMessageCount).ToString();
+
+        await _usageEventsClient.ReportAsync(new UsageEventRecord(
+            TenantId: AgentContext.TenantId,
+            UserId: AgentContext.UserId,
+            Model: actualModel,
+            PromptTokens: promptTokens,
+            CompletionTokens: completionTokens,
+            TotalTokens: totalTokens,
+            MessageCount: reducedMessageCount,
+            WorkflowId: messageThread?.WorkflowId,
+            RequestId: messageThread?.LatestMessage?.RequestId,
+            Source: source,
+            Metadata: metadata.Count > 0 ? metadata : null,
+            ResponseTimeMs: responseTimeMs));
     }
 
     private async Task<Kernel> CreateKernelWithPlugins(
