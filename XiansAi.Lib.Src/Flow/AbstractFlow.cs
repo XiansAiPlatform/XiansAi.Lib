@@ -28,8 +28,8 @@ public abstract class AbstractFlow
     [WorkflowSignal("HandleInboundEvent")]
     public async Task HandleInboundEvent(EventSignal eventDto)
     {
-        // Restore trace context from workflow memo to continue the trace from the server request
-        OpenTelemetryExtensions.RestoreTraceContextFromMemo();
+        // Trace context is automatically restored by TracingInterceptor
+        // No manual restoration needed
         
         // Create a wrapper span for the entire signal handling to ensure trace context persists
         using var signalActivity = OpenTelemetryExtensions.StartTemporalOperation(
@@ -48,15 +48,8 @@ public abstract class AbstractFlow
     [WorkflowSignal("HandleInboundChatOrData")]
     public async Task HandleInboundChatOrDataSignal(MessageSignal messageSignal)
     {
-        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: HandleInboundChatOrDataSignal() called");
-        Console.WriteLine($"  - Signal payload TraceParent: {messageSignal.Payload?.TraceParent ?? "NULL"}");
-        Console.WriteLine($"  - Signal payload TraceState: {messageSignal.Payload?.TraceState ?? "NULL"}");
-        
-        // Restore trace context from workflow memo or signal payload to continue the trace from the server request
-        // For existing workflows, trace context comes from signal payload; for new workflows, from memo
-        OpenTelemetryExtensions.RestoreTraceContextFromMemo(
-            traceParentFromPayload: messageSignal.Payload?.TraceParent,
-            traceStateFromPayload: messageSignal.Payload?.TraceState);
+        // Trace context is automatically restored by TracingInterceptor
+        // No manual restoration needed
         
         // Create a wrapper span for the entire signal handling to ensure trace context persists
         // This span will be the parent for all child operations (SemanticKernel, etc.)

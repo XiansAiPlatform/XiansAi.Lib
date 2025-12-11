@@ -6,6 +6,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using System.Diagnostics.Metrics;
+using Temporalio.Extensions.OpenTelemetry;
 
 namespace XiansAi.Telemetry;
 
@@ -13,7 +14,10 @@ namespace XiansAi.Telemetry;
 /// Extension methods for configuring OpenTelemetry observability for SemanticKernel
 /// Supports configuration via environment variables:
 /// - OPENTELEMETRY_ENABLED (default: false)
-/// - OPENTELEMETRY_ENDPOINT (default: http://localhost:4317)
+/// - OPENTELEMETRY_ENDPOINT (required if enabled - no default, must be explicitly set)
+///   Examples:
+///     - Development: http://aspire-dashboard:18889
+///     - Production: http://otel-collector:4317
 /// - OPENTELEMETRY_SERVICE_NAME (default: XiansAi.Lib)
 /// </summary>
 public static class OpenTelemetryExtensions
@@ -60,10 +64,24 @@ public static class OpenTelemetryExtensions
 
             var serviceName = Environment.GetEnvironmentVariable("OPENTELEMETRY_SERVICE_NAME") ?? "XiansAi.Lib";
             var serviceVersion = typeof(OpenTelemetryExtensions).Assembly.GetName().Version?.ToString() ?? "1.0.0";
-            var otlpEndpoint = Environment.GetEnvironmentVariable("OPENTELEMETRY_ENDPOINT") ?? "http://localhost:4317";
+            var otlpEndpoint = Environment.GetEnvironmentVariable("OPENTELEMETRY_ENDPOINT");
+            
+            if (string.IsNullOrEmpty(otlpEndpoint))
+            {
+                Console.WriteLine("[OpenTelemetry] WARNING: OPENTELEMETRY_ENDPOINT not set - OpenTelemetry will not export traces/metrics");
+                Console.WriteLine("[OpenTelemetry] To enable OpenTelemetry export, set OPENTELEMETRY_ENDPOINT environment variable");
+                Console.WriteLine("[OpenTelemetry] Examples:");
+                Console.WriteLine("[OpenTelemetry]   - Development: export OPENTELEMETRY_ENDPOINT=http://aspire-dashboard:18889");
+                Console.WriteLine("[OpenTelemetry]   - Production: export OPENTELEMETRY_ENDPOINT=http://otel-collector:4317");
+                _isInitialized = true;
+                return;
+            }
 
             try
             {
+                Console.WriteLine($"[OpenTelemetry] Initializing OpenTelemetry for service: {serviceName}");
+                Console.WriteLine($"[OpenTelemetry] OTLP Endpoint: {otlpEndpoint}");
+                
                 // Configure tracing
                 _tracerProvider = Sdk.CreateTracerProviderBuilder()
                     .ConfigureResource(resource => resource
@@ -80,7 +98,11 @@ public static class OpenTelemetryExtensions
                     .AddSource("Microsoft.SemanticKernel.*")
                     .AddSource("XiansAi.*") // Custom activity sources including XiansAi.SemanticKernel and XiansAi.Temporal
                     .AddSource(ActivitySource.Name) // Add our ActivitySource for parent spans
-                    .AddSource("Temporal.*") // Explicitly add Temporal ActivitySource
+                    // Add TracingInterceptor ActivitySources for automatic Temporal spans
+                    .AddSource(TracingInterceptor.ClientSource.Name)      // Client operations (StartWorkflow, Signal, etc.)
+                    .AddSource(TracingInterceptor.WorkflowsSource.Name)  // Workflow execution spans
+                    .AddSource(TracingInterceptor.ActivitiesSource.Name)   // Activity execution spans ⭐ THIS CAPTURES ACTIVITY SPANS
+                    .AddSource("Temporal.*") // Fallback pattern for any other Temporal sources
                     .AddHttpClientInstrumentation(options =>
                     {
                         options.RecordException = true;
@@ -93,59 +115,10 @@ public static class OpenTelemetryExtensions
                             activity.SetTag("http.scheme", httpRequestMessage.RequestUri?.Scheme ?? "");
                             activity.SetTag("http.host", httpRequestMessage.RequestUri?.Host ?? "");
                             
-                            // CRITICAL FIX: Explicitly inject trace headers if Activity.Current is not the right one
-                            // This happens when making HTTP callbacks from Temporal workflows
-                            var currentActivity = System.Diagnostics.Activity.Current;
-                            System.Diagnostics.Activity? traceActivity = null;
-                            
-                            // If there's no current activity or it's a different trace, use AgentContext
-                            if (currentActivity == null && AgentContext.CurrentTraceActivity != null)
-                            {
-                                traceActivity = AgentContext.CurrentTraceActivity;
-                                Console.WriteLine($"[OpenTelemetry] HTTP request: Activity.Current is NULL, injecting trace headers from AgentContext");
-                                Console.WriteLine($"  - Request URI: {httpRequestMessage.RequestUri}");
-                                Console.WriteLine($"  - AgentContext TraceId: {traceActivity.TraceId}");
-                            }
-                            else if (currentActivity != null && AgentContext.CurrentTraceActivity != null 
-                                     && currentActivity.TraceId != AgentContext.CurrentTraceActivity.TraceId)
-                            {
-                                // Current activity exists but is a different trace - use AgentContext
-                                traceActivity = AgentContext.CurrentTraceActivity;
-                                Console.WriteLine($"[OpenTelemetry] HTTP request: Activity.Current has different TraceId, injecting from AgentContext");
-                                Console.WriteLine($"  - Request URI: {httpRequestMessage.RequestUri}");
-                                Console.WriteLine($"  - Current TraceId: {currentActivity.TraceId}");
-                                Console.WriteLine($"  - AgentContext TraceId: {traceActivity.TraceId}");
-                            }
-                            
-                            // Inject trace headers if we have a trace activity to propagate
-                            if (traceActivity != null)
-                            {
-                                var traceparent = $"00-{traceActivity.TraceId}-{traceActivity.SpanId}-{(traceActivity.ActivityTraceFlags.HasFlag(ActivityTraceFlags.Recorded) ? "01" : "00")}";
-                                var tracestate = traceActivity.TraceStateString;
-                                
-                                // Add or replace traceparent header
-                                if (httpRequestMessage.Headers.Contains("traceparent"))
-                                {
-                                    httpRequestMessage.Headers.Remove("traceparent");
-                                }
-                                httpRequestMessage.Headers.Add("traceparent", traceparent);
-                                
-                                // Add tracestate if it exists
-                                if (!string.IsNullOrEmpty(tracestate))
-                                {
-                                    if (httpRequestMessage.Headers.Contains("tracestate"))
-                                    {
-                                        httpRequestMessage.Headers.Remove("tracestate");
-                                    }
-                                    httpRequestMessage.Headers.Add("tracestate", tracestate);
-                                }
-                                
-                                Console.WriteLine($"  - ✓ Injected traceparent: {traceparent}");
-                                if (!string.IsNullOrEmpty(tracestate))
-                                {
-                                    Console.WriteLine($"  - ✓ Injected tracestate: {tracestate}");
-                                }
-                            }
+                            // Trace context propagation is now handled automatically by:
+                            // 1. TracingInterceptor (ensures Activity.Current is set correctly in Temporal workflows)
+                            // 2. HttpClient instrumentation (automatically injects traceparent header)
+                            // No manual trace header injection needed
                             
                             // Extract tenant context from headers (if propagated from calling service)
                             if (httpRequestMessage.Headers.Contains("X-Tenant-Id"))
@@ -233,8 +206,11 @@ public static class OpenTelemetryExtensions
                     {
                         options.Endpoint = new Uri(otlpEndpoint);
                         options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                        // Note: Exporter failures won't break execution - spans will be buffered or dropped silently
                     })
                     .Build();
+
+                Console.WriteLine($"[OpenTelemetry] ✓ TracerProvider initialized successfully");
 
                 // Configure metrics
                 _meterProvider = Sdk.CreateMeterProviderBuilder()
@@ -253,19 +229,26 @@ public static class OpenTelemetryExtensions
                     {
                         options.Endpoint = new Uri(otlpEndpoint);
                         options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
-                        Console.WriteLine($"[OpenTelemetry] Metrics OTLP Exporter configured for {otlpEndpoint}");
+                        // Note: Exporter failures won't break execution - metrics will be buffered or dropped silently
                     })
                     .Build();
 
-                Console.WriteLine($"[OpenTelemetry] MeterProvider built. Meters: Microsoft.SemanticKernel*, XiansAi.*, XiansAi.Lib, Temporal.*");
-
-                Console.WriteLine($"[OpenTelemetry] OpenTelemetry enabled for {serviceName} - exporting to {otlpEndpoint}");
-                Console.WriteLine($"[OpenTelemetry] Tracing configured with SemanticKernel and HTTP client instrumentation");
-                Console.WriteLine($"[OpenTelemetry] Activity sources: Microsoft.SemanticKernel, Microsoft.SemanticKernel.Core, Microsoft.SemanticKernel.Connectors.OpenAI, Microsoft.SemanticKernel.Connectors.AzureOpenAI, Microsoft.SemanticKernel.Agents, XiansAi");
+                Console.WriteLine($"[OpenTelemetry] ✓ MeterProvider initialized successfully");
+                Console.WriteLine($"[OpenTelemetry] ✓ OpenTelemetry fully enabled for {serviceName}");
+                Console.WriteLine($"[OpenTelemetry]   - Service: {serviceName} v{serviceVersion}");
+                Console.WriteLine($"[OpenTelemetry]   - OTLP Endpoint: {otlpEndpoint}");
+                Console.WriteLine($"[OpenTelemetry]   - Activity Sources: Microsoft.SemanticKernel.*, XiansAi.*, Temporal.*");
+                Console.WriteLine($"[OpenTelemetry]   - Meters: Microsoft.SemanticKernel*, XiansAi.*, Temporal.*");
+                Console.WriteLine($"[OpenTelemetry]   - Note: If collector is unreachable, traces/metrics will be buffered or dropped (non-blocking)");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[OpenTelemetry] Failed to initialize OpenTelemetry: {ex.Message}");
+                // OpenTelemetry initialization failures should NOT break the application
+                // Log warning and continue - application will work without telemetry
+                Console.WriteLine($"[OpenTelemetry] ⚠ WARNING: Failed to initialize OpenTelemetry: {ex.Message}");
+                Console.WriteLine($"[OpenTelemetry] ⚠ Application will continue without telemetry export");
+                Console.WriteLine($"[OpenTelemetry] ⚠ Stack trace: {ex.StackTrace}");
+                // Don't rethrow - let application continue
             }
 
             _isInitialized = true;
@@ -304,43 +287,18 @@ public static class OpenTelemetryExtensions
         
         if (!_isInitialized || _tracerProvider == null)
         {
-            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: StartSemanticKernelOperation('{operationName}') called but OpenTelemetry not initialized");
             return null;
         }
         
-        // CRITICAL FIX: Temporal workflows don't preserve Activity.Current across async boundaries
-        // If Activity.Current is null but we have a stored activity in AgentContext, restore it
+        // TracingInterceptor handles trace context restoration automatically
+        // Fallback: If Activity.Current is null but we have a stored activity in AgentContext, restore it
         var currentActivity = System.Diagnostics.Activity.Current;
         if (currentActivity == null && AgentContext.CurrentTraceActivity != null)
         {
-            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Activity.Current is NULL, restoring from AgentContext");
-            Console.WriteLine($"  - AgentContext.CurrentTraceActivity: TraceId={AgentContext.CurrentTraceActivity.TraceId}, SpanId={AgentContext.CurrentTraceActivity.SpanId}");
-            
-            // Manually set Activity.Current from AgentContext
+            // Manually set Activity.Current from AgentContext as fallback
             // This doesn't "start" the activity again, just sets the ambient context
             System.Diagnostics.Activity.Current = AgentContext.CurrentTraceActivity;
             currentActivity = AgentContext.CurrentTraceActivity;
-            
-            Console.WriteLine($"  - ✓ Activity.Current restored from AgentContext");
-        }
-        
-        // DIAGNOSTIC: Log current activity state BEFORE creating new operation
-        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: StartSemanticKernelOperation('{operationName}') - Current Activity State:");
-        if (currentActivity != null)
-        {
-            Console.WriteLine($"  - Activity.Current EXISTS");
-            Console.WriteLine($"  - TraceId: {currentActivity.TraceId}");
-            Console.WriteLine($"  - SpanId: {currentActivity.SpanId}");
-            Console.WriteLine($"  - ParentSpanId: {currentActivity.ParentSpanId}");
-            Console.WriteLine($"  - OperationName: {currentActivity.OperationName}");
-            Console.WriteLine($"  - Source.Name: {currentActivity.Source.Name}");
-            Console.WriteLine($"  - ActivityTraceFlags: {currentActivity.ActivityTraceFlags}");
-        }
-        else
-        {
-            Console.WriteLine($"  - Activity.Current is NULL");
-            Console.WriteLine($"  - WARNING: No parent activity found - will create ROOT span");
-            Console.WriteLine($"  - This breaks trace continuity from HTTP request!");
         }
         
         var parentContext = currentActivity?.Context ?? default;
@@ -361,17 +319,8 @@ public static class OpenTelemetryExtensions
         // If no activity was created (sampling or not started), return null
         if (activity == null)
         {
-            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Failed to create activity for '{operationName}' - likely sampled out or provider not configured");
             return null;
         }
-        
-        // DIAGNOSTIC: Log newly created activity
-        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: SemanticKernel activity created successfully:");
-        Console.WriteLine($"  - New TraceId: {activity.TraceId}");
-        Console.WriteLine($"  - New SpanId: {activity.SpanId}");
-        Console.WriteLine($"  - ParentSpanId: {activity.ParentSpanId}");
-        Console.WriteLine($"  - Parent Link: {(activity.ParentSpanId != default ? "LINKED to parent" : "NO PARENT (root span)")}");
-        Console.WriteLine($"  - Activity.Current now points to this new activity");
         
         // Activity is already started and set as Activity.Current by StartActivity()
         // All child operations (including HTTP calls) will now use this as parent
@@ -421,65 +370,37 @@ public static class OpenTelemetryExtensions
     /// <summary>
     /// Restores trace context from workflow memo and sets it as the current activity context.
     /// This should be called at the start of workflow signal handlers to continue the trace.
-    /// </summary>
-    /// <summary>
-    /// Restores trace context from workflow memo or signal payload and sets it as the current activity context.
-    /// This should be called at the start of workflow signal handlers to continue the trace.
+    /// Restores trace context from workflow memo or signal payload to continue the trace from the server request.
+    /// NOTE: TracingInterceptor handles this automatically, but this method is kept as a fallback for edge cases.
     /// </summary>
     /// <param name="traceParentFromPayload">Optional traceparent from signal payload (for existing workflows)</param>
     /// <param name="traceStateFromPayload">Optional tracestate from signal payload (for existing workflows)</param>
+    [Obsolete("TracingInterceptor handles trace context restoration automatically. This method is kept as a fallback only.")]
     public static void RestoreTraceContextFromMemo(string? traceParentFromPayload = null, string? traceStateFromPayload = null)
     {
         // CRITICAL: Ensure OpenTelemetry is initialized FIRST before attempting to restore trace context
         EnsureInitialized();
         
-        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: RestoreTraceContextFromMemo() called");
-        Console.WriteLine($"  - traceParentFromPayload: {traceParentFromPayload ?? "NULL"}");
-        Console.WriteLine($"  - traceStateFromPayload: {traceStateFromPayload ?? "NULL"}");
-        
-        // Log Activity.Current BEFORE restoration
-        var beforeActivity = System.Diagnostics.Activity.Current;
-        Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Activity.Current BEFORE restoration:");
-        if (beforeActivity != null)
-        {
-            Console.WriteLine($"  - EXISTS: TraceId={beforeActivity.TraceId}, SpanId={beforeActivity.SpanId}, Source={beforeActivity.Source.Name}");
-        }
-        else
-        {
-            Console.WriteLine($"  - NULL (expected in Temporal workflow context)");
-        }
-        
+        // TracingInterceptor handles trace context restoration automatically
+        // This method is kept as a fallback for edge cases where TracingInterceptor might not work
         try
         {
             string? traceParent = traceParentFromPayload;
             string? traceState = traceStateFromPayload;
-            string? source = null;
             
             // First try to get from signal payload (for existing workflows)
-            if (!string.IsNullOrEmpty(traceParent))
-            {
-                source = "signal payload";
-                Console.WriteLine($"[OpenTelemetry] Found traceparent in signal payload: {traceParent}");
-            }
-            else
+            if (string.IsNullOrEmpty(traceParent))
             {
                 // Fall back to workflow memo (for new workflows)
                 var memo = Temporalio.Workflows.Workflow.Memo;
                 if (memo != null && memo.TryGetValue("traceparent", out var traceParentValue))
                 {
-                    // Extract string value from IRawValue (same pattern as MemoUtil)
                     traceParent = traceParentValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
-                    source = "workflow memo";
                     
-                    if (!string.IsNullOrEmpty(traceParent))
+                    // Get tracestate from memo if not provided in payload
+                    if (string.IsNullOrEmpty(traceState) && memo.TryGetValue("tracestate", out var traceStateValue))
                     {
-                        Console.WriteLine($"[OpenTelemetry] Found traceparent in memo: {traceParent}");
-                        
-                        // Get tracestate from memo if not provided in payload
-                        if (string.IsNullOrEmpty(traceState) && memo.TryGetValue("tracestate", out var traceStateValue))
-                        {
-                            traceState = traceStateValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
-                        }
+                        traceState = traceStateValue?.Payload?.Data?.ToStringUtf8()?.Replace("\"", "");
                     }
                 }
             }
@@ -494,7 +415,6 @@ public static class OpenTelemetryExtensions
                     var spanId = ActivitySpanId.CreateFromString(parts[2].AsSpan());
                     var flags = parts[3] == "01" ? ActivityTraceFlags.Recorded : ActivityTraceFlags.None;
                     
-                    // Create activity context (ActivityContext constructor: traceId, spanId, flags, traceState, isRemote)
                     var activityContext = new ActivityContext(
                         traceId,
                         spanId,
@@ -502,9 +422,6 @@ public static class OpenTelemetryExtensions
                         traceState,
                         isRemote: true);
                     
-                    // Create and start a new activity with the restored parent context using TemporalActivitySource
-                    // This ensures the activity is properly registered and exported
-                    var parentId = $"00-{traceId}-{spanId}-{(flags.HasFlag(ActivityTraceFlags.Recorded) ? "01" : "00")}";
                     var activity = TemporalActivitySource.StartActivity(
                         "Temporal.Workflow.RestoreContext",
                         System.Diagnostics.ActivityKind.Internal,
@@ -517,63 +434,15 @@ public static class OpenTelemetryExtensions
                             activity.TraceStateString = traceState;
                         }
                         
-                        // Store in AgentContext so it persists through Temporal workflow async boundaries
-                        // Activity.Current uses AsyncLocal which doesn't work reliably in Temporal workflows
+                        // Store in AgentContext as fallback for Temporal workflow async boundaries
                         AgentContext.CurrentTraceActivity = activity;
-                        
-                        // Activity is already started and set as Current by StartActivity
-                        Console.WriteLine($"[OpenTelemetry] Successfully restored trace context from {source}:");
-                        Console.WriteLine($"  - Original TraceId: {traceId}");
-                        Console.WriteLine($"  - Original SpanId (parent): {spanId}");
-                        Console.WriteLine($"  - Restored Activity SpanId (new): {activity.SpanId}");
-                        Console.WriteLine($"  - Activity.Current is NOW set to restored activity");
-                        Console.WriteLine($"  - Activity stored in AgentContext for Temporal workflow persistence");
-                        Console.WriteLine($"  - All subsequent operations will be children of this restored context");
-                        
-                        // Verify Activity.Current was actually set
-                        var afterActivity = System.Diagnostics.Activity.Current;
-                        if (afterActivity == activity)
-                        {
-                            Console.WriteLine($"  - ✓ VERIFIED: Activity.Current correctly set to restored activity");
-                        }
-                        else if (afterActivity != null)
-                        {
-                            Console.WriteLine($"  - ✗ WARNING: Activity.Current is different activity! Current={afterActivity.SpanId}");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"  - ✗ ERROR: Activity.Current is NULL after restoration!");
-                        }
                     }
-                    else
-                    {
-                        Console.WriteLine($"[OpenTelemetry] WARNING: Failed to create restore context activity - may be sampled out");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"[OpenTelemetry] ERROR: Invalid traceparent format: {traceParent} (expected 4 parts, got {parts.Length})");
-                }
-            }
-            else
-            {
-                Console.WriteLine("[OpenTelemetry] WARNING: No traceparent found in workflow memo or signal payload");
-                var memo = Temporalio.Workflows.Workflow.Memo;
-                if (memo == null)
-                {
-                    Console.WriteLine("[OpenTelemetry] Workflow memo is null");
-                }
-                else
-                {
-                    Console.WriteLine($"[OpenTelemetry] Memo keys: {string.Join(", ", memo.Keys)}");
                 }
             }
         }
-        catch (Exception ex)
+        catch
         {
-            // Log the error but don't fail the workflow
-            Console.WriteLine($"[OpenTelemetry] ERROR: Failed to restore trace context: {ex.Message}");
-            Console.WriteLine($"[OpenTelemetry] Stack trace: {ex.StackTrace}");
+            // Silently fail - TracingInterceptor should handle trace context restoration
         }
     }
     
@@ -595,18 +464,16 @@ public static class OpenTelemetryExtensions
             return null;
         }
         
-        // Get the current activity context (should be set by RestoreTraceContextFromMemo)
+        // Get the current activity context (should be set by TracingInterceptor)
         // This ensures we link to the parent trace from the server request
         var currentActivity = System.Diagnostics.Activity.Current;
         var parentContext = currentActivity?.Context ?? default;
         
         if (currentActivity != null)
         {
-            Console.WriteLine($"[OpenTelemetry] Creating Temporal operation '{operationName}' as child of trace {currentActivity.TraceId} (span {currentActivity.SpanId})");
         }
         else
         {
-            Console.WriteLine($"[OpenTelemetry] WARNING: Creating Temporal operation '{operationName}' as root span - no parent activity found");
         }
         
         var activity = TemporalActivitySource.StartActivity(
@@ -616,7 +483,6 @@ public static class OpenTelemetryExtensions
         
         if (activity == null)
         {
-            Console.WriteLine($"[OpenTelemetry] WARNING: Failed to create activity for '{operationName}' - may be sampled out");
             return null;
         }
         
@@ -657,7 +523,6 @@ public static class OpenTelemetryExtensions
             }
         }
         
-        Console.WriteLine($"[OpenTelemetry] Created Temporal activity '{operationName}' with TraceId={activity.TraceId}, SpanId={activity.SpanId}");
         
         return activity;
     }
@@ -715,7 +580,6 @@ public static class OpenTelemetryExtensions
             
             TokenUsageCounter.Add(tokens, tagList);
             
-            Console.WriteLine($"[OpenTelemetry] DIAGNOSTIC: Recorded {tokens} tokens usage with tags: {string.Join(", ", tagList.Select(t => $"{t.Key}={t.Value}"))}");
         }
         catch (Exception ex)
         {

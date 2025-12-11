@@ -1,5 +1,6 @@
 
 using Temporalio.Worker;
+using Temporalio.Extensions.OpenTelemetry;
 using Server;
 using XiansAi.Server;
 using XiansAi.Flow;
@@ -76,7 +77,9 @@ internal class WorkerService
         var options = new TemporalWorkerOptions()
         {
             LoggerFactory = LoggingUtils.CreateTemporalLoggerFactory(),
-            TaskQueue = taskQueue
+            TaskQueue = taskQueue,
+            // Add OpenTelemetry tracing interceptor for automatic trace propagation
+            Interceptors = new[] { new TracingInterceptor() }
         };
         
         options.AddWorkflow<TFlow>();

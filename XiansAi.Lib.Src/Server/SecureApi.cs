@@ -20,22 +20,10 @@ internal class TenantIdHandler : DelegatingHandler
             request.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
         }
         
-        // Propagate trace context to ensure all HTTP calls from Lib to Server are part of the same trace
-        // This is critical for distributed tracing - without this, each HTTP call creates a new trace
-        var currentActivity = Activity.Current;
-        if (currentActivity != null)
-        {
-            // Inject W3C Trace Context headers to propagate trace context
-            // This ensures the server continues the same trace when it receives the request
-            var traceParent = $"00-{currentActivity.TraceId}-{currentActivity.SpanId}-{(currentActivity.ActivityTraceFlags.HasFlag(ActivityTraceFlags.Recorded) ? "01" : "00")}";
-            request.Headers.TryAddWithoutValidation("traceparent", traceParent);
-            
-            // Also propagate tracestate if present
-            if (!string.IsNullOrEmpty(currentActivity.TraceStateString))
-            {
-                request.Headers.TryAddWithoutValidation("tracestate", currentActivity.TraceStateString);
-            }
-        }
+        // Trace context propagation is now handled automatically by:
+        // 1. TracingInterceptor (ensures Activity.Current is set correctly in Temporal workflows)
+        // 2. HttpClient instrumentation (automatically injects traceparent header)
+        // No manual trace header injection needed
         
         return await base.SendAsync(request, cancellationToken);
     }
