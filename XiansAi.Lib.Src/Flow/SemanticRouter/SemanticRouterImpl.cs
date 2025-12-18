@@ -6,6 +6,7 @@ using Microsoft.SemanticKernel.Agents;
 using XiansAi.Messaging;
 using XiansAi.Flow.Router.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 
 
 namespace XiansAi.Flow.Router;
@@ -19,6 +20,10 @@ internal class SemanticRouterHubImpl : IDisposable
 {
     private const string INCOMING_MESSAGE = "incoming";
     private const string OUTGOING_MESSAGE = "outgoing";
+
+    // ActivitySource used for Semantic Router spans.
+    // Captured by XiansAi.Otel.Lib defaults via "XiansAi.SemanticKernel".
+    private static readonly ActivitySource ActivitySource = new("XiansAi.SemanticKernel");
 
     private readonly ILogger _logger;
     //private readonly ServerSettings _settings;
@@ -61,6 +66,9 @@ internal class SemanticRouterHubImpl : IDisposable
         
         try
         {
+            using var activity = ActivitySource.StartActivity("SemanticRouter.Completion", ActivityKind.Internal);
+            activity?.SetTag("xians.router.mode", "completion");
+
             var kernel = BuildKernelAsync(options);
             var agent = CreateChatCompletionAgent(
                 name: "CompletionAgent",
@@ -86,9 +94,20 @@ internal class SemanticRouterHubImpl : IDisposable
             var userMessage = new ChatMessageContent(AuthorRole.User, prompt);
             
             var responses = new List<ChatMessageContent>();
-            await foreach (var response in agent.InvokeAsync(userMessage, thread))
+            // Explicit span around the LLM call to make the chat completion operation visible even when
+            // SemanticKernel OTEL instrumentation isn't enabled in the host.
+            var resolver = new LlmConfigurationResolver();
+            var provider = resolver.GetProviderName(options);
+            var model = resolver.GetModelName(options) ?? resolver.GetDeploymentName(options) ?? "unknown";
+            using (var llmActivity = ActivitySource.StartActivity($"chat.completions {model}", ActivityKind.Client))
             {
-                responses.Add(response);
+                llmActivity?.SetTag("llm.provider", provider);
+                llmActivity?.SetTag("llm.model", model);
+
+                await foreach (var response in agent.InvokeAsync(userMessage, thread))
+                {
+                    responses.Add(response);
+                }
             }
             return string.Join(" ", responses.Select(r => r.Content));
         }
@@ -113,6 +132,11 @@ internal class SemanticRouterHubImpl : IDisposable
 
         try
         {
+            using var activity = ActivitySource.StartActivity("SemanticRouter.Route", ActivityKind.Internal);
+            activity?.SetTag("xians.workflow.id", messageThread.WorkflowId);
+            activity?.SetTag("xians.workflow.type", messageThread.WorkflowType);
+            activity?.SetTag("xians.agent", messageThread.Agent);
+
             // Sanitize the agent name to comply with OpenAI requirements
             var agentId = $"RouterAgent_{SanitizeName(messageThread.WorkflowId)}";
 
@@ -155,9 +179,19 @@ internal class SemanticRouterHubImpl : IDisposable
             
             // Invoke the agent with the message and thread
             var responses = new List<ChatMessageContent>();
-            await foreach (var item in agent.InvokeAsync(currentMessage, thread))
+            // Explicit span around the LLM call (chat completion) so it's visible as a single operation.
+            var resolver = new LlmConfigurationResolver();
+            var provider = resolver.GetProviderName(options);
+            var model = resolver.GetModelName(options) ?? resolver.GetDeploymentName(options) ?? "unknown";
+            using (var llmActivity = ActivitySource.StartActivity($"chat.completions {model}", ActivityKind.Client))
             {
-                responses.Add(item);
+                llmActivity?.SetTag("llm.provider", provider);
+                llmActivity?.SetTag("llm.model", model);
+
+                await foreach (var item in agent.InvokeAsync(currentMessage, thread))
+                {
+                    responses.Add(item);
+                }
             }
             var response = string.Join(" ", responses.Select(r => r.Content));
 

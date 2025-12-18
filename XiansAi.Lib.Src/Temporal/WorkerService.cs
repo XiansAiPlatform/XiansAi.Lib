@@ -78,6 +78,9 @@ internal class WorkerService
             LoggerFactory = LoggingUtils.CreateTemporalLoggerFactory(),
             TaskQueue = taskQueue
         };
+
+        // Enable Temporal workflow/activity spans via TracingInterceptor when the package is available.
+        TemporalOpenTelemetryInterop.TryEnableWorkerTracing(options);
         
         options.AddWorkflow<TFlow>();
         foreach (var stub in runner.ActivityProxies)

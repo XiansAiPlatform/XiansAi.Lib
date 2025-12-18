@@ -126,6 +126,9 @@ public class TemporalClientService : IDisposable
                     SetMinimumLevel(LogLevel.Information)),
         };
 
+        // Enable Temporal client spans via TracingInterceptor when the package is available.
+        TemporalOpenTelemetryInterop.TryEnableClientTracing(options);
+
         _logger.LogDebug($"Connecting to flow server at {settings.FlowServerUrl} with namespace {settings.FlowServerNamespace}");
 
         return await TemporalClient.ConnectAsync(options);
