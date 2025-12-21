@@ -51,8 +51,9 @@ public class XiansWorkflow
                 "OnUserMessage is only supported for default workflows. Use custom workflow classes for custom workflows.");
         }
 
-        // Register the handler with the DefaultWorkflow class
-        DefaultWorkflow.RegisterMessageHandler(handler);
+        // Register the handler with the DefaultWorkflow class, keyed by WorkflowType
+        // This allows multiple default workflows to each have their own isolated handler
+        DefaultWorkflow.RegisterMessageHandler(WorkflowType, handler);
         
         _logger.LogDebug("User message handler registered for workflow '{WorkflowType}'", WorkflowType);
     }

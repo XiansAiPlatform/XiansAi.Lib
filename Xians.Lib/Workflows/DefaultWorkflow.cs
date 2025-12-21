@@ -13,7 +13,10 @@ namespace Xians.Lib.Workflows;
 public class DefaultWorkflow
 {
     private readonly Queue<InboundMessage> _messageQueue = new();
-    private static Func<UserMessageContext, Task>? _userMessageHandler;
+    
+    // Dictionary to store handlers per WorkflowType instead of a single static handler
+    // This allows multiple default workflows to each have their own handler
+    private static readonly Dictionary<string, Func<UserMessageContext, Task>> _handlersByWorkflowType = new();
 
     /// <summary>
     /// Main workflow execution method
@@ -50,12 +53,17 @@ public class DefaultWorkflow
     }
 
     /// <summary>
-    /// Registers a user message handler (called from XiansWorkflow.OnUserMessage).
-    /// Static to persist across workflow execution.
+    /// Registers a user message handler for a specific workflow type.
+    /// Uses WorkflowType as key to support multiple default workflows.
     /// </summary>
-    public static void RegisterMessageHandler(Func<UserMessageContext, Task> handler)
+    /// <param name="workflowType">The unique workflow type identifier.</param>
+    /// <param name="handler">The handler function to register.</param>
+    public static void RegisterMessageHandler(string workflowType, Func<UserMessageContext, Task> handler)
     {
-        _userMessageHandler = handler;
+        lock (_handlersByWorkflowType)
+        {
+            _handlersByWorkflowType[workflowType] = handler;
+        }
     }
 
     /// <summary>
@@ -176,21 +184,34 @@ public class DefaultWorkflow
             message.Payload.ThreadId
         );
 
-        // Invoke the registered user handler
-        if (_userMessageHandler != null)
+        // Get the workflow type from Workflow.Info
+        var workflowType = Workflow.Info.WorkflowType;
+        
+        // Lookup handler for this specific workflow type
+        Func<UserMessageContext, Task>? handler;
+        lock (_handlersByWorkflowType)
         {
-            Workflow.Logger.LogDebug("Invoking user message handler");
-            await _userMessageHandler(context);
+            _handlersByWorkflowType.TryGetValue(workflowType, out handler);
+        }
+        
+        // Invoke the registered user handler
+        if (handler != null)
+        {
+            Workflow.Logger.LogDebug(
+                "Invoking user message handler for WorkflowType={WorkflowType}",
+                workflowType);
+            await handler(context);
             Workflow.Logger.LogDebug("User message handler completed");
         }
         else
         {
             Workflow.Logger.LogWarning(
-                "No message handler registered for RequestId={RequestId}",
+                "No message handler registered for WorkflowType={WorkflowType}, RequestId={RequestId}",
+                workflowType,
                 message.Payload.RequestId);
             
             // No handler registered - send default message
-            await context.ReplyAsync("No message handler registered for this workflow.");
+            await context.ReplyAsync($"No message handler registered for workflow type '{workflowType}'.");
         }
     }
 

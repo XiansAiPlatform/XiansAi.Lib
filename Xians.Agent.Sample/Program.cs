@@ -31,10 +31,22 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define a default workflow (this should trigger upload to server)
-var workflow = await agent.Workflows.DefineDefault(name: "Conversational", workers: 1);
+var conversationalWorkflow = await agent.Workflows.DefineDefault(name: "Conversational", workers: 1);
 
 // Define another default workflow (this should trigger upload to server)
-var workflow2 = await agent.Workflows.DefineDefault(name: "Webhooks", workers: 1);
+var webhooksWorkflow = await agent.Workflows.DefineDefault(name: "Webhooks", workers: 1);
+
+// Register handler for Conversational workflow
+conversationalWorkflow.OnUserMessage(async (context) =>
+{
+    await context.ReplyAsync("[CONVERSATIONAL] Responding to: " + context.Message.Text);
+});
+
+// Register handler for Webhooks workflow
+webhooksWorkflow.OnUserMessage(async (context) =>
+{
+    await context.ReplyAsync("[WEBHOOKS] Received webhook: " + context.Message.Text);
+});
 
 // Run all workflows
 try
