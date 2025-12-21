@@ -53,6 +53,7 @@ public class AgentCollection
             registration.SystemScoped,
             _uploader,
             _temporalService,
+            _httpService,
             _options);
     }
 }

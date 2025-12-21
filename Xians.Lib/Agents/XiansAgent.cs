@@ -33,14 +33,16 @@ public class XiansAgent
     public bool SystemScoped { get; private set; }
 
     internal ITemporalClientService? TemporalService { get; private set; }
+    internal Http.IHttpClientService? HttpService { get; private set; }
     internal XiansOptions? Options { get; private set; }
 
     internal XiansAgent(string name, bool systemScoped, WorkflowDefinitionUploader? uploader, 
-        ITemporalClientService? temporalService, XiansOptions? options)
+        ITemporalClientService? temporalService, Http.IHttpClientService? httpService, XiansOptions? options)
     {
         Name = name;
         SystemScoped = systemScoped;
         TemporalService = temporalService;
+        HttpService = httpService;
         Options = options;
         Workflows = new WorkflowCollection(this, uploader);
     }

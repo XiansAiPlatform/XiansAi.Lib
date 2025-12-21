@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Xians.Lib.Common;
+using Xians.Lib.Workflows;
 
 namespace Xians.Lib.Agents;
 
@@ -44,8 +45,16 @@ public class XiansWorkflow
     /// <param name="handler">The async handler to process user messages.</param>
     public void OnUserMessage(Func<UserMessageContext, Task> handler)
     {
-        // TODO: Implement user message handler registration
-        // TODO: Use _workers to configure concurrent processing
+        if (!_isDefault)
+        {
+            throw new InvalidOperationException(
+                "OnUserMessage is only supported for default workflows. Use custom workflow classes for custom workflows.");
+        }
+
+        // Register the handler with the DefaultWorkflow class
+        DefaultWorkflow.RegisterMessageHandler(handler);
+        
+        _logger.LogDebug("User message handler registered for workflow '{WorkflowType}'", WorkflowType);
     }
 
     /// <summary>
@@ -99,6 +108,18 @@ public class XiansWorkflow
         {
             // Register the DefaultWorkflow class for default workflows
             workerOptions.AddWorkflow<DefaultWorkflow>();
+            
+            // Register activities for message sending
+            // Get HTTP client from the platform's HTTP service
+            if (_agent.HttpService != null)
+            {
+                var messageActivities = new Workflows.MessageActivities(_agent.HttpService.Client);
+                workerOptions.AddAllActivities(messageActivities);
+            }
+            else
+            {
+                _logger.LogWarning("HTTP service not available - message sending will not work");
+            }
         }
         else
         {

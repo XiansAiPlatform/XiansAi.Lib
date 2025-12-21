@@ -37,4 +37,15 @@ var workflow = await agent.Workflows.DefineDefault(name: "Conversational", worke
 var workflow2 = await agent.Workflows.DefineDefault(name: "Webhooks", workers: 1);
 
 // Run all workflows
-await agent.RunAllAsync();
+try
+{
+    await agent.RunAllAsync();
+}
+catch (TaskCanceledException)
+{
+    // Graceful shutdown - no need to log exception
+}
+catch (OperationCanceledException)
+{
+    // Graceful shutdown - no need to log exception
+}
