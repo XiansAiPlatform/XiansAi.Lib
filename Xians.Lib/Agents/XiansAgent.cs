@@ -1,3 +1,5 @@
+using Xians.Lib.Temporal;
+
 namespace Xians.Lib.Agents;
 
 /// <summary>
@@ -13,27 +15,56 @@ public class XiansAgent
     /// <summary>
     /// Gets the name of the agent.
     /// </summary>
-    public required string Name { get; private set; }
+    public string Name { get; private set; }
 
-    public string Version { get; private set; }
+    /// <summary>
+    /// Gets the version of the agent.
+    /// </summary>
+    public string? Version { get; private set; }
 
-    public string Description { get; private set; }
+    /// <summary>
+    /// Gets the description of the agent.
+    /// </summary>
+    public string? Description { get; private set; }
 
-    internal XiansAgent(string name)
+    /// <summary>
+    /// Gets whether the agent is system-scoped.
+    /// </summary>
+    public bool SystemScoped { get; private set; }
+
+    internal ITemporalClientService? TemporalService { get; private set; }
+    internal XiansOptions? Options { get; private set; }
+
+    internal XiansAgent(string name, bool systemScoped, WorkflowDefinitionUploader? uploader, 
+        ITemporalClientService? temporalService, XiansOptions? options)
     {
         Name = name;
-        Workflows = new WorkflowCollection(this);
+        SystemScoped = systemScoped;
+        TemporalService = temporalService;
+        Options = options;
+        Workflows = new WorkflowCollection(this, uploader);
     }
 
     /// <summary>
     /// Runs all registered workflows for this agent asynchronously.
     /// </summary>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task RunAllAsync()
+    public async Task RunAllAsync(CancellationToken cancellationToken = default)
     {
-        // TODO: Implement running all workflows
-        // Get all workflows from the Workflows collection and run them concurrently
-        await Workflows.RunAllAsync();
+        // Set up cancellation token if not provided
+        if (cancellationToken == default)
+        {
+            var tokenSource = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, eventArgs) =>
+            {
+                tokenSource.Cancel();
+                eventArgs.Cancel = true;
+            };
+            cancellationToken = tokenSource.Token;
+        }
+
+        await Workflows.RunAllAsync(cancellationToken);
     }
 }
 

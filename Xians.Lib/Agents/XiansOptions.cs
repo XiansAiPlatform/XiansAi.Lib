@@ -1,3 +1,4 @@
+using Xians.Lib.Common;
 using Xians.Lib.Configuration;
 
 namespace Xians.Lib.Agents;
@@ -8,7 +9,56 @@ namespace Xians.Lib.Agents;
 /// </summary>
 public class XiansOptions : ServerConfiguration
 {
-    // Inherits ServerUrl, ApiKey, and other server configuration properties
-    // from ServerConfiguration base class
+    private string? _tenantId;
+    private CertificateInfo? _certificateInfo;
+
+    /// <summary>
+    /// Optional Temporal configuration. If not provided, will be fetched from the server.
+    /// </summary>
+    public TemporalConfiguration? TemporalConfiguration { get; set; }
+    
+    /// <summary>
+    /// The tenant ID for this agent. 
+    /// If not explicitly set, will be automatically extracted from the API key certificate.
+    /// </summary>
+    public string TenantId 
+    { 
+        get
+        {
+            if (_tenantId != null)
+            {
+                return _tenantId;
+            }
+
+            // Extract from certificate if not set
+            if (_certificateInfo == null)
+            {
+                var reader = new CertificateReader();
+                _certificateInfo = reader.ReadCertificate(ApiKey);
+            }
+
+            return _certificateInfo.TenantId;
+        }
+        set
+        {
+            _tenantId = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets the certificate information extracted from the API key.
+    /// </summary>
+    public CertificateInfo CertificateInfo
+    {
+        get
+        {
+            if (_certificateInfo == null)
+            {
+                var reader = new CertificateReader();
+                _certificateInfo = reader.ReadCertificate(ApiKey);
+            }
+            return _certificateInfo;
+        }
+    }
 }
 

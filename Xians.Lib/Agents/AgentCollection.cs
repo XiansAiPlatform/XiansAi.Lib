@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Xians.Lib.Common;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
 
@@ -11,6 +13,7 @@ public class AgentCollection
     private readonly XiansOptions _options;
     private IHttpClientService? _httpService;
     private ITemporalClientService? _temporalService;
+    private WorkflowDefinitionUploader? _uploader;
 
     internal AgentCollection(XiansOptions options)
     {
@@ -24,6 +27,13 @@ public class AgentCollection
     {
         _httpService = httpService;
         _temporalService = temporalService;
+        
+        // Create uploader if HTTP service is available
+        if (_httpService != null)
+        {
+            var logger = Common.LoggerFactory.CreateLogger<WorkflowDefinitionUploader>();
+            _uploader = new WorkflowDefinitionUploader(_httpService, logger);
+        }
     }
 
     /// <summary>
@@ -33,10 +43,17 @@ public class AgentCollection
     /// <returns>The registered XiansAgent instance.</returns>
     public XiansAgent Register(XiansAgentRegistration registration)
     {
-        // TODO: Implement agent registration logic
-        // TODO: Use _httpService to register agent with server if needed
-        // TODO: Use _temporalService for workflow management if needed
-        return new XiansAgent(registration.Name ?? "UnnamedAgent");
+        if (string.IsNullOrWhiteSpace(registration.Name))
+        {
+            throw new ArgumentException("Agent name is required", nameof(registration));
+        }
+        
+        return new XiansAgent(
+            registration.Name, 
+            registration.SystemScoped,
+            _uploader,
+            _temporalService,
+            _options);
     }
 }
 

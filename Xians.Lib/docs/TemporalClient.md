@@ -395,3 +395,4 @@ if (!temporalService.IsConnectionHealthy())
 
 See the [Examples](Examples/TemporalClientExample.cs) directory for complete working examples.
 
+

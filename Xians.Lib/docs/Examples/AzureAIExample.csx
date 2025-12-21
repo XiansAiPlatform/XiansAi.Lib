@@ -48,7 +48,7 @@ XiansAgent xiansAgent = xians.Agents.Register(new XiansAgentRegistration
 });
 
 // Define the default workflow
-XiansWorkflow defaultWorkflow = xiansAgent.Workflows.DefineDefault(workers: 1, name: "Conversational");
+XiansWorkflow defaultWorkflow = await xiansAgent.Workflows.DefineDefault(workers: 1, name: "Conversational");
 
 // On user message, generate a response
 defaultWorkflow.OnUserMessage(async context =>
@@ -64,7 +64,7 @@ defaultWorkflow.OnUserMessage(async context =>
     });
 
 // Define the custom data wash workflow by specifying the workflow class 
-XiansWorkflow dataWashWorkflow = xiansAgent.Workflows.DefineCustom<DataWashWorkflow>(workers: 1);
+XiansWorkflow dataWashWorkflow = await xiansAgent.Workflows.DefineCustom<DataWashWorkflow>(workers: 1);
 
 // Run the workflows
 await xiansAgent.RunAllAsync();
