@@ -13,6 +13,8 @@ Welcome to the Xians.Lib documentation! This library provides robust HTTP and Te
 ### Guides
 - **[HTTP Client Guide](HttpClient.md)** - Comprehensive HTTP client usage and best practices
 - **[Temporal Client Guide](TemporalClient.md)** - Comprehensive Temporal client usage and best practices
+- **[System-Scoped Agents](SystemScopedAgents.md)** - Multi-tenant agent architecture and tenant isolation
+- **[Worker Registration](WorkerRegistration.md)** - Temporal worker setup and management
 
 ### Code Examples
 - **[HTTP Client Examples](Examples/HttpClientExample.cs)** - Working code examples for HTTP operations
@@ -78,7 +80,19 @@ var client = await temporalService.GetClientAsync();
    - Lifecycle Management
    - Troubleshooting
 
-5. [Examples](Examples/)
+5. [System-Scoped Agents](SystemScopedAgents.md)
+   - Multi-Tenant Architecture
+   - Tenant Isolation
+   - Usage Examples
+   - Security Best Practices
+   - Troubleshooting
+
+6. [Worker Registration](WorkerRegistration.md)
+   - Temporal Worker Setup
+   - Task Queue Configuration
+   - Worker Lifecycle
+
+7. [Examples](Examples/)
    - HTTP Client Examples
    - Temporal Client Examples
 

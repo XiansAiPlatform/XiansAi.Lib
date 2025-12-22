@@ -51,11 +51,32 @@ public class XiansWorkflow
                 "OnUserMessage is only supported for default workflows. Use custom workflow classes for custom workflows.");
         }
 
-        // Register the handler with the DefaultWorkflow class, keyed by WorkflowType
+        // Get tenant ID for non-system-scoped agents
+        string? tenantId = null;
+        if (!_agent.SystemScoped)
+        {
+            tenantId = _agent.Options?.TenantId ?? 
+                throw new InvalidOperationException(
+                    "XiansOptions is not configured properly. Cannot determine TenantId for non-system-scoped agent.");
+        }
+
+        // Register the handler with tenant isolation metadata
         // This allows multiple default workflows to each have their own isolated handler
-        DefaultWorkflow.RegisterMessageHandler(WorkflowType, handler);
+        // and enforces tenant boundaries for security
+        DefaultWorkflow.RegisterMessageHandler(
+            workflowType: WorkflowType,
+            handler: handler,
+            agentName: _agent.Name,
+            tenantId: tenantId,
+            systemScoped: _agent.SystemScoped
+        );
         
-        _logger.LogDebug("User message handler registered for workflow '{WorkflowType}'", WorkflowType);
+        _logger.LogDebug(
+            "User message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            WorkflowType,
+            _agent.Name,
+            _agent.SystemScoped,
+            tenantId ?? "(system)");
     }
 
     /// <summary>

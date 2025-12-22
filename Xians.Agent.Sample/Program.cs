@@ -27,7 +27,7 @@ var agentName = $"XiansTestAgent";
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
-    SystemScoped = false
+    SystemScoped = true
 });
 
 // Define a default workflow (this should trigger upload to server)

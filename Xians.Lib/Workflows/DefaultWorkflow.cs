@@ -14,9 +14,8 @@ public class DefaultWorkflow
 {
     private readonly Queue<InboundMessage> _messageQueue = new();
     
-    // Dictionary to store handlers per WorkflowType instead of a single static handler
-    // This allows multiple default workflows to each have their own handler
-    private static readonly Dictionary<string, Func<UserMessageContext, Task>> _handlersByWorkflowType = new();
+    // Metadata for each registered workflow handler including tenant isolation info
+    private static readonly Dictionary<string, WorkflowHandlerMetadata> _handlersByWorkflowType = new();
 
     /// <summary>
     /// Main workflow execution method
@@ -53,16 +52,29 @@ public class DefaultWorkflow
     }
 
     /// <summary>
-    /// Registers a user message handler for a specific workflow type.
-    /// Uses WorkflowType as key to support multiple default workflows.
+    /// Registers a user message handler for a specific workflow type with tenant isolation metadata.
     /// </summary>
     /// <param name="workflowType">The unique workflow type identifier.</param>
     /// <param name="handler">The handler function to register.</param>
-    public static void RegisterMessageHandler(string workflowType, Func<UserMessageContext, Task> handler)
+    /// <param name="agentName">The agent name for validation.</param>
+    /// <param name="tenantId">The tenant ID (null for system-scoped agents).</param>
+    /// <param name="systemScoped">Whether this is a system-scoped agent.</param>
+    public static void RegisterMessageHandler(
+        string workflowType, 
+        Func<UserMessageContext, Task> handler,
+        string agentName,
+        string? tenantId,
+        bool systemScoped)
     {
         lock (_handlersByWorkflowType)
         {
-            _handlersByWorkflowType[workflowType] = handler;
+            _handlersByWorkflowType[workflowType] = new WorkflowHandlerMetadata
+            {
+                Handler = handler,
+                AgentName = agentName,
+                TenantId = tenantId,
+                SystemScoped = systemScoped
+            };
         }
     }
 
@@ -161,6 +173,23 @@ public class DefaultWorkflow
             return;
         }
 
+        // Get workflow information first - needed for tenant context
+        var workflowType = Workflow.Info.WorkflowType;
+        var workflowId = Workflow.Info.WorkflowId;
+        var taskQueue = Workflow.Info.TaskQueue;
+        
+        // Extract tenant ID from WorkflowId (format: "TenantId:WorkflowType...")
+        // This works for BOTH system-scoped and non-system-scoped agents
+        var workflowIdParts = workflowId.Split(':');
+        if (workflowIdParts.Length < 2)
+        {
+            Workflow.Logger.LogError(
+                "Invalid WorkflowId format. Expected 'TenantId:WorkflowType...', got '{WorkflowId}'",
+                workflowId);
+            return;
+        }
+        var workflowTenantId = workflowIdParts[0];
+        
         // Create user message context with all fields from the incoming message
         var userMessage = new UserMessage
         {
@@ -168,10 +197,11 @@ public class DefaultWorkflow
         };
 
         Workflow.Logger.LogDebug(
-            "Creating UserMessageContext: ParticipantId={ParticipantId}, Scope={Scope}, Hint={Hint}",
+            "Creating UserMessageContext: ParticipantId={ParticipantId}, Scope={Scope}, Hint={Hint}, Tenant={Tenant}",
             message.Payload.ParticipantId,
             message.Payload.Scope,
-            message.Payload.Hint);
+            message.Payload.Hint,
+            workflowTenantId);
 
         var context = new UserMessageContext(
             userMessage,
@@ -180,39 +210,84 @@ public class DefaultWorkflow
             message.Payload.Scope,
             message.Payload.Hint,
             message.Payload.Data,
+            workflowTenantId,  // Pass the extracted tenant ID from WorkflowId
             message.Payload.Authorization,
             message.Payload.ThreadId
         );
-
-        // Get the workflow type from Workflow.Info
-        var workflowType = Workflow.Info.WorkflowType;
         
-        // Lookup handler for this specific workflow type
-        Func<UserMessageContext, Task>? handler;
+        // Lookup handler metadata for this specific workflow type
+        WorkflowHandlerMetadata? metadata;
         lock (_handlersByWorkflowType)
         {
-            _handlersByWorkflowType.TryGetValue(workflowType, out handler);
+            _handlersByWorkflowType.TryGetValue(workflowType, out metadata);
         }
         
-        // Invoke the registered user handler
-        if (handler != null)
-        {
-            Workflow.Logger.LogDebug(
-                "Invoking user message handler for WorkflowType={WorkflowType}",
-                workflowType);
-            await handler(context);
-            Workflow.Logger.LogDebug("User message handler completed");
-        }
-        else
+        if (metadata == null)
         {
             Workflow.Logger.LogWarning(
                 "No message handler registered for WorkflowType={WorkflowType}, RequestId={RequestId}",
                 workflowType,
                 message.Payload.RequestId);
             
-            // No handler registered - send default message
             await context.ReplyAsync($"No message handler registered for workflow type '{workflowType}'.");
+            return;
         }
+        
+        // Tenant isolation validation differs for system-scoped vs non-system-scoped
+        if (metadata.SystemScoped)
+        {
+            // System-scoped agents can handle multiple tenants
+            // Extract tenant from WorkflowId and log, but DON'T validate against registered tenant
+            Workflow.Logger.LogDebug(
+                "System-scoped workflow processing message: WorkflowTenant={WorkflowTenant}, WorkflowType={WorkflowType}",
+                workflowTenantId,
+                workflowType);
+        }
+        else
+        {
+            // Non-system-scoped agents must validate tenant isolation
+            // The workflow's tenant (from WorkflowId) MUST match the agent's registered tenant
+            if (metadata.TenantId != workflowTenantId)
+            {
+                Workflow.Logger.LogError(
+                    "Tenant isolation violation: WorkflowType={WorkflowType}, RegisteredTenant={RegisteredTenant}, WorkflowTenant={WorkflowTenant}, RequestId={RequestId}",
+                    workflowType,
+                    metadata.TenantId,
+                    workflowTenantId,
+                    message.Payload.RequestId);
+                await context.ReplyAsync("Error: Tenant isolation violation.");
+                return;
+            }
+            
+            Workflow.Logger.LogDebug(
+                "Tenant validation passed: TenantId={TenantId}, WorkflowType={WorkflowType}",
+                workflowTenantId,
+                workflowType);
+        }
+        
+        // Validate agent name matches (applies to both system-scoped and non-system-scoped)
+        if (metadata.AgentName != message.Payload.Agent)
+        {
+            Workflow.Logger.LogWarning(
+                "Agent name mismatch: Expected={ExpectedAgent}, Received={ReceivedAgent}, RequestId={RequestId}",
+                metadata.AgentName,
+                message.Payload.Agent,
+                message.Payload.RequestId);
+            await context.ReplyAsync($"Error: Message intended for agent '{message.Payload.Agent}' but received by '{metadata.AgentName}'.");
+            return;
+        }
+        
+        // All validations passed - invoke the handler
+        Workflow.Logger.LogInformation(
+            "Invoking user message handler: WorkflowType={WorkflowType}, Agent={Agent}, Tenant={Tenant}, SystemScoped={SystemScoped}",
+            workflowType,
+            metadata.AgentName,
+            workflowTenantId,
+            metadata.SystemScoped);
+        
+        await metadata.Handler(context);
+        
+        Workflow.Logger.LogDebug("User message handler completed");
     }
 
     /// <summary>
@@ -220,6 +295,11 @@ public class DefaultWorkflow
     /// </summary>
     private async Task SendErrorResponseAsync(InboundMessage message, string errorMessage)
     {
+        // Extract tenant ID from WorkflowId
+        var workflowId = Workflow.Info.WorkflowId;
+        var workflowIdParts = workflowId.Split(':');
+        var workflowTenantId = workflowIdParts.Length >= 2 ? workflowIdParts[0] : "unknown";
+        
         var context = new UserMessageContext(
             new UserMessage { Text = message.Payload.Text },
             message.Payload.ParticipantId,
@@ -227,6 +307,7 @@ public class DefaultWorkflow
             message.Payload.Scope,
             message.Payload.Hint,
             message.Payload.Data,
+            workflowTenantId,
             message.Payload.Authorization,
             message.Payload.ThreadId
         );
@@ -283,4 +364,15 @@ public class DbMessage
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
+}
+
+/// <summary>
+/// Metadata for a registered workflow handler including tenant isolation information.
+/// </summary>
+internal class WorkflowHandlerMetadata
+{
+    public required Func<UserMessageContext, Task> Handler { get; set; }
+    public required string AgentName { get; set; }
+    public string? TenantId { get; set; }
+    public required bool SystemScoped { get; set; }
 }

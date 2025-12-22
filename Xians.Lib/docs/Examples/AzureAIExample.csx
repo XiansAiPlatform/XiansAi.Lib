@@ -56,11 +56,17 @@ defaultWorkflow.OnUserMessage(async context =>
         string message = context.Message.Text;
 
         // Use the agent to generate a response
-        OpenAIResponse response = responseClient.CreateResponse("Hello! Tell me a joke.");
+        OpenAIResponse response = responseClient.CreateResponse(message);
 
         Console.WriteLine(response.GetOutputText());
 
-        context.Reply(response);
+        context.ReplyBegin(response);
+
+        for () {
+            context.ReplyPartial(response);
+        }
+        
+        context.ReplyEnd(response);
     });
 
 // Define the custom data wash workflow by specifying the workflow class 

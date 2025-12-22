@@ -17,6 +17,7 @@ public class UserMessageContext
     private readonly string? _authorization;
     private readonly string? _threadId;
     private readonly object _data;
+    private readonly string _tenantId;
 
     /// <summary>
     /// Gets the user message.
@@ -49,6 +50,13 @@ public class UserMessageContext
     public string? ThreadId => _threadId;
 
     /// <summary>
+    /// Gets the tenant ID for this workflow instance.
+    /// For system-scoped agents, this indicates which tenant initiated the workflow.
+    /// For non-system-scoped agents, this is always the agent's registered tenant.
+    /// </summary>
+    public string TenantId => _tenantId;
+
+    /// <summary>
     /// Gets the data object associated with the message.
     /// </summary>
     public object Data => _data;
@@ -61,6 +69,7 @@ public class UserMessageContext
         _scope = string.Empty;
         _hint = string.Empty;
         _data = new object();
+        _tenantId = string.Empty;
     }
 
     internal UserMessageContext(
@@ -70,6 +79,7 @@ public class UserMessageContext
         string scope,
         string hint,
         object data,
+        string tenantId,
         string? authorization = null,
         string? threadId = null)
     {
@@ -79,6 +89,7 @@ public class UserMessageContext
         _scope = scope;
         _hint = hint;
         _data = data;
+        _tenantId = tenantId;
         _authorization = authorization;
         _threadId = threadId;
     }
@@ -121,10 +132,11 @@ public class UserMessageContext
     private async Task SendMessageToUserAsync(string content, object? data)
     {
         Workflow.Logger.LogDebug(
-            "Preparing to send message: ParticipantId={ParticipantId}, RequestId={RequestId}, ContentLength={ContentLength}",
+            "Preparing to send message: ParticipantId={ParticipantId}, RequestId={RequestId}, ContentLength={ContentLength}, Tenant={Tenant}",
             _participantId,
             _requestId,
-            content?.Length ?? 0);
+            content?.Length ?? 0,
+            _tenantId);
         
         var request = new SendMessageRequest
         {
@@ -139,13 +151,15 @@ public class UserMessageContext
             Authorization = _authorization,
             Hint = _hint, // Pass through the hint from the original message
             Origin = null,
-            Type = "Chat"
+            Type = "Chat",
+            TenantId = _tenantId  // Pass tenant context for system-scoped agents
         };
 
         Workflow.Logger.LogDebug(
-            "Executing SendMessage activity: WorkflowId={WorkflowId}, WorkflowType={WorkflowType}, Endpoint=api/agent/conversation/outbound/chat",
+            "Executing SendMessage activity: WorkflowId={WorkflowId}, WorkflowType={WorkflowType}, Tenant={Tenant}, Endpoint=api/agent/conversation/outbound/chat",
             request.WorkflowId,
-            request.WorkflowType);
+            request.WorkflowType,
+            _tenantId);
 
         // Execute as Temporal activity for proper determinism, retries, and observability
         await Workflow.ExecuteActivityAsync(
