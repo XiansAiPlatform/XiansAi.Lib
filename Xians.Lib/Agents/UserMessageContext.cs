@@ -123,7 +123,7 @@ public class UserMessageContext
     /// <returns>A list of DbMessage objects representing the chat history.</returns>
     public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        Workflow.Logger.LogDebug(
+        Workflow.Logger.LogInformation(
             "Fetching chat history: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
             Workflow.Info.WorkflowType,
             _participantId,
@@ -156,12 +156,21 @@ public class UserMessageContext
                 }
             });
 
-        Workflow.Logger.LogDebug(
-            "Chat history fetched: {Count} messages, Tenant={Tenant}",
+        // Filter out the current message to avoid duplication
+        // When retrieving history within a message handler, the current message
+        // is already being processed and should not be included in the history
+        var filteredMessages = messages.Where(m => 
+            !(m.Direction.Equals("inbound", StringComparison.OrdinalIgnoreCase) && 
+              m.Text == Message.Text)).ToList();
+
+        Workflow.Logger.LogInformation(
+            "Chat history fetched: {Count} messages (filtered from {Total}), Tenant={Tenant}",
+            filteredMessages.Count,
             messages.Count,
             _tenantId);
+    
 
-        return messages;
+        return filteredMessages;
     }
 
     /// <summary>

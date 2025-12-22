@@ -1,5 +1,6 @@
 ﻿using DotNetEnv;
 using Xians.Lib.Agents;
+using Xians.Agent.Sample;
 
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -45,17 +46,25 @@ var webhooksWorkflow = await agent.Workflows.DefineDefault(name: "Webhooks", wor
 // Define custom workflow
 var customWorkflow = await agent.Workflows.DefineCustom<CustomWorkflow>(workers: 1);
 
-AIAgent mafAgent = new OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").CreateAIAgent(instructions: "You are good at telling jokes.", name: "Joker");
-
 // Register handler for Conversational workflow
 conversationalWorkflow.OnUserMessage(async (context) =>
 {
-    var history = await context.GetChatHistoryAsync(page: 1, pageSize: 10);
-    Console.WriteLine("Chat history count: " + history.Count);
-    foreach (var message in history)
-    {
-        Console.WriteLine($"{message.Direction}: {message.Text}");
-    }
+    // Create AI agent with custom Xians chat message store
+    AIAgent mafAgent = new OpenAIClient(openAiApiKey)
+        .GetChatClient("gpt-4o-mini")
+        .CreateAIAgent(new ChatClientAgentOptions
+        {
+            Name = "Joker",
+            ChatMessageStoreFactory = ctx =>
+            {
+                // Create a new chat message store that reads from Xians platform
+                return new XiansChatMessageStore(
+                    context,
+                    ctx.SerializedState,
+                    ctx.JsonSerializerOptions);
+            }
+        });
+
     var response = await mafAgent.RunAsync(context.Message.Text);
     await context.ReplyAsync(response.Text);
 });
