@@ -23,9 +23,9 @@ public class ServerSettings
 public static class SettingsService
 {
     private const string SETTINGS_ENDPOINT = "/api/agent/settings/flowserver";
-    private static readonly Lazy<Task<ServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
     private static readonly object _settingsLock = new object();
     private static ServerSettings? _manualSettings;
+    private static ServerSettings? _cachedSettings;
 
     /// <summary>
     /// Gets the Temporal/Flow server settings from the application server.
@@ -41,9 +41,21 @@ public static class SettingsService
             {
                 return _manualSettings;
             }
+
+            if (_cachedSettings != null)
+            {
+                return _cachedSettings;
+            }
         }
 
-        return await _settingsLazy.Value;
+        var settings = await LoadSettingsFromServer(httpService);
+
+        lock (_settingsLock)
+        {
+            _cachedSettings = settings;
+        }
+
+        return settings;
     }
 
     /// <summary>
@@ -66,31 +78,15 @@ public static class SettingsService
         lock (_settingsLock)
         {
             _manualSettings = null;
+            _cachedSettings = null;
         }
     }
 
     /// <summary>
-    /// Internal method that loads settings from the server.
+    /// Internal method that loads settings from the server using the provided HTTP service.
     /// </summary>
-    private static async Task<ServerSettings> LoadSettingsFromServer()
+    private static async Task<ServerSettings> LoadSettingsFromServer(IHttpClientService httpService)
     {
-        var serverUrl = Environment.GetEnvironmentVariable("SERVER_URL");
-        var apiKey = Environment.GetEnvironmentVariable("API_KEY");
-
-        if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(apiKey))
-        {
-            throw new InvalidOperationException(
-                "SERVER_URL and API_KEY environment variables must be set to fetch server settings");
-        }
-
-        var config = new ServerConfiguration
-        {
-            ServerUrl = serverUrl,
-            ApiKey = apiKey
-        };
-
-        using var httpService = ServiceFactory.CreateHttpClientService(config);
-        
         var response = await httpService.ExecuteWithRetryAsync(async () =>
         {
             var client = await httpService.GetHealthyClientAsync();

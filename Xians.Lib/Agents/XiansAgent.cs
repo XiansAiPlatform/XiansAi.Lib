@@ -39,7 +39,7 @@ public class XiansAgent
     internal XiansAgent(string name, bool systemScoped, WorkflowDefinitionUploader? uploader, 
         ITemporalClientService? temporalService, Http.IHttpClientService? httpService, XiansOptions? options)
     {
-        Name = name;
+        Name = name.Trim(); // Trim to handle whitespace variations
         SystemScoped = systemScoped;
         TemporalService = temporalService;
         HttpService = httpService;

@@ -38,7 +38,7 @@ public class WorkflowCollection
             throw new InvalidOperationException("An unnamed workflow has already been registered. Only one unnamed workflow is allowed.");
         }
         
-        var workflowType = _agent.Name + " : Default Workflow" + (name != null ? $" - {name}" : "");
+        var workflowType = _agent.Name + ":Default Workflow" + (name != null ? $" - {name}" : "");
         var workflow = new XiansWorkflow(_agent, workflowType, name, workers, isDefault: true);
         _workflows.Add(workflow);
         

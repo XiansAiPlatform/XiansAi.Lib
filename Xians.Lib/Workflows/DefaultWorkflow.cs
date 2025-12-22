@@ -15,7 +15,8 @@ public class DefaultWorkflow
     private readonly Queue<InboundMessage> _messageQueue = new();
     
     // Metadata for each registered workflow handler including tenant isolation info
-    private static readonly Dictionary<string, WorkflowHandlerMetadata> _handlersByWorkflowType = new();
+    // Made internal static to allow activities to access it
+    internal static readonly Dictionary<string, WorkflowHandlerMetadata> _handlersByWorkflowType = new();
 
     /// <summary>
     /// Main workflow execution method
@@ -71,7 +72,7 @@ public class DefaultWorkflow
             _handlersByWorkflowType[workflowType] = new WorkflowHandlerMetadata
             {
                 Handler = handler,
-                AgentName = agentName,
+                AgentName = agentName.Trim(), // Trim to handle whitespace variations
                 TenantId = tenantId,
                 SystemScoped = systemScoped
             };
@@ -190,30 +191,12 @@ public class DefaultWorkflow
         }
         var workflowTenantId = workflowIdParts[0];
         
-        // Create user message context with all fields from the incoming message
-        var userMessage = new UserMessage
-        {
-            Text = message.Payload.Text
-        };
-
         Workflow.Logger.LogDebug(
-            "Creating UserMessageContext: ParticipantId={ParticipantId}, Scope={Scope}, Hint={Hint}, Tenant={Tenant}",
+            "Processing message: ParticipantId={ParticipantId}, Scope={Scope}, Hint={Hint}, Tenant={Tenant}",
             message.Payload.ParticipantId,
             message.Payload.Scope,
             message.Payload.Hint,
             workflowTenantId);
-
-        var context = new UserMessageContext(
-            userMessage,
-            message.Payload.ParticipantId,
-            message.Payload.RequestId,
-            message.Payload.Scope,
-            message.Payload.Hint,
-            message.Payload.Data,
-            workflowTenantId,  // Pass the extracted tenant ID from WorkflowId
-            message.Payload.Authorization,
-            message.Payload.ThreadId
-        );
         
         // Lookup handler metadata for this specific workflow type
         WorkflowHandlerMetadata? metadata;
@@ -229,7 +212,17 @@ public class DefaultWorkflow
                 workflowType,
                 message.Payload.RequestId);
             
-            await context.ReplyAsync($"No message handler registered for workflow type '{workflowType}'.");
+            await SendSimpleMessageAsync(
+                message.Payload.ParticipantId,
+                $"No message handler registered for workflow type '{workflowType}'.",
+                message.Payload.RequestId,
+                message.Payload.Scope,
+                message.Payload.ThreadId,
+                message.Payload.Authorization,
+                message.Payload.Hint,
+                workflowTenantId,
+                workflowId,
+                workflowType);
             return;
         }
         
@@ -255,7 +248,17 @@ public class DefaultWorkflow
                     metadata.TenantId,
                     workflowTenantId,
                     message.Payload.RequestId);
-                await context.ReplyAsync("Error: Tenant isolation violation.");
+                await SendSimpleMessageAsync(
+                    message.Payload.ParticipantId,
+                    "Error: Tenant isolation violation.",
+                    message.Payload.RequestId,
+                    message.Payload.Scope,
+                    message.Payload.ThreadId,
+                    message.Payload.Authorization,
+                    message.Payload.Hint,
+                    workflowTenantId,
+                    workflowId,
+                    workflowType);
                 return;
             }
             
@@ -266,32 +269,74 @@ public class DefaultWorkflow
         }
         
         // Validate agent name matches (applies to both system-scoped and non-system-scoped)
-        if (metadata.AgentName != message.Payload.Agent)
+        // Trim both values to handle whitespace differences
+        if (metadata.AgentName.Trim() != message.Payload.Agent?.Trim())
         {
             Workflow.Logger.LogWarning(
                 "Agent name mismatch: Expected={ExpectedAgent}, Received={ReceivedAgent}, RequestId={RequestId}",
                 metadata.AgentName,
                 message.Payload.Agent,
                 message.Payload.RequestId);
-            await context.ReplyAsync($"Error: Message intended for agent '{message.Payload.Agent}' but received by '{metadata.AgentName}'.");
+            await SendSimpleMessageAsync(
+                message.Payload.ParticipantId,
+                $"Error: Message intended for agent '{message.Payload.Agent?.Trim()}' but received by '{metadata.AgentName.Trim()}'.",
+                message.Payload.RequestId,
+                message.Payload.Scope,
+                message.Payload.ThreadId,
+                message.Payload.Authorization,
+                message.Payload.Hint,
+                workflowTenantId,
+                workflowId,
+                workflowType);
             return;
         }
         
-        // All validations passed - invoke the handler
+        // All validations passed - process message and send responses via single activity
         Workflow.Logger.LogInformation(
-            "Invoking user message handler: WorkflowType={WorkflowType}, Agent={Agent}, Tenant={Tenant}, SystemScoped={SystemScoped}",
+            "Processing message via activity: WorkflowType={WorkflowType}, Agent={Agent}, Tenant={Tenant}, SystemScoped={SystemScoped}",
             workflowType,
             metadata.AgentName,
             workflowTenantId,
             metadata.SystemScoped);
         
-        await metadata.Handler(context);
-        
-        Workflow.Logger.LogDebug("User message handler completed");
+        // Execute handler in activity - encapsulates agent API calls and sending responses
+        var activityRequest = new ProcessMessageActivityRequest
+        {
+            MessageText = message.Payload.Text,
+            ParticipantId = message.Payload.ParticipantId,
+            RequestId = message.Payload.RequestId,
+            Scope = message.Payload.Scope,
+            Hint = message.Payload.Hint,
+            Data = message.Payload.Data,
+            TenantId = workflowTenantId,
+            WorkflowId = workflowId,
+            WorkflowType = workflowType,
+            Authorization = message.Payload.Authorization,
+            ThreadId = message.Payload.ThreadId
+            // Handler is looked up in the activity from static registry
+        };
+
+        await Workflow.ExecuteActivityAsync(
+            (MessageActivities act) => act.ProcessAndSendMessageAsync(activityRequest),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromMinutes(5), // Allow time for agent API calls and responses
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(2),
+                    MaximumInterval = TimeSpan.FromSeconds(30),
+                    BackoffCoefficient = 2
+                }
+            });
+
+        Workflow.Logger.LogInformation(
+            "Message processed and responses sent: RequestId={RequestId}",
+            message.Payload.RequestId);
     }
 
     /// <summary>
-    /// Sends an error response back to the user
+    /// Sends an error response back to the user via activity.
     /// </summary>
     private async Task SendErrorResponseAsync(InboundMessage message, string errorMessage)
     {
@@ -300,19 +345,64 @@ public class DefaultWorkflow
         var workflowIdParts = workflowId.Split(':');
         var workflowTenantId = workflowIdParts.Length >= 2 ? workflowIdParts[0] : "unknown";
         
-        var context = new UserMessageContext(
-            new UserMessage { Text = message.Payload.Text },
+        await SendSimpleMessageAsync(
             message.Payload.ParticipantId,
+            $"Error: {errorMessage}",
             message.Payload.RequestId,
             message.Payload.Scope,
-            message.Payload.Hint,
-            message.Payload.Data,
-            workflowTenantId,
+            message.Payload.ThreadId,
             message.Payload.Authorization,
-            message.Payload.ThreadId
-        );
+            message.Payload.Hint,
+            workflowTenantId,
+            workflowId,
+            Workflow.Info.WorkflowType);
+    }
 
-        await context.ReplyAsync($"Error: {errorMessage}");
+    /// <summary>
+    /// Helper method to send a simple text message via activity.
+    /// </summary>
+    private async Task SendSimpleMessageAsync(
+        string participantId,
+        string text,
+        string requestId,
+        string scope,
+        string? threadId,
+        string? authorization,
+        string hint,
+        string tenantId,
+        string workflowId,
+        string workflowType)
+    {
+        var request = new SendMessageRequest
+        {
+            ParticipantId = participantId,
+            WorkflowId = workflowId,
+            WorkflowType = workflowType,
+            Text = text,
+            Data = null,
+            RequestId = requestId,
+            Scope = scope,
+            ThreadId = threadId,
+            Authorization = authorization,
+            Hint = hint,
+            Origin = null,
+            Type = "Chat",
+            TenantId = tenantId
+        };
+
+        await Workflow.ExecuteActivityAsync(
+            (MessageActivities act) => act.SendMessageAsync(request),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumInterval = TimeSpan.FromSeconds(10),
+                    BackoffCoefficient = 2
+                }
+            });
     }
 }
 
@@ -368,6 +458,7 @@ public class DbMessage
 
 /// <summary>
 /// Metadata for a registered workflow handler including tenant isolation information.
+/// Made internal to allow activities to access handler registry.
 /// </summary>
 internal class WorkflowHandlerMetadata
 {

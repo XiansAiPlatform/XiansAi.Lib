@@ -99,19 +99,9 @@ public class UserMessageContext
     /// Note: Prefer using ReplyAsync in async contexts.
     /// </summary>
     /// <param name="response">The response object to send.</param>
-    public void Reply(object response)
+    public virtual async Task ReplyAsync(string response)
     {
-        ReplyAsync(response).GetAwaiter().GetResult();
-    }
-
-    /// <summary>
-    /// Sends a reply to the user asynchronously.
-    /// </summary>
-    /// <param name="response">The response object to send.</param>
-    public async Task ReplyAsync(object response)
-    {
-        var content = response.ToString() ?? string.Empty;
-        await SendMessageToUserAsync(content, null);
+        await SendMessageToUserAsync(response, null);
     }
 
     /// <summary>
@@ -119,9 +109,59 @@ public class UserMessageContext
     /// </summary>
     /// <param name="content">The text content to send.</param>
     /// <param name="data">The data object to send.</param>
-    public async Task ReplyWithDataAsync(string content, object? data)
+    public virtual async Task ReplyWithDataAsync(string content, object? data)
     {
         await SendMessageToUserAsync(content, data);
+    }
+
+    /// <summary>
+    /// Retrieves paginated chat history for this conversation from the server.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// </summary>
+    /// <param name="page">The page number to retrieve (default: 1).</param>
+    /// <param name="pageSize">The number of messages per page (default: 10).</param>
+    /// <returns>A list of DbMessage objects representing the chat history.</returns>
+    public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
+    {
+        Workflow.Logger.LogDebug(
+            "Fetching chat history: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
+            Workflow.Info.WorkflowType,
+            _participantId,
+            page,
+            pageSize,
+            _tenantId);
+
+        var request = new GetMessageHistoryRequest
+        {
+            WorkflowType = Workflow.Info.WorkflowType,
+            ParticipantId = _participantId,
+            Scope = _scope,
+            TenantId = _tenantId,  // Use tenant ID from workflow context
+            Page = page,
+            PageSize = pageSize
+        };
+
+        // Execute as Temporal activity for proper determinism and retries
+        var messages = await Workflow.ExecuteActivityAsync(
+            (MessageActivities act) => act.GetMessageHistoryAsync(request),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumInterval = TimeSpan.FromSeconds(10),
+                    BackoffCoefficient = 2
+                }
+            });
+
+        Workflow.Logger.LogDebug(
+            "Chat history fetched: {Count} messages, Tenant={Tenant}",
+            messages.Count,
+            _tenantId);
+
+        return messages;
     }
 
     /// <summary>
