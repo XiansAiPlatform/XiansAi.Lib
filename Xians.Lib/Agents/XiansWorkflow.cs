@@ -51,14 +51,7 @@ public class XiansWorkflow
                 "OnUserMessage is only supported for default workflows. Use custom workflow classes for custom workflows.");
         }
 
-        // Get tenant ID for non-system-scoped agents
-        string? tenantId = null;
-        if (!_agent.SystemScoped)
-        {
-            tenantId = _agent.Options?.TenantId ?? 
-                throw new InvalidOperationException(
-                    "XiansOptions is not configured properly. Cannot determine TenantId for non-system-scoped agent.");
-        }
+        var tenantId = GetTenantIdOrNull();
 
         // Register the handler with tenant isolation metadata
         // This allows multiple default workflows to each have their own isolated handler
@@ -98,15 +91,7 @@ public class XiansWorkflow
         var client = await _agent.TemporalService.GetClientAsync();
 
         // Determine task queue name using centralized utility
-        string? tenantId = null;
-        if (!_agent.SystemScoped)
-        {
-            // Non-system-scoped agents require tenant ID
-            tenantId = _agent.Options?.TenantId ?? 
-                throw new InvalidOperationException(
-                    "XiansOptions is not configured properly. Cannot determine TenantId.");
-        }
-        
+        var tenantId = GetTenantIdOrNull();
         var taskQueue = TenantContext.GetTaskQueueName(
             WorkflowType, 
             _agent.SystemScoped, 
@@ -211,6 +196,21 @@ public class XiansWorkflow
             _logger.LogInformation("All workers for '{WorkflowType}' on queue '{TaskQueue}' have been shut down", 
                 WorkflowType, taskQueue);
         }
+    }
+
+    /// <summary>
+    /// Gets the tenant ID for non-system-scoped agents, or null for system-scoped agents.
+    /// </summary>
+    private string? GetTenantIdOrNull()
+    {
+        if (_agent.SystemScoped)
+        {
+            return null;
+        }
+
+        return _agent.Options?.TenantId ?? 
+            throw new InvalidOperationException(
+                "XiansOptions is not configured properly. Cannot determine TenantId for non-system-scoped agent.");
     }
 }
 

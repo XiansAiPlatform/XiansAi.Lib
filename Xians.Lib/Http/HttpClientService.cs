@@ -1,12 +1,10 @@
 using System.Net;
-using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
+using Xians.Lib.Common;
 using Xians.Lib.Configuration.Models;
-using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Http;
-
 
 /// <summary>
 /// Implements a resilient HTTP client service with automatic retry, health checking, and reconnection.
@@ -16,13 +14,14 @@ public class HttpClientService : IHttpClientService
     private readonly ILogger<HttpClientService> _logger;
     private readonly ServerConfiguration _config;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly HttpClientFactory _clientFactory;
+    private readonly HttpConnectionHealth _connectionHealth;
+    private readonly RetryPolicy _retryPolicy;
     
     private HttpClient? _client;
     private X509Certificate2? _clientCertificate;
     private bool _isInitialized;
-    private bool _isHealthy = true;
     private bool _disposed;
-    private DateTime _lastHealthCheck = DateTime.MinValue;
 
     public HttpClientService(ServerConfiguration config, ILogger<HttpClientService> logger)
     {
@@ -31,6 +30,11 @@ public class HttpClientService : IHttpClientService
 
         // Validate configuration
         _config.Validate();
+
+        // Initialize helper classes
+        _clientFactory = new HttpClientFactory(_config, _logger);
+        _connectionHealth = new HttpConnectionHealth(_config.HealthCheckIntervalMinutes, _logger);
+        _retryPolicy = new RetryPolicy(_config.MaxRetryAttempts, _config.RetryDelaySeconds, _logger);
 
         // Initialize the client
         try
@@ -57,11 +61,11 @@ public class HttpClientService : IHttpClientService
                 throw new ObjectDisposedException(nameof(HttpClientService));
 
             // Check health before returning
-            if (!IsConnectionHealthy())
+            if (!_connectionHealth.CheckConnectionHealth(_client, _isInitialized, _disposed))
             {
                 _logger.LogWarning("HTTP client connection is unhealthy, will attempt reconnection on next operation");
                 _isInitialized = false;
-                _isHealthy = false;
+                _connectionHealth.MarkUnhealthy();
             }
 
             return _client!;
@@ -77,20 +81,20 @@ public class HttpClientService : IHttpClientService
             throw new ObjectDisposedException(nameof(HttpClientService));
 
         // Check if current client is healthy
-        if (_isInitialized && IsConnectionHealthy())
+        if (_isInitialized && _connectionHealth.CheckConnectionHealth(_client, _isInitialized, _disposed))
             return _client!;
 
         await _semaphore.WaitAsync();
         try
         {
             // Double-check pattern with health check
-            if (_isInitialized && IsConnectionHealthy())
+            if (_isInitialized && _connectionHealth.CheckConnectionHealth(_client, _isInitialized, _disposed))
                 return _client!;
             
             // Recreate client with retry logic
             await RecreateClientWithRetryAsync();
             _isInitialized = true;
-            _isHealthy = true;
+            _connectionHealth.MarkHealthy();
             _logger.LogInformation("HTTP client recreated successfully after connection recovery");
             return _client!;
         }
@@ -131,44 +135,7 @@ public class HttpClientService : IHttpClientService
         if (_disposed)
             return false;
 
-        // Use cached health status if recent
-        var healthCheckInterval = TimeSpan.FromMinutes(_config.HealthCheckIntervalMinutes);
-        if (DateTime.UtcNow - _lastHealthCheck < healthCheckInterval && _isHealthy)
-            return true;
-
-        try
-        {
-            _lastHealthCheck = DateTime.UtcNow;
-            
-            if (_client == null)
-            {
-                _isHealthy = false;
-                return false;
-            }
-            
-            // Perform lightweight health check
-            using var request = new HttpRequestMessage(HttpMethod.Head, "/health");
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var response = await _client.SendAsync(
-                request, 
-                HttpCompletionOption.ResponseHeadersRead, 
-                cts.Token);
-            
-            _isHealthy = response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound;
-            
-            if (!_isHealthy)
-            {
-                _logger.LogWarning("Health check failed with status: {StatusCode}", response.StatusCode);
-            }
-            
-            return _isHealthy;
-        }
-        catch (Exception ex)
-        {
-            _isHealthy = false;
-            _logger.LogWarning(ex, "Health check failed due to exception");
-            return false;
-        }
+        return await _connectionHealth.CheckHealthAsync(_client);
     }
 
     /// <summary>
@@ -176,49 +143,12 @@ public class HttpClientService : IHttpClientService
     /// </summary>
     public async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation)
     {
-        var attempt = 0;
-        Exception? lastException = null;
-
-        while (attempt < _config.MaxRetryAttempts)
-        {
-            attempt++;
-            
-            try
-            {
-                if (attempt > 1)
-                {
-                    var delay = TimeSpan.FromMilliseconds(
-                        _config.RetryDelaySeconds * 1000 * Math.Pow(2, attempt - 2));
-                    _logger.LogInformation(
-                        "Retrying operation (attempt {Attempt}/{MaxAttempts}) after {Delay}ms", 
-                        attempt, _config.MaxRetryAttempts, delay.TotalMilliseconds);
-                    await Task.Delay(delay);
-                }
-
-                var result = await operation();
-                
-                // Reset health status on success
-                _isHealthy = true;
-                
-                if (attempt > 1)
-                {
-                    _logger.LogInformation("Operation succeeded on attempt {Attempt}", attempt);
-                }
-                
-                return result;
-            }
-            catch (Exception ex) when (IsTransientException(ex) && attempt < _config.MaxRetryAttempts)
-            {
-                lastException = ex;
-                _isHealthy = false;
-                _logger.LogWarning(ex, 
-                    "Operation failed on attempt {Attempt}/{MaxAttempts}: {Message}", 
-                    attempt, _config.MaxRetryAttempts, ex.Message);
-            }
-        }
-
-        _logger.LogError(lastException, "Operation failed after {MaxAttempts} attempts", _config.MaxRetryAttempts);
-        throw lastException ?? new InvalidOperationException("Operation failed after all retry attempts");
+        var result = await _retryPolicy.ExecuteAsync(operation);
+        
+        // Update health status on success
+        _connectionHealth.MarkHealthy();
+        
+        return result;
     }
 
     /// <summary>
@@ -226,11 +156,10 @@ public class HttpClientService : IHttpClientService
     /// </summary>
     public async Task ExecuteWithRetryAsync(Func<Task> operation)
     {
-        await ExecuteWithRetryAsync(async () =>
-        {
-            await operation();
-            return true;
-        });
+        await _retryPolicy.ExecuteAsync(operation);
+        
+        // Update health status on success
+        _connectionHealth.MarkHealthy();
     }
 
     /// <summary>
@@ -245,7 +174,7 @@ public class HttpClientService : IHttpClientService
             _client?.Dispose();
             _client = null;
             _isInitialized = false;
-            _isHealthy = false;
+            _connectionHealth.MarkUnhealthy();
         }
         finally
         {
@@ -253,179 +182,36 @@ public class HttpClientService : IHttpClientService
         }
     }
 
-    private bool IsConnectionHealthy()
-    {
-        if (!_isInitialized || _client == null)
-            return false;
-
-        // Use cached result if recent
-        var healthCheckInterval = TimeSpan.FromMinutes(_config.HealthCheckIntervalMinutes);
-        if (DateTime.UtcNow - _lastHealthCheck < healthCheckInterval && _isHealthy)
-            return _isHealthy;
-
-        _lastHealthCheck = DateTime.UtcNow;
-        
-        // Simplified health check - just verify client is configured properly
-        _isHealthy = _client.BaseAddress != null && !_disposed;
-        
-        return _isHealthy;
-    }
-
     private async Task RecreateClientWithRetryAsync()
     {
-        var attempt = 0;
-        Exception? lastException = null;
-
-        while (attempt < _config.MaxRetryAttempts)
+        await _retryPolicy.ExecuteAsync(() =>
         {
-            attempt++;
+            _logger.LogInformation("Attempting to recreate HTTP client");
+
+            // Dispose old resources before recreating
+            _client?.Dispose();
+            _client = null;
             
-            try
-            {
-                if (attempt > 1)
-                {
-                    var delay = TimeSpan.FromMilliseconds(
-                        _config.RetryDelaySeconds * 1000 * Math.Pow(2, attempt - 2));
-                    _logger.LogInformation(
-                        "Retrying client recreation (attempt {Attempt}/{MaxAttempts}) after {Delay}ms", 
-                        attempt, _config.MaxRetryAttempts, delay.TotalMilliseconds);
-                    await Task.Delay(delay);
-                }
-
-                _logger.LogInformation(
-                    "Attempting to recreate HTTP client (attempt {Attempt}/{MaxAttempts})", 
-                    attempt, _config.MaxRetryAttempts);
-
-                // Dispose old resources before recreating
-                if (_client != null)
-                {
-                    _client.Dispose();
-                    _client = null;
-                }
-                
-                if (_clientCertificate != null)
-                {
-                    _clientCertificate.Dispose();
-                    _clientCertificate = null;
-                }
-                
-                // Recreate client
-                CreateClient();
-                
-                _logger.LogInformation("HTTP client recreation succeeded on attempt {Attempt}", attempt);
-                return;
-            }
-            catch (Exception ex) when (IsTransientException(ex) && attempt < _config.MaxRetryAttempts)
-            {
-                lastException = ex;
-                _logger.LogWarning(ex, 
-                    "Client recreation failed on attempt {Attempt}/{MaxAttempts}: {Message}", 
-                    attempt, _config.MaxRetryAttempts, ex.Message);
-            }
-        }
-
-        _logger.LogError(lastException, 
-            "Client recreation failed after {MaxAttempts} attempts", _config.MaxRetryAttempts);
-        throw lastException ?? new InvalidOperationException("Failed to recreate client after all retry attempts");
+            _clientCertificate?.Dispose();
+            _clientCertificate = null;
+            
+            // Recreate client
+            CreateClient();
+            
+            _logger.LogInformation("HTTP client recreation succeeded");
+            return Task.CompletedTask;
+        });
     }
 
     private void CreateClient()
     {
-        // Configure SocketsHttpHandler with optimized settings
-        var socketsHandler = new SocketsHttpHandler
-        {
-            MaxConnectionsPerServer = _config.MaxConnectionsPerServer,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(_config.PooledConnectionLifetimeMinutes),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(_config.PooledConnectionIdleTimeoutMinutes),
-            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-            {
-                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12 | 
-                                     System.Security.Authentication.SslProtocols.Tls13,
-                RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
-                {
-                    if (errors == System.Net.Security.SslPolicyErrors.None)
-                        return true;
-                    
-                    _logger.LogWarning("SSL certificate validation failed: {Errors}", errors);
-                    return false;
-                }
-            }
-        };
-
-        _client = new HttpClient(socketsHandler)
-        {
-            BaseAddress = new Uri(_config.ServerUrl),
-            Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds)
-        };
-
-        try
-        {
-            // Dispose old certificate before creating new one
-            _clientCertificate?.Dispose();
-            _clientCertificate = null;
-            
-            // Parse API key as Base64-encoded certificate (required)
-            // This matches XiansAi.Lib.Src behavior - no fallback to simple strings
-            var apiKeyBytes = Convert.FromBase64String(_config.ApiKey);
-            
-            #pragma warning disable SYSLIB0057
-            _clientCertificate = new X509Certificate2(apiKeyBytes);
-            #pragma warning restore SYSLIB0057
-
-            // Validate certificate expiration
-            if (_clientCertificate.NotAfter < DateTime.UtcNow)
-            {
-                _logger.LogError("Client certificate expired on {ExpirationDate}", _clientCertificate.NotAfter);
-                throw new CertificateException(
-                    $"Client certificate has expired on {_clientCertificate.NotAfter:yyyy-MM-dd}");
-            }
-
-            if (_clientCertificate.NotBefore > DateTime.UtcNow)
-            {
-                _logger.LogError("Client certificate not valid until {ValidFrom}", _clientCertificate.NotBefore);
-                throw new CertificateException(
-                    $"Client certificate is not yet valid until {_clientCertificate.NotBefore:yyyy-MM-dd}");
-            }
-
-            // Export the certificate as Base64 and add it to the request headers for authentication
-            // Note: This is application-specific auth. For true mTLS, consider using ClientCertificates on the handler
-            var exportedCertBytes = _clientCertificate.Export(X509ContentType.Cert);
-            var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
-            _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
-            
-            _logger.LogTrace("Client certificate configured for authentication");
-        }
-        catch (Exception ex)
-        {
-            _client?.Dispose();
-            _logger.LogError(ex, "Failed to configure HTTP client authentication. Ensure API_KEY is a valid Base64-encoded X.509 certificate.");
-            throw new CertificateException(
-                "Failed to configure HTTP client authentication. API_KEY must be a Base64-encoded X.509 certificate.", 
-                ex);
-        }
-    }
-
-    private static bool IsTransientException(Exception ex)
-    {
-        return ex switch
-        {
-            HttpRequestException httpEx => IsTransientHttpException(httpEx),
-            TaskCanceledException => true,
-            SocketException => true,
-            TimeoutException => true,
-            _ => false
-        };
-    }
-
-    private static bool IsTransientHttpException(HttpRequestException httpEx)
-    {
-        var message = httpEx.Message.ToLower();
-        return message.Contains("timeout") || 
-               message.Contains("connection") || 
-               message.Contains("network") ||
-               message.Contains("dns") ||
-               message.Contains("ssl") ||
-               message.Contains("certificate");
+        var (client, certificate) = _clientFactory.CreateClient();
+        
+        // Dispose old resources
+        _clientCertificate?.Dispose();
+        
+        _client = client;
+        _clientCertificate = certificate;
     }
 
     public void Dispose()

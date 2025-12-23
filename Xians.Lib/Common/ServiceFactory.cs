@@ -57,14 +57,8 @@ public static class ServiceFactory
             ILogger<HttpClientService>? httpLogger = null,
             ILogger<TemporalClientService>? temporalLogger = null)
     {
-        var serverUrl = Environment.GetEnvironmentVariable("SERVER_URL");
-        var apiKey = Environment.GetEnvironmentVariable("API_KEY");
-
-        if (string.IsNullOrEmpty(serverUrl))
-            throw new InvalidOperationException("SERVER_URL environment variable is required");
-        
-        if (string.IsNullOrEmpty(apiKey))
-            throw new InvalidOperationException("API_KEY environment variable is required");
+        var serverUrl = EnvironmentVariableReader.GetRequired("SERVER_URL");
+        var apiKey = EnvironmentVariableReader.GetRequired("API_KEY");
 
         return await CreateServicesFromServerAsync(serverUrl, apiKey, httpLogger, temporalLogger);
     }
@@ -93,19 +87,10 @@ public static class ServiceFactory
     public static IHttpClientService CreateHttpClientServiceFromEnvironment(
         ILogger<HttpClientService>? logger = null)
     {
-        var serverUrl = Environment.GetEnvironmentVariable("SERVER_URL");
-        var apiKey = Environment.GetEnvironmentVariable("API_KEY");
-
-        if (string.IsNullOrWhiteSpace(serverUrl))
-            throw new InvalidOperationException("SERVER_URL environment variable is required");
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-            throw new InvalidOperationException("API_KEY environment variable is required");
-
         var config = new ServerConfiguration
         {
-            ServerUrl = serverUrl,
-            ApiKey = apiKey
+            ServerUrl = EnvironmentVariableReader.GetRequired("SERVER_URL"),
+            ApiKey = EnvironmentVariableReader.GetRequired("API_KEY")
         };
 
         return CreateHttpClientService(config, logger);
@@ -136,26 +121,14 @@ public static class ServiceFactory
     public static ITemporalClientService CreateTemporalClientServiceFromEnvironment(
         ILogger<TemporalClientService>? logger = null)
     {
-        var serverUrl = Environment.GetEnvironmentVariable("TEMPORAL_SERVER_URL");
-        var @namespace = Environment.GetEnvironmentVariable("TEMPORAL_NAMESPACE");
-        var certBase64 = Environment.GetEnvironmentVariable("TEMPORAL_CERT_BASE64");
-        var keyBase64 = Environment.GetEnvironmentVariable("TEMPORAL_KEY_BASE64");
-
-        if (string.IsNullOrWhiteSpace(serverUrl))
-            throw new InvalidOperationException("TEMPORAL_SERVER_URL environment variable is required");
-
-        if (string.IsNullOrWhiteSpace(@namespace))
-            throw new InvalidOperationException("TEMPORAL_NAMESPACE environment variable is required");
-
         var config = new TemporalConfiguration
         {
-            ServerUrl = serverUrl,
-            Namespace = @namespace,
-            CertificateBase64 = certBase64,
-            PrivateKeyBase64 = keyBase64
+            ServerUrl = EnvironmentVariableReader.GetRequired("TEMPORAL_SERVER_URL"),
+            Namespace = EnvironmentVariableReader.GetRequired("TEMPORAL_NAMESPACE"),
+            CertificateBase64 = EnvironmentVariableReader.GetOptional("TEMPORAL_CERT_BASE64"),
+            PrivateKeyBase64 = EnvironmentVariableReader.GetOptional("TEMPORAL_KEY_BASE64")
         };
 
         return CreateTemporalClientService(config, logger);
     }
 }
-

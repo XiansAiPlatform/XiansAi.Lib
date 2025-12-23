@@ -94,11 +94,11 @@ public class RealServerWorkflowTests : RealServerTestBase
         
         // Assert
         Assert.NotNull(workflow);
-        Assert.Equal($"{agentName} : Default Workflow : Conversational", workflow.WorkflowType);
+        Assert.Equal($"{agentName}:Default Workflow - Conversational", workflow.WorkflowType);
         Assert.Equal("Conversational", workflow.Name);
         Assert.Equal(1, workflow.Workers);
         Assert.NotNull(workflow2);
-        Assert.Equal($"{agentName} : Default Workflow : Webhooks", workflow2.WorkflowType);
+        Assert.Equal($"{agentName}:Default Workflow - Webhooks", workflow2.WorkflowType);
         Assert.Equal("Webhooks", workflow2.Name);
         Assert.Equal(1, workflow2.Workers);
     }

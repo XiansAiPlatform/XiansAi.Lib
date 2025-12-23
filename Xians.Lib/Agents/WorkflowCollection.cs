@@ -118,4 +118,3 @@ public class WorkflowCollection
         await Task.WhenAll(tasks);
     }
 }
-

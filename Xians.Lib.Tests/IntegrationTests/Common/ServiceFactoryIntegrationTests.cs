@@ -1,6 +1,7 @@
 using DotNetEnv;
 using Xians.Lib.Common;
 using Xians.Lib.Common.Models;
+using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Tests.TestUtilities;
 
@@ -78,7 +79,7 @@ public class ServiceFactoryIntegrationTests
         };
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => 
+        Assert.Throws<ConfigurationException>(() => 
             ServiceFactory.CreateHttpClientService(config));
     }
 }

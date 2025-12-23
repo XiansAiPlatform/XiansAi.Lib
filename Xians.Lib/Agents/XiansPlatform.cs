@@ -78,4 +78,3 @@ public class XiansPlatform
         return InitializeAsync(options).GetAwaiter().GetResult();
     }
 }
-

@@ -1,6 +1,7 @@
 using Xunit;
 using Xians.Lib.Common;
 using Xians.Lib.Common.Models;
+using Xians.Lib.Common.Exceptions;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -29,7 +30,7 @@ public class TenantContextTests
     public void ExtractTenantId_NullOrEmptyWorkflowId_ThrowsException(string? workflowId)
     {
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<WorkflowException>(() =>
             TenantContext.ExtractTenantId(workflowId!));
         
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -41,7 +42,7 @@ public class TenantContextTests
     public void ExtractTenantId_InvalidFormat_ThrowsException(string workflowId)
     {
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<WorkflowException>(() =>
             TenantContext.ExtractTenantId(workflowId));
         
         Assert.Contains("Invalid WorkflowId format", exception.Message);
@@ -81,7 +82,7 @@ public class TenantContextTests
     public void ExtractWorkflowType_NullOrEmptyWorkflowId_ThrowsException(string? workflowId)
     {
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<WorkflowException>(() =>
             TenantContext.ExtractWorkflowType(workflowId!));
         
         Assert.Contains("cannot be null or empty", exception.Message);
@@ -93,7 +94,7 @@ public class TenantContextTests
     public void ExtractWorkflowType_InvalidFormat_ThrowsException(string workflowId)
     {
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<WorkflowException>(() =>
             TenantContext.ExtractWorkflowType(workflowId));
         
         Assert.Contains("Invalid WorkflowId format", exception.Message);
@@ -152,7 +153,7 @@ public class TenantContextTests
         var workflowType = "CustomerService:Default Workflow";
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<TenantIsolationException>(() =>
             TenantContext.GetTaskQueueName(workflowType, systemScoped: false, tenantId: null));
         
         Assert.Contains("TenantId is required", exception.Message);
@@ -168,7 +169,7 @@ public class TenantContextTests
         var workflowType = "CustomerService:Default Workflow";
 
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<TenantIsolationException>(() =>
             TenantContext.GetTaskQueueName(workflowType, systemScoped: false, tenantId: emptyTenantId));
         
         Assert.Contains("TenantId is required", exception.Message);
@@ -296,7 +297,7 @@ public class TenantContextTests
         var invalidWorkflowId = "invalid-format";
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<WorkflowException>(() =>
             TenantContext.Parse(invalidWorkflowId));
     }
 

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client;
+using Xians.Lib.Common;
 using Xians.Lib.Configuration.Models;
-using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Temporal;
 
@@ -13,11 +13,13 @@ public class TemporalClientService : ITemporalClientService
     private readonly ILogger<TemporalClientService> _logger;
     private readonly TemporalConfiguration _config;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly TemporalClientFactory _clientFactory;
+    private readonly TemporalConnectionHealth _connectionHealth;
+    private readonly RetryPolicy _retryPolicy;
     
     private ITemporalClient? _client;
     private bool _isInitialized;
     private bool _disposed;
-    private DateTime _lastConnectionAttempt = DateTime.MinValue;
 
     public TemporalClientService(TemporalConfiguration config, ILogger<TemporalClientService> logger)
     {
@@ -26,6 +28,14 @@ public class TemporalClientService : ITemporalClientService
 
         // Validate configuration
         _config.Validate();
+
+        // Initialize helper classes
+        _clientFactory = new TemporalClientFactory(_config, _logger);
+        _connectionHealth = new TemporalConnectionHealth(_logger);
+        _retryPolicy = new RetryPolicy(
+            _config.MaxRetryAttempts, 
+            _config.RetryDelaySeconds,
+            _logger);
 
         _logger.LogDebug("Temporal client service initialized (lazy connection)");
     }
@@ -38,21 +48,23 @@ public class TemporalClientService : ITemporalClientService
         if (_disposed)
             throw new ObjectDisposedException(nameof(TemporalClientService));
 
-        if (_isInitialized && _client != null && IsConnectionHealthy())
+        if (_isInitialized && _client != null && _connectionHealth.IsConnectionHealthy(_client))
             return _client;
 
         await _semaphore.WaitAsync();
         try
         {
             // Double-check pattern with health check
-            if (_isInitialized && _client != null && IsConnectionHealthy())
+            if (_isInitialized && _client != null && _connectionHealth.IsConnectionHealthy(_client))
                 return _client;
             
-            _client = await CreateClientWithRetryAsync();
+            _client = await _retryPolicy.ExecuteAsync(() => _clientFactory.CreateClientAsync());
             _isInitialized = true;
+            
             _logger.LogInformation(
                 "Temporal client connection established to namespace '{Namespace}' successfully", 
                 _client.Options.Namespace);
+            
             return _client;
         }
         catch (Exception ex)
@@ -71,22 +83,15 @@ public class TemporalClientService : ITemporalClientService
     /// </summary>
     public bool IsConnectionHealthy()
     {
-        try
+        if (!_connectionHealth.IsConnectionHealthy(_client))
         {
-            if (_client == null)
-                return false;
-
-            return _client.Connection.IsConnected;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Temporal connection health check failed, will attempt reconnection");
-            
             // Mark as unhealthy and reset state for reconnection
             _isInitialized = false;
             _client = null;
             return false;
         }
+        
+        return true;
     }
 
     /// <summary>
@@ -123,8 +128,6 @@ public class TemporalClientService : ITemporalClientService
                 if (_client != null && !_disposed)
                 {
                     _logger.LogInformation("Disconnecting from Temporal server");
-                    // ITemporalClient doesn't implement IDisposable
-                    // Just set to null to allow GC to handle cleanup
                     _client = null;
                     _isInitialized = false;
                 }
@@ -140,124 +143,6 @@ public class TemporalClientService : ITemporalClientService
         catch (ObjectDisposedException)
         {
             // Semaphore was already disposed, ignore
-        }
-    }
-
-    private async Task<ITemporalClient> CreateClientWithRetryAsync()
-    {
-        var attempt = 0;
-        Exception? lastException = null;
-
-        while (attempt < _config.MaxRetryAttempts)
-        {
-            attempt++;
-            
-            try
-            {
-                // Respect retry delay between attempts
-                if (attempt > 1)
-                {
-                    var timeSinceLastAttempt = DateTime.UtcNow - _lastConnectionAttempt;
-                    var retryDelay = TimeSpan.FromSeconds(_config.RetryDelaySeconds);
-                    
-                    if (timeSinceLastAttempt < retryDelay)
-                    {
-                        var delayRemaining = retryDelay - timeSinceLastAttempt;
-                        _logger.LogInformation(
-                            "Waiting {Delay:F1}s before retry attempt {Attempt}", 
-                            delayRemaining.TotalSeconds, attempt);
-                        await Task.Delay(delayRemaining);
-                    }
-                }
-
-                _lastConnectionAttempt = DateTime.UtcNow;
-                _logger.LogDebug(
-                    "Attempting to connect to Temporal server (attempt {Attempt}/{MaxAttempts})", 
-                    attempt, _config.MaxRetryAttempts);
-                
-                return await CreateClientAsync();
-            }
-            catch (Exception ex)
-            {
-                lastException = ex;
-                _logger.LogWarning(ex, 
-                    "Connection attempt {Attempt}/{MaxAttempts} failed: {Message}", 
-                    attempt, _config.MaxRetryAttempts, ex.Message);
-                
-                if (attempt == _config.MaxRetryAttempts)
-                {
-                    _logger.LogError(ex, "All {MaxAttempts} connection attempts failed", _config.MaxRetryAttempts);
-                    break;
-                }
-            }
-        }
-
-        throw new TemporalConnectionException(
-            $"Failed to establish Temporal connection after {_config.MaxRetryAttempts} attempts", 
-            _config.ServerUrl,
-            _config.Namespace,
-            lastException!);
-    }
-
-    private async Task<ITemporalClient> CreateClientAsync()
-    {
-        var options = new TemporalClientConnectOptions(_config.ServerUrl)
-        {
-            Namespace = _config.Namespace,
-            Tls = GetTlsConfig(),
-            LoggerFactory = LoggerFactory.Create(builder =>
-                builder
-                    .AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ")
-                    .SetMinimumLevel(LogLevel.Information))
-        };
-
-        _logger.LogDebug(
-            "Connecting to Temporal server at {ServerUrl} with namespace {Namespace}", 
-            _config.ServerUrl, _config.Namespace);
-
-        return await TemporalClient.ConnectAsync(options);
-    }
-
-    private TlsOptions? GetTlsConfig()
-    {
-        if (!_config.IsTlsEnabled)
-        {
-            _logger.LogDebug("TLS is not enabled for Temporal connection");
-            return null;
-        }
-
-        byte[]? cert = null;
-        byte[]? privateKey = null;
-        
-        try
-        {
-            cert = Convert.FromBase64String(_config.CertificateBase64!);
-            privateKey = Convert.FromBase64String(_config.PrivateKeyBase64!);
-            
-            _logger.LogDebug("TLS is enabled for Temporal connection");
-            
-            // Note: TlsOptions will take ownership of these byte arrays
-            // They should not be zeroed out here as they're needed by the Temporal client
-            return new TlsOptions
-            {
-                ClientCert = cert,
-                ClientPrivateKey = privateKey
-            };
-        }
-        catch (Exception ex)
-        {
-            // On error, securely clear sensitive data before throwing
-            if (privateKey != null)
-            {
-                Array.Clear(privateKey, 0, privateKey.Length);
-            }
-            if (cert != null)
-            {
-                Array.Clear(cert, 0, cert.Length);
-            }
-            
-            _logger.LogError(ex, "Failed to parse TLS certificate or private key");
-            throw new TemporalConnectionException("Failed to configure TLS for Temporal connection", _config.ServerUrl, _config.Namespace, ex);
         }
     }
 

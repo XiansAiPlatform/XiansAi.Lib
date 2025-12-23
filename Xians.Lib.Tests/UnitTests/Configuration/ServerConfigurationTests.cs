@@ -1,4 +1,5 @@
 using Xians.Lib.Configuration.Models;
+using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Tests.UnitTests.Configuration;
 
@@ -32,7 +33,7 @@ public class ServerConfigurationTests
         };
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => config.Validate());
+        Assert.Throws<ConfigurationException>(() => config.Validate());
     }
 
     [Theory]
@@ -48,7 +49,7 @@ public class ServerConfigurationTests
         };
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => config.Validate());
+        Assert.Throws<ConfigurationException>(() => config.Validate());
     }
 
     [Fact]

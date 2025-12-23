@@ -13,6 +13,9 @@ namespace Xians.Lib.Common;
 public static class SettingsService
 {
     private const string SETTINGS_ENDPOINT = "/api/agent/settings/flowserver";
+    private const int MAX_RESPONSE_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
+    private const int JSON_MAX_DEPTH = 32;
+    
     private static readonly object _settingsLock = new object();
     private static ServerSettings? _manualSettings;
     private static ServerSettings? _cachedSettings;
@@ -99,18 +102,17 @@ public static class SettingsService
     {
         var content = await response.Content.ReadAsStringAsync();
 
-        const int MaxResponseSize = 1 * 1024 * 1024; // 1 MB
-        if (content.Length > MaxResponseSize)
+        if (content.Length > MAX_RESPONSE_SIZE_BYTES)
         {
             throw new InvalidOperationException(
-                $"Response size {content.Length} exceeds maximum allowed size of {MaxResponseSize} bytes");
+                $"Response size {content.Length} exceeds maximum allowed size of {MAX_RESPONSE_SIZE_BYTES} bytes");
         }
 
         var options = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            MaxDepth = 32
+            MaxDepth = JSON_MAX_DEPTH
         };
 
         var settings = JsonSerializer.Deserialize<ServerSettings>(content, options);
@@ -120,8 +122,8 @@ public static class SettingsService
             throw new InvalidOperationException("Failed to deserialize server settings");
         }
 
-        if (string.IsNullOrEmpty(settings.FlowServerUrl) || 
-            string.IsNullOrEmpty(settings.FlowServerNamespace))
+        if (string.IsNullOrWhiteSpace(settings.FlowServerUrl) || 
+            string.IsNullOrWhiteSpace(settings.FlowServerNamespace))
         {
             throw new InvalidOperationException(
                 "FlowServerUrl and FlowServerNamespace must be provided by server");
@@ -170,5 +172,3 @@ public static class SettingsService
         };
     }
 }
-
-

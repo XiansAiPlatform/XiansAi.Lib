@@ -1,5 +1,6 @@
 using DotNetEnv;
 using Xians.Lib.Common;
+using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Temporal;
 
@@ -111,8 +112,8 @@ public class TemporalClientIntegrationTests
 
         using var service = ServiceFactory.CreateTemporalClientService(config);
 
-        // Act & Assert - Expect InvalidOperationException after connection attempts fail
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => 
+        // Act & Assert - Expect TemporalConnectionException after connection attempts fail
+        await Assert.ThrowsAsync<TemporalConnectionException>(async () => 
             await service.GetClientAsync());
     }
 
@@ -126,8 +127,8 @@ public class TemporalClientIntegrationTests
             Namespace = "test"
         };
 
-        // Act & Assert - Configuration validation throws InvalidOperationException
-        Assert.Throws<InvalidOperationException>(() => 
+        // Act & Assert - Configuration validation throws ConfigurationException
+        Assert.Throws<ConfigurationException>(() => 
             ServiceFactory.CreateTemporalClientService(config));
     }
 
