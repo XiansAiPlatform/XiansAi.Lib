@@ -18,13 +18,13 @@ public class WorkflowCollection
     }
 
     /// <summary>
-    /// Defines the default workflow for the agent.
+    /// Defines a built-in workflow for the agent using the platform-provided workflow implementation.
     /// </summary>
     /// <param name="name">Optional name for the workflow.</param>
     /// <param name="workers">Number of workers for the workflow. Default is 1.</param>
-    /// <returns>A new default XiansWorkflow instance.</returns>
+    /// <returns>A new built-in XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists or when attempting to register multiple unnamed workflows.</exception>
-    public async Task<XiansWorkflow> DefineDefault(string? name = null, int workers = 1)
+    public async Task<XiansWorkflow> DefineBuiltIn(string? name = null, int workers = 1)
     {
         // Check if workflow with same name already exists
         if (name != null && _workflows.Any(w => w.Name == name))
@@ -39,7 +39,7 @@ public class WorkflowCollection
         }
         
         var workflowType = _agent.Name + ":Default Workflow" + (name != null ? $" - {name}" : "");
-        var workflow = new XiansWorkflow(_agent, workflowType, name, workers, isDefault: true);
+        var workflow = new XiansWorkflow(_agent, workflowType, name, workers, isBuiltIn: true);
         _workflows.Add(workflow);
         
         // Upload workflow definition to server if uploader is available
@@ -68,7 +68,7 @@ public class WorkflowCollection
             throw new InvalidOperationException($"A workflow of type '{workflowType}' has already been registered.");
         }
         
-        var workflow = new XiansWorkflow(_agent, workflowType, null, workers, isDefault: false);
+        var workflow = new XiansWorkflow(_agent, workflowType, null, workers, isBuiltIn: false);
         _workflows.Add(workflow);
         
         // Upload workflow definition to server if uploader is available

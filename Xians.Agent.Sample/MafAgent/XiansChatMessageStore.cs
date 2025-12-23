@@ -92,10 +92,11 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         }
 
         // Determine the role based on message direction
-        var role = dbMessage.Direction.ToLowerInvariant() switch
+        var direction = dbMessage.Direction.ToLowerInvariant();
+        var role = direction switch
         {
-            "outbound" => ChatRole.Assistant,  // Messages from the agent
-            "inbound" => ChatRole.User,        // Messages from the user
+            "outgoing" or "outbound" => ChatRole.Assistant,  // Messages from the agent
+            "incoming" or "inbound" => ChatRole.User,        // Messages from the user
             _ => ChatRole.User                 // Default to user
         };
 

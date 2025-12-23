@@ -123,7 +123,7 @@ var agent = platform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define workflow
-var workflow = await agent.Workflows.DefineDefault(
+var workflow = await agent.Workflows.DefineBuiltIn(
     name: "SupportTickets",
     workers: 2
 );
@@ -173,7 +173,7 @@ var agent = platform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define workflow
-var workflow = await agent.Workflows.DefineDefault(
+var workflow = await agent.Workflows.DefineBuiltIn(
     name: "EmailAlerts",
     workers: 5  // Shared pool handling multiple tenants
 );
@@ -711,7 +711,7 @@ public class XiansAgentRegistration
 
 ```csharp
 // Define a default workflow
-var workflow = await agent.Workflows.DefineDefault(
+var workflow = await agent.Workflows.DefineBuiltIn(
     name: "MyWorkflow",      // Optional workflow name
     workers: 3               // Number of worker instances (default: 1)
 );
@@ -787,7 +787,7 @@ public class MultiTenantSaasAgent
             SystemScoped = true
         });
         
-        var notificationWorkflow = await notificationAgent.Workflows.DefineDefault(
+        var notificationWorkflow = await notificationAgent.Workflows.DefineBuiltIn(
             name: "Alerts",
             workers: 5
         );
@@ -804,7 +804,7 @@ public class MultiTenantSaasAgent
             SystemScoped = false  // Tenant-isolated
         });
         
-        var customerWorkflow = await customerAgent.Workflows.DefineDefault(
+        var customerWorkflow = await customerAgent.Workflows.DefineBuiltIn(
             name: "Support",
             workers: 2
         );

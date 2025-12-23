@@ -47,7 +47,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DefineDefaultWorkflow_ShouldUploadToServer()
+    public async Task DefineBuiltInWorkflow_ShouldUploadToServer()
     {
         // Arrange
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
@@ -57,7 +57,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = await agent.Workflows.DefineDefault(workers: 1, name: "Conversational");
+        var workflow = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
 
         // Assert
         Assert.NotNull(workflow);
@@ -67,7 +67,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DefineDefaultWorkflow_ShouldSendCorrectPayload()
+    public async Task DefineBuiltInWorkflow_ShouldSendCorrectPayload()
     {
         // Arrange
         var uniqueAgentName = $"PayloadTestAgent_{Guid.NewGuid():N}";
@@ -78,7 +78,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = await agent.Workflows.DefineDefault(workers: 1, name: "Conversational");
+        var workflow = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
 
         // Assert - Find the most recent POST request
         var postRequest = _mockServer!.LogEntries
@@ -99,7 +99,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DefineDefaultWorkflow_WithSystemScopedTrue_ShouldIncludeInPayload()
+    public async Task DefineBuiltInWorkflow_WithSystemScopedTrue_ShouldIncludeInPayload()
     {
         // Arrange
         var uniqueAgentName = $"SystemAgent_{Guid.NewGuid():N}";
@@ -110,7 +110,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = await agent.Workflows.DefineDefault(workers: 2, name: "SystemWorkflow");
+        var workflow = await agent.Workflows.DefineBuiltIn(workers: 2, name: "SystemWorkflow");
 
         // Assert - Find the most recent POST request
         var postRequest = _mockServer!.LogEntries

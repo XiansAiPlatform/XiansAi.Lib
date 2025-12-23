@@ -141,7 +141,7 @@ var agent = platform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define workflow
-var workflow = await agent.Workflows.DefineDefault(
+var workflow = await agent.Workflows.DefineBuiltIn(
     name: "Alerts",
     workers: 3  // Handle multiple tenants
 );
@@ -188,7 +188,7 @@ var agent = platform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define workflow
-var workflow = await agent.Workflows.DefineDefault(
+var workflow = await agent.Workflows.DefineBuiltIn(
     name: "Tickets",
     workers: 2
 );

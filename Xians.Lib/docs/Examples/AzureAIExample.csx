@@ -48,7 +48,7 @@ XiansAgent xiansAgent = xians.Agents.Register(new XiansAgentRegistration
 });
 
 // Define the default workflow
-XiansWorkflow defaultWorkflow = await xiansAgent.Workflows.DefineDefault(workers: 1, name: "Conversational");
+XiansWorkflow defaultWorkflow = await xiansAgent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
 
 // On user message, generate a response
 defaultWorkflow.OnUserMessage(async context =>

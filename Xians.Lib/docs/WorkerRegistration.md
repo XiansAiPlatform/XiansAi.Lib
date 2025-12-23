@@ -4,7 +4,7 @@ This document explains how Temporal workers are automatically created and regist
 
 ## Overview
 
-When `agent.RunAllAsync()` is called on an agent that has defined default workflows via `DefineDefault()`, the system automatically:
+When `agent.RunAllAsync()` is called on an agent that has defined built-in workflows via `DefineBuiltIn()`, the system automatically:
 
 1. Creates Temporal client connections
 2. Registers the `DefaultWorkflow` class with Temporal workers
@@ -23,7 +23,7 @@ XiansPlatform.InitializeAsync()
   └─> Passes services to AgentCollection
        └─> Register() creates XiansAgent with services
             └─> XiansAgent contains WorkflowCollection
-                 └─> DefineDefault() creates XiansWorkflow instances
+                 └─> DefineBuiltIn() creates XiansWorkflow instances
                       └─> RunAllAsync() starts Temporal workers
 ```
 
@@ -60,12 +60,12 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define default workflows (these will be registered with Temporal workers)
-var conversationalWorkflow = await agent.Workflows.DefineDefault(
+var conversationalWorkflow = await agent.Workflows.DefineBuiltIn(
     name: "Conversational", 
     workers: 3  // Creates 3 concurrent workers
 );
 
-var webhooksWorkflow = await agent.Workflows.DefineDefault(
+var webhooksWorkflow = await agent.Workflows.DefineBuiltIn(
     name: "Webhooks", 
     workers: 1
 );
@@ -119,10 +119,10 @@ Each workflow can be configured with a specific number of workers:
 
 ```csharp
 // Single worker (default)
-await agent.Workflows.DefineDefault(name: "Processing", workers: 1);
+await agent.Workflows.DefineBuiltIn(name: "Processing", workers: 1);
 
 // Multiple workers for concurrent processing
-await agent.Workflows.DefineDefault(name: "HighThroughput", workers: 10);
+await agent.Workflows.DefineBuiltIn(name: "HighThroughput", workers: 10);
 ```
 
 ## Worker Lifecycle
@@ -161,7 +161,7 @@ For default workflows, the system registers the `DefaultWorkflow` class:
 
 ```csharp
 // From XiansWorkflow.RunAsync()
-if (_isDefault)
+if (_isBuiltIn)
 {
     workerOptions.AddWorkflow<DefaultWorkflow>();
 }

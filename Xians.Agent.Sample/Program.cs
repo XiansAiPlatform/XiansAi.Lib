@@ -2,11 +2,6 @@
 using Xians.Lib.Agents;
 using Xians.Agent.Sample;
 
-using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
-using OpenAI;
-using OpenAI.Chat;
-
 Env.Load();
 
 var serverUrl = Environment.GetEnvironmentVariable("XIANS_SERVER_URL");
@@ -19,6 +14,7 @@ if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(xiansApiKey) || stri
     return;
 }
 
+// Initialize Xians platform
 var xiansPlatform = await XiansPlatform.InitializeAsync(new XiansOptions
 {
     ServerUrl = serverUrl,
@@ -26,53 +22,37 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new XiansOptions
     // TenantId is automatically extracted from the ApiKey certificate
 });
 
-
 // Generate unique agent name to avoid conflicts
 var agentName = $"XiansTestAgent V3";
 
-// Act - Register agent and define workflow (same as AzureAIExample.csx)
+// Register agent and define workflow
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
     SystemScoped = true
 });
 
-// Define a default workflow (this should trigger upload to server)
-var conversationalWorkflow = await agent.Workflows.DefineDefault(name: "Conversational", workers: 1);
+// Define a default workflow  to handle super user messages
+var workflowA = await agent.Workflows.DefineBuiltIn(name: "Conversational", workers: 1);
 
-// Define another default workflow (this should trigger upload to server)
-var webhooksWorkflow = await agent.Workflows.DefineDefault(name: "Webhooks", workers: 1);
+// Define another default workflow to handle webhook messages
+var workflowB = await agent.Workflows.DefineBuiltIn(name: "Webhooks", workers: 1);
 
 // Define custom workflow
 var customWorkflow = await agent.Workflows.DefineCustom<CustomWorkflow>(workers: 1);
 
-// Register handler for Conversational workflow
-conversationalWorkflow.OnUserMessage(async (context) =>
+// Register handler for workflowA
+workflowA.OnUserMessage(async (context) =>
 {
-    // Create AI agent with custom Xians chat message store
-    AIAgent mafAgent = new OpenAIClient(openAiApiKey)
-        .GetChatClient("gpt-4o-mini")
-        .CreateAIAgent(new ChatClientAgentOptions
-        {
-            Name = "Joker",
-            ChatMessageStoreFactory = ctx =>
-            {
-                // Create a new chat message store that reads from Xians platform
-                return new XiansChatMessageStore(
-                    context,
-                    ctx.SerializedState,
-                    ctx.JsonSerializerOptions);
-            }
-        });
-
-    var response = await mafAgent.RunAsync(context.Message.Text);
-    await context.ReplyAsync(response.Text);
+    var response = await MafAgent.ProcessMessageAsync(context, openAiApiKey);
+    await context.ReplyAsync(response);
 });
 
-// Register handler for Webhooks workflow
-webhooksWorkflow.OnUserMessage(async (context) =>
+// Register handler for workflowB using Semantic Kernel agent
+workflowB.OnUserMessage(async (context) =>
 {
-    await context.ReplyAsync("[WEBHOOKS] Received webhook: " + context.Message.Text);
+    var response = await SkAgent.ProcessMessageAsync(context, openAiApiKey);
+    await context.ReplyAsync(response);
 });
 
 // Run all workflows

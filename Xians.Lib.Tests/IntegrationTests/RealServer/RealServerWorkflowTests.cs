@@ -85,10 +85,10 @@ public class RealServerWorkflowTests : RealServerTestBase
         Console.WriteLine($"✓ Step 1: Registered agent '{agentName}'");
 
         // Define a default workflow (this should trigger upload to server)
-        var workflow = await agent.Workflows.DefineDefault(workers: 1, name: "Conversational");
+        var workflow = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
 
-        // Define another default workflow (this should trigger upload to server)
-        var workflow2 = await agent.Workflows.DefineDefault(workers: 1, name: "Webhooks");
+        // Define another built-in workflow (this should trigger upload to server)
+        var workflow2 = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Webhooks");
         
         Console.WriteLine("✓ Step 2: Defined default workflow");
         

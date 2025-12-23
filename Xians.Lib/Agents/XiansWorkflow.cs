@@ -11,16 +11,16 @@ namespace Xians.Lib.Agents;
 public class XiansWorkflow
 {
     private readonly XiansAgent _agent;
-    private readonly bool _isDefault;
+    private readonly bool _isBuiltIn;
     private readonly ILogger<XiansWorkflow> _logger;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isDefault)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn)
     {
         _agent = agent;
         WorkflowType = workflowType;
         Name = name;
         Workers = workers;
-        _isDefault = isDefault;
+        _isBuiltIn = isBuiltIn;
         _logger = Common.LoggerFactory.CreateLogger<XiansWorkflow>();
     }
 
@@ -45,10 +45,10 @@ public class XiansWorkflow
     /// <param name="handler">The async handler to process user messages.</param>
     public void OnUserMessage(Func<UserMessageContext, Task> handler)
     {
-        if (!_isDefault)
+        if (!_isBuiltIn)
         {
             throw new InvalidOperationException(
-                "OnUserMessage is only supported for default workflows. Use custom workflow classes for custom workflows.");
+                "OnUserMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
         }
 
         var tenantId = GetTenantIdOrNull();
@@ -113,9 +113,9 @@ public class XiansWorkflow
         };
 
         // Register workflow based on type
-        if (_isDefault)
+        if (_isBuiltIn)
         {
-            // Register the DefaultWorkflow class for default workflows
+            // Register the DefaultWorkflow class for built-in workflows
             workerOptions.AddWorkflow<DefaultWorkflow>();
             
             // Register activities for message sending
