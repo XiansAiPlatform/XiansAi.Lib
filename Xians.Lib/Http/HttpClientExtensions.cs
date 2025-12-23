@@ -37,7 +37,7 @@ public static class HttpClientExtensions
         string requestUri, 
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         return await service.SendWithRetryAsync(request, cancellationToken);
     }
 
@@ -55,7 +55,7 @@ public static class HttpClientExtensions
         HttpContent content, 
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri) { Content = content };
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUri) { Content = content };
         return await service.SendWithRetryAsync(request, cancellationToken);
     }
 
@@ -73,7 +73,7 @@ public static class HttpClientExtensions
         HttpContent content, 
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Put, requestUri) { Content = content };
+        var request = new HttpRequestMessage(HttpMethod.Put, requestUri) { Content = content };
         return await service.SendWithRetryAsync(request, cancellationToken);
     }
 
@@ -89,7 +89,7 @@ public static class HttpClientExtensions
         string requestUri, 
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
+        var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
         return await service.SendWithRetryAsync(request, cancellationToken);
     }
 
@@ -107,7 +107,7 @@ public static class HttpClientExtensions
         HttpContent content, 
         CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Patch, requestUri) { Content = content };
+        var request = new HttpRequestMessage(HttpMethod.Patch, requestUri) { Content = content };
         return await service.SendWithRetryAsync(request, cancellationToken);
     }
 
@@ -132,5 +132,3 @@ public static class HttpClientExtensions
         return Task.FromResult(clone);
     }
 }
-
-

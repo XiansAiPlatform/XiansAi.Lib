@@ -1,4 +1,4 @@
-using Xians.Lib.Configuration;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Http;
 using Xians.Lib.Common;
 

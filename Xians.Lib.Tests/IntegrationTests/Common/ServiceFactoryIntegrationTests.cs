@@ -1,6 +1,7 @@
 using DotNetEnv;
 using Xians.Lib.Common;
-using Xians.Lib.Configuration;
+using Xians.Lib.Common.Models;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Common;

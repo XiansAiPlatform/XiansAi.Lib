@@ -1,4 +1,4 @@
-using Xians.Lib.Configuration;
+using Xians.Lib.Configuration.Models;
 
 namespace Xians.Lib.Tests.UnitTests.Configuration;
 

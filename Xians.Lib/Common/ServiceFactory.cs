@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Configuration;
+using Xians.Lib.Common.Models;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
 

@@ -1,6 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 
-namespace Xians.Lib.Common;
+namespace Xians.Lib.Common.Models;
 
 /// <summary>
 /// Contains information extracted from a certificate.

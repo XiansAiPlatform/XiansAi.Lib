@@ -1,4 +1,6 @@
-namespace Xians.Lib.Configuration;
+using Xians.Lib.Common.Exceptions;
+
+namespace Xians.Lib.Configuration.Models;
 
 /// <summary>
 /// Configuration for Temporal server connection.
@@ -44,28 +46,29 @@ public class TemporalConfiguration
     /// <summary>
     /// Validates the configuration.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown if configuration is invalid.</exception>
+    /// <exception cref="ConfigurationException">Thrown if configuration is invalid.</exception>
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ServerUrl))
-            throw new InvalidOperationException("ServerUrl is required");
+            throw new ConfigurationException("ServerUrl is required", nameof(ServerUrl));
 
         if (string.IsNullOrWhiteSpace(Namespace))
-            throw new InvalidOperationException("Namespace is required");
+            throw new ConfigurationException("Namespace is required", nameof(Namespace));
 
         if (MaxRetryAttempts < 0)
-            throw new InvalidOperationException("MaxRetryAttempts must be non-negative");
+            throw new ConfigurationException("MaxRetryAttempts must be non-negative", nameof(MaxRetryAttempts));
 
         if (RetryDelaySeconds < 0)
-            throw new InvalidOperationException("RetryDelaySeconds must be non-negative");
+            throw new ConfigurationException("RetryDelaySeconds must be non-negative", nameof(RetryDelaySeconds));
 
         // Validate TLS configuration
         var hasCert = !string.IsNullOrWhiteSpace(CertificateBase64);
         var hasKey = !string.IsNullOrWhiteSpace(PrivateKeyBase64);
 
         if (hasCert != hasKey)
-            throw new InvalidOperationException(
-                "Both CertificateBase64 and PrivateKeyBase64 must be provided together for TLS, or both omitted");
+            throw new ConfigurationException(
+                "Both CertificateBase64 and PrivateKeyBase64 must be provided together for TLS, or both omitted",
+                "TLS");
     }
 }
 

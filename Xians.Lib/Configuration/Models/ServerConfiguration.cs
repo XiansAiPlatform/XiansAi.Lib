@@ -1,4 +1,6 @@
-namespace Xians.Lib.Configuration;
+using Xians.Lib.Common.Exceptions;
+
+namespace Xians.Lib.Configuration.Models;
 
 /// <summary>
 /// Configuration for the application server connection.
@@ -57,22 +59,22 @@ public class ServerConfiguration
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ServerUrl))
-            throw new InvalidOperationException("ServerUrl is required");
-
+            throw new ConfigurationException("ServerUrl is required", nameof(ServerUrl));
+        
         if (string.IsNullOrWhiteSpace(ApiKey))
-            throw new InvalidOperationException("ApiKey is required");
-
+            throw new ConfigurationException("ApiKey is required", nameof(ApiKey));
+        
         if (!Uri.TryCreate(ServerUrl, UriKind.Absolute, out _))
-            throw new InvalidOperationException($"ServerUrl '{ServerUrl}' is not a valid URL");
-
+            throw new ConfigurationException($"ServerUrl '{ServerUrl}' is not a valid URL", nameof(ServerUrl));
+        
         if (MaxRetryAttempts < 0)
-            throw new InvalidOperationException("MaxRetryAttempts must be non-negative");
-
+            throw new ConfigurationException("MaxRetryAttempts must be non-negative", nameof(MaxRetryAttempts));
+        
         if (RetryDelaySeconds < 0)
-            throw new InvalidOperationException("RetryDelaySeconds must be non-negative");
-
+            throw new ConfigurationException("RetryDelaySeconds must be non-negative", nameof(RetryDelaySeconds));
+        
         if (TimeoutSeconds <= 0)
-            throw new InvalidOperationException("TimeoutSeconds must be positive");
+            throw new ConfigurationException("TimeoutSeconds must be positive", nameof(TimeoutSeconds));
     }
 }
 

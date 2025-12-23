@@ -2,7 +2,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Configuration;
+using Xians.Lib.Configuration.Models;
+using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Http;
 
@@ -262,23 +263,12 @@ public class HttpClientService : IHttpClientService
         if (DateTime.UtcNow - _lastHealthCheck < healthCheckInterval && _isHealthy)
             return _isHealthy;
 
-        try
-        {
-            _lastHealthCheck = DateTime.UtcNow;
-            
-            // Quick validation - check if we can create a request
-            using var testRequest = new HttpRequestMessage(HttpMethod.Head, "/");
-            _isHealthy = _client.BaseAddress != null && !_disposed;
-            
-            return _isHealthy;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Connection health check failed");
-            _isHealthy = false;
-            _isInitialized = false;
-            return false;
-        }
+        _lastHealthCheck = DateTime.UtcNow;
+        
+        // Simplified health check - just verify client is configured properly
+        _isHealthy = _client.BaseAddress != null && !_disposed;
+        
+        return _isHealthy;
     }
 
     private async Task RecreateClientWithRetryAsync()
@@ -368,9 +358,6 @@ public class HttpClientService : IHttpClientService
             Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds)
         };
 
-        // Configure for faster shutdown - close connections after requests
-        _client.DefaultRequestHeaders.ConnectionClose = true;
-
         try
         {
             // Dispose old certificate before creating new one
@@ -389,14 +376,14 @@ public class HttpClientService : IHttpClientService
             if (_clientCertificate.NotAfter < DateTime.UtcNow)
             {
                 _logger.LogError("Client certificate expired on {ExpirationDate}", _clientCertificate.NotAfter);
-                throw new InvalidOperationException(
+                throw new CertificateException(
                     $"Client certificate has expired on {_clientCertificate.NotAfter:yyyy-MM-dd}");
             }
 
             if (_clientCertificate.NotBefore > DateTime.UtcNow)
             {
                 _logger.LogError("Client certificate not valid until {ValidFrom}", _clientCertificate.NotBefore);
-                throw new InvalidOperationException(
+                throw new CertificateException(
                     $"Client certificate is not yet valid until {_clientCertificate.NotBefore:yyyy-MM-dd}");
             }
 
@@ -406,13 +393,13 @@ public class HttpClientService : IHttpClientService
             var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
             _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
             
-            _logger.LogDebug("Client certificate configured for authentication");
+            _logger.LogTrace("Client certificate configured for authentication");
         }
         catch (Exception ex)
         {
             _client?.Dispose();
             _logger.LogError(ex, "Failed to configure HTTP client authentication. Ensure API_KEY is a valid Base64-encoded X.509 certificate.");
-            throw new InvalidOperationException(
+            throw new CertificateException(
                 "Failed to configure HTTP client authentication. API_KEY must be a Base64-encoded X.509 certificate.", 
                 ex);
         }
@@ -485,5 +472,3 @@ public class HttpClientService : IHttpClientService
     /// </summary>
     ~HttpClientService() => Dispose(false);
 }
-
-

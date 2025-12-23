@@ -1,6 +1,6 @@
 using DotNetEnv;
 using Xians.Lib.Common;
-using Xians.Lib.Configuration;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Temporal;
 
 namespace Xians.Lib.Tests.IntegrationTests.Temporal;

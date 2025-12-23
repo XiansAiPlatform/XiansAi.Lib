@@ -3,7 +3,8 @@ using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
 using Xians.Lib.Common;
-using Xians.Lib.Configuration;
+using Xians.Lib.Common.Models;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Http;
 
 namespace Xians.Lib.Tests.IntegrationTests.Common;

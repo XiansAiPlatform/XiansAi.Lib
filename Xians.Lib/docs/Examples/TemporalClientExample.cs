@@ -1,4 +1,4 @@
-using Xians.Lib.Configuration;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Temporal;
 using Xians.Lib.Common;
 

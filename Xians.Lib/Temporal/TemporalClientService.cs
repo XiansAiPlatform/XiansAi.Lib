@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client;
-using Xians.Lib.Configuration;
+using Xians.Lib.Configuration.Models;
+using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Temporal;
 
@@ -191,9 +192,11 @@ public class TemporalClientService : ITemporalClientService
             }
         }
 
-        throw new InvalidOperationException(
+        throw new TemporalConnectionException(
             $"Failed to establish Temporal connection after {_config.MaxRetryAttempts} attempts", 
-            lastException);
+            _config.ServerUrl,
+            _config.Namespace,
+            lastException!);
     }
 
     private async Task<ITemporalClient> CreateClientAsync()
@@ -223,13 +226,18 @@ public class TemporalClientService : ITemporalClientService
             return null;
         }
 
+        byte[]? cert = null;
+        byte[]? privateKey = null;
+        
         try
         {
-            var cert = Convert.FromBase64String(_config.CertificateBase64!);
-            var privateKey = Convert.FromBase64String(_config.PrivateKeyBase64!);
+            cert = Convert.FromBase64String(_config.CertificateBase64!);
+            privateKey = Convert.FromBase64String(_config.PrivateKeyBase64!);
             
             _logger.LogDebug("TLS is enabled for Temporal connection");
             
+            // Note: TlsOptions will take ownership of these byte arrays
+            // They should not be zeroed out here as they're needed by the Temporal client
             return new TlsOptions
             {
                 ClientCert = cert,
@@ -238,8 +246,18 @@ public class TemporalClientService : ITemporalClientService
         }
         catch (Exception ex)
         {
+            // On error, securely clear sensitive data before throwing
+            if (privateKey != null)
+            {
+                Array.Clear(privateKey, 0, privateKey.Length);
+            }
+            if (cert != null)
+            {
+                Array.Clear(cert, 0, cert.Length);
+            }
+            
             _logger.LogError(ex, "Failed to parse TLS certificate or private key");
-            throw new InvalidOperationException("Failed to configure TLS for Temporal connection", ex);
+            throw new TemporalConnectionException("Failed to configure TLS for Temporal connection", _config.ServerUrl, _config.Namespace, ex);
         }
     }
 
@@ -290,5 +308,3 @@ public class TemporalClientService : ITemporalClientService
     /// </summary>
     ~TemporalClientService() => Dispose(false);
 }
-
-

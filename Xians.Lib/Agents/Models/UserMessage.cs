@@ -1,4 +1,4 @@
-namespace Xians.Lib.Agents;
+namespace Xians.Lib.Agents.Models;
 
 /// <summary>
 /// Represents a message from a user.

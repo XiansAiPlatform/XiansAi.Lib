@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using Xians.Lib.Agents.Models;
 using Xians.Lib.Workflows;
+using Xians.Lib.Workflows.Models;
 
 namespace Xians.Lib.Agents;
 

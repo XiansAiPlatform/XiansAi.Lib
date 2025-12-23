@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Xians.Lib.Agents;
+using Xians.Lib.Workflows.Models;
 
 namespace Xians.Agent.Sample;
 
@@ -47,7 +48,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         // Retrieve chat history from Xians
         // Using a reasonable page size to get recent history
         // Note: GetChatHistoryAsync automatically filters out the current message
-        var xiansMessages = await _context.GetChatHistoryAsync(page: 1, pageSize: 50);
+        var xiansMessages = await _context.GetChatHistoryAsync(page: 1, pageSize: 10);
         
         // Console.WriteLine($"[XiansChatMessageStore] Fetched {xiansMessages.Count} messages from server:");
         // foreach (var msg in xiansMessages)
@@ -83,7 +84,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
     /// <summary>
     /// Converts a Xians DbMessage to a Microsoft.Extensions.AI ChatMessage.
     /// </summary>
-    private ChatMessage? ConvertToChatMessage(Xians.Lib.Workflows.DbMessage dbMessage)
+    private ChatMessage? ConvertToChatMessage(DbMessage dbMessage)
     {
         if (string.IsNullOrEmpty(dbMessage.Text))
         {

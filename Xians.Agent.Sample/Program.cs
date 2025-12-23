@@ -28,7 +28,7 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new XiansOptions
 
 
 // Generate unique agent name to avoid conflicts
-var agentName = $"XiansTestAgent V2";
+var agentName = $"XiansTestAgent V3";
 
 // Act - Register agent and define workflow (same as AzureAIExample.csx)
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration

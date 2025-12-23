@@ -3,6 +3,8 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using Xians.Lib.Agents;
+using Xians.Lib.Agents.Models;
+using Xians.Lib.Workflows.Models;
 
 namespace Xians.Lib.Workflows;
 
@@ -34,31 +36,15 @@ public class MessageActivities
         try
         {
             // Look up the handler from the static registry (avoids serialization issues)
-            WorkflowHandlerMetadata? metadata;
-            lock (DefaultWorkflow._handlersByWorkflowType)
-            {
-                DefaultWorkflow._handlersByWorkflowType.TryGetValue(request.WorkflowType, out metadata);
-            }
-
-            if (metadata == null)
+            if (!DefaultWorkflow._handlersByWorkflowType.TryGetValue(request.WorkflowType, out var metadata))
             {
                 var errorMessage = $"No message handler registered for workflow type '{request.WorkflowType}' in activity.";
                 ActivityExecutionContext.Current.Logger.LogError(
                     "Handler lookup failed: WorkflowType={WorkflowType}",
                     request.WorkflowType);
                 
-                await SendErrorResponseAsync(
-                    request.ParticipantId,
-                    request.WorkflowId,
-                    request.WorkflowType,
-                    request.RequestId,
-                    request.Scope,
-                    request.ThreadId,
-                    request.Authorization,
-                    request.Hint,
-                    request.TenantId,
-                    errorMessage);
-                return;
+                // Throw exception to let workflow handle error response
+                throw new InvalidOperationException(errorMessage);
             }
 
             // Create a context that sends responses via HTTP instead of collecting them
@@ -90,56 +76,10 @@ public class MessageActivities
                 "Error processing message: RequestId={RequestId}",
                 request.RequestId);
 
-            // Send error response directly
-            await SendErrorResponseAsync(
-                request.ParticipantId,
-                request.WorkflowId,
-                request.WorkflowType,
-                request.RequestId,
-                request.Scope,
-                request.ThreadId,
-                request.Authorization,
-                request.Hint,
-                request.TenantId,
-                ex.Message);
-
-            throw; // Re-throw to let Temporal handle retry
+            // Re-throw to let Temporal handle retry
+            // The workflow will send error response to user after all retries are exhausted
+            throw;
         }
-    }
-
-    /// <summary>
-    /// Helper method to send error responses.
-    /// </summary>
-    private async Task SendErrorResponseAsync(
-        string participantId,
-        string workflowId,
-        string workflowType,
-        string requestId,
-        string scope,
-        string? threadId,
-        string? authorization,
-        string hint,
-        string tenantId,
-        string errorMessage)
-    {
-        var request = new SendMessageRequest
-        {
-            ParticipantId = participantId,
-            WorkflowId = workflowId,
-            WorkflowType = workflowType,
-            Text = $"Error: {errorMessage}",
-            Data = null,
-            RequestId = requestId,
-            Scope = scope,
-            ThreadId = threadId,
-            Authorization = authorization,
-            Hint = hint,
-            Origin = null,
-            Type = "Chat",
-            TenantId = tenantId
-        };
-
-        await SendMessageAsync(request);
     }
 
     /// <summary>
@@ -151,26 +91,24 @@ public class MessageActivities
     public async Task<List<DbMessage>> GetMessageHistoryAsync(GetMessageHistoryRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "GetMessageHistory activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
+            "GetMessageHistory activity started: WorkflowType={WorkflowType}, Page={Page}, PageSize={PageSize}",
             request.WorkflowType,
-            request.ParticipantId,
             request.Page,
-            request.PageSize,
-            request.TenantId);
+            request.PageSize);
         
         try
         {
-            // Build query string for history endpoint
-            var endpoint = $"api/agent/conversation/history?workflowType={request.WorkflowType}" +
-                          $"&participantId={request.ParticipantId}" +
+            // Build query string for history endpoint with proper URL encoding
+            var endpoint = $"api/agent/conversation/history?" +
+                          $"workflowType={Uri.EscapeDataString(request.WorkflowType)}" +
+                          $"&participantId={Uri.EscapeDataString(request.ParticipantId)}" +
                           $"&page={request.Page}" +
                           $"&pageSize={request.PageSize}" +
-                          $"&scope={request.Scope}";
+                          $"&scope={Uri.EscapeDataString(request.Scope)}";
             
-            ActivityExecutionContext.Current.Logger.LogDebug(
-                "Fetching message history from {Endpoint}, Tenant={Tenant}",
-                endpoint,
-                request.TenantId);
+            ActivityExecutionContext.Current.Logger.LogTrace(
+                "Fetching message history from {Endpoint}",
+                endpoint);
             
             // Create HTTP request message to add tenant header
             using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -185,30 +123,27 @@ public class MessageActivities
             {
                 var error = await response.Content.ReadAsStringAsync();
                 ActivityExecutionContext.Current.Logger.LogError(
-                    "Failed to fetch message history: StatusCode={StatusCode}, Error={Error}, Tenant={Tenant}",
+                    "Failed to fetch message history: StatusCode={StatusCode}, Error={Error}",
                     response.StatusCode,
-                    error,
-                    request.TenantId);
+                    error);
+                // Don't expose server error details to prevent information disclosure
                 throw new HttpRequestException(
-                    $"Failed to fetch message history. Status: {response.StatusCode}, Error: {error}");
+                    $"Failed to fetch message history. Status: {response.StatusCode}");
             }
             
             var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
             
             ActivityExecutionContext.Current.Logger.LogInformation(
-                "Message history fetched successfully: {Count} messages, Tenant={Tenant}",
-                messages?.Count ?? 0,
-                request.TenantId);
+                "Message history fetched successfully: {Count} messages",
+                messages?.Count ?? 0);
             
             return messages ?? new List<DbMessage>();
         }
         catch (Exception ex)
         {
             ActivityExecutionContext.Current.Logger.LogError(ex,
-                "Error fetching message history for WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
-                request.WorkflowType,
-                request.ParticipantId,
-                request.TenantId);
+                "Error fetching message history for WorkflowType={WorkflowType}",
+                request.WorkflowType);
             throw;
         }
     }
@@ -223,11 +158,19 @@ public class MessageActivities
     public async Task SendMessageAsync(SendMessageRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "SendMessage activity started: ParticipantId={ParticipantId}, Type={Type}, RequestId={RequestId}, Tenant={Tenant}",
-            request.ParticipantId,
+            "SendMessage activity started: Type={Type}, RequestId={RequestId}",
             request.Type,
-            request.RequestId,
-            request.TenantId);
+            request.RequestId);
+        
+        // Validate message type against whitelist
+        var allowedTypes = new[] { "chat", "data" };
+        var messageType = request.Type.ToLower();
+        if (!allowedTypes.Contains(messageType))
+        {
+            var error = $"Invalid message type: {request.Type}. Allowed types: {string.Join(", ", allowedTypes)}";
+            ActivityExecutionContext.Current.Logger.LogError(error);
+            throw new ArgumentException(error, nameof(request.Type));
+        }
         
         // Build payload matching the ChatOrDataRequest structure from XiansAi.Lib.Src
         var payload = new
@@ -247,13 +190,11 @@ public class MessageActivities
 
         // Use the correct endpoint: api/agent/conversation/outbound/{type}
         // Type is lowercase: "chat" or "data"
-        var endpoint = $"api/agent/conversation/outbound/{request.Type.ToLower()}";
+        var endpoint = $"api/agent/conversation/outbound/{messageType}";
         
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "Posting to {Endpoint}: WorkflowId={WorkflowId}, Tenant={Tenant}, TextLength={TextLength}",
+        ActivityExecutionContext.Current.Logger.LogTrace(
+            "Posting to {Endpoint}: TextLength={TextLength}",
             endpoint,
-            request.WorkflowId,
-            request.TenantId,
             request.Text?.Length ?? 0);
         
         // Create HTTP request message to add tenant header
@@ -277,47 +218,26 @@ public class MessageActivities
             var error = await response.Content.ReadAsStringAsync();
             
             ActivityExecutionContext.Current.Logger.LogError(
-                "Message send failed: StatusCode={StatusCode}, Error={Error}, ParticipantId={ParticipantId}",
+                "Message send failed: StatusCode={StatusCode}, Error={Error}",
                 response.StatusCode,
-                error,
-                request.ParticipantId);
+                error);
             
+            // Don't expose participant ID or detailed error to prevent information disclosure
             throw new HttpRequestException(
-                $"Failed to send message to participant {request.ParticipantId}. " +
-                $"Status: {response.StatusCode}, Error: {error}");
+                $"Failed to send message. Status: {response.StatusCode}");
         }
         
         ActivityExecutionContext.Current.Logger.LogInformation(
-            "Message sent successfully: ParticipantId={ParticipantId}, RequestId={RequestId}",
-            request.ParticipantId,
+            "Message sent successfully: RequestId={RequestId}",
             request.RequestId);
     }
-}
-
-/// <summary>
-/// Request object for processing messages via activity.
-/// </summary>
-public class ProcessMessageActivityRequest
-{
-    public required string MessageText { get; set; }
-    public required string ParticipantId { get; set; }
-    public required string RequestId { get; set; }
-    public required string Scope { get; set; }
-    public required string Hint { get; set; }
-    public required object Data { get; set; }
-    public required string TenantId { get; set; }
-    public required string WorkflowId { get; set; }
-    public required string WorkflowType { get; set; }
-    public string? Authorization { get; set; }
-    public string? ThreadId { get; set; }
-    // Handler is looked up from static registry using WorkflowType - not passed to avoid serialization issues
 }
 
 /// <summary>
 /// Activity-safe version of UserMessageContext that sends responses via HTTP
 /// instead of executing workflow activities.
 /// </summary>
-public class ActivityUserMessageContext : Xians.Lib.Agents.UserMessageContext
+public class ActivityUserMessageContext : UserMessageContext
 {
     private readonly HttpClient _httpClient;
     private readonly string _workflowId;
@@ -332,7 +252,7 @@ public class ActivityUserMessageContext : Xians.Lib.Agents.UserMessageContext
 
     public ActivityUserMessageContext(
         HttpClient httpClient,
-        Xians.Lib.Agents.UserMessage message,
+        UserMessage message,
         string participantId,
         string requestId,
         string scope,
@@ -379,11 +299,13 @@ public class ActivityUserMessageContext : Xians.Lib.Agents.UserMessageContext
     /// </summary>
     public override async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        var endpoint = $"api/agent/conversation/history?workflowType={_workflowType}" +
-                      $"&participantId={_participantId}" +
+        // Build query string with proper URL encoding
+        var endpoint = $"api/agent/conversation/history?" +
+                      $"workflowType={Uri.EscapeDataString(_workflowType ?? string.Empty)}" +
+                      $"&participantId={Uri.EscapeDataString(_participantId ?? string.Empty)}" +
                       $"&page={page}" +
                       $"&pageSize={pageSize}" +
-                      $"&scope={_scope}";
+                      $"&scope={Uri.EscapeDataString(_scope ?? string.Empty)}";
         
         // Create HTTP request message to add tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -396,8 +318,10 @@ public class ActivityUserMessageContext : Xians.Lib.Agents.UserMessageContext
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
+            // Log detailed error but don't expose to caller
+            // (Logging context available in activity context if needed)
             throw new HttpRequestException(
-                $"Failed to fetch message history. Status: {response.StatusCode}, Error: {error}");
+                $"Failed to fetch message history. Status: {response.StatusCode}");
         }
 
         var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
@@ -435,49 +359,9 @@ public class ActivityUserMessageContext : Xians.Lib.Agents.UserMessageContext
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
+            // Log error details but don't expose participant ID or server errors
             throw new HttpRequestException(
-                $"Failed to send message to participant {_participantId}. " +
-                $"Status: {response.StatusCode}, Error: {error}");
+                $"Failed to send message. Status: {response.StatusCode}");
         }
     }
 }
-
-/// <summary>
-/// Request object for sending messages via activity.
-/// Using a single parameter object is recommended by Temporal.
-/// Matches the ChatOrDataRequest structure from XiansAi.Lib.Src.
-/// </summary>
-public class SendMessageRequest
-{
-    public required string ParticipantId { get; set; }
-    public required string WorkflowId { get; set; }
-    public required string WorkflowType { get; set; }
-    public required string RequestId { get; set; }
-    public string? Scope { get; set; }
-    public object? Data { get; set; }
-    public string? Authorization { get; set; }
-    public string? Text { get; set; }
-    public string? ThreadId { get; set; }
-    public string? Hint { get; set; }
-    public string? Origin { get; set; }
-    public required string Type { get; set; }
-    /// <summary>
-    /// Tenant ID from the workflow context. For system-scoped agents, this ensures
-    /// replies are sent to the correct tenant that initiated the workflow.
-    /// </summary>
-    public required string TenantId { get; set; }
-}
-
-/// <summary>
-/// Request object for retrieving message history via activity.
-/// </summary>
-public class GetMessageHistoryRequest
-{
-    public required string WorkflowType { get; set; }
-    public required string ParticipantId { get; set; }
-    public required string Scope { get; set; }
-    public required string TenantId { get; set; }
-    public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 10;
-}
-

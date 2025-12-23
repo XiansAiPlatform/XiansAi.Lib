@@ -1,21 +1,11 @@
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
-using Xians.Lib.Configuration;
+using Xians.Lib.Common.Models;
+using Xians.Lib.Configuration.Models;
 using Xians.Lib.Http;
 
 namespace Xians.Lib.Common;
-
-/// <summary>
-/// Server-provided settings for Temporal/Flow server configuration.
-/// </summary>
-public class ServerSettings
-{
-    public required string FlowServerUrl { get; set; }
-    public required string FlowServerNamespace { get; set; }
-    public string? FlowServerCertBase64 { get; set; }
-    public string? FlowServerPrivateKeyBase64 { get; set; }
-}
 
 /// <summary>
 /// Service for fetching configuration settings from the application server.
@@ -138,9 +128,26 @@ public static class SettingsService
         }
 
         // Allow environment variable override for Temporal server URL
+        // This should be used with caution in production environments
         var temporalServerUrl = Environment.GetEnvironmentVariable("TEMPORAL_SERVER_URL");
         if (!string.IsNullOrWhiteSpace(temporalServerUrl))
         {
+            // Validate that the override URL is a valid URI
+            if (!Uri.TryCreate(temporalServerUrl, UriKind.Absolute, out var uri))
+            {
+                throw new InvalidOperationException(
+                    $"Invalid TEMPORAL_SERVER_URL environment variable: '{temporalServerUrl}' is not a valid URL");
+            }
+
+            // Additional validation: ensure it's using expected schemes (if needed)
+            // For Temporal, typically we expect host:port format without scheme, or grpc/https schemes
+            // Uncomment the following if you want to enforce scheme restrictions:
+            // if (uri.Scheme != "grpc" && uri.Scheme != "https" && uri.Scheme != "http")
+            // {
+            //     throw new InvalidOperationException(
+            //         $"Invalid TEMPORAL_SERVER_URL scheme: '{uri.Scheme}'. Expected grpc, https, or http");
+            // }
+
             settings.FlowServerUrl = temporalServerUrl;
         }
 

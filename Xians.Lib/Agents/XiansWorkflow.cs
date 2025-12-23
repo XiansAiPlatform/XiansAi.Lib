@@ -97,24 +97,26 @@ public class XiansWorkflow
         // Get Temporal client
         var client = await _agent.TemporalService.GetClientAsync();
 
-        // Determine task queue name based on system scoped setting
-        string taskQueue;
-        if (_agent.SystemScoped)
+        // Determine task queue name using centralized utility
+        string? tenantId = null;
+        if (!_agent.SystemScoped)
         {
-            // System-scoped agents use workflow type as task queue
-            taskQueue = WorkflowType;
-        }
-        else
-        {
-            // Non-system-scoped agents use TenantId:WorkflowType format
-            // TenantId is automatically extracted from the API key certificate
-            var tenantId = _agent.Options?.TenantId ?? 
+            // Non-system-scoped agents require tenant ID
+            tenantId = _agent.Options?.TenantId ?? 
                 throw new InvalidOperationException(
                     "XiansOptions is not configured properly. Cannot determine TenantId.");
-            taskQueue = $"{tenantId}:{WorkflowType}";
         }
+        
+        var taskQueue = TenantContext.GetTaskQueueName(
+            WorkflowType, 
+            _agent.SystemScoped, 
+            tenantId);
 
-        _logger.LogInformation("Task queue for workflow '{WorkflowType}': {TaskQueue}", WorkflowType, taskQueue);
+        _logger.LogInformation(
+            "Task queue for workflow '{WorkflowType}': {TaskQueue}, SystemScoped={SystemScoped}", 
+            WorkflowType, 
+            taskQueue,
+            _agent.SystemScoped);
 
         // Create worker options
         var workerOptions = new TemporalWorkerOptions(taskQueue: taskQueue)

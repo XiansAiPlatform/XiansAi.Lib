@@ -1,5 +1,6 @@
 using Xians.Lib.Common;
-using Xians.Lib.Configuration;
+using Xians.Lib.Common.Models;
+using Xians.Lib.Configuration.Models;
 
 namespace Xians.Lib.Agents;
 
