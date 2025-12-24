@@ -176,6 +176,208 @@ public class UserMessageContext
     }
 
     /// <summary>
+    /// Retrieves knowledge by name from the platform.
+    /// Automatically uses the current tenant and agent context.
+    /// Convenience wrapper that executes knowledge retrieval through a Temporal activity.
+    /// </summary>
+    /// <param name="knowledgeName">The name of the knowledge to fetch.</param>
+    /// <returns>The knowledge object, or null if not found.</returns>
+    public virtual async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
+    {
+        Workflow.Logger.LogInformation(
+            "Fetching knowledge: Name={Name}, WorkflowType={WorkflowType}, Tenant={Tenant}",
+            knowledgeName,
+            Workflow.Info.WorkflowType,
+            _tenantId);
+
+        var request = new GetKnowledgeRequest
+        {
+            KnowledgeName = knowledgeName,
+            AgentName = GetAgentNameFromWorkflow(),
+            TenantId = _tenantId
+        };
+
+        // Execute as Temporal activity for proper determinism and retries
+        var knowledge = await Workflow.ExecuteActivityAsync(
+            (KnowledgeActivities act) => act.GetKnowledgeAsync(request),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumInterval = TimeSpan.FromSeconds(10),
+                    BackoffCoefficient = 2
+                }
+            });
+
+        Workflow.Logger.LogInformation(
+            "Knowledge fetch completed: Name={Name}, Found={Found}",
+            knowledgeName,
+            knowledge != null);
+
+        return knowledge;
+    }
+
+    /// <summary>
+    /// Updates or creates knowledge in the platform.
+    /// Automatically uses the current tenant and agent context.
+    /// Convenience wrapper that executes knowledge update through a Temporal activity.
+    /// </summary>
+    /// <param name="knowledgeName">The name of the knowledge.</param>
+    /// <param name="content">The knowledge content.</param>
+    /// <param name="type">Optional knowledge type (e.g., "instruction", "document").</param>
+    /// <returns>True if successful, false otherwise.</returns>
+    public virtual async Task<bool> UpdateKnowledgeAsync(
+        string knowledgeName,
+        string content,
+        string? type = null)
+    {
+        Workflow.Logger.LogInformation(
+            "Updating knowledge: Name={Name}, WorkflowType={WorkflowType}, Type={Type}, Tenant={Tenant}",
+            knowledgeName,
+            Workflow.Info.WorkflowType,
+            type,
+            _tenantId);
+
+        var request = new UpdateKnowledgeRequest
+        {
+            KnowledgeName = knowledgeName,
+            Content = content,
+            Type = type,
+            AgentName = GetAgentNameFromWorkflow(),
+            TenantId = _tenantId
+        };
+
+        // Execute as Temporal activity for proper determinism and retries
+        var result = await Workflow.ExecuteActivityAsync(
+            (KnowledgeActivities act) => act.UpdateKnowledgeAsync(request),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumInterval = TimeSpan.FromSeconds(10),
+                    BackoffCoefficient = 2
+                }
+            });
+
+        Workflow.Logger.LogInformation(
+            "Knowledge update completed: Name={Name}, Success={Success}",
+            knowledgeName,
+            result);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes knowledge from the platform.
+    /// Automatically uses the current tenant and agent context.
+    /// Convenience wrapper that executes knowledge deletion through a Temporal activity.
+    /// </summary>
+    /// <param name="knowledgeName">The name of the knowledge to delete.</param>
+    /// <returns>True if deleted, false if not found.</returns>
+    public virtual async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
+    {
+        Workflow.Logger.LogInformation(
+            "Deleting knowledge: Name={Name}, WorkflowType={WorkflowType}, Tenant={Tenant}",
+            knowledgeName,
+            Workflow.Info.WorkflowType,
+            _tenantId);
+
+        var request = new DeleteKnowledgeRequest
+        {
+            KnowledgeName = knowledgeName,
+            AgentName = GetAgentNameFromWorkflow(),
+            TenantId = _tenantId
+        };
+
+        // Execute as Temporal activity for proper determinism and retries
+        var result = await Workflow.ExecuteActivityAsync(
+            (KnowledgeActivities act) => act.DeleteKnowledgeAsync(request),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumInterval = TimeSpan.FromSeconds(10),
+                    BackoffCoefficient = 2
+                }
+            });
+
+        Workflow.Logger.LogInformation(
+            "Knowledge delete completed: Name={Name}, Success={Success}",
+            knowledgeName,
+            result);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Lists all knowledge for this agent.
+    /// Automatically uses the current tenant and agent context.
+    /// Convenience wrapper that executes knowledge listing through a Temporal activity.
+    /// </summary>
+    /// <returns>A list of knowledge items.</returns>
+    public virtual async Task<List<Knowledge>> ListKnowledgeAsync()
+    {
+        Workflow.Logger.LogInformation(
+            "Listing knowledge: WorkflowType={WorkflowType}, Tenant={Tenant}",
+            Workflow.Info.WorkflowType,
+            _tenantId);
+
+        var request = new ListKnowledgeRequest
+        {
+            AgentName = GetAgentNameFromWorkflow(),
+            TenantId = _tenantId
+        };
+
+        // Execute as Temporal activity for proper determinism and retries
+        var knowledgeList = await Workflow.ExecuteActivityAsync(
+            (KnowledgeActivities act) => act.ListKnowledgeAsync(request),
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                RetryPolicy = new()
+                {
+                    MaximumAttempts = 3,
+                    InitialInterval = TimeSpan.FromSeconds(1),
+                    MaximumInterval = TimeSpan.FromSeconds(10),
+                    BackoffCoefficient = 2
+                }
+            });
+
+        Workflow.Logger.LogInformation(
+            "Knowledge list completed: Count={Count}",
+            knowledgeList.Count);
+
+        return knowledgeList;
+    }
+
+    /// <summary>
+    /// Extracts agent name from workflow type.
+    /// Workflow type format: "AgentName:WorkflowName"
+    /// </summary>
+    private string GetAgentNameFromWorkflow()
+    {
+        var workflowType = Workflow.Info.WorkflowType;
+        var separatorIndex = workflowType.IndexOf(':');
+        
+        if (separatorIndex > 0)
+        {
+            return workflowType.Substring(0, separatorIndex);
+        }
+        
+        // Fallback: use entire workflow type as agent name
+        return workflowType;
+    }
+
+    /// <summary>
     /// Internal method to send messages back to the user via Temporal activity.
     /// Uses Workflow.ExecuteActivityAsync to ensure proper determinism and retry handling.
     /// Exceptions bubble up to be handled by the workflow's top-level event loop.

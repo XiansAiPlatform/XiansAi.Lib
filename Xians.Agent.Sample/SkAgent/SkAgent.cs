@@ -19,13 +19,11 @@ internal static class SkAgent
     /// <param name="context">The Xians user message context containing the message and chat history</param>
     /// <param name="openAiApiKey">OpenAI API key for authentication</param>
     /// <param name="modelName">OpenAI model to use (defaults to gpt-4o-mini)</param>
-    /// <param name="agentName">Name of the AI agent (defaults to "WebhookAgent")</param>
     /// <returns>The AI agent's response text</returns>
     public static async Task<string> ProcessMessageAsync(
         UserMessageContext context,
         string openAiApiKey,
-        string modelName = "gpt-4o-mini",
-        string agentName = "WebhookAgent")
+        string modelName = "gpt-4o-mini")
     {
         // Create kernel with OpenAI chat completion
         var builder = Kernel.CreateBuilder();
@@ -45,7 +43,7 @@ internal static class SkAgent
         chatHistory.Insert(0, new ChatMessageContent(
             AuthorRole.System, 
             $"""
-            You are a helpful assistant named {agentName} that processes webhook messages and user requests.
+            You are a helpful assistant that processes webhook messages and user requests.
             Provide clear, concise responses based on the message content.
             Use the current date and time to provide up-to-date details when relevant.
             """));

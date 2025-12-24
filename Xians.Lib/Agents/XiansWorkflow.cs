@@ -118,16 +118,19 @@ public class XiansWorkflow
             // Register the DefaultWorkflow class for built-in workflows
             workerOptions.AddWorkflow<DefaultWorkflow>();
             
-            // Register activities for message sending
+            // Register activities for message sending and knowledge operations
             // Get HTTP client from the platform's HTTP service
             if (_agent.HttpService != null)
             {
                 var messageActivities = new Workflows.MessageActivities(_agent.HttpService.Client);
                 workerOptions.AddAllActivities(messageActivities);
+                
+                var knowledgeActivities = new Workflows.KnowledgeActivities(_agent.HttpService.Client);
+                workerOptions.AddAllActivities(knowledgeActivities);
             }
             else
             {
-                _logger.LogWarning("HTTP service not available - message sending will not work");
+                _logger.LogWarning("HTTP service not available - message sending and knowledge operations will not work");
             }
         }
         else

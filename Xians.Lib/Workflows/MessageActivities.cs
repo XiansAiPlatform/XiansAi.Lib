@@ -329,6 +329,125 @@ public class ActivityUserMessageContext : UserMessageContext
     }
 
     /// <summary>
+    /// Retrieves knowledge via HTTP instead of workflow activity.
+    /// </summary>
+    public override async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
+    {
+        var endpoint = $"api/agent/knowledge/latest?" +
+                      $"name={Uri.EscapeDataString(knowledgeName)}" +
+                      $"&agent={Uri.EscapeDataString(GetAgentNameFromWorkflowType())}";
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
+        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
+
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Failed to fetch knowledge. Status: {response.StatusCode}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<Knowledge>();
+    }
+
+    /// <summary>
+    /// Updates knowledge via HTTP instead of workflow activity.
+    /// </summary>
+    public override async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string content, string? type = null)
+    {
+        var knowledge = new Knowledge
+        {
+            Name = knowledgeName,
+            Content = content,
+            Type = type,
+            Agent = GetAgentNameFromWorkflowType(),
+            TenantId = _tenantId
+        };
+
+        var endpoint = "api/agent/knowledge";
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        httpRequest.Content = JsonContent.Create(knowledge);
+        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
+
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Failed to update knowledge. Status: {response.StatusCode}");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Deletes knowledge via HTTP instead of workflow activity.
+    /// </summary>
+    public override async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
+    {
+        var endpoint = $"api/agent/knowledge?" +
+                      $"name={Uri.EscapeDataString(knowledgeName)}" +
+                      $"&agent={Uri.EscapeDataString(GetAgentNameFromWorkflowType())}";
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, endpoint);
+        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
+
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Failed to delete knowledge. Status: {response.StatusCode}");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Lists knowledge via HTTP instead of workflow activity.
+    /// </summary>
+    public override async Task<List<Knowledge>> ListKnowledgeAsync()
+    {
+        var endpoint = $"api/agent/knowledge/list?" +
+                      $"agent={Uri.EscapeDataString(GetAgentNameFromWorkflowType())}";
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
+        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
+
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Failed to list knowledge. Status: {response.StatusCode}");
+        }
+
+        var knowledgeList = await response.Content.ReadFromJsonAsync<List<Knowledge>>();
+        return knowledgeList ?? new List<Knowledge>();
+    }
+
+    /// <summary>
+    /// Extracts agent name from workflow type.
+    /// </summary>
+    private string GetAgentNameFromWorkflowType()
+    {
+        var separatorIndex = _workflowType.IndexOf(':');
+        return separatorIndex > 0 ? _workflowType.Substring(0, separatorIndex) : _workflowType;
+    }
+
+    /// <summary>
     /// Sends message directly via HTTP API.
     /// </summary>
     private async Task SendHttpMessageAsync(string text, object? data)

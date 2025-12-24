@@ -13,6 +13,11 @@ public class XiansAgent
     public WorkflowCollection Workflows { get; private set; }
 
     /// <summary>
+    /// Gets the knowledge collection for managing agent knowledge.
+    /// </summary>
+    public KnowledgeCollection Knowledge { get; private set; }
+
+    /// <summary>
     /// Gets the name of the agent.
     /// </summary>
     public string Name { get; private set; }
@@ -45,6 +50,7 @@ public class XiansAgent
         HttpService = httpService;
         Options = options;
         Workflows = new WorkflowCollection(this, uploader);
+        Knowledge = new KnowledgeCollection(this, httpService);
     }
 
     /// <summary>
