@@ -38,16 +38,14 @@ internal static class SkAgent
 
         // Get chat history from Xians and convert to SK format
         var chatHistory = await ConvertXiansHistoryToSKAsync(context);
+
+        var knowledge = await context.GetKnowledgeAsync("Invoice Approval Instructions");
+
+        Console.WriteLine(knowledge);
         
         // Add system message with instructions
-        chatHistory.Insert(0, new ChatMessageContent(
-            AuthorRole.System, 
-            $"""
-            You are a helpful assistant that processes webhook messages and user requests.
-            Provide clear, concise responses based on the message content.
-            Use the current date and time to provide up-to-date details when relevant.
-            """));
-        
+        chatHistory.Insert(0, new ChatMessageContent(AuthorRole.System, knowledge?.Content ?? "You are a helpful assistant"));
+        Console.WriteLine($"[SkAgent] System message added: {knowledge?.Content}");
         // Add current user message
         chatHistory.AddUserMessage(context.Message.Text);
 
@@ -82,12 +80,9 @@ internal static class SkAgent
         
         int messageIndex = 0;
         foreach (var msg in messagesInOrder)
-        {
-            Console.WriteLine($"[SkAgent] Message [{messageIndex}] Direction='{msg.Direction}', Text='{(string.IsNullOrEmpty(msg.Text) ? "EMPTY" : msg.Text.Substring(0, Math.Min(30, msg.Text.Length)))}'");
-            
+        {            
             if (string.IsNullOrEmpty(msg.Text))
             {
-                Console.WriteLine($"[SkAgent] Message [{messageIndex}] skipped - empty text");
                 messageIndex++;
                 continue;
             }
@@ -96,17 +91,14 @@ internal static class SkAgent
             var direction = msg.Direction.ToLowerInvariant();
             if (direction == "outgoing" || direction == "outbound")
             {
-                Console.WriteLine($"[SkAgent] History [{messageIndex}] ASSISTANT: {msg.Text.Substring(0, Math.Min(50, msg.Text.Length))}...");
                 chatHistory.AddAssistantMessage(msg.Text);
             }
             else if (direction == "incoming" || direction == "inbound")
             {
-                Console.WriteLine($"[SkAgent] History [{messageIndex}] USER: {msg.Text.Substring(0, Math.Min(50, msg.Text.Length))}...");
                 chatHistory.AddUserMessage(msg.Text);
             }
             else
             {
-                Console.WriteLine($"[SkAgent] Message [{messageIndex}] UNKNOWN direction: '{msg.Direction}' - defaulting to USER");
                 chatHistory.AddUserMessage(msg.Text);
             }
             messageIndex++;

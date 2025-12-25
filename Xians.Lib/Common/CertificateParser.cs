@@ -32,9 +32,13 @@ internal class CertificateParser
             // Decode the base64 encoded certificate
             var certificateBytes = Convert.FromBase64String(base64EncodedCertificate);
 
-            // Load the certificate with EphemeralKeySet
+            // Load the certificate with platform-appropriate flags
+            // EphemeralKeySet is not supported on macOS, so use MachineKeySet as fallback
 #pragma warning disable SYSLIB0057
-            certificate = new X509Certificate2(certificateBytes, (string?)null, X509KeyStorageFlags.EphemeralKeySet);
+            var keyStorageFlags = OperatingSystem.IsMacOS() 
+                ? X509KeyStorageFlags.MachineKeySet 
+                : X509KeyStorageFlags.EphemeralKeySet;
+            certificate = new X509Certificate2(certificateBytes, (string?)null, keyStorageFlags);
 #pragma warning restore SYSLIB0057
 
             // Validate certificate

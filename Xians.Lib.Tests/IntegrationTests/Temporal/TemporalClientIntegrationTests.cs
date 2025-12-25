@@ -112,8 +112,8 @@ public class TemporalClientIntegrationTests
 
         using var service = ServiceFactory.CreateTemporalClientService(config);
 
-        // Act & Assert - Expect TemporalConnectionException after connection attempts fail
-        await Assert.ThrowsAsync<TemporalConnectionException>(async () => 
+        // Act & Assert - Connection failure throws InvalidOperationException (wrapped by SDK)
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => 
             await service.GetClientAsync());
     }
 

@@ -41,16 +41,20 @@ public class XiansAgent
     internal Http.IHttpClientService? HttpService { get; private set; }
     internal XiansOptions? Options { get; private set; }
 
+    internal Common.CacheService? CacheService { get; private set; }
+
     internal XiansAgent(string name, bool systemScoped, WorkflowDefinitionUploader? uploader, 
-        ITemporalClientService? temporalService, Http.IHttpClientService? httpService, XiansOptions? options)
+        ITemporalClientService? temporalService, Http.IHttpClientService? httpService, 
+        XiansOptions? options, Common.CacheService? cacheService)
     {
         Name = name.Trim(); // Trim to handle whitespace variations
         SystemScoped = systemScoped;
         TemporalService = temporalService;
         HttpService = httpService;
         Options = options;
+        CacheService = cacheService;
         Workflows = new WorkflowCollection(this, uploader);
-        Knowledge = new KnowledgeCollection(this, httpService);
+        Knowledge = new KnowledgeCollection(this, httpService, cacheService);
     }
 
     /// <summary>

@@ -16,13 +16,19 @@ public class KnowledgeCollection
 {
     private readonly XiansAgent _agent;
     private readonly IHttpClientService? _httpService;
-    private readonly ILogger<KnowledgeCollection> _logger;
+    private readonly KnowledgeService? _knowledgeService;
 
-    internal KnowledgeCollection(XiansAgent agent, IHttpClientService? httpService)
+    internal KnowledgeCollection(XiansAgent agent, IHttpClientService? httpService, Common.CacheService? cacheService)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _httpService = httpService;
-        _logger = Common.LoggerFactory.CreateLogger<KnowledgeCollection>();
+        
+        // Create shared knowledge service if HTTP service is available
+        if (httpService != null)
+        {
+            var logger = Common.LoggerFactory.CreateLogger<KnowledgeService>();
+            _knowledgeService = new KnowledgeService(httpService.Client, cacheService, logger);
+        }
     }
 
     /// <summary>
@@ -34,57 +40,15 @@ public class KnowledgeCollection
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     public async Task<Knowledge?> GetAsync(string knowledgeName)
     {
-        ValidateInput(knowledgeName, nameof(knowledgeName));
-        EnsureHttpService();
+        EnsureKnowledgeService();
 
         try
         {
-            // Build URL: api/agent/knowledge/latest?name={name}&agent={agent}
-            var endpoint = $"api/agent/knowledge/latest?" +
-                          $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
-                          $"&agent={UrlEncoder.Default.Encode(_agent.Name)}";
-
-            _logger.LogDebug(
-                "Fetching knowledge: Name={Name}, Agent={Agent}",
-                knowledgeName,
-                _agent.Name);
-
-            var response = await _httpService!.Client.GetAsync(endpoint);
-
-            // Handle 404 as knowledge not found
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogInformation(
-                    "Knowledge not found: Name={Name}, Agent={Agent}",
-                    knowledgeName,
-                    _agent.Name);
-                return null;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError(
-                    "Failed to fetch knowledge: StatusCode={StatusCode}, Error={Error}",
-                    response.StatusCode,
-                    error);
-                throw new HttpRequestException(
-                    $"Failed to fetch knowledge '{knowledgeName}'. Status: {response.StatusCode}");
-            }
-
-            var knowledge = await response.Content.ReadFromJsonAsync<Knowledge>();
-
-            _logger.LogInformation(
-                "Knowledge fetched successfully: Name={Name}",
-                knowledgeName);
-
-            return knowledge;
+            var tenantId = GetTenantId();
+            return await _knowledgeService!.GetAsync(knowledgeName, _agent.Name, tenantId);
         }
-        catch (Exception ex) when (ex is not HttpRequestException)
+        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
         {
-            _logger.LogError(ex,
-                "Error fetching knowledge: Name={Name}",
-                knowledgeName);
             throw new InvalidOperationException($"Failed to fetch knowledge '{knowledgeName}'", ex);
         }
     }
@@ -100,61 +64,15 @@ public class KnowledgeCollection
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     public async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null)
     {
-        ValidateInput(knowledgeName, nameof(knowledgeName));
-        
-        // Validate content separately (no length limit)
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            throw new ArgumentException("Content cannot be null or empty", nameof(content));
-        }
-        
-        EnsureHttpService();
+        EnsureKnowledgeService();
 
         try
         {
-            // Build knowledge object
-            var knowledge = new Knowledge
-            {
-                Name = knowledgeName,
-                Content = content,
-                Type = type,
-                Agent = _agent.Name,
-                // TenantId will be set by the server from X-Tenant-Id header
-            };
-
-            _logger.LogDebug(
-                "Updating knowledge: Name={Name}, Agent={Agent}, Type={Type}, ContentLength={Length}",
-                knowledgeName,
-                _agent.Name,
-                type,
-                content.Length);
-
-            // POST to api/agent/knowledge
-            var endpoint = "api/agent/knowledge";
-            var response = await _httpService!.Client.PostAsJsonAsync(endpoint, knowledge);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError(
-                    "Failed to update knowledge: StatusCode={StatusCode}, Error={Error}",
-                    response.StatusCode,
-                    error);
-                throw new HttpRequestException(
-                    $"Failed to update knowledge '{knowledgeName}'. Status: {response.StatusCode}");
-            }
-
-            _logger.LogInformation(
-                "Knowledge updated successfully: Name={Name}",
-                knowledgeName);
-
-            return true;
+            var tenantId = GetTenantId();
+            return await _knowledgeService!.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId);
         }
-        catch (Exception ex) when (ex is not HttpRequestException)
+        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
         {
-            _logger.LogError(ex,
-                "Error updating knowledge: Name={Name}",
-                knowledgeName);
             throw new InvalidOperationException($"Failed to update knowledge '{knowledgeName}'", ex);
         }
     }
@@ -168,55 +86,15 @@ public class KnowledgeCollection
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     public async Task<bool> DeleteAsync(string knowledgeName)
     {
-        ValidateInput(knowledgeName, nameof(knowledgeName));
-        EnsureHttpService();
+        EnsureKnowledgeService();
 
         try
         {
-            // Build URL: api/agent/knowledge?name={name}&agent={agent}
-            var endpoint = $"api/agent/knowledge?" +
-                          $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
-                          $"&agent={UrlEncoder.Default.Encode(_agent.Name)}";
-
-            _logger.LogDebug(
-                "Deleting knowledge: Name={Name}, Agent={Agent}",
-                knowledgeName,
-                _agent.Name);
-
-            var response = await _httpService!.Client.DeleteAsync(endpoint);
-
-            // Handle 404 as already deleted
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                _logger.LogInformation(
-                    "Knowledge not found (already deleted?): Name={Name}, Agent={Agent}",
-                    knowledgeName,
-                    _agent.Name);
-                return false;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError(
-                    "Failed to delete knowledge: StatusCode={StatusCode}, Error={Error}",
-                    response.StatusCode,
-                    error);
-                throw new HttpRequestException(
-                    $"Failed to delete knowledge '{knowledgeName}'. Status: {response.StatusCode}");
-            }
-
-            _logger.LogInformation(
-                "Knowledge deleted successfully: Name={Name}",
-                knowledgeName);
-
-            return true;
+            var tenantId = GetTenantId();
+            return await _knowledgeService!.DeleteAsync(knowledgeName, _agent.Name, tenantId);
         }
-        catch (Exception ex) when (ex is not HttpRequestException)
+        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
         {
-            _logger.LogError(ex,
-                "Error deleting knowledge: Name={Name}",
-                knowledgeName);
             throw new InvalidOperationException($"Failed to delete knowledge '{knowledgeName}'", ex);
         }
     }
@@ -229,73 +107,44 @@ public class KnowledgeCollection
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     public async Task<List<Knowledge>> ListAsync()
     {
-        EnsureHttpService();
+        EnsureKnowledgeService();
 
         try
         {
-            // Build URL: api/agent/knowledge/list?agent={agent}
-            var endpoint = $"api/agent/knowledge/list?" +
-                          $"agent={UrlEncoder.Default.Encode(_agent.Name)}";
-
-            _logger.LogDebug(
-                "Listing knowledge: Agent={Agent}",
-                _agent.Name);
-
-            var response = await _httpService!.Client.GetAsync(endpoint);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError(
-                    "Failed to list knowledge: StatusCode={StatusCode}, Error={Error}",
-                    response.StatusCode,
-                    error);
-                throw new HttpRequestException(
-                    $"Failed to list knowledge for agent '{_agent.Name}'. Status: {response.StatusCode}");
-            }
-
-            var knowledgeList = await response.Content.ReadFromJsonAsync<List<Knowledge>>();
-
-            _logger.LogInformation(
-                "Knowledge list fetched successfully: Count={Count}",
-                knowledgeList?.Count ?? 0);
-
-            return knowledgeList ?? new List<Knowledge>();
+            var tenantId = GetTenantId();
+            return await _knowledgeService!.ListAsync(_agent.Name, tenantId);
         }
-        catch (Exception ex) when (ex is not HttpRequestException)
+        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
         {
-            _logger.LogError(ex,
-                "Error listing knowledge for Agent={Agent}",
-                _agent.Name);
             throw new InvalidOperationException($"Failed to list knowledge for agent '{_agent.Name}'", ex);
         }
     }
 
     /// <summary>
-    /// Validates input parameters.
+    /// Ensures knowledge service is available.
     /// </summary>
-    private void ValidateInput(string? value, string paramName)
+    private void EnsureKnowledgeService()
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (_knowledgeService == null)
         {
-            throw new ArgumentException($"{paramName} cannot be null or empty", paramName);
-        }
-
-        if (value.Length > 256)
-        {
-            throw new ArgumentException($"{paramName} exceeds maximum length of 256 characters", paramName);
+            throw new InvalidOperationException(
+                "Knowledge service is not available. Ensure the agent was registered through XiansPlatform.Agents.");
         }
     }
 
     /// <summary>
-    /// Ensures HTTP service is available.
+    /// Gets the tenant ID for cache and HTTP operations.
     /// </summary>
-    private void EnsureHttpService()
+    private string GetTenantId()
     {
-        if (_httpService == null)
+        try
         {
-            throw new InvalidOperationException(
-                "HTTP service is not available. Ensure the agent was registered through XiansPlatform.Agents.");
+            return _agent.Options?.TenantId ?? "default";
+        }
+        catch
+        {
+            // If tenant ID cannot be determined (e.g., in tests), use default
+            return "default";
         }
     }
 }

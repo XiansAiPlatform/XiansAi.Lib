@@ -40,7 +40,12 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         _platform = XiansPlatform.Initialize(new XiansOptions
         {
             ServerUrl = _mockServer.Url!,
-            ApiKey = TestCertificateGenerator.GetTestCertificate()
+            ApiKey = TestCertificateGenerator.GetTestCertificate(),
+            TemporalConfiguration = new Configuration.Models.TemporalConfiguration
+            {
+                ServerUrl = "localhost:7233",
+                Namespace = "default"
+            }
         });
         
         return Task.CompletedTask;

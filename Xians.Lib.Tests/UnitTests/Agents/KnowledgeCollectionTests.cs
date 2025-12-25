@@ -37,7 +37,8 @@ public class KnowledgeCollectionTests
             null,
             null,
             _mockHttpService.Object,
-            null);
+            null,
+            null); // No cache for unit tests
         
         _knowledgeCollection = _agent.Knowledge;
     }

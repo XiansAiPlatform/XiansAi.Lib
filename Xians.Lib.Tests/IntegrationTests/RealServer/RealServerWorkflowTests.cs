@@ -11,6 +11,9 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 [Trait("Category", "RealServer")]
 public class RealServerWorkflowTests : RealServerTestBase
 {
+    // Use fixed agent name to avoid spamming the server with test agents
+    private const string AGENT_NAME = "WorkflowTestAgent";
+    
     //dotnet test --filter "FullyQualifiedName~RealServerWorkflowTests"
 
     [Fact]
@@ -72,17 +75,14 @@ public class RealServerWorkflowTests : RealServerTestBase
             ApiKey = ApiKey!
         });
 
-        // Generate unique agent name to avoid conflicts
-        var agentName = $"TestAgent_{Guid.NewGuid():N}";
-        
-        // Act - Register agent and define workflow (same as AzureAIExample.csx)
+        // Act - Register agent with fixed name to avoid spamming server
         var agent = platform.Agents.Register(new XiansAgentRegistration
         {
-            Name = agentName,
+            Name = AGENT_NAME,
             SystemScoped = false
         });
         
-        Console.WriteLine($"✓ Step 1: Registered agent '{agentName}'");
+        Console.WriteLine($"✓ Step 1: Registered agent '{AGENT_NAME}'");
 
         // Define a default workflow (this should trigger upload to server)
         var workflow = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
@@ -94,11 +94,11 @@ public class RealServerWorkflowTests : RealServerTestBase
         
         // Assert
         Assert.NotNull(workflow);
-        Assert.Equal($"{agentName}:Default Workflow - Conversational", workflow.WorkflowType);
+        Assert.Equal($"{AGENT_NAME}:Default Workflow - Conversational", workflow.WorkflowType);
         Assert.Equal("Conversational", workflow.Name);
         Assert.Equal(1, workflow.Workers);
         Assert.NotNull(workflow2);
-        Assert.Equal($"{agentName}:Default Workflow - Webhooks", workflow2.WorkflowType);
+        Assert.Equal($"{AGENT_NAME}:Default Workflow - Webhooks", workflow2.WorkflowType);
         Assert.Equal("Webhooks", workflow2.Name);
         Assert.Equal(1, workflow2.Workers);
     }

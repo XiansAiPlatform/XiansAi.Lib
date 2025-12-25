@@ -15,6 +15,11 @@ public class XiansPlatform
     /// </summary>
     public AgentCollection Agents { get; private set; }
 
+    /// <summary>
+    /// Gets the cache service for managing cached data.
+    /// </summary>
+    public Common.CacheService Cache { get; private set; }
+
     private readonly XiansOptions _options;
     private readonly IHttpClientService _httpService;
     private readonly ITemporalClientService _temporalService;
@@ -24,10 +29,15 @@ public class XiansPlatform
         _options = options;
         _httpService = httpService;
         _temporalService = temporalService;
+        
+        // Initialize cache service
+        var cacheLogger = Common.LoggerFactory.CreateLogger<Common.CacheService>();
+        Cache = new Common.CacheService(options.Cache, cacheLogger);
+        
         Agents = new AgentCollection(options);
         
         // Set HTTP and Temporal services for agent operations
-        Agents.SetServices(httpService, temporalService);
+        Agents.SetServices(httpService, temporalService, Cache);
     }
 
     /// <summary>

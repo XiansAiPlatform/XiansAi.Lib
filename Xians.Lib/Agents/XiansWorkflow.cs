@@ -123,10 +123,12 @@ public class XiansWorkflow
             if (_agent.HttpService != null)
             {
                 var messageActivities = new Workflows.MessageActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(messageActivities);
+                workerOptions.AddAllActivities(typeof(Workflows.MessageActivities), messageActivities);
                 
-                var knowledgeActivities = new Workflows.KnowledgeActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(knowledgeActivities);
+                var knowledgeActivities = new Workflows.KnowledgeActivities(
+                    _agent.HttpService.Client, 
+                    _agent.CacheService);
+                workerOptions.AddAllActivities(typeof(Workflows.KnowledgeActivities), knowledgeActivities);
             }
             else
             {

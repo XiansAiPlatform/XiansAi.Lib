@@ -17,6 +17,12 @@ public class XiansOptions : ServerConfiguration
     /// Optional Temporal configuration. If not provided, will be fetched from the server.
     /// </summary>
     public TemporalConfiguration? TemporalConfiguration { get; set; }
+
+    /// <summary>
+    /// Gets or sets the cache configuration.
+    /// If not provided, uses default caching settings (5-minute TTL, enabled).
+    /// </summary>
+    public CacheOptions? Cache { get; set; }
     
     /// <summary>
     /// The tenant ID for this agent. 

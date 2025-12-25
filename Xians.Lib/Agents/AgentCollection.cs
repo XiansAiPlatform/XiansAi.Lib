@@ -13,6 +13,7 @@ public class AgentCollection
     private readonly XiansOptions _options;
     private IHttpClientService? _httpService;
     private ITemporalClientService? _temporalService;
+    private Common.CacheService? _cacheService;
     private WorkflowDefinitionUploader? _uploader;
 
     internal AgentCollection(XiansOptions options)
@@ -23,10 +24,11 @@ public class AgentCollection
     /// <summary>
     /// Sets the HTTP and Temporal services for agent operations.
     /// </summary>
-    internal void SetServices(IHttpClientService? httpService, ITemporalClientService? temporalService)
+    internal void SetServices(IHttpClientService? httpService, ITemporalClientService? temporalService, Common.CacheService? cacheService)
     {
         _httpService = httpService;
         _temporalService = temporalService;
+        _cacheService = cacheService;
         
         // Create uploader if HTTP service is available
         if (_httpService != null)
@@ -54,6 +56,7 @@ public class AgentCollection
             _uploader,
             _temporalService,
             _httpService,
-            _options);
+            _options,
+            _cacheService);
     }
 }

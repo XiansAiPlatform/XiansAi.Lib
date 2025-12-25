@@ -11,14 +11,20 @@ namespace Xians.Lib.Workflows;
 /// <summary>
 /// Activities for sending messages back to the Xians platform.
 /// Activities can perform non-deterministic operations like HTTP calls.
+/// Delegates to shared MessageService to avoid code duplication.
 /// </summary>
 public class MessageActivities
 {
     private readonly HttpClient _httpClient;
+    private readonly Agents.MessageService _messageService;
 
     public MessageActivities(HttpClient httpClient)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        
+        // Create shared message service
+        var logger = Common.LoggerFactory.CreateLogger<Agents.MessageService>();
+        _messageService = new Agents.MessageService(httpClient, logger);
     }
 
     /// <summary>
@@ -85,8 +91,8 @@ public class MessageActivities
     /// <summary>
     /// Retrieves paginated chat history for a conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Delegates to shared MessageService.
     /// </summary>
-    /// <param name="request">The request containing participant and pagination details.</param>
     [Activity]
     public async Task<List<DbMessage>> GetMessageHistoryAsync(GetMessageHistoryRequest request)
     {
@@ -98,46 +104,13 @@ public class MessageActivities
         
         try
         {
-            // Build query string for history endpoint with proper URL encoding
-            var endpoint = $"api/agent/conversation/history?" +
-                          $"workflowType={Uri.EscapeDataString(request.WorkflowType)}" +
-                          $"&participantId={Uri.EscapeDataString(request.ParticipantId)}" +
-                          $"&page={request.Page}" +
-                          $"&pageSize={request.PageSize}" +
-                          $"&scope={Uri.EscapeDataString(request.Scope)}";
-            
-            ActivityExecutionContext.Current.Logger.LogTrace(
-                "Fetching message history from {Endpoint}",
-                endpoint);
-            
-            // Create HTTP request message to add tenant header
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-            
-            // Add X-Tenant-Id header for tenant routing (critical for system-scoped agents)
-            // This ensures history is fetched from the correct tenant's context
-            httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", request.TenantId);
-            
-            var response = await _httpClient.SendAsync(httpRequest);
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                ActivityExecutionContext.Current.Logger.LogError(
-                    "Failed to fetch message history: StatusCode={StatusCode}, Error={Error}",
-                    response.StatusCode,
-                    error);
-                // Don't expose server error details to prevent information disclosure
-                throw new HttpRequestException(
-                    $"Failed to fetch message history. Status: {response.StatusCode}");
-            }
-            
-            var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
-            
-            ActivityExecutionContext.Current.Logger.LogInformation(
-                "Message history fetched successfully: {Count} messages",
-                messages?.Count ?? 0);
-            
-            return messages ?? new List<DbMessage>();
+            return await _messageService.GetHistoryAsync(
+                request.WorkflowType,
+                request.ParticipantId,
+                request.Scope,
+                request.TenantId,
+                request.Page,
+                request.PageSize);
         }
         catch (Exception ex)
         {
@@ -152,8 +125,8 @@ public class MessageActivities
     /// Sends a chat or data message to a participant via the Xians platform API.
     /// Uses the same endpoint format as XiansAi.Lib.Src SystemActivities.
     /// For system-scoped agents, includes X-Tenant-Id header to route to correct tenant.
+    /// Delegates to shared MessageService.
     /// </summary>
-    /// <param name="request">The message request containing all message details.</param>
     [Activity]
     public async Task SendMessageAsync(SendMessageRequest request)
     {
@@ -162,74 +135,34 @@ public class MessageActivities
             request.Type,
             request.RequestId);
         
-        // Validate message type against whitelist
-        var allowedTypes = new[] { "chat", "data" };
-        var messageType = request.Type.ToLower();
-        if (!allowedTypes.Contains(messageType))
+        try
         {
-            var error = $"Invalid message type: {request.Type}. Allowed types: {string.Join(", ", allowedTypes)}";
-            ActivityExecutionContext.Current.Logger.LogError(error);
-            throw new ArgumentException(error, nameof(request.Type));
+            await _messageService.SendAsync(
+                request.ParticipantId,
+                request.WorkflowId,
+                request.WorkflowType,
+                request.RequestId,
+                request.Scope ?? string.Empty,
+                request.Text ?? string.Empty,
+                request.Data,
+                request.TenantId,
+                request.Authorization,
+                request.ThreadId,
+                request.Hint ?? string.Empty,
+                request.Origin,
+                request.Type);
+
+            ActivityExecutionContext.Current.Logger.LogInformation(
+                "Message sent successfully: RequestId={RequestId}",
+                request.RequestId);
         }
-        
-        // Build payload matching the ChatOrDataRequest structure from XiansAi.Lib.Src
-        var payload = new
+        catch (Exception ex)
         {
-            participantId = request.ParticipantId,
-            workflowId = request.WorkflowId,
-            workflowType = request.WorkflowType,
-            requestId = request.RequestId,
-            scope = request.Scope,
-            data = request.Data,
-            authorization = request.Authorization,
-            text = request.Text,
-            threadId = request.ThreadId,
-            hint = request.Hint,
-            origin = request.Origin
-        };
-
-        // Use the correct endpoint: api/agent/conversation/outbound/{type}
-        // Type is lowercase: "chat" or "data"
-        var endpoint = $"api/agent/conversation/outbound/{messageType}";
-        
-        ActivityExecutionContext.Current.Logger.LogTrace(
-            "Posting to {Endpoint}: TextLength={TextLength}",
-            endpoint,
-            request.Text?.Length ?? 0);
-        
-        // Create HTTP request message to add tenant header
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        httpRequest.Content = JsonContent.Create(payload);
-        
-        // Add X-Tenant-Id header for tenant routing (critical for system-scoped agents)
-        // This matches the TenantIdHandler behavior from XiansAi.Lib.Src
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", request.TenantId);
-        
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "HTTP response: StatusCode={StatusCode}, IsSuccess={IsSuccess}",
-            response.StatusCode,
-            response.IsSuccessStatusCode);
-
-        // Throw exception if the request failed - Temporal will retry automatically
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            
-            ActivityExecutionContext.Current.Logger.LogError(
-                "Message send failed: StatusCode={StatusCode}, Error={Error}",
-                response.StatusCode,
-                error);
-            
-            // Don't expose participant ID or detailed error to prevent information disclosure
-            throw new HttpRequestException(
-                $"Failed to send message. Status: {response.StatusCode}");
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error sending message: RequestId={RequestId}",
+                request.RequestId);
+            throw;
         }
-        
-        ActivityExecutionContext.Current.Logger.LogInformation(
-            "Message sent successfully: RequestId={RequestId}",
-            request.RequestId);
     }
 }
 
@@ -239,7 +172,8 @@ public class MessageActivities
 /// </summary>
 public class ActivityUserMessageContext : UserMessageContext
 {
-    private readonly HttpClient _httpClient;
+    private readonly Agents.MessageService _messageService;
+    private readonly Agents.KnowledgeService _knowledgeService;
     private readonly string _workflowId;
     private readonly string _workflowType;
     private readonly string _participantId;
@@ -265,7 +199,6 @@ public class ActivityUserMessageContext : UserMessageContext
         string? threadId = null)
         : base(message, participantId, requestId, scope, hint, data, tenantId, authorization, threadId)
     {
-        _httpClient = httpClient;
         _participantId = participantId;
         _requestId = requestId;
         _scope = scope;
@@ -275,6 +208,15 @@ public class ActivityUserMessageContext : UserMessageContext
         _workflowType = workflowType;
         _authorization = authorization;
         _threadId = threadId;
+        
+        // Create shared services
+        var messageLogger = Common.LoggerFactory.CreateLogger<Agents.MessageService>();
+        _messageService = new Agents.MessageService(httpClient, messageLogger);
+        
+        // Get cache service from KnowledgeActivities static cache
+        var cacheService = KnowledgeActivities.GetStaticCacheService();
+        var knowledgeLogger = Common.LoggerFactory.CreateLogger<Agents.KnowledgeService>();
+        _knowledgeService = new Agents.KnowledgeService(httpClient, cacheService, knowledgeLogger);
     }
 
     /// <summary>
@@ -296,146 +238,66 @@ public class ActivityUserMessageContext : UserMessageContext
     /// <summary>
     /// Retrieves chat history via HTTP instead of workflow activity.
     /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Delegates to shared MessageService.
     /// </summary>
     public override async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        // Build query string with proper URL encoding
-        var endpoint = $"api/agent/conversation/history?" +
-                      $"workflowType={Uri.EscapeDataString(_workflowType ?? string.Empty)}" +
-                      $"&participantId={Uri.EscapeDataString(_participantId ?? string.Empty)}" +
-                      $"&page={page}" +
-                      $"&pageSize={pageSize}" +
-                      $"&scope={Uri.EscapeDataString(_scope ?? string.Empty)}";
-        
-        // Create HTTP request message to add tenant header
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        
-        // Add X-Tenant-Id header for tenant routing (critical for system-scoped agents)
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
-        
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            // Log detailed error but don't expose to caller
-            // (Logging context available in activity context if needed)
-            throw new HttpRequestException(
-                $"Failed to fetch message history. Status: {response.StatusCode}");
-        }
-
-        var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
-        return messages ?? new List<DbMessage>();
+        return await _messageService.GetHistoryAsync(
+            _workflowType,
+            _participantId,
+            _scope,
+            _tenantId,
+            page,
+            pageSize);
     }
 
     /// <summary>
     /// Retrieves knowledge via HTTP instead of workflow activity.
+    /// Delegates to shared KnowledgeService.
     /// </summary>
     public override async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
-        var endpoint = $"api/agent/knowledge/latest?" +
-                      $"name={Uri.EscapeDataString(knowledgeName)}" +
-                      $"&agent={Uri.EscapeDataString(GetAgentNameFromWorkflowType())}";
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
-
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            return null;
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException(
-                $"Failed to fetch knowledge. Status: {response.StatusCode}");
-        }
-
-        return await response.Content.ReadFromJsonAsync<Knowledge>();
+        return await _knowledgeService.GetAsync(
+            knowledgeName,
+            GetAgentNameFromWorkflowType(),
+            _tenantId);
     }
 
     /// <summary>
     /// Updates knowledge via HTTP instead of workflow activity.
+    /// Delegates to shared KnowledgeService.
     /// </summary>
     public override async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string content, string? type = null)
     {
-        var knowledge = new Knowledge
-        {
-            Name = knowledgeName,
-            Content = content,
-            Type = type,
-            Agent = GetAgentNameFromWorkflowType(),
-            TenantId = _tenantId
-        };
-
-        var endpoint = "api/agent/knowledge";
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        httpRequest.Content = JsonContent.Create(knowledge);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
-
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException(
-                $"Failed to update knowledge. Status: {response.StatusCode}");
-        }
-
-        return true;
+        return await _knowledgeService.UpdateAsync(
+            knowledgeName,
+            content,
+            type,
+            GetAgentNameFromWorkflowType(),
+            _tenantId);
     }
 
     /// <summary>
     /// Deletes knowledge via HTTP instead of workflow activity.
+    /// Delegates to shared KnowledgeService.
     /// </summary>
     public override async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
     {
-        var endpoint = $"api/agent/knowledge?" +
-                      $"name={Uri.EscapeDataString(knowledgeName)}" +
-                      $"&agent={Uri.EscapeDataString(GetAgentNameFromWorkflowType())}";
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
-
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            return false;
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException(
-                $"Failed to delete knowledge. Status: {response.StatusCode}");
-        }
-
-        return true;
+        return await _knowledgeService.DeleteAsync(
+            knowledgeName,
+            GetAgentNameFromWorkflowType(),
+            _tenantId);
     }
 
     /// <summary>
     /// Lists knowledge via HTTP instead of workflow activity.
+    /// Delegates to shared KnowledgeService.
     /// </summary>
     public override async Task<List<Knowledge>> ListKnowledgeAsync()
     {
-        var endpoint = $"api/agent/knowledge/list?" +
-                      $"agent={Uri.EscapeDataString(GetAgentNameFromWorkflowType())}";
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
-
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException(
-                $"Failed to list knowledge. Status: {response.StatusCode}");
-        }
-
-        var knowledgeList = await response.Content.ReadFromJsonAsync<List<Knowledge>>();
-        return knowledgeList ?? new List<Knowledge>();
+        return await _knowledgeService.ListAsync(
+            GetAgentNameFromWorkflowType(),
+            _tenantId);
     }
 
     /// <summary>
@@ -449,38 +311,23 @@ public class ActivityUserMessageContext : UserMessageContext
 
     /// <summary>
     /// Sends message directly via HTTP API.
+    /// Delegates to shared MessageService.
     /// </summary>
     private async Task SendHttpMessageAsync(string text, object? data)
     {
-        var payload = new
-        {
-            participantId = _participantId,
-            workflowId = _workflowId,
-            workflowType = _workflowType,
-            requestId = _requestId,
-            scope = _scope,
-            data = data,
-            authorization = _authorization,
-            text = text,
-            threadId = _threadId,
-            hint = _hint,
-            origin = (string?)null
-        };
-
-        var endpoint = "api/agent/conversation/outbound/chat";
-        
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        httpRequest.Content = JsonContent.Create(payload);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", _tenantId);
-        
-        var response = await _httpClient.SendAsync(httpRequest);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            // Log error details but don't expose participant ID or server errors
-            throw new HttpRequestException(
-                $"Failed to send message. Status: {response.StatusCode}");
-        }
+        await _messageService.SendAsync(
+            _participantId,
+            _workflowId,
+            _workflowType,
+            _requestId,
+            _scope,
+            text,
+            data,
+            _tenantId,
+            _authorization,
+            _threadId,
+            _hint,
+            origin: null,
+            messageType: "chat");
     }
 }

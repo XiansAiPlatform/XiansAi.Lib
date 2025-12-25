@@ -11,6 +11,7 @@ namespace Xians.Agent.Sample;
 /// </summary>
 internal static class MafAgent
 {
+
     /// <summary>
     /// Processes a user message using OpenAI's chat model with Xians conversation history.
     /// </summary>
@@ -23,14 +24,21 @@ internal static class MafAgent
         string openAiApiKey,
         string modelName = "gpt-4o-mini")
     {
-        // Create AI agent with custom Xians chat message store
+        // Create AI agent with custom Xians chat message store and tools
         AIAgent mafAgent = new OpenAIClient(openAiApiKey)
             .GetChatClient(modelName)
             .CreateAIAgent(new ChatClientAgentOptions
             {
                 ChatOptions = new ChatOptions
                 {
-                    Instructions = "You are a helpful assistant that processes user requests and webhook messages.",
+                    Instructions = "You are a helpful assistant.",
+                    Tools =
+                    [
+                        AIFunctionFactory.Create(MafAgentTools.GetWeather),
+                        AIFunctionFactory.Create(MafAgentTools.GetCurrentTime),
+                        AIFunctionFactory.Create(MafAgentTools.SearchInformation),
+                        AIFunctionFactory.Create(MafAgentTools.ResearchCompany)
+                    ]
                 },
                 ChatMessageStoreFactory = ctx =>
                 {
