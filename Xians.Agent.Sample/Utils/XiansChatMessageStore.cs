@@ -4,7 +4,7 @@ using Microsoft.Extensions.AI;
 using Xians.Lib.Agents;
 using Xians.Lib.Workflows.Models;
 
-namespace Xians.Agent.Sample;
+namespace Xians.Agent.Sample.Utils;
 
 /// <summary>
 /// ChatMessageStore implementation that reads chat history from Xians platform.

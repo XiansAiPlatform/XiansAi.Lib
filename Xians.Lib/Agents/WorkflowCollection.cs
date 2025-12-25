@@ -107,6 +107,39 @@ public class WorkflowCollection
     }
 
     /// <summary>
+    /// Gets a built-in workflow by name.
+    /// If name is null, returns the unnamed built-in workflow.
+    /// </summary>
+    /// <param name="name">The name of the built-in workflow, or null for the unnamed workflow.</param>
+    /// <returns>The built-in workflow or null if not found.</returns>
+    public XiansWorkflow? GetBuiltIn(string? name = null)
+    {
+        // Built-in workflows are identified by their WorkflowType containing "Default Workflow"
+        return _workflows.FirstOrDefault(w => 
+            w.WorkflowType.Contains("Default Workflow") && w.Name == name);
+    }
+
+    /// <summary>
+    /// Gets a custom workflow by its type.
+    /// </summary>
+    /// <typeparam name="T">The custom workflow type.</typeparam>
+    /// <returns>The custom workflow or null if not found.</returns>
+    public XiansWorkflow? GetCustom<T>() where T : class
+    {
+        var workflowType = typeof(T).Name;
+        return _workflows.FirstOrDefault(w => w.WorkflowType == workflowType);
+    }
+
+    /// <summary>
+    /// Gets all workflows for this agent.
+    /// </summary>
+    /// <returns>A read-only list of workflows.</returns>
+    public IReadOnlyList<XiansWorkflow> GetAll()
+    {
+        return _workflows.AsReadOnly();
+    }
+
+    /// <summary>
     /// Runs all registered workflows asynchronously.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for stopping workflows.</param>

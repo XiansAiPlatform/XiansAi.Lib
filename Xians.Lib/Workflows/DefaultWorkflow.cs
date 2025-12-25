@@ -17,7 +17,7 @@ public class DefaultWorkflow
     private readonly Queue<InboundMessage> _messageQueue = new();
     
     // Metadata for each registered workflow handler including tenant isolation info
-    // Made internal static to allow activities to access it
+    // Made internal static to allow activities and A2AClient to access it
     // Using ConcurrentDictionary to eliminate lock contention during message processing
     internal static readonly ConcurrentDictionary<string, WorkflowHandlerMetadata> _handlersByWorkflowType = new();
 
@@ -54,6 +54,7 @@ public class DefaultWorkflow
         
         return Task.CompletedTask;
     }
+
 
     /// <summary>
     /// Registers a user message handler for a specific workflow type with tenant isolation metadata.
@@ -163,4 +164,5 @@ public class DefaultWorkflow
             }
         }
     }
+
 }

@@ -14,6 +14,7 @@ Welcome to the Xians.Lib documentation! This library provides robust HTTP and Te
 - **[HTTP Client Guide](HttpClient.md)** - Comprehensive HTTP client usage and best practices
 - **[Temporal Client Guide](TemporalClient.md)** - Comprehensive Temporal client usage and best practices
 - **[Knowledge Guide](Knowledge.md)** - Store and manage agent knowledge (prompts, configs, docs)
+- **[Agent-to-Agent (A2A) Communication](A2A.md)** - **NEW!** Enable multi-agent collaboration and workflow orchestration
 - **[Caching Guide](Caching.md)** - Improve performance with automatic caching
 - **[System-Scoped Agents](SystemScopedAgents.md)** - Multi-tenant agent architecture and tenant isolation
 - **[Worker Registration](WorkerRegistration.md)** - Temporal worker setup and management
@@ -90,26 +91,35 @@ var client = await temporalService.GetClientAsync();
    - Real-World Examples
    - Best Practices
 
-6. [Caching](Caching.md)
+6. [Agent-to-Agent Communication (A2A)](A2A.md) **NEW!**
+   - Quick Start
+   - Core Components (A2AClient, A2AMessage, A2AMessageContext)
+   - Usage Patterns
+   - Limitations (no message history, no Temporal routing)
+   - Best Practices
+   - Advanced Scenarios
+   - Performance and Security
+
+7. [Caching](Caching.md)
    - How Caching Works
    - Configuration Options
    - Performance Impact
    - Auto-Invalidation
    - Troubleshooting
 
-7. [System-Scoped Agents](SystemScopedAgents.md)
+8. [System-Scoped Agents](SystemScopedAgents.md)
    - Multi-Tenant Architecture
    - Tenant Isolation
    - Usage Examples
    - Security Best Practices
    - Troubleshooting
 
-8. [Worker Registration](WorkerRegistration.md)
+9. [Worker Registration](WorkerRegistration.md)
    - Temporal Worker Setup
    - Task Queue Configuration
    - Worker Lifecycle
 
-9. [Examples](Examples/)
+10. [Examples](Examples/)
    - HTTP Client Examples
    - Temporal Client Examples
 

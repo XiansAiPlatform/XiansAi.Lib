@@ -55,7 +55,31 @@ public class XiansAgent
         CacheService = cacheService;
         Workflows = new WorkflowCollection(this, uploader);
         Knowledge = new KnowledgeCollection(this, httpService, cacheService);
+        
+        // Register this agent in the static context
+        XiansContext.RegisterAgent(this);
     }
+
+    /// <summary>
+    /// Gets a built-in workflow by name.
+    /// If name is null, returns the unnamed built-in workflow.
+    /// </summary>
+    /// <param name="name">The name of the built-in workflow, or null for the unnamed workflow.</param>
+    /// <returns>The built-in workflow or null if not found.</returns>
+    public XiansWorkflow? GetBuiltInWorkflow(string? name = null) => Workflows.GetBuiltIn(name);
+
+    /// <summary>
+    /// Gets a custom workflow by its type.
+    /// </summary>
+    /// <typeparam name="T">The custom workflow type.</typeparam>
+    /// <returns>The custom workflow or null if not found.</returns>
+    public XiansWorkflow? GetCustomWorkflow<T>() where T : class => Workflows.GetCustom<T>();
+
+    /// <summary>
+    /// Gets all workflows for this agent.
+    /// </summary>
+    /// <returns>A read-only list of workflows.</returns>
+    public IReadOnlyList<XiansWorkflow> GetAllWorkflows() => Workflows.GetAll();
 
     /// <summary>
     /// Runs all registered workflows for this agent asynchronously.

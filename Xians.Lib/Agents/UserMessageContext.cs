@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Models;
 using Xians.Lib.Workflows;
@@ -34,12 +35,12 @@ public class UserMessageContext
     /// <summary>
     /// Gets the request ID for tracking.
     /// </summary>
-    public string RequestId => _requestId;
+    public virtual string RequestId => _requestId;
 
     /// <summary>
     /// Gets the scope of the message.
     /// </summary>
-    public string Scope => _scope;
+    public virtual string Scope => _scope;
 
     /// <summary>
     /// Gets the hint for message processing.
@@ -56,7 +57,7 @@ public class UserMessageContext
     /// For system-scoped agents, this indicates which tenant initiated the workflow.
     /// For non-system-scoped agents, this is always the agent's registered tenant.
     /// </summary>
-    public string TenantId => _tenantId;
+    public virtual string TenantId => _tenantId;
 
     /// <summary>
     /// Gets the data object associated with the message.
@@ -119,58 +120,71 @@ public class UserMessageContext
     /// <summary>
     /// Retrieves paginated chat history for this conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Works in both workflow and activity contexts.
     /// </summary>
     /// <param name="page">The page number to retrieve (default: 1).</param>
     /// <param name="pageSize">The number of messages per page (default: 10).</param>
     /// <returns>A list of DbMessage objects representing the chat history.</returns>
     public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        Workflow.Logger.LogInformation(
+        var logger = GetLogger();
+        var workflowType = GetWorkflowType();
+        
+        logger.LogInformation(
             "Fetching chat history: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
-            Workflow.Info.WorkflowType,
+            workflowType,
             _participantId,
             page,
             pageSize,
-            _tenantId);
+            TenantId);
 
         var request = new GetMessageHistoryRequest
         {
-            WorkflowType = Workflow.Info.WorkflowType,
+            WorkflowType = workflowType,
             ParticipantId = _participantId,
             Scope = _scope,
-            TenantId = _tenantId,  // Use tenant ID from workflow context
+            TenantId = TenantId,
             Page = page,
             PageSize = pageSize
         };
 
-        // Execute as Temporal activity for proper determinism and retries
-        var messages = await Workflow.ExecuteActivityAsync(
-            (MessageActivities act) => act.GetMessageHistoryAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
+        List<DbMessage> messages;
+        
+        // If in workflow, execute as activity for determinism
+        // If in activity, execute directly
+        if (Workflow.InWorkflow)
+        {
+            messages = await Workflow.ExecuteActivityAsync(
+                (MessageActivities act) => act.GetMessageHistoryAsync(request),
+                new()
                 {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            // Direct execution when not in workflow
+            var activity = GetMessageActivity();
+            messages = await activity.GetMessageHistoryAsync(request);
+        }
 
         // Filter out the current message to avoid duplication
-        // When retrieving history within a message handler, the current message
-        // is already being processed and should not be included in the history
         var filteredMessages = messages.Where(m => 
             !(m.Direction.Equals("inbound", StringComparison.OrdinalIgnoreCase) && 
               m.Text == Message.Text)).ToList();
 
-        Workflow.Logger.LogInformation(
+        logger.LogInformation(
             "Chat history fetched: {Count} messages (filtered from {Total}), Tenant={Tenant}",
             filteredMessages.Count,
             messages.Count,
-            _tenantId);
-    
+            TenantId);
 
         return filteredMessages;
     }
@@ -178,41 +192,56 @@ public class UserMessageContext
     /// <summary>
     /// Retrieves knowledge by name from the platform.
     /// Automatically uses the current tenant and agent context.
-    /// Convenience wrapper that executes knowledge retrieval through a Temporal activity.
+    /// Works in both workflow and activity contexts.
     /// </summary>
     /// <param name="knowledgeName">The name of the knowledge to fetch.</param>
     /// <returns>The knowledge object, or null if not found.</returns>
     public virtual async Task<Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
-        Workflow.Logger.LogInformation(
+        var logger = GetLogger();
+        var workflowType = GetWorkflowType();
+        
+        logger.LogInformation(
             "Fetching knowledge: Name={Name}, WorkflowType={WorkflowType}, Tenant={Tenant}",
             knowledgeName,
-            Workflow.Info.WorkflowType,
-            _tenantId);
+            workflowType,
+            TenantId);
 
         var request = new GetKnowledgeRequest
         {
             KnowledgeName = knowledgeName,
             AgentName = GetAgentNameFromWorkflow(),
-            TenantId = _tenantId
+            TenantId = TenantId
         };
 
-        // Execute as Temporal activity for proper determinism and retries
-        var knowledge = await Workflow.ExecuteActivityAsync(
-            (KnowledgeActivities act) => act.GetKnowledgeAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
+        Knowledge? knowledge;
+        
+        // If in workflow, execute as activity for determinism
+        // If in activity (e.g., from A2A call in tool), execute directly
+        if (Workflow.InWorkflow)
+        {
+            knowledge = await Workflow.ExecuteActivityAsync(
+                (KnowledgeActivities act) => act.GetKnowledgeAsync(request),
+                new()
                 {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            // Direct execution when not in workflow (e.g., called from activity via A2A)
+            var activity = GetKnowledgeActivity();
+            knowledge = await activity.GetKnowledgeAsync(request);
+        }
 
-        Workflow.Logger.LogInformation(
+        logger.LogInformation(
             "Knowledge fetch completed: Name={Name}, Found={Found}",
             knowledgeName,
             knowledge != null);
@@ -223,7 +252,7 @@ public class UserMessageContext
     /// <summary>
     /// Updates or creates knowledge in the platform.
     /// Automatically uses the current tenant and agent context.
-    /// Convenience wrapper that executes knowledge update through a Temporal activity.
+    /// Works in both workflow and activity contexts.
     /// </summary>
     /// <param name="knowledgeName">The name of the knowledge.</param>
     /// <param name="content">The knowledge content.</param>
@@ -234,12 +263,15 @@ public class UserMessageContext
         string content,
         string? type = null)
     {
-        Workflow.Logger.LogInformation(
+        var logger = GetLogger();
+        var workflowType = GetWorkflowType();
+        
+        logger.LogInformation(
             "Updating knowledge: Name={Name}, WorkflowType={WorkflowType}, Type={Type}, Tenant={Tenant}",
             knowledgeName,
-            Workflow.Info.WorkflowType,
+            workflowType,
             type,
-            _tenantId);
+            TenantId);
 
         var request = new UpdateKnowledgeRequest
         {
@@ -247,25 +279,34 @@ public class UserMessageContext
             Content = content,
             Type = type,
             AgentName = GetAgentNameFromWorkflow(),
-            TenantId = _tenantId
+            TenantId = TenantId
         };
 
-        // Execute as Temporal activity for proper determinism and retries
-        var result = await Workflow.ExecuteActivityAsync(
-            (KnowledgeActivities act) => act.UpdateKnowledgeAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
+        bool result;
+        
+        if (Workflow.InWorkflow)
+        {
+            result = await Workflow.ExecuteActivityAsync(
+                (KnowledgeActivities act) => act.UpdateKnowledgeAsync(request),
+                new()
                 {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetKnowledgeActivity();
+            result = await activity.UpdateKnowledgeAsync(request);
+        }
 
-        Workflow.Logger.LogInformation(
+        logger.LogInformation(
             "Knowledge update completed: Name={Name}, Success={Success}",
             knowledgeName,
             result);
@@ -276,41 +317,53 @@ public class UserMessageContext
     /// <summary>
     /// Deletes knowledge from the platform.
     /// Automatically uses the current tenant and agent context.
-    /// Convenience wrapper that executes knowledge deletion through a Temporal activity.
+    /// Works in both workflow and activity contexts.
     /// </summary>
     /// <param name="knowledgeName">The name of the knowledge to delete.</param>
     /// <returns>True if deleted, false if not found.</returns>
     public virtual async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
     {
-        Workflow.Logger.LogInformation(
+        var logger = GetLogger();
+        var workflowType = GetWorkflowType();
+        
+        logger.LogInformation(
             "Deleting knowledge: Name={Name}, WorkflowType={WorkflowType}, Tenant={Tenant}",
             knowledgeName,
-            Workflow.Info.WorkflowType,
-            _tenantId);
+            workflowType,
+            TenantId);
 
         var request = new DeleteKnowledgeRequest
         {
             KnowledgeName = knowledgeName,
             AgentName = GetAgentNameFromWorkflow(),
-            TenantId = _tenantId
+            TenantId = TenantId
         };
 
-        // Execute as Temporal activity for proper determinism and retries
-        var result = await Workflow.ExecuteActivityAsync(
-            (KnowledgeActivities act) => act.DeleteKnowledgeAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
+        bool result;
+        
+        if (Workflow.InWorkflow)
+        {
+            result = await Workflow.ExecuteActivityAsync(
+                (KnowledgeActivities act) => act.DeleteKnowledgeAsync(request),
+                new()
                 {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetKnowledgeActivity();
+            result = await activity.DeleteKnowledgeAsync(request);
+        }
 
-        Workflow.Logger.LogInformation(
+        logger.LogInformation(
             "Knowledge delete completed: Name={Name}, Success={Success}",
             knowledgeName,
             result);
@@ -321,38 +374,50 @@ public class UserMessageContext
     /// <summary>
     /// Lists all knowledge for this agent.
     /// Automatically uses the current tenant and agent context.
-    /// Convenience wrapper that executes knowledge listing through a Temporal activity.
+    /// Works in both workflow and activity contexts.
     /// </summary>
     /// <returns>A list of knowledge items.</returns>
     public virtual async Task<List<Knowledge>> ListKnowledgeAsync()
     {
-        Workflow.Logger.LogInformation(
+        var logger = GetLogger();
+        var workflowType = GetWorkflowType();
+        
+        logger.LogInformation(
             "Listing knowledge: WorkflowType={WorkflowType}, Tenant={Tenant}",
-            Workflow.Info.WorkflowType,
-            _tenantId);
+            workflowType,
+            TenantId);
 
         var request = new ListKnowledgeRequest
         {
             AgentName = GetAgentNameFromWorkflow(),
-            TenantId = _tenantId
+            TenantId = TenantId
         };
 
-        // Execute as Temporal activity for proper determinism and retries
-        var knowledgeList = await Workflow.ExecuteActivityAsync(
-            (KnowledgeActivities act) => act.ListKnowledgeAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
+        List<Knowledge> knowledgeList;
+        
+        if (Workflow.InWorkflow)
+        {
+            knowledgeList = await Workflow.ExecuteActivityAsync(
+                (KnowledgeActivities act) => act.ListKnowledgeAsync(request),
+                new()
                 {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetKnowledgeActivity();
+            knowledgeList = await activity.ListKnowledgeAsync(request);
+        }
 
-        Workflow.Logger.LogInformation(
+        logger.LogInformation(
             "Knowledge list completed: Count={Count}",
             knowledgeList.Count);
 
@@ -365,7 +430,7 @@ public class UserMessageContext
     /// </summary>
     private string GetAgentNameFromWorkflow()
     {
-        var workflowType = Workflow.Info.WorkflowType;
+        var workflowType = GetWorkflowType();
         var separatorIndex = workflowType.IndexOf(':');
         
         if (separatorIndex > 0)
@@ -375,6 +440,65 @@ public class UserMessageContext
         
         // Fallback: use entire workflow type as agent name
         return workflowType;
+    }
+
+    /// <summary>
+    /// Gets the workflow type from current context (workflow or activity).
+    /// Can be overridden in derived classes (e.g., A2AMessageContext).
+    /// </summary>
+    protected virtual string GetWorkflowType()
+    {
+        if (Workflow.InWorkflow)
+        {
+            return Workflow.Info.WorkflowType;
+        }
+        else if (ActivityExecutionContext.HasCurrent)
+        {
+            return ActivityExecutionContext.Current.Info.WorkflowType;
+        }
+        else
+        {
+            throw new InvalidOperationException("Not in workflow or activity context");
+        }
+    }
+
+    /// <summary>
+    /// Gets an appropriate logger for the current context.
+    /// </summary>
+    protected virtual ILogger GetLogger()
+    {
+        return XiansLogger.GetLogger<UserMessageContext>();
+    }
+
+    /// <summary>
+    /// Gets a KnowledgeActivities instance for direct execution.
+    /// Used when not in workflow context.
+    /// </summary>
+    private KnowledgeActivities GetKnowledgeActivity()
+    {
+        // Get HTTP client from the current agent
+        var agent = XiansContext.CurrentAgent;
+        if (agent.HttpService == null)
+        {
+            throw new InvalidOperationException("HTTP service not available for knowledge operations");
+        }
+        
+        return new KnowledgeActivities(agent.HttpService.Client, agent.CacheService);
+    }
+
+    /// <summary>
+    /// Gets a MessageActivities instance for direct execution.
+    /// Used when not in workflow context.
+    /// </summary>
+    private MessageActivities GetMessageActivity()
+    {
+        var agent = XiansContext.CurrentAgent;
+        if (agent.HttpService == null)
+        {
+            throw new InvalidOperationException("HTTP service not available for message operations");
+        }
+        
+        return new MessageActivities(agent.HttpService.Client);
     }
 
     /// <summary>
@@ -389,7 +513,7 @@ public class UserMessageContext
             _participantId,
             _requestId,
             content?.Length ?? 0,
-            _tenantId);
+            TenantId);
         
         var request = new SendMessageRequest
         {
@@ -405,14 +529,14 @@ public class UserMessageContext
             Hint = _hint, // Pass through the hint from the original message
             Origin = null,
             Type = "Chat",
-            TenantId = _tenantId  // Pass tenant context for system-scoped agents
+            TenantId = TenantId  // Pass tenant context for system-scoped agents
         };
 
         Workflow.Logger.LogDebug(
             "Executing SendMessage activity: WorkflowId={WorkflowId}, WorkflowType={WorkflowType}, Tenant={Tenant}, Endpoint=api/agent/conversation/outbound/chat",
             request.WorkflowId,
             request.WorkflowType,
-            _tenantId);
+            TenantId);
 
         // Execute as Temporal activity for proper determinism, retries, and observability
         await Workflow.ExecuteActivityAsync(

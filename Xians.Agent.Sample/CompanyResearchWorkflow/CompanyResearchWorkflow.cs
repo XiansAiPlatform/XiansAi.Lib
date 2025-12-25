@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 
-[Workflow("Custom Approval Workflow")]
-public class CustomWorkflow
+[Workflow("Company Research Workflow")]
+public class CompanyResearchWorkflow
 {
     private bool _approved = false;
     [WorkflowRun]

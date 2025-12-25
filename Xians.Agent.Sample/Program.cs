@@ -1,6 +1,7 @@
 ﻿using DotNetEnv;
 using Xians.Lib.Agents;
-using Xians.Agent.Sample;
+using Xians.Agent.Sample.ConversationalAgent;
+using Xians.Agent.Sample.WebAgent;
 
 Env.Load();
 
@@ -23,7 +24,7 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new XiansOptions
 });
 
 // Generate unique agent name to avoid conflicts
-var agentName = $"XiansTestAgent V3";
+var agentName = $"Company Research Agent";
 
 // Register agent and define workflow
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
@@ -32,26 +33,26 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
     SystemScoped = true
 });
 
-// Define a default workflow  to handle super user messages
-var workflowA = await agent.Workflows.DefineBuiltIn(name: "Conversational", workers: 1);
+// Define a supervisor workflow to handle user messages and conversations
+var conversationalWorkflow = await agent.Workflows.DefineBuiltIn(name: "Conversational", workers: 1);
 
-// Define another default workflow to handle webhook messages
-var workflowB = await agent.Workflows.DefineBuiltIn(name: "Webhooks", workers: 1);
+// Define a web workflow to handle web interactions
+var webWorkflow = await agent.Workflows.DefineBuiltIn(name: "Web", workers: 1);
 
-// Define custom workflow
-var customWorkflow = await agent.Workflows.DefineCustom<CustomWorkflow>(workers: 1);
+// Define a company research workflow to handle company research
+var companyResearchWorkflow = await agent.Workflows.DefineCustom<CompanyResearchWorkflow>(workers: 1);
 
-// Register handler for workflowA
-workflowA.OnUserMessage(async (context) =>
+// Register handler for conversational workflow
+conversationalWorkflow.OnUserMessage(async (context) =>
 {
-    var response = await MafAgent.ProcessMessageAsync(context, openAiApiKey);
+    var response = await ConversationalAgent.ProcessMessageAsync(context, openAiApiKey);
     await context.ReplyAsync(response);
 });
 
-// Register handler for workflowB using Semantic Kernel agent
-workflowB.OnUserMessage(async (context) =>
+// Register handler for web workflow
+webWorkflow.OnUserMessage(async (context) =>
 {
-    var response = await SkAgent.ProcessMessageAsync(context, openAiApiKey);
+    var response = await WebAgent.ProcessMessageAsync(context, openAiApiKey);
     await context.ReplyAsync(response);
 });
 

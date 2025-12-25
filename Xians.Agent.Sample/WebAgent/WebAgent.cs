@@ -3,13 +3,14 @@ using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
 using Xians.Lib.Agents;
+using Xians.Agent.Sample.Utils;
 
-namespace Xians.Agent.Sample;
+namespace Xians.Agent.Sample.WebAgent;
 
 /// <summary>
 /// MAF Agent that uses OpenAI with Xians chat message store for conversation history.
 /// </summary>
-internal static class MafAgent
+internal static class WebAgent
 {
 
     /// <summary>
@@ -24,6 +25,13 @@ internal static class MafAgent
         string openAiApiKey,
         string modelName = "gpt-4o-mini")
     {
+        var instructions = await context.GetKnowledgeAsync("Web Agent Instructions");
+
+        if (instructions == null)
+        {
+            throw new Exception("'Web Agent Instructions' knowledge not found. Please set the instructions on the Xians portal.");
+        }
+
         // Create AI agent with custom Xians chat message store and tools
         AIAgent mafAgent = new OpenAIClient(openAiApiKey)
             .GetChatClient(modelName)
@@ -31,13 +39,13 @@ internal static class MafAgent
             {
                 ChatOptions = new ChatOptions
                 {
-                    Instructions = "You are a helpful assistant.",
+                    Instructions = instructions.Content,
                     Tools =
                     [
-                        AIFunctionFactory.Create(MafAgentTools.GetWeather),
-                        AIFunctionFactory.Create(MafAgentTools.GetCurrentTime),
-                        AIFunctionFactory.Create(MafAgentTools.SearchInformation),
-                        AIFunctionFactory.Create(MafAgentTools.ResearchCompany)
+                        AIFunctionFactory.Create(GoogleSearchCapability.WebSearch),
+                        AIFunctionFactory.Create(FirecrawlCapability.WebScrape),
+                        AIFunctionFactory.Create(FirecrawlCapability.ScrapeLinksFromWebpage),
+                        AIFunctionFactory.Create(FirecrawlCapability.ExtractDataFromWebpage)
                     ]
                 },
                 ChatMessageStoreFactory = ctx =>
