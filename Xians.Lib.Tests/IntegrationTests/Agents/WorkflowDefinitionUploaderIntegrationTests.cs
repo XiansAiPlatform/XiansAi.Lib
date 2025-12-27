@@ -3,8 +3,10 @@ using System.Text.Json;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
-using Xians.Lib.Agents;
-using Xians.Lib.Agents.Models;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Agents.Messaging.Models;
+using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Agents;

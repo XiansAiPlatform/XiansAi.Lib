@@ -1,10 +1,13 @@
 using Xunit;
+using Xians.Lib.Agents.Knowledge;
 using Moq;
 using Moq.Protected;
 using System.Net;
 using System.Net.Http.Json;
-using Xians.Lib.Agents;
-using Xians.Lib.Agents.Models;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Agents.Messaging.Models;
+using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Http;
 
 namespace Xians.Lib.Tests.UnitTests.Agents;

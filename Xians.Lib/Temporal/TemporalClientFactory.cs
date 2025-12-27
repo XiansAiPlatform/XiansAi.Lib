@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Common.Exceptions;
+using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Temporal;
 
@@ -28,7 +29,7 @@ internal class TemporalClientFactory
         {
             Namespace = _config.Namespace,
             Tls = GetTlsConfig(),
-            LoggerFactory = LoggerFactory.Create(builder =>
+            LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
                 builder
                     .AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ")
                     .SetMinimumLevel(LogLevel.Information))

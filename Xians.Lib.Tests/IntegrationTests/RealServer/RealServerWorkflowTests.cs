@@ -1,5 +1,6 @@
-using Xians.Lib.Agents;
-using Xians.Lib.Common;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Common.Caching;
+using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Configuration.Models;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;

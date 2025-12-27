@@ -1,5 +1,6 @@
 using Xians.Lib.Common;
 using Xians.Lib.Http;
+using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Examples;
 

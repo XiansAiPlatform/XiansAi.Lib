@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Xians.Lib.Common;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Common.Exceptions;
+using Xians.Lib.Common.Security;
 
 namespace Xians.Lib.Http;
 

@@ -1,8 +1,10 @@
 using Microsoft.Agents.AI;
+using Xians.Lib.Agents.Messaging;
+using Xians.Lib.Workflows.Messaging.Models;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
-using Xians.Lib.Agents;
+using Xians.Lib.Agents.Core;
 using Xians.Agent.Sample.Utils;
 
 namespace Xians.Agent.Sample.WebAgent;

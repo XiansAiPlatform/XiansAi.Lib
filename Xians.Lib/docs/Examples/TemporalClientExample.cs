@@ -1,6 +1,7 @@
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Temporal;
 using Xians.Lib.Common;
+using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Examples;
 

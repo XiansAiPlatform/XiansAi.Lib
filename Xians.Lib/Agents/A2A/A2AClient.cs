@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
-using Xians.Lib.Agents.Models;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Messaging.Models;
+using Xians.Lib.Common.Infrastructure;
+using Xians.Lib.Workflows;
 
 namespace Xians.Lib.Agents.A2A;
 
@@ -24,7 +27,7 @@ public class A2AClient
     public A2AClient(XiansWorkflow targetWorkflow)
     {
         _targetWorkflow = targetWorkflow ?? throw new ArgumentNullException(nameof(targetWorkflow));
-        _logger = Xians.Lib.Common.LoggerFactory.CreateLogger<A2AClient>();
+        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<A2AClient>();
 
         // Validate that we're in a workflow or activity context
         if (!XiansContext.InWorkflow && !XiansContext.InActivity)
@@ -56,7 +59,7 @@ public class A2AClient
             XiansContext.AgentName);
 
         // Get the handler for the target workflow
-        if (!Workflows.DefaultWorkflow._handlersByWorkflowType.TryGetValue(
+        if (!DefaultWorkflow._handlersByWorkflowType.TryGetValue(
             _targetWorkflow.WorkflowType, out var handlerMetadata))
         {
             throw new InvalidOperationException(

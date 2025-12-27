@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Agents;
+using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.A2A;
 
 namespace Xians.Agent.Sample.SupervisorAgent;
@@ -10,7 +10,7 @@ namespace Xians.Agent.Sample.SupervisorAgent;
 /// </summary>
 internal static class SupervisorAgentTools
 {
-    private static readonly ILogger _logger = Xians.Lib.Common.LoggerFactory.Instance.CreateLogger("SupervisorAgentTools");
+    private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.Instance.CreateLogger("SupervisorAgentTools");
 
     /// <summary>
     /// Conducts research on a company and returns detailed information.

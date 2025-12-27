@@ -3,9 +3,12 @@ using System.Net.Http.Json;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
-using Xians.Lib.Agents;
-using Xians.Lib.Agents.Models;
-using Xians.Lib.Common;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Agents.Messaging.Models;
+using Xians.Lib.Agents.Workflows.Models;
+using Xians.Lib.Common.Caching;
+using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Tests.TestUtilities;
 

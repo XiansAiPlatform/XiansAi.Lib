@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Xians.Lib.Common;
 using Xians.Lib.Configuration.Models;
+using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Temporal;
 

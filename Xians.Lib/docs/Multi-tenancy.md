@@ -574,7 +574,7 @@ var platform = await XiansPlatform.InitializeAsync(new XiansOptions
     ApiKey = apiKey
 });
 
-Console.WriteLine($"Tenant ID: {platform.Options.TenantId}");
+Console.WriteLine($"Tenant ID: {platform.Options.CertificateTenantId}");
 ```
 
 ### Issue: Wrong Tenant Receiving Replies (System-Scoped)

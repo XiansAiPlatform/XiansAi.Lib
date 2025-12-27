@@ -3,6 +3,7 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Common;
 using Xians.Lib.Configuration.Models;
+using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Http;
 

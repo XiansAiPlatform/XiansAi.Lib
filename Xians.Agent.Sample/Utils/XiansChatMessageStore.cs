@@ -1,7 +1,9 @@
 using System.Text.Json;
+using Xians.Lib.Agents.Messaging;
+using Xians.Lib.Workflows.Messaging.Models;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using Xians.Lib.Agents;
+using Xians.Lib.Agents.Core;
 using Xians.Lib.Workflows.Models;
 
 namespace Xians.Agent.Sample.Utils;

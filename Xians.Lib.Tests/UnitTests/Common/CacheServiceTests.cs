@@ -1,6 +1,10 @@
 using Xunit;
-using Xians.Lib.Common;
-using Xians.Lib.Agents.Models;
+using Xians.Lib.Agents.Knowledge;
+using Xians.Lib.Common.Caching;
+using Xians.Lib.Common.Infrastructure;
+using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Agents.Messaging.Models;
+using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Tests.UnitTests.Common;
 

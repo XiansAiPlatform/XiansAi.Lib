@@ -2,8 +2,11 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Temporalio.Converters;
-using Xians.Lib.Agents;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Workflows.Models;
+using Xians.Lib.Workflows.Messaging;
 
 namespace Xians.Lib.Workflows;
 

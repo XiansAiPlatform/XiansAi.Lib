@@ -1,3 +1,4 @@
+using Xians.Lib.Common.MultiTenancy;
 namespace Xians.Lib.Common.Models;
 
 /// <summary>
