@@ -7,7 +7,7 @@ This document explains how Temporal workers are automatically created and regist
 When `agent.RunAllAsync()` is called on an agent that has defined built-in workflows via `DefineBuiltIn()`, the system automatically:
 
 1. Creates Temporal client connections
-2. Registers the `DefaultWorkflow` class with Temporal workers
+2. Registers the `BuiltinWorkflow` class with Temporal workers
 3. Sets up proper task queue naming based on agent scope
 4. Starts the specified number of workers for each workflow
 5. Handles graceful shutdown on cancellation
@@ -136,7 +136,7 @@ await agent.Workflows.DefineBuiltIn(name: "HighThroughput", workers: 10);
    - `TemporalWorkerOptions` is created with:
      - Task queue name
      - Logger factory
-     - Workflow registration (DefaultWorkflow for default workflows)
+     - Workflow registration (BuiltinWorkflow for built-in workflows)
    - Workers are created and started concurrently
 
 ### Execution
@@ -155,19 +155,19 @@ await agent.Workflows.DefineBuiltIn(name: "HighThroughput", workers: 10);
 
 ## Implementation Details
 
-### DefaultWorkflow Registration
+### BuiltinWorkflow Registration
 
-For default workflows, the system registers the `DefaultWorkflow` class:
+For built-in workflows, the system registers the `BuiltinWorkflow` class:
 
 ```csharp
 // From XiansWorkflow.RunAsync()
 if (_isBuiltIn)
 {
-    workerOptions.AddWorkflow<DefaultWorkflow>();
+    workerOptions.AddWorkflow<BuiltinWorkflow>();
 }
 ```
 
-This matches the pattern from the previous library version where default workflows use a dynamic workflow implementation.
+This matches the pattern from the previous library version where built-in workflows use a dynamic workflow implementation.
 
 ### Cancellation Token Handling
 
@@ -222,7 +222,7 @@ This implementation maintains compatibility with the previous `XiansAi.Lib.Src` 
 | Worker Creation | `TemporalWorker` in loop | ✅ Same |
 | Concurrent Workers | `Task.WhenAll()` | ✅ Same |
 | Cancellation Handling | Ctrl+C handler | ✅ Same |
-| Default Workflow | Dynamic workflow | ✅ Same (DefaultWorkflow) |
+| Built-in Workflow | Dynamic workflow | ✅ Same (BuiltinWorkflow) |
 | Configuration Source | Environment variables | Server API (more flexible) |
 
 ## Troubleshooting

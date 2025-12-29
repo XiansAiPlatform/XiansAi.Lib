@@ -119,6 +119,59 @@ if (!metadata.SystemScoped)
 }
 ```
 
+## Feature Support
+
+All agent operations support system-scoped agents by extracting tenant ID from the workflow context at runtime:
+
+| Feature | System-Scoped Support | Tenant Source |
+|---------|----------------------|---------------|
+| **Knowledge** | ✅ From workflow/activity | `XiansContext.TenantId` |
+| **Documents** | ✅ From workflow/activity | `XiansContext.TenantId` |
+| **Messaging** | ✅ Always (workflow context) | Extracted in `MessageProcessor` |
+| **Proactive Messaging** | ✅ From workflow/activity | `XiansContext.TenantId` |
+| **Schedules** | ✅ From workflow/activity | `XiansContext.TenantId` |
+| **A2A** | ✅ From workflow/activity | Tenant flows through context |
+
+**Key Point:** For system-scoped agents, tenant ID is **dynamically extracted** from the workflow ID at runtime, ensuring proper tenant isolation.
+
+### Example: All Features Work
+
+```csharp
+var agent = platform.Agents.Register("MyAgent", systemScoped: true);
+var workflow = await agent.Workflows.DefineBuiltIn();
+
+workflow.OnUserMessage(async (context) =>
+{
+    // All these operations use runtime tenant from workflow ID
+    
+    // Knowledge - tenant from XiansContext
+    var prompt = await context.GetKnowledgeAsync("system-prompt");
+    
+    // Documents - tenant from XiansContext
+    await context.SaveDocumentAsync(new Document
+    {
+        Type = "user-data",
+        Key = context.ParticipantId,
+        Content = JsonSerializer.SerializeToElement(data)
+    });
+    
+    // Messaging - tenant from context.TenantId
+    await context.ReplyAsync("Done!");
+    
+    // Proactive messaging - tenant from XiansContext
+    await UserMessaging.SendChatAsync("user-123", "Notification!");
+    
+    // Schedules - tenant from XiansContext
+    await XiansContext.CurrentWorkflow.Schedules!.CreateAsync(spec =>
+        spec.WithId("reminder").WithCronSchedule("0 9 * * *")
+    );
+});
+```
+
+**See also:** [SYSTEM_SCOPED_SUPPORT.md](SYSTEM_SCOPED_SUPPORT.md) for detailed implementation.
+
+---
+
 ## Usage Examples
 
 ### System-Scoped Agent Example

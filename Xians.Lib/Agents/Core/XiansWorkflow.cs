@@ -9,6 +9,7 @@ using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Workflows.Knowledge;
 using Xians.Lib.Workflows.Messaging;
+using Xians.Lib.Workflows.Documents;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Workflows.Scheduling;
 
@@ -28,6 +29,22 @@ public class XiansWorkflow
 
     internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null)
     {
+        if (agent == null)
+            throw new ArgumentNullException(nameof(agent));
+        
+        if (string.IsNullOrWhiteSpace(workflowType))
+            throw new ArgumentNullException(nameof(workflowType));
+
+        // Enforce that workflow type starts with agent name prefix
+        var expectedPrefix = agent.Name + ":";
+        if (!workflowType.StartsWith(expectedPrefix))
+        {
+            throw new ArgumentException(
+                $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                $"Expected format: '{expectedPrefix}WorkflowName'",
+                nameof(workflowType));
+        }
+
         _agent = agent;
         WorkflowType = workflowType;
         Name = name;
@@ -41,6 +58,9 @@ public class XiansWorkflow
         {
             Schedules = new ScheduleCollection(agent, workflowType, agent.TemporalService);
         }
+
+        // Register this workflow in XiansContext so it can be accessed via CurrentWorkflow
+        XiansContext.RegisterWorkflow(workflowType, this);
     }
 
     /// <summary>
@@ -127,7 +147,7 @@ public class XiansWorkflow
         // Register the handler with tenant isolation metadata
         // This allows multiple default workflows to each have their own isolated handler
         // and enforces tenant boundaries for security
-        DefaultWorkflow.RegisterMessageHandler(
+        BuiltinWorkflow.RegisterMessageHandler(
             workflowType: WorkflowType,
             handler: handler,
             agentName: _agent.Name,
@@ -186,10 +206,10 @@ public class XiansWorkflow
         // Register workflow based on type
         if (_isBuiltIn)
         {
-            // Register the DefaultWorkflow class for built-in workflows
-            workerOptions.AddWorkflow<DefaultWorkflow>();
+            // Register the BuiltinWorkflow class for built-in workflows
+            workerOptions.AddWorkflow<BuiltinWorkflow>();
             
-            // Register activities for message sending and knowledge operations
+            // Register activities for message sending, knowledge, and document operations
             // Get HTTP client from the platform's HTTP service
             if (_agent.HttpService != null)
             {
@@ -200,10 +220,13 @@ public class XiansWorkflow
                     _agent.HttpService.Client, 
                     _agent.CacheService);
                 workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Knowledge.KnowledgeActivities), knowledgeActivities);
+                
+                var documentActivities = new Xians.Lib.Workflows.Documents.DocumentActivities(_agent.HttpService.Client);
+                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Documents.DocumentActivities), documentActivities);
             }
             else
             {
-                _logger.LogWarning("HTTP service not available - message sending and knowledge operations will not work");
+                _logger.LogWarning("HTTP service not available - message sending, knowledge, and document operations will not work");
             }
 
             // Register system schedule activities (always available for all workflows)
@@ -336,9 +359,6 @@ public class XiansWorkflow
     {
         try
         {
-            // Register this workflow in XiansContext so it can be accessed via CurrentWorkflow
-            XiansContext.RegisterWorkflow(WorkflowType, this);
-
             // Register the system ScheduleActivities
             var scheduleActivities = new Xians.Lib.Workflows.Scheduling.ScheduleActivities();
             workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Scheduling.ScheduleActivities), scheduleActivities);

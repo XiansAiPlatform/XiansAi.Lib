@@ -152,5 +152,45 @@ public static class TenantContext
     {
         return new WorkflowIdentifier(workflowId);
     }
+
+    /// <summary>
+    /// Builds a workflow ID from its component parts.
+    /// </summary>
+    /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
+    /// <param name="tenantId">The tenant ID.</param>
+    /// <param name="suffix">Optional suffix to make the workflow ID unique (e.g., participantId, scope).</param>
+    /// <returns>A fully formed workflow ID.</returns>
+    /// <remarks>
+    /// Workflow ID Format: {TenantId}:{WorkflowType}:{OptionalSuffix}
+    /// Examples:
+    ///   - BuildWorkflowId("MyAgent:Chat", "acme-corp") => "acme-corp:MyAgent:Chat"
+    ///   - BuildWorkflowId("MyAgent:Chat", "acme-corp", "user-123") => "acme-corp:MyAgent:Chat:user-123"
+    ///   - BuildWorkflowId("MyAgent:Chat", "acme-corp", "user-123", "notifications") => "acme-corp:MyAgent:Chat:user-123:notifications"
+    /// </remarks>
+    public static string BuildWorkflowId(string workflowType, string tenantId, params string?[] suffixParts)
+    {
+        if (string.IsNullOrWhiteSpace(workflowType))
+        {
+            throw new ArgumentException("Workflow type cannot be null or empty.", nameof(workflowType));
+        }
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            throw new ArgumentException("Tenant ID cannot be null or empty.", nameof(tenantId));
+        }
+
+        var workflowId = $"{tenantId}:{workflowType}";
+
+        // Append non-null, non-empty suffix parts
+        foreach (var part in suffixParts)
+        {
+            if (!string.IsNullOrWhiteSpace(part))
+            {
+                workflowId += $":{part}";
+            }
+        }
+
+        return workflowId;
+    }
 }
 

@@ -137,12 +137,31 @@ public class KnowledgeCollection
 
     /// <summary>
     /// Gets the tenant ID for cache and HTTP operations.
+    /// For non-system-scoped agents, uses the agent's certificate tenant ID.
+    /// For system-scoped agents, extracts tenant from workflow context at runtime.
     /// </summary>
     private string GetTenantId()
     {
-        return _agent.Options?.CertificateTenantId 
-            ?? throw new InvalidOperationException(
-                "Tenant ID cannot be determined. XiansOptions must be properly configured with an API key.");
+        // For non-system-scoped agents, use the agent's certificate tenant ID
+        // For system-scoped agents, the tenant ID must come from workflow context
+        if (!_agent.SystemScoped)
+        {
+            return _agent.Options?.CertificateTenantId 
+                ?? throw new InvalidOperationException(
+                    "Tenant ID cannot be determined. XiansOptions must be properly configured with an API key.");
+        }
+
+        // System-scoped agent - must be called from workflow/activity context
+        try
+        {
+            return XiansContext.TenantId;
+        }
+        catch (InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                "Knowledge API for system-scoped agents can only be used within a workflow or activity context. " +
+                "The tenant ID is extracted from the workflow ID at runtime.");
+        }
     }
 }
 

@@ -59,7 +59,7 @@ public class A2AClient
             XiansContext.AgentName);
 
         // Get the handler for the target workflow
-        if (!DefaultWorkflow._handlersByWorkflowType.TryGetValue(
+        if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(
             _targetWorkflow.WorkflowType, out var handlerMetadata))
         {
             throw new InvalidOperationException(

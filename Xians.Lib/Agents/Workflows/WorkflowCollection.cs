@@ -28,7 +28,7 @@ public class WorkflowCollection
     /// <param name="workers">Number of workers for the workflow. Default is 1.</param>
     /// <returns>A new built-in XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists or when attempting to register multiple unnamed workflows.</exception>
-    public async Task<XiansWorkflow> DefineBuiltIn(string? name = null, int workers = 1)
+    public XiansWorkflow DefineBuiltIn(string? name = null, int workers = 1)
     {
         // Check if workflow with same name already exists
         if (name != null && _workflows.Any(w => w.Name == name))
@@ -42,15 +42,11 @@ public class WorkflowCollection
             throw new InvalidOperationException("An unnamed workflow has already been registered. Only one unnamed workflow is allowed.");
         }
         
-        var workflowType = _agent.Name + ":Default Workflow" + (name != null ? $" - {name}" : "");
+        var workflowType = _agent.Name + ":Built-In Workflow" + (name != null ? $" - {name}" : "");
         var workflow = new XiansWorkflow(_agent, workflowType, name, workers, isBuiltIn: true);
         _workflows.Add(workflow);
         
-        // Upload workflow definition to server if uploader is available
-        if (_uploader != null)
-        {
-            await UploadWorkflowDefinitionAsync(workflow);
-        }
+        // Note: Workflow definition will be uploaded when RunAllAsync() is called
         
         return workflow;
     }
@@ -62,10 +58,20 @@ public class WorkflowCollection
     /// <param name="workers">Number of workers for the workflow. Default is 1.</param>
     /// <returns>A new custom XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow of the same type already exists.</exception>
-    public async Task<XiansWorkflow> DefineCustom<T>(int workers = 1) where T : class
+    public XiansWorkflow DefineCustom<T>(int workers = 1) where T : class
     {
         // Get workflow type from [Workflow] attribute if present, otherwise use class name
         var workflowType = GetWorkflowTypeFromAttribute<T>() ?? typeof(T).Name;
+        
+        // Validate that workflow type follows the naming convention
+        var expectedPrefix = _agent.Name + ":";
+        if (!workflowType.StartsWith(expectedPrefix))
+        {
+            throw new InvalidOperationException(
+                $"Custom workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                $"Add [Workflow(\"{expectedPrefix}{workflowType}\")] attribute to your workflow class, " +
+                $"or rename the class to start with the agent name.");
+        }
         
         // Check if workflow with same type already exists
         if (_workflows.Any(w => w.WorkflowType == workflowType))
@@ -76,11 +82,7 @@ public class WorkflowCollection
         var workflow = new XiansWorkflow(_agent, workflowType, null, workers, isBuiltIn: false, workflowClassType: typeof(T));
         _workflows.Add(workflow);
         
-        // Upload workflow definition to server if uploader is available
-        if (_uploader != null)
-        {
-            await UploadWorkflowDefinitionAsync(workflow);
-        }
+        // Note: Workflow definition will be uploaded when RunAllAsync() is called
         
         return workflow;
     }
@@ -156,12 +158,35 @@ public class WorkflowCollection
     }
 
     /// <summary>
+    /// Uploads all workflow definitions to the server.
+    /// This should be called before running workflows to ensure the server has the latest definitions.
+    /// Can also be called explicitly to register the agent without running workflows.
+    /// </summary>
+    public async Task UploadAllDefinitionsAsync()
+    {
+        if (_uploader == null)
+        {
+            return; // No uploader configured, skip
+        }
+
+        // Upload all workflow definitions
+        foreach (var workflow in _workflows)
+        {
+            await UploadWorkflowDefinitionAsync(workflow);
+        }
+    }
+
+    /// <summary>
     /// Runs all registered workflows asynchronously.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for stopping workflows.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal async Task RunAllAsync(CancellationToken cancellationToken)
     {
+        // Upload all workflow definitions to server before starting workers
+        // This ensures atomicity - either all workflows are uploaded or none are
+        await UploadAllDefinitionsAsync();
+
         // Run all workflows concurrently
         var tasks = _workflows.Select(w => w.RunAsync(cancellationToken));
         await Task.WhenAll(tasks);

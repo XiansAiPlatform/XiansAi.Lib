@@ -64,7 +64,10 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        
+        // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
+        await agent.Workflows.UploadAllDefinitionsAsync();
 
         // Assert
         Assert.NotNull(workflow);
@@ -85,7 +88,10 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = await agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        
+        // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
+        await agent.Workflows.UploadAllDefinitionsAsync();
 
         // Assert - Find the most recent POST request
         var postRequest = _mockServer!.LogEntries
@@ -117,7 +123,10 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = await agent.Workflows.DefineBuiltIn(workers: 2, name: "SystemWorkflow");
+        var workflow = agent.Workflows.DefineBuiltIn(workers: 2, name: "SystemWorkflow");
+        
+        // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
+        await agent.Workflows.UploadAllDefinitionsAsync();
 
         // Assert - Find the most recent POST request
         var postRequest = _mockServer!.LogEntries

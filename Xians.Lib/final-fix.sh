@@ -6,8 +6,8 @@ sed -i '' 's/\([^.]\)LoggerFactory\./\1Xians.Lib.Common.Infrastructure.LoggerFac
 # Fix XiansContext reference
 sed -i '' 's/Xians\.Lib\.Agents\.XiansContext/Xians.Lib.Agents.Core.XiansContext/g' Workflows/Scheduling/ScheduleActivities.cs
 
-# Fix DefaultWorkflow reference  
-sed -i '' 's/Xians\.Lib\.Agents\.Workflows\.DefaultWorkflow/Xians.Lib.Workflows.DefaultWorkflow/g' Agents/A2A/A2AClient.cs
+# Fix BuiltinWorkflow reference  
+sed -i '' 's/Xians\.Lib\.Agents\.Workflows\.BuiltinWorkflow/Xians.Lib.Workflows.BuiltinWorkflow/g' Agents/A2A/A2AClient.cs
 
 # Fix Knowledge namespace conflicts in KnowledgeService.cs
 sed -i '' 's/GetKnowledge<Knowledge>/GetKnowledge<Models.Knowledge>/g' Agents/Knowledge/KnowledgeService.cs

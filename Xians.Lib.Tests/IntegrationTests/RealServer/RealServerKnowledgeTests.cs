@@ -47,9 +47,10 @@ public class RealServerKnowledgeTests : RealServerTestBase
             Name = AGENT_NAME 
         });
         
-        // CRITICAL: Upload workflow definition to actually register the agent with the server
+        // CRITICAL: Define and upload workflow definition to actually register the agent with the server
         // This is what grants the user permission to manage this agent's knowledge
-        var workflow = await _agent.Workflows.DefineBuiltIn("knowledge-tests");
+        var workflow = _agent.Workflows.DefineBuiltIn("knowledge-tests");
+        await _agent.UploadWorkflowDefinitionsAsync();
         
         Console.WriteLine($"✓ Registered agent on server: {AGENT_NAME}");
     }

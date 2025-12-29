@@ -1,5 +1,6 @@
 ﻿using DotNetEnv;
 using Xians.Lib.Agents.Core;
+using Xians.Agent.Sample;
 using Xians.Agent.Sample.ConversationalAgent;
 using Xians.Agent.Sample.WebAgent;
 
@@ -24,7 +25,7 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new XiansOptions
 });
 
 // Generate unique agent name to avoid conflicts
-var agentName = $"Company Research Agent";
+var agentName = Constants.AgentName;
 
 // Register agent and define workflow
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
@@ -34,17 +35,17 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 });
 
 // Define a supervisor workflow to handle user messages and conversations
-var conversationalWorkflow = await agent.Workflows.DefineBuiltIn(name: "Conversational", workers: 1);
+var conversationalWorkflow = agent.Workflows.DefineBuiltIn(name: "Conversational", workers: 1);
 
 // Define a web workflow to handle web interactions
-var webWorkflow = await agent.Workflows.DefineBuiltIn(name: "Web", workers: 1);
+var webWorkflow = agent.Workflows.DefineBuiltIn(name: "Web", workers: 1);
 
 // Define a company research workflow to handle company research
-var companyResearchWorkflow = await agent.Workflows.DefineCustom<CompanyResearchWorkflow>(workers: 1);
-
+var companyResearchWorkflow = agent.Workflows.DefineCustom<CompanyResearchWorkflow>(workers: 1);
+ 
 // Define a scheduled wash workflow that creates its own recurring schedule
 // ScheduleActivities is automatically registered - no setup needed!
-var scheduledWashWorkflow = await agent.Workflows.DefineCustom<ScheduledWashWorkflow>(workers: 1);
+var scheduledWashWorkflow = agent.Workflows.DefineCustom<ScheduledWashWorkflow>(workers: 1);
 
 // OPTION 1: Let the workflow create its own schedule (via system activity when it runs)
 // - The workflow will call ScheduleActivities.CreateIntervalScheduleIfNotExists()

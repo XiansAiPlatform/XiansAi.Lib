@@ -21,6 +21,12 @@ public class XiansPlatform
     /// </summary>
     public Xians.Lib.Common.Caching.CacheService Cache { get; private set; }
 
+    /// <summary>
+    /// Gets the platform configuration options.
+    /// Provides access to tenant ID, certificate info, and other settings.
+    /// </summary>
+    public XiansOptions Options { get; private set; }
+
     private readonly XiansOptions _options;
     private readonly IHttpClientService _httpService;
     private readonly ITemporalClientService _temporalService;
@@ -28,6 +34,7 @@ public class XiansPlatform
     private XiansPlatform(XiansOptions options, IHttpClientService httpService, ITemporalClientService temporalService)
     {
         _options = options;
+        Options = options;
         _httpService = httpService;
         _temporalService = temporalService;
         

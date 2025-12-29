@@ -1,14 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using Xians.Agent.Sample;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Agents.Scheduling.Models;
 
-[Workflow("Scheduled Wash Workflow")]
+[Workflow(Constants.AgentName + ":Scheduled Wash Workflow")]
 public class ScheduledWashWorkflow
 {
     [WorkflowRun]
-    public async Task<string> RunAsync(string name = "default")
+    public async Task<string> RunAsync(string name)
     {
         // At the start of the workflow, ensure a recurring schedule exists
         // With the new workflow-aware SDK, we can call directly - no manual activity wiring!
@@ -35,19 +35,19 @@ public class ScheduledWashWorkflow
             // Call the Schedule SDK directly - it automatically detects workflow context
             // and uses ScheduleActivities under the hood!
             var schedule = await workflow.Schedules!
-                .Create("scheduled-wash-every-10sec")
+                .Create("wash-every-10sec")
                 .WithIntervalSchedule(TimeSpan.FromSeconds(10))
                 .WithInput($"wash-{DateTime.UtcNow:yyyyMMddHHmmss}")
                 .StartAsync();
 
             Workflow.Logger.LogInformation(
-                "✅ Schedule '{ScheduleId}' ensured - will run every 10 seconds",
+                "Schedule '{ScheduleId}' ensured - will run every 10 seconds",
                 schedule.Id);
         }
         catch (ScheduleAlreadyExistsException ex)
         {
             Workflow.Logger.LogInformation(
-                "ℹ️ Schedule '{ScheduleId}' already exists, no action needed",
+                "Schedule '{ScheduleId}' already exists, no action needed",
                 ex.ScheduleId);
         }
         catch (Exception ex)
@@ -55,14 +55,7 @@ public class ScheduledWashWorkflow
             // Log the error but don't fail the workflow
             Workflow.Logger.LogWarning(
                 ex,
-                "⚠️ Failed to create schedule, but continuing workflow execution");
+                "Failed to create schedule, but continuing workflow execution");
         }
     }
-
-    // Removed UserApproved signal since approval workflow is commented out
-    // [WorkflowSignal]
-    // public void UserApproved()
-    // {
-    //     Workflow.Logger.LogInformation("Received approval signal");
-    // }
 }

@@ -2,6 +2,7 @@ using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Workflows;
+using Xians.Lib.Agents.Documents;
 using Xians.Lib.Common.Caching;
 
 namespace Xians.Lib.Agents.Core;
@@ -20,6 +21,12 @@ public class XiansAgent
     /// Gets the knowledge collection for managing agent knowledge.
     /// </summary>
     public KnowledgeCollection Knowledge { get; private set; }
+
+    /// <summary>
+    /// Gets the documents collection for managing agent documents.
+    /// Documents are scoped to the agent and tenant.
+    /// </summary>
+    public DocumentCollection Documents { get; private set; }
 
     /// <summary>
     /// Gets the name of the agent.
@@ -59,6 +66,7 @@ public class XiansAgent
         CacheService = cacheService;
         Workflows = new WorkflowCollection(this, uploader);
         Knowledge = new KnowledgeCollection(this, httpService, cacheService);
+        Documents = new DocumentCollection(this, httpService);
         
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);
@@ -84,6 +92,16 @@ public class XiansAgent
     /// </summary>
     /// <returns>A read-only list of workflows.</returns>
     public IReadOnlyList<XiansWorkflow> GetAllWorkflows() => Workflows.GetAll();
+
+    /// <summary>
+    /// Uploads all workflow definitions to the server without running the workflows.
+    /// This is useful when you want to register the agent with the server before running workflows.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task UploadWorkflowDefinitionsAsync()
+    {
+        await Workflows.UploadAllDefinitionsAsync();
+    }
 
     /// <summary>
     /// Runs all registered workflows for this agent asynchronously.

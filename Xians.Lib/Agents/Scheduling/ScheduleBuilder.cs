@@ -3,12 +3,9 @@ using Temporalio.Client.Schedules;
 using Temporalio.Common;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Scheduling.Models;
-using Xians.Lib.Common;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Scheduling;
 
 namespace Xians.Lib.Agents.Scheduling;
 
@@ -222,11 +219,11 @@ public class ScheduleBuilder
             var tenantId = GetEffectiveTenantId();
             var taskQueue = TenantContext.GetTaskQueueName(_workflowType, _agent.SystemScoped, tenantId);
 
-            // Generate workflow ID for scheduled executions - always includes tenant
-            var workflowIdPrefix = $"{tenantId}:{_workflowType}:scheduled:{_scheduleId}";
-            var workflowId = $"{workflowIdPrefix}-{{ScheduledTime}}";
+            // Generate workflow ID prefix for scheduled executions - always includes tenant
+            // Temporal will automatically append a unique suffix for each scheduled execution
+            var workflowId = $"{tenantId}:{_workflowType}:scheduled:{_scheduleId}";
 
-            // Create schedule action using Temporal SDK pattern
+            // Create schedule action using Temporal SDK pattern with search attributes and memo
             var scheduleAction = ScheduleActionStartWorkflow.Create(
                 _workflowType,
                 _workflowArgs ?? Array.Empty<object>(),
@@ -234,7 +231,8 @@ public class ScheduleBuilder
                 {
                     RetryPolicy = _retryPolicy,
                     RunTimeout = _timeout,
-                    Memo = _workflowMemo
+                    TypedSearchAttributes = GetSearchAttributes(tenantId),
+                    Memo = GetMemo(tenantId)
                 });
 
             // Generate schedule ID with tenant prefix - always includes tenant
@@ -294,6 +292,53 @@ public class ScheduleBuilder
                 ?? throw new InvalidOperationException(
                     "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
         }
+    }
+
+    /// <summary>
+    /// Gets search attributes for scheduled workflow executions.
+    /// Includes TenantId, AgentName, and UserId for workflow tracking and filtering.
+    /// </summary>
+    private SearchAttributeCollection GetSearchAttributes(string tenantId)
+    {
+        var agentName = _agent.Name;
+        var userId = _agent.Options?.CertificateInfo?.UserId ?? "system";
+
+        var searchAttributesBuilder = new SearchAttributeCollection.Builder()
+            .Set(SearchAttributeKey.CreateKeyword("tenantId"), tenantId)
+            .Set(SearchAttributeKey.CreateKeyword("agent"), agentName)
+            .Set(SearchAttributeKey.CreateKeyword("userId"), userId);
+
+        return searchAttributesBuilder.ToSearchAttributeCollection();
+    }
+
+    /// <summary>
+    /// Gets memo for scheduled workflow executions.
+    /// Merges system-required metadata (TenantId, AgentName, UserId, SystemScoped) with custom memo.
+    /// </summary>
+    private Dictionary<string, object> GetMemo(string tenantId)
+    {
+        var agentName = _agent.Name;
+        var userId = _agent.Options?.CertificateInfo?.UserId ?? "system";
+
+        // Start with system-required metadata
+        var memo = new Dictionary<string, object>
+        {
+            { "tenantId", tenantId },
+            { "agent", agentName },
+            { "userId", userId },
+            { "systemScoped", _agent.SystemScoped }
+        };
+
+        // Merge custom memo if provided
+        if (_workflowMemo != null)
+        {
+            foreach (var kvp in _workflowMemo)
+            {
+                memo[kvp.Key] = kvp.Value;
+            }
+        }
+
+        return memo;
     }
 
     /// <summary>

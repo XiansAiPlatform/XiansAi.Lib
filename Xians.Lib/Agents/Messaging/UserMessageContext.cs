@@ -7,12 +7,15 @@ using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Workflows;
 using Xians.Lib.Workflows.Models;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Documents.Models;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows.Knowledge;
 using Xians.Lib.Workflows.Knowledge.Models;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Workflows.Documents;
+using Xians.Lib.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Messaging;
 
@@ -445,6 +448,277 @@ public class UserMessageContext
         return knowledgeList;
     }
 
+    #region Document Operations
+
+    /// <summary>
+    /// Saves a document to the database.
+    /// Automatically uses the current tenant context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="document">The document to save.</param>
+    /// <param name="options">Optional storage options (TTL, overwrite, etc.).</param>
+    /// <returns>The saved document with its assigned ID.</returns>
+    public virtual async Task<Document> SaveDocumentAsync(Document document, DocumentOptions? options = null)
+    {
+        var logger = GetLogger();
+        
+        logger.LogInformation(
+            "Saving document: Tenant={Tenant}",
+            TenantId);
+
+        var request = new SaveDocumentRequest
+        {
+            Document = document,
+            Options = options,
+            TenantId = TenantId
+        };
+
+        Document savedDocument;
+        
+        if (Workflow.InWorkflow)
+        {
+            savedDocument = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.SaveDocumentAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetDocumentActivity();
+            savedDocument = await activity.SaveDocumentAsync(request);
+        }
+
+        logger.LogInformation(
+            "Document saved: Id={Id}",
+            savedDocument.Id);
+
+        return savedDocument;
+    }
+
+    /// <summary>
+    /// Retrieves a document by its ID.
+    /// Automatically uses the current tenant context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="id">The document ID.</param>
+    /// <returns>The document if found, null otherwise.</returns>
+    public virtual async Task<Document?> GetDocumentAsync(string id)
+    {
+        var logger = GetLogger();
+        
+        logger.LogInformation(
+            "Getting document: Id={Id}, Tenant={Tenant}",
+            id,
+            TenantId);
+
+        var request = new GetDocumentRequest
+        {
+            Id = id,
+            TenantId = TenantId
+        };
+
+        Document? document;
+        
+        if (Workflow.InWorkflow)
+        {
+            document = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.GetDocumentAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetDocumentActivity();
+            document = await activity.GetDocumentAsync(request);
+        }
+
+        logger.LogInformation(
+            "Document get completed: Found={Found}",
+            document != null);
+
+        return document;
+    }
+
+    /// <summary>
+    /// Queries documents based on filters.
+    /// Automatically uses the current tenant context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="query">The query parameters.</param>
+    /// <returns>A list of matching documents.</returns>
+    public virtual async Task<List<Document>> QueryDocumentsAsync(DocumentQuery query)
+    {
+        var logger = GetLogger();
+        
+        logger.LogInformation(
+            "Querying documents: Type={Type}, Limit={Limit}, Tenant={Tenant}",
+            query.Type,
+            query.Limit,
+            TenantId);
+
+        var request = new QueryDocumentsRequest
+        {
+            Query = query,
+            TenantId = TenantId
+        };
+
+        List<Document> documents;
+        
+        if (Workflow.InWorkflow)
+        {
+            documents = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.QueryDocumentsAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetDocumentActivity();
+            documents = await activity.QueryDocumentsAsync(request);
+        }
+
+        logger.LogInformation(
+            "Query completed: Count={Count}",
+            documents.Count);
+
+        return documents;
+    }
+
+    /// <summary>
+    /// Updates an existing document.
+    /// Automatically uses the current tenant context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="document">The document to update (must have an ID).</param>
+    /// <returns>True if updated, false if not found.</returns>
+    public virtual async Task<bool> UpdateDocumentAsync(Document document)
+    {
+        var logger = GetLogger();
+        
+        logger.LogInformation(
+            "Updating document: Id={Id}, Tenant={Tenant}",
+            document.Id,
+            TenantId);
+
+        var request = new UpdateDocumentRequest
+        {
+            Document = document,
+            TenantId = TenantId
+        };
+
+        bool result;
+        
+        if (Workflow.InWorkflow)
+        {
+            result = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.UpdateDocumentAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetDocumentActivity();
+            result = await activity.UpdateDocumentAsync(request);
+        }
+
+        logger.LogInformation(
+            "Update completed: Success={Success}",
+            result);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes a document by its ID.
+    /// Automatically uses the current tenant context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="id">The document ID to delete.</param>
+    /// <returns>True if deleted, false if not found.</returns>
+    public virtual async Task<bool> DeleteDocumentAsync(string id)
+    {
+        var logger = GetLogger();
+        
+        logger.LogInformation(
+            "Deleting document: Id={Id}, Tenant={Tenant}",
+            id,
+            TenantId);
+
+        var request = new DeleteDocumentRequest
+        {
+            Id = id,
+            TenantId = TenantId
+        };
+
+        bool result;
+        
+        if (Workflow.InWorkflow)
+        {
+            result = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.DeleteDocumentAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            var activity = GetDocumentActivity();
+            result = await activity.DeleteDocumentAsync(request);
+        }
+
+        logger.LogInformation(
+            "Delete completed: Success={Success}",
+            result);
+
+        return result;
+    }
+
+    #endregion
+
     /// <summary>
     /// Extracts agent name from workflow type.
     /// Workflow type format: "AgentName:WorkflowName"
@@ -520,6 +794,21 @@ public class UserMessageContext
         }
         
         return new MessageActivities(agent.HttpService.Client);
+    }
+
+    /// <summary>
+    /// Gets a DocumentActivities instance for direct execution.
+    /// Used when not in workflow context.
+    /// </summary>
+    private DocumentActivities GetDocumentActivity()
+    {
+        var agent = XiansContext.CurrentAgent;
+        if (agent.HttpService == null)
+        {
+            throw new InvalidOperationException("HTTP service not available for document operations");
+        }
+        
+        return new DocumentActivities(agent.HttpService.Client);
     }
 
     /// <summary>

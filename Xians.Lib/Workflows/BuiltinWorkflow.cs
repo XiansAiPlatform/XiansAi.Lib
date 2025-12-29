@@ -11,11 +11,11 @@ using Xians.Lib.Workflows.Messaging;
 namespace Xians.Lib.Workflows;
 
 /// <summary>
-/// Default workflow that orchestrates various event types (chat messages, webhooks, scheduled events, etc.).
+/// Built-in workflow that orchestrates various event types (chat messages, webhooks, scheduled events, etc.).
 /// Acts as a central event router, delegating to specialized handlers for each event type.
 /// </summary>
 [Workflow(Dynamic = true)]
-public class DefaultWorkflow
+public class BuiltinWorkflow
 {
     private readonly Queue<InboundMessage> _messageQueue = new();
     

@@ -11,10 +11,12 @@ Welcome to the Xians.Lib documentation! This library provides robust HTTP and Te
 - **[Configuration Guide](Configuration.md)** - Complete configuration reference for HTTP and Temporal services
 
 ### Guides
+- **[User Messaging](Messaging.md)** - Respond to users and send proactive notifications
+- **[Document Storage](Documents.md)** - Store and query structured data with metadata
 - **[HTTP Client Guide](HttpClient.md)** - Comprehensive HTTP client usage and best practices
 - **[Temporal Client Guide](TemporalClient.md)** - Comprehensive Temporal client usage and best practices
 - **[Knowledge Guide](Knowledge.md)** - Store and manage agent knowledge (prompts, configs, docs)
-- **[Agent-to-Agent (A2A) Communication](A2A.md)** - **NEW!** Enable multi-agent collaboration and workflow orchestration
+- **[Agent-to-Agent (A2A) Communication](A2A.md)** - Enable multi-agent collaboration and workflow orchestration
 - **[Caching Guide](Caching.md)** - Improve performance with automatic caching
 - **[System-Scoped Agents](SystemScopedAgents.md)** - Multi-tenant agent architecture and tenant isolation
 - **[Worker Registration](WorkerRegistration.md)** - Temporal worker setup and management
@@ -83,7 +85,20 @@ var client = await temporalService.GetClientAsync();
    - Lifecycle Management
    - Troubleshooting
 
-5. [Knowledge](Knowledge.md)
+5. [User Messaging](Messaging.md)
+   - Reactive Messaging (Responding to Users)
+   - Proactive Messaging (Agent-Initiated)
+   - Message Types and Scopes
+   - Multi-Tenancy
+
+6. [Document Storage](Documents.md)
+   - CRUD Operations
+   - Semantic Keys
+   - Querying and Filtering
+   - TTL and Expiration
+   - Use Cases
+
+7. [Knowledge](Knowledge.md)
    - What is Knowledge
    - Storing and Retrieving Knowledge
    - Knowledge Types
@@ -91,7 +106,7 @@ var client = await temporalService.GetClientAsync();
    - Real-World Examples
    - Best Practices
 
-6. [Agent-to-Agent Communication (A2A)](A2A.md) **NEW!**
+8. [Agent-to-Agent Communication (A2A)](A2A.md)
    - Quick Start
    - Core Components (A2AClient, A2AMessage, A2AMessageContext)
    - Usage Patterns
@@ -100,26 +115,26 @@ var client = await temporalService.GetClientAsync();
    - Advanced Scenarios
    - Performance and Security
 
-7. [Caching](Caching.md)
+9. [Caching](Caching.md)
    - How Caching Works
    - Configuration Options
    - Performance Impact
    - Auto-Invalidation
    - Troubleshooting
 
-8. [System-Scoped Agents](SystemScopedAgents.md)
-   - Multi-Tenant Architecture
-   - Tenant Isolation
-   - Usage Examples
-   - Security Best Practices
-   - Troubleshooting
+10. [System-Scoped Agents](SystemScopedAgents.md)
+    - Multi-Tenant Architecture
+    - Tenant Isolation
+    - Usage Examples
+    - Security Best Practices
+    - Troubleshooting
 
-9. [Worker Registration](WorkerRegistration.md)
-   - Temporal Worker Setup
-   - Task Queue Configuration
-   - Worker Lifecycle
+11. [Worker Registration](WorkerRegistration.md)
+    - Temporal Worker Setup
+    - Task Queue Configuration
+    - Worker Lifecycle
 
-10. [Examples](Examples/)
+12. [Examples](Examples/)
    - HTTP Client Examples
    - Temporal Client Examples
 

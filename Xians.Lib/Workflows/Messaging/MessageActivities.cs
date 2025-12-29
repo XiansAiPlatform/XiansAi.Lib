@@ -46,7 +46,7 @@ public class MessageActivities
         try
         {
             // Look up the handler from the static registry (avoids serialization issues)
-            if (!DefaultWorkflow._handlersByWorkflowType.TryGetValue(request.WorkflowType, out var metadata))
+            if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(request.WorkflowType, out var metadata))
             {
                 var errorMessage = $"No message handler registered for workflow type '{request.WorkflowType}' in activity.";
                 ActivityExecutionContext.Current.Logger.LogError(

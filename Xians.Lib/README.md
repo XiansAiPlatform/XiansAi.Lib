@@ -20,6 +20,8 @@ A robust .NET library for establishing HTTP and Temporal server connections with
 - ✅ Health monitoring
 - ✅ Connection state management
 - ✅ Graceful disconnection
+- ✅ Sub-workflow (child workflow) support
+- ✅ Workflow orchestration and composition
 
 ## Installation
 
@@ -105,7 +107,9 @@ using var temporalService = ServiceFactory.CreateTemporalClientService(temporalC
 - **[Getting Started](docs/GettingStarted.md)** - Installation and quick start
 - **[Configuration](docs/Configuration.md)** - Complete configuration reference
 - **[HTTP Client Guide](docs/HttpClient.md)** - HTTP client usage and best practices
-- **[Temporal Client Guide](docs/TemporalClient.md)** - Temporal client usage and best practices
+- **[Sub-Workflows](docs/SubWorkflows.md)** - Child workflow orchestration and composition
+- **[Scheduling](docs/Scheduling.md)** - Workflow scheduling and cron jobs
+- **[Multi-Tenancy](docs/Multi-tenancy.md)** - Multi-tenant architecture and isolation
 - **[Examples](docs/Examples/)** - Working code examples
 
 ## 🔑 Key Features

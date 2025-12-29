@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using Xians.Agent.Sample;
 
-[Workflow("Company Research Workflow")]
+[Workflow(Constants.AgentName + ":Company Research Workflow")]
 public class CompanyResearchWorkflow
 {
     private bool _approved = false;
