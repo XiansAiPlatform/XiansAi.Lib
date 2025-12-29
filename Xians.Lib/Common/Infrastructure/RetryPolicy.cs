@@ -67,7 +67,14 @@ public class RetryPolicy
         }
 
         _logger?.LogError(lastException, "Operation failed after {MaxAttempts} attempts", _maxRetryAttempts);
-        throw lastException ?? new InvalidOperationException("Operation failed after all retry attempts");
+        
+        // This should never be null as loop must execute at least once, but being defensive
+        if (lastException == null)
+        {
+            throw new InvalidOperationException("Operation failed after all retry attempts with no exception captured");
+        }
+        
+        throw lastException;
     }
 
     /// <summary>

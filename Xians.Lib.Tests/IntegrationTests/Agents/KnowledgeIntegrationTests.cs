@@ -14,6 +14,7 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Agents;
 
+[Collection("Sequential")]
 [Trait("Category", "Integration")]
 public class KnowledgeIntegrationTests : IAsyncLifetime
 {
@@ -23,6 +24,9 @@ public class KnowledgeIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Clean up static registries from previous tests
+        XiansContext.CleanupForTests();
+        
         // Setup mock HTTP server
         _mockServer = WireMockServer.Start();
 
@@ -348,6 +352,7 @@ public class KnowledgeIntegrationTests : IAsyncLifetime
     {
         _mockServer?.Stop();
         _mockServer?.Dispose();
+        XiansContext.CleanupForTests();
         return Task.CompletedTask;
     }
 }

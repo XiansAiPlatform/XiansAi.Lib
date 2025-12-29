@@ -70,12 +70,21 @@ public static class XiansContext
     /// <summary>
     /// Gets the current tenant ID extracted from the workflow ID.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
     public static string TenantId
     {
         get
         {
-            return TenantContext.ExtractTenantId(WorkflowId);
+            try
+            {
+                return TenantContext.ExtractTenantId(WorkflowId);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to extract tenant ID from workflow ID '{WorkflowId}'. " +
+                    $"Ensure workflow ID follows the expected format. Error: {ex.Message}", ex);
+            }
         }
     }
 
@@ -339,6 +348,15 @@ public static class XiansContext
             // Workflow already registered - this is OK (might be restarting)
             _workflows[workflowType] = workflow;
         }
+    }
+
+    /// <summary>
+    /// Clears all registered agents and workflows. For testing purposes only.
+    /// </summary>
+    internal static void CleanupForTests()
+    {
+        _agents.Clear();
+        _workflows.Clear();
     }
 
     /// <summary>

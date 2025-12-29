@@ -23,6 +23,9 @@ public class KnowledgeCacheTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Clean up static registries from previous tests
+        XiansContext.CleanupForTests();
+        
         // Setup mock HTTP server
         _mockServer = WireMockServer.Start();
 

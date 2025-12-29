@@ -69,7 +69,10 @@ public class HttpClientService : IHttpClientService
                 _connectionHealth.MarkUnhealthy();
             }
 
-            return _client!;
+            if (_client == null)
+                throw new InvalidOperationException("HTTP client is not initialized. Call GetHealthyClientAsync() to establish connection.");
+
+            return _client;
         }
     }
 

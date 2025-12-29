@@ -32,9 +32,10 @@ public class DocumentCollection
     /// </summary>
     /// <param name="document">The document to save.</param>
     /// <param name="options">Optional storage options (TTL, overwrite, etc.).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The saved document with its assigned ID.</returns>
     /// <exception cref="InvalidOperationException">Thrown when HTTP service is not configured.</exception>
-    public async Task<Document> SaveAsync(Document document, DocumentOptions? options = null)
+    public async Task<Document> SaveAsync(Document document, DocumentOptions? options = null, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -45,15 +46,16 @@ public class DocumentCollection
             _agent.Name,
             tenantId);
 
-        return await _documentService!.SaveAsync(document, tenantId, options);
+        return await _documentService!.SaveAsync(document, tenantId, options, cancellationToken);
     }
 
     /// <summary>
     /// Retrieves a document by its ID.
     /// </summary>
     /// <param name="id">The document ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The document if found, null otherwise.</returns>
-    public async Task<Document?> GetAsync(string id)
+    public async Task<Document?> GetAsync(string id, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -64,7 +66,7 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        return await _documentService!.GetAsync(id, tenantId);
+        return await _documentService!.GetAsync(id, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -73,8 +75,9 @@ public class DocumentCollection
     /// </summary>
     /// <param name="type">The document type.</param>
     /// <param name="key">The document key.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The document if found, null otherwise.</returns>
-    public async Task<Document?> GetByKeyAsync(string type, string key)
+    public async Task<Document?> GetByKeyAsync(string type, string key, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -86,7 +89,7 @@ public class DocumentCollection
             key,
             _agent.Name);
 
-        return await _documentService!.GetByKeyAsync(type, key, tenantId);
+        return await _documentService!.GetByKeyAsync(type, key, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -94,8 +97,9 @@ public class DocumentCollection
     /// All filters are combined with AND logic.
     /// </summary>
     /// <param name="query">The query parameters.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of matching documents.</returns>
-    public async Task<List<Document>> QueryAsync(DocumentQuery query)
+    public async Task<List<Document>> QueryAsync(DocumentQuery query, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -107,7 +111,7 @@ public class DocumentCollection
             query.Type,
             query.Limit);
 
-        return await _documentService!.QueryAsync(query, tenantId);
+        return await _documentService!.QueryAsync(query, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -115,8 +119,9 @@ public class DocumentCollection
     /// The document must have an ID.
     /// </summary>
     /// <param name="document">The document to update.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if updated successfully, false if not found.</returns>
-    public async Task<bool> UpdateAsync(Document document)
+    public async Task<bool> UpdateAsync(Document document, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -127,15 +132,16 @@ public class DocumentCollection
             document.Id,
             _agent.Name);
 
-        return await _documentService!.UpdateAsync(document, tenantId);
+        return await _documentService!.UpdateAsync(document, tenantId, cancellationToken);
     }
 
     /// <summary>
     /// Deletes a document by its ID.
     /// </summary>
     /// <param name="id">The document ID to delete.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if deleted successfully, false if not found.</returns>
-    public async Task<bool> DeleteAsync(string id)
+    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -146,15 +152,16 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        return await _documentService!.DeleteAsync(id, tenantId);
+        return await _documentService!.DeleteAsync(id, tenantId, cancellationToken);
     }
 
     /// <summary>
     /// Deletes multiple documents by their IDs.
     /// </summary>
     /// <param name="ids">The document IDs to delete.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The number of documents successfully deleted.</returns>
-    public async Task<int> DeleteManyAsync(IEnumerable<string> ids)
+    public async Task<int> DeleteManyAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -166,15 +173,16 @@ public class DocumentCollection
             idList.Count,
             _agent.Name);
 
-        return await _documentService!.DeleteManyAsync(idList, tenantId);
+        return await _documentService!.DeleteManyAsync(idList, tenantId, cancellationToken);
     }
 
     /// <summary>
     /// Checks if a document exists.
     /// </summary>
     /// <param name="id">The document ID to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the document exists, false otherwise.</returns>
-    public async Task<bool> ExistsAsync(string id)
+    public async Task<bool> ExistsAsync(string id, CancellationToken cancellationToken = default)
     {
         EnsureServiceAvailable();
 
@@ -185,7 +193,7 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        return await _documentService!.ExistsAsync(id, tenantId);
+        return await _documentService!.ExistsAsync(id, tenantId, cancellationToken);
     }
 
     private void EnsureServiceAvailable()

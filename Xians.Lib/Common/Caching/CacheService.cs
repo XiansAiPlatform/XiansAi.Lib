@@ -9,7 +9,7 @@ namespace Xians.Lib.Common.Caching;
 /// Central caching service for Xians.Lib.
 /// Provides a unified caching layer for knowledge, settings, and other SDK components.
 /// </summary>
-public class CacheService : IDisposable
+public class CacheService : ICacheService
 {
     private readonly IMemoryCache _cache;
     private readonly CacheOptions _options;

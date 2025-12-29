@@ -680,14 +680,14 @@ await agent.Documents.SaveAsync(doc);  // No tenant context!
 
 | Method | Description |
 |--------|-------------|
-| `SaveAsync(document, options?)` | Save a new document |
-| `GetAsync(id)` | Get by ID |
-| `GetByKeyAsync(type, key)` | Get by Type+Key combination |
-| `QueryAsync(query)` | Search with filters |
-| `UpdateAsync(document)` | Update existing document |
-| `DeleteAsync(id)` | Delete by ID |
-| `DeleteManyAsync(ids)` | Bulk delete |
-| `ExistsAsync(id)` | Check existence |
+| `SaveAsync(document, options?, cancellationToken?)` | Save a new document |
+| `GetAsync(id, cancellationToken?)` | Get by ID |
+| `GetByKeyAsync(type, key, cancellationToken?)` | Get by Type+Key combination |
+| `QueryAsync(query, cancellationToken?)` | Search with filters |
+| `UpdateAsync(document, cancellationToken?)` | Update existing document |
+| `DeleteAsync(id, cancellationToken?)` | Delete by ID |
+| `DeleteManyAsync(ids, cancellationToken?)` | Bulk delete |
+| `ExistsAsync(id, cancellationToken?)` | Check existence |
 
 ### UserMessageContext (Workflow-Level)
 

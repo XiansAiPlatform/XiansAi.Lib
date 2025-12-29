@@ -257,13 +257,13 @@ await agent.Knowledge.UpdateAsync("greeting", "Hi from Contoso!");
 
 ```csharp
 // UpdateAsync creates OR updates
-bool success = await agent.Knowledge.UpdateAsync(
+await agent.Knowledge.UpdateAsync(
     "config",           // Name
     "{ ... }",         // Content
     "json"             // Type (optional)
 );
 
-// success is always true (throws on error)
+// Throws exception on error
 ```
 
 ### Read
@@ -628,20 +628,29 @@ public class Knowledge
 
 ```csharp
 // Get knowledge by name
-Task<Knowledge?> GetAsync(string knowledgeName)
+Task<Knowledge?> GetAsync(
+    string knowledgeName,
+    CancellationToken cancellationToken = default
+)
 
 // Create or update knowledge
-Task<bool> UpdateAsync(
+Task UpdateAsync(
     string knowledgeName, 
     string content, 
-    string? type = null
+    string? type = null,
+    CancellationToken cancellationToken = default
 )
 
 // Delete knowledge
-Task<bool> DeleteAsync(string knowledgeName)
+Task<bool> DeleteAsync(
+    string knowledgeName,
+    CancellationToken cancellationToken = default
+)
 
 // List all knowledge
-Task<List<Knowledge>> ListAsync()
+Task<List<Knowledge>> ListAsync(
+    CancellationToken cancellationToken = default
+)
 ```
 
 ### Context-Level API (Inside Message Handlers)

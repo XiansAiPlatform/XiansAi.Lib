@@ -33,6 +33,9 @@ public class RealServerKnowledgeTests : RealServerTestBase
             return;
         }
 
+        // Clean up static registries from previous tests
+        XiansContext.CleanupForTests();
+
         var options = new XiansOptions
         {
             ServerUrl = ServerUrl!,

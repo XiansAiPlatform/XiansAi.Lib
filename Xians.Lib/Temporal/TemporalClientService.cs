@@ -84,12 +84,31 @@ public class TemporalClientService : ITemporalClientService
     /// </summary>
     public bool IsConnectionHealthy()
     {
+        // Return false if already disposed
+        if (_disposed)
+        {
+            return false;
+        }
+        
         if (!_connectionHealth.IsConnectionHealthy(_client))
         {
-            // Mark as unhealthy and reset state for reconnection
-            _isInitialized = false;
-            _client = null;
-            return false;
+            // Use semaphore to prevent race condition with GetClientAsync
+            _semaphore.Wait();
+            try
+            {
+                // Double-check pattern
+                if (!_connectionHealth.IsConnectionHealthy(_client))
+                {
+                    // Mark as unhealthy and reset state for reconnection
+                    _isInitialized = false;
+                    _client = null;
+                    return false;
+                }
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
         
         return true;

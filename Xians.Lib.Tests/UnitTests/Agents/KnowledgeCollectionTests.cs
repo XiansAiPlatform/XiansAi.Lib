@@ -12,7 +12,8 @@ using Xians.Lib.Http;
 
 namespace Xians.Lib.Tests.UnitTests.Agents;
 
-public class KnowledgeCollectionTests
+[Collection("Sequential")]
+public class KnowledgeCollectionTests : IDisposable
 {
     private readonly Mock<HttpMessageHandler> _httpMessageHandler;
     private readonly HttpClient _httpClient;
@@ -22,6 +23,9 @@ public class KnowledgeCollectionTests
 
     public KnowledgeCollectionTests()
     {
+        // Clean up static registries from previous tests
+        XiansContext.CleanupForTests();
+        
         // Create mock HTTP message handler
         _httpMessageHandler = new Mock<HttpMessageHandler>();
         _httpClient = new HttpClient(_httpMessageHandler.Object)
@@ -33,6 +37,13 @@ public class KnowledgeCollectionTests
         _mockHttpService = new Mock<IHttpClientService>();
         _mockHttpService.Setup(x => x.Client).Returns(_httpClient);
         
+        // Create options with test certificate
+        var options = new XiansOptions
+        {
+            ApiKey = Xians.Lib.Tests.TestUtilities.TestCertificateGenerator.GenerateTestCertificateBase64("test-tenant", "test-user"),
+            ServerUrl = "http://localhost"
+        };
+        
         // Create agent using internal constructor (now accessible via InternalsVisibleTo)
         _agent = new XiansAgent(
             "test-agent",
@@ -40,10 +51,16 @@ public class KnowledgeCollectionTests
             null,
             null,
             _mockHttpService.Object,
-            null,
+            options,
             null); // No cache for unit tests
         
         _knowledgeCollection = _agent.Knowledge;
+    }
+    
+    public void Dispose()
+    {
+        _httpClient?.Dispose();
+        XiansContext.CleanupForTests();
     }
 
     [Fact]

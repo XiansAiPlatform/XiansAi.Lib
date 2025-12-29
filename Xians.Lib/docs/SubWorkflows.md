@@ -49,11 +49,17 @@ The `XiansContext` class provides convenient static methods for sub-workflow exe
 Starts a sub-workflow without waiting for completion. Returns immediately after starting.
 
 ```csharp
-// Method signatures
+// Type-safe overloads (recommended)
+public static async Task StartWorkflowAsync<TWorkflow>()
+public static async Task StartWorkflowAsync<TWorkflow>(object arg)
+public static async Task StartWorkflowAsync<TWorkflow>(object arg1, object arg2)
+
+// Generic overload with params
 public static async Task StartWorkflowAsync<TWorkflow>(
     string? idPostfix = null, 
     params object[] args)
 
+// String-based workflow type
 public static async Task StartWorkflowAsync(
     string workflowType, 
     string? idPostfix = null, 
@@ -66,17 +72,24 @@ public static async Task StartWorkflowAsync(
 - `TWorkflow` - Generic type parameter for the workflow class
 - `idPostfix` - Optional unique identifier to append to workflow ID
 - `args` - Arguments to pass to the workflow
+- `arg`, `arg1`, `arg2` - Type-safe arguments for common scenarios (0-2 args)
 
 ### ExecuteWorkflowAsync
 
 Executes a sub-workflow and waits for its result. Returns when the workflow completes.
 
 ```csharp
-// Method signatures
+// Type-safe overloads (recommended)
+public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>()
+public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(object arg)
+public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(object arg1, object arg2)
+
+// Generic overload with params
 public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(
     string? idPostfix = null, 
     params object[] args)
 
+// String-based workflow type
 public static async Task<TResult> ExecuteWorkflowAsync<TResult>(
     string workflowType, 
     string? idPostfix = null, 
@@ -87,6 +100,7 @@ public static async Task<TResult> ExecuteWorkflowAsync<TResult>(
 
 - Same as `StartWorkflowAsync`
 - `TResult` - The expected return type from the workflow
+- `arg`, `arg1`, `arg2` - Type-safe arguments for common scenarios (0-2 args)
 
 ## Direct Usage via SubWorkflowService
 
@@ -95,10 +109,28 @@ For more control, you can use the `SubWorkflowService` directly:
 ```csharp
 using Xians.Lib.Agents.Workflows;
 
-// Start without waiting
+// Start without arguments
+await SubWorkflowService.StartAsync<MyWorkflow>();
+
+// Start with single argument
+await SubWorkflowService.StartAsync<MyWorkflow>(arg1);
+
+// Start with two arguments
+await SubWorkflowService.StartAsync<MyWorkflow>(arg1, arg2);
+
+// Start with multiple arguments (params)
 await SubWorkflowService.StartAsync<MyWorkflow>("instance-1", arg1, arg2);
 
-// Execute and wait for result
+// Execute and wait for result (no arguments)
+var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>();
+
+// Execute with single argument
+var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>(arg1);
+
+// Execute with two arguments
+var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>(arg1, arg2);
+
+// Execute with multiple arguments (params)
 var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>(
     "instance-1", 
     arg1, 

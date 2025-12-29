@@ -4,6 +4,7 @@ using Xians.Lib.Workflows.Models;
 using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Agents.Messaging;
 
@@ -25,14 +26,29 @@ internal class MessageService
     /// <summary>
     /// Retrieves paginated chat history for a conversation from the server.
     /// </summary>
+    /// <param name="workflowType">The workflow type identifier.</param>
+    /// <param name="participantId">The participant ID.</param>
+    /// <param name="scope">The message scope.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="page">The page number (0-indexed).</param>
+    /// <param name="pageSize">The number of messages per page.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A list of messages for the requested page.</returns>
     public async Task<List<DbMessage>> GetHistoryAsync(
         string workflowType,
         string participantId,
         string scope,
         string tenantId,
         int page,
-        int pageSize)
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
+        ValidationHelper.ValidateRequired(workflowType, nameof(workflowType));
+        ValidationHelper.ValidateRequired(participantId, nameof(participantId));
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidatePositive(page + 1, nameof(page)); // +1 because page is 0-indexed
+        ValidationHelper.ValidatePositive(pageSize, nameof(pageSize));
+        
         // Build query string with proper URL encoding
         var endpoint = $"api/agent/conversation/history?" +
                       $"workflowType={Uri.EscapeDataString(workflowType ?? string.Empty)}" +
@@ -47,7 +63,7 @@ internal class MessageService
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
         httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
-        var response = await _httpClient.SendAsync(httpRequest);
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -60,18 +76,41 @@ internal class MessageService
                 $"Failed to fetch message history. Status: {response.StatusCode}");
         }
 
-        var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>();
+        var messages = await response.Content.ReadFromJsonAsync<List<DbMessage>>(cancellationToken);
+
+        if (messages == null)
+        {
+            _logger.LogWarning(
+                "Message history deserialization returned null for WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+                workflowType,
+                participantId);
+            return new List<DbMessage>();
+        }
 
         _logger.LogInformation(
             "Message history fetched successfully: {Count} messages",
-            messages?.Count ?? 0);
+            messages.Count);
 
-        return messages ?? new List<DbMessage>();
+        return messages;
     }
 
     /// <summary>
     /// Sends a chat or data message to a participant via the Xians platform API.
     /// </summary>
+    /// <param name="participantId">The participant ID.</param>
+    /// <param name="workflowId">The workflow ID.</param>
+    /// <param name="workflowType">The workflow type.</param>
+    /// <param name="requestId">The request ID.</param>
+    /// <param name="scope">The message scope.</param>
+    /// <param name="text">The message text.</param>
+    /// <param name="data">Optional data payload.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="authorization">Optional authorization header.</param>
+    /// <param name="threadId">Optional thread ID.</param>
+    /// <param name="hint">Hint for message routing.</param>
+    /// <param name="origin">Optional origin identifier.</param>
+    /// <param name="messageType">The message type ("chat" or "data").</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task SendAsync(
         string participantId,
         string workflowId,
@@ -85,8 +124,17 @@ internal class MessageService
         string? threadId,
         string hint,
         string? origin,
-        string messageType)
+        string messageType,
+        CancellationToken cancellationToken = default)
     {
+        // Validate required parameters
+        ValidationHelper.ValidateRequired(participantId, nameof(participantId));
+        ValidationHelper.ValidateRequired(workflowId, nameof(workflowId));
+        ValidationHelper.ValidateRequired(workflowType, nameof(workflowType));
+        ValidationHelper.ValidateRequired(requestId, nameof(requestId));
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidateRequired(messageType, nameof(messageType));
+        
         // Validate message type
         var allowedTypes = new[] { "chat", "data" };
         var type = messageType.ToLower();
@@ -126,7 +174,7 @@ internal class MessageService
         httpRequest.Content = JsonContent.Create(payload);
         httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
-        var response = await _httpClient.SendAsync(httpRequest);
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {

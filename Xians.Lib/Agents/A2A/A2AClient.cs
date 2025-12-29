@@ -67,6 +67,13 @@ public class A2AClient
                 $"Ensure the target workflow has called OnUserMessage().");
         }
 
+        if (handlerMetadata?.Handler == null)
+        {
+            throw new InvalidOperationException(
+                $"Message handler for workflow type '{_targetWorkflow.WorkflowType}' is null. " +
+                $"This indicates a registration error.");
+        }
+
         // Create A2A request for context
         var request = new A2ARequest
         {

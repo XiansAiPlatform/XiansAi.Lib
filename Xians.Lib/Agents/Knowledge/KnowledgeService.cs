@@ -4,6 +4,7 @@ using System.Text.Encodings.Web;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Common.Caching;
+using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows.Knowledge;
 
 namespace Xians.Lib.Agents.Knowledge;
@@ -31,11 +32,17 @@ internal class KnowledgeService
     /// <summary>
     /// Retrieves knowledge from server with caching.
     /// </summary>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string agentName, string tenantId)
+    /// <param name="knowledgeName">The name of the knowledge to retrieve.</param>
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The knowledge object, or null if not found.</returns>
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string agentName, string tenantId, CancellationToken cancellationToken = default)
     {
         // Validate inputs
-        ValidateInput(knowledgeName, nameof(knowledgeName));
-        ValidateInput(agentName, nameof(agentName));
+        ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
+        ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
 
         // Check cache first
         var cacheKey = GetCacheKey(tenantId, agentName, knowledgeName);
@@ -65,7 +72,7 @@ internal class KnowledgeService
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
         httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
-        var response = await _httpClient.SendAsync(httpRequest);
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         // Handle 404 as knowledge not found
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -88,13 +95,19 @@ internal class KnowledgeService
                 $"Failed to fetch knowledge '{knowledgeName}'. Status: {response.StatusCode}");
         }
 
-        var knowledge = await response.Content.ReadFromJsonAsync<Models.Knowledge>();
+        var knowledge = await response.Content.ReadFromJsonAsync<Models.Knowledge>(cancellationToken);
 
-        // Cache the result if found
-        if (knowledge != null)
+        if (knowledge == null)
         {
-            _cacheService?.SetKnowledge(cacheKey, knowledge);
+            _logger.LogWarning(
+                "Knowledge response deserialization returned null: Name={Name}, Agent={Agent}",
+                knowledgeName,
+                agentName);
+            return null;
         }
+
+        // Cache the result
+        _cacheService?.SetKnowledge(cacheKey, knowledge);
 
         _logger.LogInformation(
             "Knowledge fetched successfully: Name={Name}",
@@ -106,21 +119,28 @@ internal class KnowledgeService
     /// <summary>
     /// Updates or creates knowledge on the server.
     /// </summary>
+    /// <param name="knowledgeName">The name of the knowledge.</param>
+    /// <param name="content">The knowledge content.</param>
+    /// <param name="type">Optional knowledge type (e.g., "instruction", "document").</param>
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the operation succeeds.</returns>
+    /// <exception cref="ArgumentException">Thrown when validation fails.</exception>
+    /// <exception cref="HttpRequestException">Thrown when the HTTP request fails.</exception>
     public async Task<bool> UpdateAsync(
         string knowledgeName, 
         string content, 
         string? type, 
         string agentName, 
-        string tenantId)
+        string tenantId,
+        CancellationToken cancellationToken = default)
     {
         // Validate inputs
-        ValidateInput(knowledgeName, nameof(knowledgeName));
-        ValidateInput(agentName, nameof(agentName));
-        
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            throw new ArgumentException("Content cannot be null or empty", nameof(content));
-        }
+        ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
+        ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
+        ValidationHelper.ValidateRequired(content, nameof(content));
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
 
         // Build knowledge object
         var knowledge = new Models.Knowledge
@@ -147,7 +167,7 @@ internal class KnowledgeService
         httpRequest.Content = JsonContent.Create(knowledge);
         httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
-        var response = await _httpClient.SendAsync(httpRequest);
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -167,18 +187,24 @@ internal class KnowledgeService
         _logger.LogInformation(
             "Knowledge updated successfully: Name={Name}",
             knowledgeName);
-
+        
         return true;
     }
 
     /// <summary>
     /// Deletes knowledge from the server.
     /// </summary>
-    public async Task<bool> DeleteAsync(string knowledgeName, string agentName, string tenantId)
+    /// <param name="knowledgeName">The name of the knowledge to delete.</param>
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if deleted, false if not found.</returns>
+    public async Task<bool> DeleteAsync(string knowledgeName, string agentName, string tenantId, CancellationToken cancellationToken = default)
     {
         // Validate inputs
-        ValidateInput(knowledgeName, nameof(knowledgeName));
-        ValidateInput(agentName, nameof(agentName));
+        ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
+        ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
 
         // Build URL
         var endpoint = $"api/agent/knowledge?" +
@@ -194,7 +220,7 @@ internal class KnowledgeService
         using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, endpoint);
         httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
-        var response = await _httpClient.SendAsync(httpRequest);
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         // Handle 404 as already deleted
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -231,10 +257,15 @@ internal class KnowledgeService
     /// <summary>
     /// Lists all knowledge for an agent.
     /// </summary>
-    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(string agentName, string tenantId)
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A list of knowledge items.</returns>
+    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(string agentName, string tenantId, CancellationToken cancellationToken = default)
     {
         // Validate inputs
-        ValidateInput(agentName, nameof(agentName));
+        ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
 
         // Build URL
         var endpoint = $"api/agent/knowledge/list?" +
@@ -248,7 +279,7 @@ internal class KnowledgeService
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
         httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
-        var response = await _httpClient.SendAsync(httpRequest);
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -261,29 +292,21 @@ internal class KnowledgeService
                 $"Failed to list knowledge for agent '{agentName}'. Status: {response.StatusCode}");
         }
 
-        var knowledgeList = await response.Content.ReadFromJsonAsync<List<Models.Knowledge>>();
+        var knowledgeList = await response.Content.ReadFromJsonAsync<List<Models.Knowledge>>(cancellationToken);
+
+        if (knowledgeList == null)
+        {
+            _logger.LogWarning(
+                "Knowledge list deserialization returned null for agent '{Agent}'",
+                agentName);
+            return new List<Models.Knowledge>();
+        }
 
         _logger.LogInformation(
             "Knowledge list fetched successfully: Count={Count}",
-            knowledgeList?.Count ?? 0);
+            knowledgeList.Count);
 
-        return knowledgeList ?? new List<Models.Knowledge>();
-    }
-
-    /// <summary>
-    /// Validates input parameters.
-    /// </summary>
-    private void ValidateInput(string? value, string paramName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException($"{paramName} cannot be null or empty", paramName);
-        }
-
-        if (value.Length > 256)
-        {
-            throw new ArgumentException($"{paramName} exceeds maximum length of 256 characters", paramName);
-        }
+        return knowledgeList;
     }
 
     /// <summary>

@@ -19,8 +19,11 @@ public static class TestCertificateGenerator
     {
         using var rsa = RSA.Create(2048);
         
+        // Certificate must have:
+        // - O= (Organization) for tenant ID
+        // - OU= (Organizational Unit) for user ID
         var request = new CertificateRequest(
-            $"CN={userId ?? "test-user"}, O={tenantId ?? "test-tenant"}",
+            $"CN=Test Certificate, OU={userId ?? "test-user"}, O={tenantId ?? "test-tenant"}",
             rsa,
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
