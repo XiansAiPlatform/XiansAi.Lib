@@ -1,0 +1,127 @@
+using Xians.Lib.Temporal;
+using Xians.Lib.Agents.Knowledge;
+using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Agents.Workflows;
+using Xians.Lib.Agents.Documents;
+using Xians.Lib.Common.Caching;
+
+namespace Xians.Lib.Agents.Core;
+
+/// <summary>
+/// Represents a registered agent in the Xians platform.
+/// </summary>
+public class XiansAgent
+{
+    /// <summary>
+    /// Gets the workflows collection for managing agent workflows.
+    /// </summary>
+    public WorkflowCollection Workflows { get; private set; }
+
+    /// <summary>
+    /// Gets the knowledge collection for managing agent knowledge.
+    /// </summary>
+    public KnowledgeCollection Knowledge { get; private set; }
+
+    /// <summary>
+    /// Gets the documents collection for managing agent documents.
+    /// Documents are scoped to the agent and tenant.
+    /// </summary>
+    public DocumentCollection Documents { get; private set; }
+
+    /// <summary>
+    /// Gets the name of the agent.
+    /// </summary>
+    public string Name { get; private set; }
+
+    /// <summary>
+    /// Gets the version of the agent.
+    /// </summary>
+    public string? Version { get; private set; }
+
+    /// <summary>
+    /// Gets the description of the agent.
+    /// </summary>
+    public string? Description { get; private set; }
+
+    /// <summary>
+    /// Gets whether the agent is system-scoped.
+    /// </summary>
+    public bool SystemScoped { get; private set; }
+
+    internal ITemporalClientService? TemporalService { get; private set; }
+    internal Http.IHttpClientService? HttpService { get; private set; }
+    internal XiansOptions? Options { get; private set; }
+
+    internal Xians.Lib.Common.Caching.CacheService? CacheService { get; private set; }
+
+    internal XiansAgent(string name, bool systemScoped, WorkflowDefinitionUploader? uploader, 
+        ITemporalClientService? temporalService, Http.IHttpClientService? httpService, 
+        XiansOptions? options, Xians.Lib.Common.Caching.CacheService? cacheService)
+    {
+        Name = name.Trim(); // Trim to handle whitespace variations
+        SystemScoped = systemScoped;
+        TemporalService = temporalService;
+        HttpService = httpService;
+        Options = options;
+        CacheService = cacheService;
+        Workflows = new WorkflowCollection(this, uploader);
+        Knowledge = new KnowledgeCollection(this, httpService, cacheService);
+        Documents = new DocumentCollection(this, httpService);
+        
+        // Register this agent in the static context
+        XiansContext.RegisterAgent(this);
+    }
+
+    /// <summary>
+    /// Gets a built-in workflow by name.
+    /// If name is null, returns the unnamed built-in workflow.
+    /// </summary>
+    /// <param name="name">The name of the built-in workflow, or null for the unnamed workflow.</param>
+    /// <returns>The built-in workflow or null if not found.</returns>
+    public XiansWorkflow? GetBuiltInWorkflow(string? name = null) => Workflows.GetBuiltIn(name);
+
+    /// <summary>
+    /// Gets a custom workflow by its type.
+    /// </summary>
+    /// <typeparam name="T">The custom workflow type.</typeparam>
+    /// <returns>The custom workflow or null if not found.</returns>
+    public XiansWorkflow? GetCustomWorkflow<T>() where T : class => Workflows.GetCustom<T>();
+
+    /// <summary>
+    /// Gets all workflows for this agent.
+    /// </summary>
+    /// <returns>A read-only list of workflows.</returns>
+    public IReadOnlyList<XiansWorkflow> GetAllWorkflows() => Workflows.GetAll();
+
+    /// <summary>
+    /// Uploads all workflow definitions to the server without running the workflows.
+    /// This is useful when you want to register the agent with the server before running workflows.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task UploadWorkflowDefinitionsAsync()
+    {
+        await Workflows.UploadAllDefinitionsAsync();
+    }
+
+    /// <summary>
+    /// Runs all registered workflows for this agent asynchronously.
+    /// </summary>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task RunAllAsync(CancellationToken cancellationToken = default)
+    {
+        // Set up cancellation token if not provided
+        if (cancellationToken == default)
+        {
+            var tokenSource = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, eventArgs) =>
+            {
+                tokenSource.Cancel();
+                eventArgs.Cancel = true;
+            };
+            cancellationToken = tokenSource.Token;
+        }
+
+        await Workflows.RunAllAsync(cancellationToken);
+    }
+}
