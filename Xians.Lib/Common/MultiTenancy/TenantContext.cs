@@ -55,10 +55,10 @@ public static class TenantContext
         }
 
         var parts = workflowId.Split(':');
-        if (parts.Length < 2)
+        if (parts.Length < 3)
         {
             throw new WorkflowException(
-                $"Invalid WorkflowId format. Expected 'TenantId:WorkflowType:...', got '{workflowId}'",
+                $"Invalid WorkflowId format. Expected 'TenantId:AgentName:WorkflowType:...', got '{workflowId}'",
                 null,
                 workflowId);
         }
@@ -66,7 +66,7 @@ public static class TenantContext
         // WorkflowType may contain colons (e.g., "AgentName:FlowName")
         // So we take everything after the first colon and before any additional postfix
         // For backwards compatibility with current format where WorkflowType is at position 1
-        return parts[1];
+        return parts[2];
     }
 
     /// <summary>

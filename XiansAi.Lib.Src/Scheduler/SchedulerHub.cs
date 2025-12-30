@@ -51,6 +51,8 @@ public class SchedulerHub
             MaximumAttempts = 3
         };
         defaultOptions.RunTimeout = TimeSpan.FromSeconds(10*60);
+        // Add search attributes to workflow executions
+        defaultOptions.TypedSearchAttributes = GetSearchAttributes();
 
         options = options ?? defaultOptions;
 
@@ -60,9 +62,23 @@ public class SchedulerHub
             options);
 
         var client = await GetTemporalClient();
-        return await client.CreateScheduleAsync(
+        var handle = await client.CreateScheduleAsync(
             scheduleName,
             new Schedule(Action: action, Spec: spec));
+
+        // Update schedule with search attributes (must be done after creation)
+        await handle.UpdateAsync(scheduleUpdate =>
+        {
+            return new ScheduleUpdate(
+                scheduleUpdate.Description.Schedule,
+                TypedSearchAttributes: GetSearchAttributes());
+        });
+
+        _logger.LogInformation(
+            "Schedule '{ScheduleName}' created successfully with search attributes for workflow '{WorkflowType}'",
+            scheduleName, workflowType);
+
+        return handle;
     }
 
     /// <summary>
@@ -199,6 +215,24 @@ public class SchedulerHub
     {
         var client = await GetTemporalClient();
         return client.GetScheduleHandle(scheduleId);
+    }
+
+    /// <summary>
+    /// Gets search attributes for both the schedule and scheduled workflow executions.
+    /// Includes TenantId, AgentName, and UserId for schedule and workflow tracking and filtering.
+    /// </summary>
+    private static SearchAttributeCollection GetSearchAttributes()
+    {
+        var tenantId = AgentContext.TenantId;
+        var agentName = AgentContext.AgentName;
+        var userId = AgentContext.UserId;
+
+        var searchAttributesBuilder = new SearchAttributeCollection.Builder()
+            .Set(SearchAttributeKey.CreateKeyword(Constants.TenantIdKey), tenantId)
+            .Set(SearchAttributeKey.CreateKeyword(Constants.AgentKey), agentName)
+            .Set(SearchAttributeKey.CreateKeyword(Constants.UserIdKey), userId);
+
+        return searchAttributesBuilder.ToSearchAttributeCollection();
     }
 }
 

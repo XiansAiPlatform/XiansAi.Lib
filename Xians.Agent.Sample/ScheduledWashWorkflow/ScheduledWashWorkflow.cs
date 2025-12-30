@@ -8,11 +8,11 @@ using Xians.Lib.Agents.Scheduling.Models;
 public class ScheduledWashWorkflow
 {
     [WorkflowRun]
-    public async Task<string> RunAsync(string name)
+    public async Task<string> RunAsync(string? name = null)
     {
         // At the start of the workflow, ensure a recurring schedule exists
         // With the new workflow-aware SDK, we can call directly - no manual activity wiring!
-        await EnsureScheduleExists(name);
+        await EnsureScheduleExists();
 
         Workflow.Logger.LogInformation("Processing {Name}", name);
 
@@ -23,7 +23,7 @@ public class ScheduledWashWorkflow
     /// Ensures that a recurring schedule exists for this workflow.
     /// Uses the workflow-aware Schedule SDK - automatically uses activities when in workflow context!
     /// </summary>
-    private async Task EnsureScheduleExists(string name)
+    private async Task EnsureScheduleExists()
     {
         try
         {

@@ -221,9 +221,9 @@ public class ScheduleBuilder
 
             // Generate workflow ID prefix for scheduled executions - always includes tenant
             // Temporal will automatically append a unique suffix for each scheduled execution
-            var workflowId = $"{tenantId}:{_workflowType}:scheduled:{_scheduleId}";
+            var workflowId = $"{tenantId}:{_agent.Name}:{_workflowType}:{_scheduleId}";
 
-            // Create schedule action using Temporal SDK pattern with search attributes and memo
+            // Create schedule action using Temporal SDK pattern with search attributes and memo for workflow executions
             var scheduleAction = ScheduleActionStartWorkflow.Create(
                 _workflowType,
                 _workflowArgs ?? Array.Empty<object>(),
@@ -253,8 +253,16 @@ public class ScheduleBuilder
 
             var handle = await client.CreateScheduleAsync(fullScheduleId, schedule);
 
+            // Update schedule with search attributes (must be done after creation)
+            await handle.UpdateAsync(scheduleUpdate =>
+            {
+                return new ScheduleUpdate(
+                    scheduleUpdate.Description.Schedule,
+                    TypedSearchAttributes: GetSearchAttributes(tenantId));
+            });
+
             _logger.LogInformation(
-                "Schedule '{ScheduleId}' created successfully. Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+                "Schedule '{ScheduleId}' created successfully with search attributes. Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
                 fullScheduleId, _agent.Name, _agent.SystemScoped, tenantId ?? "(none)");
 
             return new XiansSchedule(handle);
@@ -295,8 +303,8 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Gets search attributes for scheduled workflow executions.
-    /// Includes TenantId, AgentName, and UserId for workflow tracking and filtering.
+    /// Gets search attributes for both the schedule and scheduled workflow executions.
+    /// Includes TenantId, AgentName, WorkflowType, and UserId for schedule and workflow tracking and filtering.
     /// </summary>
     private SearchAttributeCollection GetSearchAttributes(string tenantId)
     {
