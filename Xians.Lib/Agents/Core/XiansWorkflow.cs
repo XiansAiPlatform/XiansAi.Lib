@@ -208,75 +208,34 @@ public class XiansWorkflow
                     .SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information))
         };
 
-        // Register workflow based on type
+        // Initialize registrars
+        var workflowRegistrar = new WorkflowRegistrar(_logger);
+        var activityRegistrar = new ActivityRegistrar(_agent, _logger);
+
+        // Register workflow and activities
+        int totalActivityCount = 0;
+        
         if (_isBuiltIn)
         {
-            // Register the BuiltinWorkflow class for built-in workflows
-            workerOptions.AddWorkflow<BuiltinWorkflow>();
-            
-            // Register activities for message sending, knowledge, and document operations
-            // Get HTTP client from the platform's HTTP service
-            if (_agent.HttpService != null)
-            {
-                var messageActivities = new Xians.Lib.Workflows.Messaging.MessageActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Messaging.MessageActivities), messageActivities);
-                
-                var knowledgeActivities = new Xians.Lib.Workflows.Knowledge.KnowledgeActivities(
-                    _agent.HttpService.Client, 
-                    _agent.CacheService);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Knowledge.KnowledgeActivities), knowledgeActivities);
-                
-                var documentActivities = new Xians.Lib.Workflows.Documents.DocumentActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Documents.DocumentActivities), documentActivities);
-            }
-            else
-            {
-                _logger.LogWarning("HTTP service not available - message sending, knowledge, and document operations will not work");
-            }
-
-            // Register system activities (always available for all built-in workflows)
-            RegisterSystemActivities(workerOptions);
+            workflowRegistrar.RegisterBuiltInWorkflow(workerOptions, WorkflowType);
+            totalActivityCount = activityRegistrar.RegisterSystemActivities(workerOptions, WorkflowType);
         }
         else
         {
-            // Register custom workflow type
-            if (_workflowClassType == null)
-            {
-                throw new InvalidOperationException($"Workflow class type not provided for custom workflow '{WorkflowType}'");
-            }
-
-            // Register the custom workflow using the stored type
-            var addWorkflowMethod = typeof(TemporalWorkerOptions).GetMethod("AddWorkflow", Type.EmptyTypes);
-            var genericAddWorkflowMethod = addWorkflowMethod?.MakeGenericMethod(_workflowClassType);
-            genericAddWorkflowMethod?.Invoke(workerOptions, null);
-
-            // Register user-provided activity instances
-            foreach (var activityInstance in _activityInstances)
-            {
-                workerOptions.AddAllActivities(activityInstance.GetType(), activityInstance);
-                _logger.LogInformation(
-                    "Registered activity instance '{ActivityType}' for workflow '{WorkflowType}'",
-                    activityInstance.GetType().Name, WorkflowType);
-            }
-
-            // Register user-provided activity types
-            foreach (var activityType in _activityTypes)
-            {
-                var instance = Activator.CreateInstance(activityType);
-                if (instance != null)
-                {
-                    workerOptions.AddAllActivities(activityType, instance);
-                    _logger.LogInformation(
-                        "Registered activity type '{ActivityType}' for workflow '{WorkflowType}'",
-                        activityType.Name, WorkflowType);
-                }
-            }
-
-            // Register system activities (always available for all custom workflows)
-            RegisterSystemActivities(workerOptions);
+            workflowRegistrar.RegisterCustomWorkflow(workerOptions, WorkflowType, _workflowClassType!);
             
-            _logger.LogInformation("Custom workflow '{WorkflowType}' registered successfully with {ActivityCount} activities",
-                WorkflowType, _activityInstances.Count + _activityTypes.Count + 4); // +4 for ScheduleActivities, MessageActivities, KnowledgeActivities, DocumentActivities
+            // Register user activities first
+            totalActivityCount += activityRegistrar.RegisterUserActivityInstances(
+                workerOptions, WorkflowType, _activityInstances);
+            totalActivityCount += activityRegistrar.RegisterUserActivityTypes(
+                workerOptions, WorkflowType, _activityTypes);
+            
+            // Then register system activities (always available)
+            totalActivityCount += activityRegistrar.RegisterSystemActivities(workerOptions, WorkflowType);
+            
+            _logger.LogInformation(
+                "Custom workflow '{WorkflowType}' registered with {ActivityCount} activities",
+                WorkflowType, totalActivityCount);
         }
 
         // Create and start workers
@@ -356,59 +315,5 @@ public class XiansWorkflow
                 "XiansOptions is not configured properly. Cannot determine TenantId for non-system-scoped agent.");
     }
 
-    /// <summary>
-    /// Registers system activities for workflows.
-    /// This is automatically done for all workflows, making these core operations available by default:
-    /// - ScheduleActivities: For managing schedules from workflows
-    /// - MessageActivities: For message operations
-    /// - KnowledgeActivities: For knowledge operations
-    /// - DocumentActivities: For document operations
-    /// This ensures all workflows can use A2A communication and interact with workflows that need these activities.
-    /// </summary>
-    private void RegisterSystemActivities(TemporalWorkerOptions workerOptions)
-    {
-        // Register ScheduleActivities (always available)
-        try
-        {
-            var scheduleActivities = new Xians.Lib.Workflows.Scheduling.ScheduleActivities();
-            workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Scheduling.ScheduleActivities), scheduleActivities);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not register ScheduleActivities for workflow '{WorkflowType}'", WorkflowType);
-        }
-
-        // Register core activities (Message, Knowledge, Document) if HTTP service is available
-        if (_agent.HttpService != null)
-        {
-            try
-            {
-                var messageActivities = new Xians.Lib.Workflows.Messaging.MessageActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Messaging.MessageActivities), messageActivities);
-                
-                var knowledgeActivities = new Xians.Lib.Workflows.Knowledge.KnowledgeActivities(
-                    _agent.HttpService.Client, 
-                    _agent.CacheService);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Knowledge.KnowledgeActivities), knowledgeActivities);
-                
-                var documentActivities = new Xians.Lib.Workflows.Documents.DocumentActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Documents.DocumentActivities), documentActivities);
-
-                _logger.LogInformation(
-                    "Registered system activities (Schedule, Message, Knowledge, Document) for workflow '{WorkflowType}'",
-                    WorkflowType);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not register core activities for workflow '{WorkflowType}'", WorkflowType);
-            }
-        }
-        else
-        {
-            _logger.LogInformation(
-                "Registered system activities (Schedule only) for workflow '{WorkflowType}' - HTTP service not available",
-                WorkflowType);
-        }
-    }
 }
 
