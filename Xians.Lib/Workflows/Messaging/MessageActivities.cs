@@ -9,6 +9,7 @@ using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows.Knowledge;
+using Xians.Lib.Workflows.Models;
 
 namespace Xians.Lib.Workflows.Messaging;
 
@@ -45,17 +46,7 @@ public class MessageActivities
 
         try
         {
-            // Look up the handler from the static registry (avoids serialization issues)
-            if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(request.WorkflowType, out var metadata))
-            {
-                var errorMessage = $"No message handler registered for workflow type '{request.WorkflowType}' in activity.";
-                ActivityExecutionContext.Current.Logger.LogError(
-                    "Handler lookup failed: WorkflowType={WorkflowType}",
-                    request.WorkflowType);
-                
-                // Throw exception to let workflow handle error response
-                throw new InvalidOperationException(errorMessage);
-            }
+            var metadata = GetHandlerMetadata(request.WorkflowType);
 
             // Create a context that sends responses via HTTP instead of collecting them
             var context = new ActivityUserMessageContext(
@@ -88,6 +79,72 @@ public class MessageActivities
 
             // Re-throw to let Temporal handle retry
             // The workflow will send error response to user after all retries are exhausted
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Processes an A2A (Agent-to-Agent) message by invoking the handler and capturing the response.
+    /// Unlike ProcessAndSendMessageAsync, this returns the response instead of sending it via HTTP.
+    /// </summary>
+    [Activity]
+    public async Task<Xians.Lib.Agents.A2A.A2AActivityResponse> ProcessA2AMessageAsync(ProcessMessageActivityRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "ProcessA2AMessage activity started: RequestId={RequestId}, WorkflowType={WorkflowType}",
+            request.RequestId,
+            request.WorkflowType);
+
+        try
+        {
+            var metadata = GetHandlerMetadata(request.WorkflowType);
+
+            // Create response capture for A2A
+            var responseCapture = new Xians.Lib.Agents.A2A.A2AResponseCapture();
+            
+            // Create A2A context that captures responses instead of sending via HTTP
+            var context = new Xians.Lib.Agents.A2A.A2AActivityMessageContext(
+                _httpClient,
+                new UserMessage { Text = request.MessageText },
+                request.ParticipantId,
+                request.RequestId,
+                request.Scope,
+                request.Hint,
+                request.Data,
+                request.TenantId,
+                request.WorkflowId,
+                request.WorkflowType,
+                request.Authorization,
+                request.ThreadId,
+                responseCapture
+            );
+
+            // Invoke the registered handler
+            await metadata.Handler(context);
+
+            // Return the captured response
+            if (!responseCapture.HasResponse)
+            {
+                throw new InvalidOperationException(
+                    $"Target workflow handler did not send a response. " +
+                    $"Ensure the handler calls context.ReplyAsync() or context.ReplyWithDataAsync().");
+            }
+
+            ActivityExecutionContext.Current.Logger.LogInformation(
+                "A2A message processed: RequestId={RequestId}",
+                request.RequestId);
+
+            return new Xians.Lib.Agents.A2A.A2AActivityResponse
+            {
+                Text = responseCapture.Text ?? string.Empty,
+                Data = responseCapture.Data
+            };
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error processing A2A message: RequestId={RequestId}",
+                request.RequestId);
             throw;
         }
     }
@@ -167,6 +224,25 @@ public class MessageActivities
                 request.RequestId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Looks up the handler metadata from the registry.
+    /// Throws InvalidOperationException if not found.
+    /// </summary>
+    private WorkflowHandlerMetadata GetHandlerMetadata(string workflowType)
+    {
+        if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(workflowType, out var metadata))
+        {
+            var errorMessage = $"No message handler registered for workflow type '{workflowType}' in activity.";
+            ActivityExecutionContext.Current.Logger.LogError(
+                "Handler lookup failed: WorkflowType={WorkflowType}",
+                workflowType);
+            
+            throw new InvalidOperationException(errorMessage);
+        }
+
+        return metadata;
     }
 }
 

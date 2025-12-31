@@ -2,6 +2,7 @@ using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
 using System.Linq;
+using System.Reflection;
 using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Agents.Workflows;
@@ -102,7 +103,7 @@ public class WorkflowCollection
                 SystemScoped = _agent.SystemScoped,
                 Workers = workflow.Workers,
                 ActivityDefinitions = [],
-                ParameterDefinitions = []
+                ParameterDefinitions = ExtractWorkflowParameters(workflow)
             };
 
             await _uploader!.UploadWorkflowDefinitionAsync(definition);
@@ -111,6 +112,35 @@ public class WorkflowCollection
         {
             throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Extracts workflow input parameters from the workflow class using reflection.
+    /// </summary>
+    private static List<ParameterDefinition> ExtractWorkflowParameters(XiansWorkflow workflow)
+    {
+        var workflowType = workflow.GetWorkflowClassType();
+        if (workflowType == null)
+        {
+            // Built-in workflows don't have parameters
+            return [];
+        }
+
+        var workflowRunMethod = workflowType.GetMethods()
+            .FirstOrDefault(m => m.GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowRunAttribute), false).Any());
+
+        if (workflowRunMethod == null)
+        {
+            throw new InvalidOperationException($"Workflow run method not found for workflow type {workflowType}");
+        }
+
+        return workflowRunMethod.GetParameters()
+            .Select(p => new ParameterDefinition
+            {
+                Name = p.Name,
+                Type = p.ParameterType.Name
+            })
+            .ToList();
     }
 
     /// <summary>

@@ -84,6 +84,11 @@ public class XiansWorkflow
     public ScheduleCollection? Schedules { get; }
 
     /// <summary>
+    /// Gets the workflow class type for custom workflows, or null for built-in workflows.
+    /// </summary>
+    internal Type? GetWorkflowClassType() => _workflowClassType;
+
+    /// <summary>
     /// Adds an activity instance to the workflow.
     /// The activity will be registered with all workers for this workflow.
     /// </summary>
@@ -229,8 +234,8 @@ public class XiansWorkflow
                 _logger.LogWarning("HTTP service not available - message sending, knowledge, and document operations will not work");
             }
 
-            // Register system schedule activities (always available for all workflows)
-            RegisterScheduleActivities(workerOptions);
+            // Register system activities (always available for all built-in workflows)
+            RegisterSystemActivities(workerOptions);
         }
         else
         {
@@ -267,11 +272,11 @@ public class XiansWorkflow
                 }
             }
 
-            // Register system schedule activities (always available for all custom workflows)
-            RegisterScheduleActivities(workerOptions);
+            // Register system activities (always available for all custom workflows)
+            RegisterSystemActivities(workerOptions);
             
             _logger.LogInformation("Custom workflow '{WorkflowType}' registered successfully with {ActivityCount} activities",
-                WorkflowType, _activityInstances.Count + _activityTypes.Count + 1); // +1 for ScheduleActivities
+                WorkflowType, _activityInstances.Count + _activityTypes.Count + 4); // +4 for ScheduleActivities, MessageActivities, KnowledgeActivities, DocumentActivities
         }
 
         // Create and start workers
@@ -352,24 +357,57 @@ public class XiansWorkflow
     }
 
     /// <summary>
-    /// Registers the system ScheduleActivities for managing schedules from workflows.
-    /// This is automatically done for all workflows, making schedule management available by default.
+    /// Registers system activities for workflows.
+    /// This is automatically done for all workflows, making these core operations available by default:
+    /// - ScheduleActivities: For managing schedules from workflows
+    /// - MessageActivities: For message operations
+    /// - KnowledgeActivities: For knowledge operations
+    /// - DocumentActivities: For document operations
+    /// This ensures all workflows can use A2A communication and interact with workflows that need these activities.
     /// </summary>
-    private void RegisterScheduleActivities(TemporalWorkerOptions workerOptions)
+    private void RegisterSystemActivities(TemporalWorkerOptions workerOptions)
     {
+        // Register ScheduleActivities (always available)
         try
         {
-            // Register the system ScheduleActivities
             var scheduleActivities = new Xians.Lib.Workflows.Scheduling.ScheduleActivities();
             workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Scheduling.ScheduleActivities), scheduleActivities);
-
-            _logger.LogInformation(
-                "Registered system ScheduleActivities for workflow '{WorkflowType}'",
-                WorkflowType);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not register ScheduleActivities for workflow '{WorkflowType}'", WorkflowType);
+        }
+
+        // Register core activities (Message, Knowledge, Document) if HTTP service is available
+        if (_agent.HttpService != null)
+        {
+            try
+            {
+                var messageActivities = new Xians.Lib.Workflows.Messaging.MessageActivities(_agent.HttpService.Client);
+                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Messaging.MessageActivities), messageActivities);
+                
+                var knowledgeActivities = new Xians.Lib.Workflows.Knowledge.KnowledgeActivities(
+                    _agent.HttpService.Client, 
+                    _agent.CacheService);
+                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Knowledge.KnowledgeActivities), knowledgeActivities);
+                
+                var documentActivities = new Xians.Lib.Workflows.Documents.DocumentActivities(_agent.HttpService.Client);
+                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Documents.DocumentActivities), documentActivities);
+
+                _logger.LogInformation(
+                    "Registered system activities (Schedule, Message, Knowledge, Document) for workflow '{WorkflowType}'",
+                    WorkflowType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not register core activities for workflow '{WorkflowType}'", WorkflowType);
+            }
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Registered system activities (Schedule only) for workflow '{WorkflowType}' - HTTP service not available",
+                WorkflowType);
         }
     }
 }

@@ -24,7 +24,6 @@ public static class GoogleSearchCapability
                 return "Error: VALUESERP_API_KEY environment variable is not set.";
             }
 
-            Console.WriteLine("[WebSearch] API key found, creating search engine");
             using var searchEngine = new ValueSerpSearchEngine(apiKey);
             
             Console.WriteLine("[WebSearch] Executing search...");

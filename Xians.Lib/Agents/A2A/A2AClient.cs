@@ -19,22 +19,23 @@ public class A2AClient
     /// <summary>
     /// Creates a new A2A client for communicating with a target workflow.
     /// Source workflow context is automatically obtained from XiansContext.
-    /// Works in both workflow and activity contexts.
+    /// Must be used from workflow context only (not activity context).
     /// </summary>
     /// <param name="targetWorkflow">The target workflow to send messages to.</param>
     /// <exception cref="ArgumentNullException">Thrown when targetWorkflow is null.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow context.</exception>
     public A2AClient(XiansWorkflow targetWorkflow)
     {
         _targetWorkflow = targetWorkflow ?? throw new ArgumentNullException(nameof(targetWorkflow));
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<A2AClient>();
 
-        // Validate that we're in a workflow or activity context
-        if (!XiansContext.InWorkflow && !XiansContext.InActivity)
+        // Validate that we're in a workflow context
+        if (!XiansContext.InWorkflow)
         {
             throw new InvalidOperationException(
-                $"A2AClient can only be used within a Temporal workflow or activity. " +
-                $"Use XiansContext.InWorkflow or XiansContext.InActivity to check your context.");
+                $"A2AClient can only be used within a Temporal workflow context. " +
+                $"Current context: InWorkflow={XiansContext.InWorkflow}, InActivity={XiansContext.InActivity}. " +
+                $"A2A calls from activities are not supported to prevent nested activity dependencies.");
         }
     }
 
@@ -87,32 +88,41 @@ public class A2AClient
             Metadata = message.Metadata
         };
 
-        // Create user message
-        var userMessage = new UserMessage { Text = message.Text };
-
-        // Create A2A message context with response capture
-        // IMPORTANT: Use TARGET workflow context, not source
-        var responseCapture = new A2AResponseCapture();
-        var context = new A2AMessageContext(
-            message: userMessage,
-            request: request,
-            workflowId: _targetWorkflow.WorkflowType,  // Target workflow type (acts as ID)
-            workflowType: _targetWorkflow.WorkflowType, // Target workflow type
-            responseCapture: responseCapture
-        );
-
         try
         {
-            // Directly invoke the handler (same runtime, synchronous call)
-            await handlerMetadata.Handler(context);
-
-            // Get the captured response
-            if (!responseCapture.HasResponse)
+            // A2A calls must be made from workflow context
+            // Activity-to-activity A2A is not supported as it would create nested activity dependencies
+            if (!XiansContext.InWorkflow)
             {
                 throw new InvalidOperationException(
-                    $"Target workflow handler did not send a response. " +
-                    $"Ensure the handler calls context.ReplyAsync() or context.ReplyWithDataAsync().");
+                    "A2A calls can only be made from workflow context, not from activity context. " +
+                    "This prevents nested activity dependencies and ensures proper workflow orchestration.");
             }
+
+            _logger.LogDebug(
+                "Executing A2A handler via activity: Target={TargetWorkflow}",
+                _targetWorkflow.WorkflowType);
+
+            // Create activity request
+            var activityRequest = new Xians.Lib.Workflows.Messaging.Models.ProcessMessageActivityRequest
+            {
+                MessageText = message.Text,
+                ParticipantId = request.CorrelationId, // Use correlation ID as participant
+                RequestId = request.CorrelationId,
+                Scope = "A2A",
+                Hint = request.SourceAgentName,
+                Data = message.Data ?? new object(),
+                TenantId = request.TenantId,
+                WorkflowId = _targetWorkflow.WorkflowType,
+                WorkflowType = _targetWorkflow.WorkflowType,
+                Authorization = null,
+                ThreadId = request.CorrelationId
+            };
+
+            // Execute handler in activity to avoid non-determinism
+            var activityResponse = await Workflow.ExecuteActivityAsync(
+                (Xians.Lib.Workflows.Messaging.MessageActivities act) => act.ProcessA2AMessageAsync(activityRequest),
+                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
 
             _logger.LogInformation(
                 "A2A response received from {TargetWorkflow}",
@@ -120,8 +130,8 @@ public class A2AClient
 
             return new A2AMessage
             {
-                Text = responseCapture.Text ?? string.Empty,
-                Data = responseCapture.Data,
+                Text = activityResponse.Text,
+                Data = activityResponse.Data,
                 Metadata = message.Metadata
             };
         }
@@ -138,12 +148,11 @@ public class A2AClient
 }
 
 /// <summary>
-/// Internal class to capture the response from the A2A handler.
+/// Class to capture the response from the A2A handler.
 /// </summary>
-internal class A2AResponseCapture
+public class A2AResponseCapture
 {
     public bool HasResponse { get; set; }
     public string? Text { get; set; }
     public object? Data { get; set; }
 }
-

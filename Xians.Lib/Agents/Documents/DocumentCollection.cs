@@ -1,6 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Activities;
+using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Documents.Models;
+using Xians.Lib.Workflows.Documents;
+using Xians.Lib.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Documents;
 
@@ -41,10 +45,33 @@ public class DocumentCollection
 
         var tenantId = GetTenantId();
         
+        // Populate AgentId and WorkflowId automatically
+        document.AgentId = _agent.Name;
+        if (Workflow.InWorkflow || ActivityExecutionContext.HasCurrent)
+        {
+            document.WorkflowId = XiansContext.WorkflowId;
+        }
+        
         _logger.LogInformation(
             "Saving document for agent '{AgentName}', tenant '{TenantId}'",
             _agent.Name,
             tenantId);
+
+        // If in workflow, execute as activity for determinism
+        if (Workflow.InWorkflow)
+        {
+            return await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.SaveDocumentAsync(new SaveDocumentRequest
+                {
+                    Document = document,
+                    TenantId = tenantId,
+                    Options = options
+                }),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
+                });
+        }
 
         return await _documentService!.SaveAsync(document, tenantId, options, cancellationToken);
     }
@@ -66,7 +93,39 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        return await _documentService!.GetAsync(id, tenantId, cancellationToken);
+        Document? document;
+
+        // If in workflow, execute as activity for determinism
+        if (Workflow.InWorkflow)
+        {
+            document = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.GetDocumentAsync(new GetDocumentRequest
+                {
+                    Id = id,
+                    TenantId = tenantId
+                }),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
+                });
+        }
+        else
+        {
+            document = await _documentService!.GetAsync(id, tenantId, cancellationToken);
+        }
+
+        // Filter by agent - only return if it belongs to this agent
+        if (document != null && document.AgentId != _agent.Name)
+        {
+            _logger.LogWarning(
+                "Document '{Id}' found but belongs to different agent. Expected: '{Expected}', Found: '{Found}'",
+                id,
+                _agent.Name,
+                document.AgentId);
+            return null;
+        }
+
+        return document;
     }
 
     /// <summary>
@@ -89,7 +148,43 @@ public class DocumentCollection
             key,
             _agent.Name);
 
-        return await _documentService!.GetByKeyAsync(type, key, tenantId, cancellationToken);
+        // If in workflow, use query activity (no direct GetByKey activity exists)
+        if (Workflow.InWorkflow)
+        {
+            var docs = await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.QueryDocumentsAsync(new QueryDocumentsRequest
+                {
+                    Query = new DocumentQuery
+                    {
+                        Type = type,
+                        Key = key,
+                        AgentId = _agent.Name,
+                        Limit = 1
+                    },
+                    TenantId = tenantId
+                }),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
+                });
+            
+            return docs?.FirstOrDefault();
+        }
+
+        // For non-workflow calls, we need to verify the returned document belongs to this agent
+        var document = await _documentService!.GetByKeyAsync(type, key, tenantId, cancellationToken);
+        
+        // Filter by agent - only return if it belongs to this agent
+        if (document != null && document.AgentId != _agent.Name)
+        {
+            _logger.LogWarning(
+                "Document found but belongs to different agent. Expected: '{Expected}', Found: '{Found}'",
+                _agent.Name,
+                document.AgentId);
+            return null;
+        }
+        
+        return document;
     }
 
     /// <summary>
@@ -105,11 +200,29 @@ public class DocumentCollection
 
         var tenantId = GetTenantId();
         
+        // Automatically scope query to current agent
+        query.AgentId = _agent.Name;
+        
         _logger.LogDebug(
             "Querying documents for agent '{AgentName}': Type='{Type}', Limit={Limit}",
             _agent.Name,
             query.Type,
             query.Limit);
+
+        // If in workflow, execute as activity for determinism
+        if (Workflow.InWorkflow)
+        {
+            return await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.QueryDocumentsAsync(new QueryDocumentsRequest
+                {
+                    Query = query,
+                    TenantId = tenantId
+                }),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
+                });
+        }
 
         return await _documentService!.QueryAsync(query, tenantId, cancellationToken);
     }
@@ -127,10 +240,32 @@ public class DocumentCollection
 
         var tenantId = GetTenantId();
         
+        // Ensure AgentId and WorkflowId are set
+        document.AgentId = _agent.Name;
+        if (Workflow.InWorkflow || ActivityExecutionContext.HasCurrent)
+        {
+            document.WorkflowId = XiansContext.WorkflowId;
+        }
+        
         _logger.LogInformation(
             "Updating document '{Id}' for agent '{AgentName}'",
             document.Id,
             _agent.Name);
+
+        // If in workflow, execute as activity for determinism
+        if (Workflow.InWorkflow)
+        {
+            return await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.UpdateDocumentAsync(new UpdateDocumentRequest
+                {
+                    Document = document,
+                    TenantId = tenantId
+                }),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
+                });
+        }
 
         return await _documentService!.UpdateAsync(document, tenantId, cancellationToken);
     }
@@ -151,6 +286,32 @@ public class DocumentCollection
             "Deleting document '{Id}' for agent '{AgentName}'",
             id,
             _agent.Name);
+
+        // First verify the document belongs to this agent
+        var document = await GetAsync(id, cancellationToken);
+        if (document == null)
+        {
+            _logger.LogDebug(
+                "Document '{Id}' not found or doesn't belong to agent '{AgentName}'",
+                id,
+                _agent.Name);
+            return false;
+        }
+
+        // If in workflow, execute as activity for determinism
+        if (Workflow.InWorkflow)
+        {
+            return await Workflow.ExecuteActivityAsync(
+                (DocumentActivities act) => act.DeleteDocumentAsync(new DeleteDocumentRequest
+                {
+                    Id = id,
+                    TenantId = tenantId
+                }),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
+                });
+        }
 
         return await _documentService!.DeleteAsync(id, tenantId, cancellationToken);
     }
@@ -173,7 +334,32 @@ public class DocumentCollection
             idList.Count,
             _agent.Name);
 
-        return await _documentService!.DeleteManyAsync(idList, tenantId, cancellationToken);
+        // Filter IDs to only include documents belonging to this agent
+        var validIds = new List<string>();
+        foreach (var id in idList)
+        {
+            var doc = await GetAsync(id, cancellationToken);
+            if (doc != null)
+            {
+                validIds.Add(id);
+            }
+        }
+
+        if (validIds.Count == 0)
+        {
+            _logger.LogDebug("No valid documents to delete for agent '{AgentName}'", _agent.Name);
+            return 0;
+        }
+
+        if (validIds.Count < idList.Count)
+        {
+            _logger.LogWarning(
+                "Filtered out {FilteredCount} documents that don't belong to agent '{AgentName}'",
+                idList.Count - validIds.Count,
+                _agent.Name);
+        }
+
+        return await _documentService!.DeleteManyAsync(validIds, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -193,7 +379,9 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        return await _documentService!.ExistsAsync(id, tenantId, cancellationToken);
+        // Use GetAsync which already filters by agent
+        var document = await GetAsync(id, cancellationToken);
+        return document != null;
     }
 
     private void EnsureServiceAvailable()

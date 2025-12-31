@@ -146,17 +146,7 @@ internal static class MessageProcessor
 
         await Workflow.ExecuteActivityAsync(
             (MessageActivities act) => act.ProcessAndSendMessageAsync(activityRequest),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromMinutes(5),
-                RetryPolicy = new()
-                {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(2),
-                    MaximumInterval = TimeSpan.FromSeconds(30),
-                    BackoffCoefficient = 2
-                }
-            });
+            MessageActivityOptions.GetStandardOptions());
 
         logger.LogInformation(
             "Message processed and responses sent: RequestId={RequestId}",

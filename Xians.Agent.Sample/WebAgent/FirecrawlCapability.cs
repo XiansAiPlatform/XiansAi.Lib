@@ -31,7 +31,6 @@ public static class FirecrawlCapability
             return "Error: FIRECRAWL_API_KEY environment variable is not set";
         }
 
-        Console.WriteLine("[WebScrape] API key found");
 
         using var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
@@ -137,7 +136,6 @@ public static class FirecrawlCapability
             throw new InvalidOperationException("FIRECRAWL_API_KEY environment variable is not set");
         }
 
-        Console.WriteLine("[ScrapeLinks] API key found");
 
         using var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
@@ -255,7 +253,6 @@ public static class FirecrawlCapability
             throw new InvalidOperationException("FIRECRAWL_API_KEY environment variable is not set");
         }
 
-        Console.WriteLine("[ExtractData] API key found");
 
         using var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");

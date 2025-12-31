@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Xians.Agent.Sample;
 
-[Workflow(Constants.AgentName + ":Company Research Workflow")]
-public class CompanyResearchWorkflow
+[Workflow(Constants.AgentName + ":News Processor Workflow")]
+public class NewsProcessorWorkflow
 {
     private bool _approved = false;
     [WorkflowRun]
@@ -19,9 +19,10 @@ public class CompanyResearchWorkflow
     }
 
     [WorkflowSignal]
-    public void UserApproved()
+    public Task UserApproved()
     {
         _approved = true;
         Workflow.Logger.LogInformation("Approved");
+        return Task.CompletedTask;
     }
 }
