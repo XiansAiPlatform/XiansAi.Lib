@@ -5,67 +5,67 @@ using Xians.Lib.Agents.A2A;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling.Models;
 
-[Workflow(Constants.AgentName + ":News Discovery Workflow")]
-public class NewsDiscoveryWorkflow
+[Workflow(Constants.AgentName + ":Content Discovery Workflow")]
+public class ContentDiscoveryWorkflow
 {
 
-    private readonly ILogger<NewsDiscoveryWorkflow> _logger;
+    private readonly ILogger<ContentDiscoveryWorkflow> _logger;
 
     private int? _intervalMinutes;
-    private string? _newsSiteURL;
+    private string? _contentSiteURL;
 
-    public NewsDiscoveryWorkflow()
+    public ContentDiscoveryWorkflow()
     {
-        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<NewsDiscoveryWorkflow>();
+        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<ContentDiscoveryWorkflow>();
     }
 
     [WorkflowRun]
-    public async Task<List<string>> RunAsync(string newsSiteURL, int intervalMinutes)
+    public async Task<List<string>> RunAsync(string contentSiteURL, int intervalMinutes)
     {
         if (intervalMinutes <= 0)
         {
             throw new ArgumentException("Interval minutes must be greater than 0");
         }
 
-        if (string.IsNullOrEmpty(newsSiteURL) || !Uri.TryCreate(newsSiteURL, UriKind.Absolute, out _))
+        if (string.IsNullOrEmpty(contentSiteURL) || !Uri.TryCreate(contentSiteURL, UriKind.Absolute, out _))
         {
-            throw new ArgumentException("News site URL is required and must be a valid URL");
+            throw new ArgumentException("Content site URL is required and must be a valid URL");
         }
 
         _intervalMinutes = intervalMinutes;
-        _newsSiteURL = newsSiteURL;
-        _logger.LogInformation("News site URL: {NewsSiteURL}, Interval minutes: {IntervalMinutes}", newsSiteURL, intervalMinutes);
+        _contentSiteURL = contentSiteURL;
+        _logger.LogInformation("Content site URL: {ContentSiteURL}, Interval minutes: {IntervalMinutes}", contentSiteURL, intervalMinutes);
 
         // At the start of the workflow, ensure a recurring schedule exists
-        await EnsureScheduleExists( intervalMinutes, newsSiteURL );
+        await EnsureScheduleExists( intervalMinutes, contentSiteURL );
 
-        _logger.LogInformation("Processing {NewsSiteURL}", newsSiteURL);
+        _logger.LogInformation("Processing {ContentSiteURL}", contentSiteURL);
 
-        var newsURLs = await FetchNewsUrlsAsync(newsSiteURL);
+        var contentURLs = await FetchContentUrlsAsync(contentSiteURL);
 
         var newlyProcessedURLs = new List<string>();
 
-        // For each news URL
-        foreach (var newsURL in newsURLs)
+        // For each content URL
+        foreach (var contentURL in contentURLs)
         {
             // Check if the url is already processed, if not mark it in Document DB as processed
-            var isProcessed = await IsNewsProcessedAsync(newsURL);
+            var isProcessed = await IsContentProcessedAsync(contentURL);
             if (!isProcessed)
             {
-                await ProcessNewsAsync(newsURL);
-                newlyProcessedURLs.Add(newsURL);
+                await ProcessContentAsync(contentURL);
+                newlyProcessedURLs.Add(contentURL);
             }
         }
         return newlyProcessedURLs;
     }
 
-    private async Task<bool> IsNewsProcessedAsync(string newsURL)
+    private async Task<bool> IsContentProcessedAsync(string contentURL)
     {
         var agent = XiansContext.CurrentAgent;
-        var type = "processed-news-url";
+        var type = "processed-content-url";
         
         // Check if the url is already processed (automatically uses activity when in workflow)
-        var doc = await agent.Documents.GetByKeyAsync(type, newsURL);
+        var doc = await agent.Documents.GetByKeyAsync(type, contentURL);
         
         if (doc != null)
         {
@@ -76,7 +76,7 @@ public class NewsDiscoveryWorkflow
         await agent.Documents.SaveAsync(new Xians.Lib.Agents.Documents.Models.Document
         {
             Type = type,
-            Key = newsURL,
+            Key = contentURL,
             Content = System.Text.Json.JsonSerializer.SerializeToElement(new 
             {
                 processedBy = XiansContext.WorkflowId,
@@ -87,22 +87,22 @@ public class NewsDiscoveryWorkflow
         return false;
     }
 
-    private async Task ProcessNewsAsync(string newsURL)
+    private async Task ProcessContentAsync(string contentURL)
     {
-        //TODO: Implement news processing
-        _logger.LogInformation("Processing news: {NewsURL}", newsURL);
+        //TODO: Implement content processing
+        _logger.LogInformation("Processing content: {ContentURL}", contentURL);
     }
 
     /// <summary>
-    /// Fetches news URLs from the specified news site using the web agent.
+    /// Fetches content URLs from the specified content site using the web agent.
     /// </summary>
-    private async Task<List<string>> FetchNewsUrlsAsync(string newsSiteURL)
+    private async Task<List<string>> FetchContentUrlsAsync(string contentSiteURL)
     {
         var webWorkflow = XiansContext.CurrentAgent.GetBuiltInWorkflow(Constants.WebWorkflowName);
         var client = new A2AClient(webWorkflow ?? throw new InvalidOperationException($"{Constants.WebWorkflowName} workflow not found"));
         var response = await client.SendMessageAsync(new A2AMessage 
         { 
-            Text = $"Fetch all news article URLs from {newsSiteURL}. Return ONLY the URLs as a comma-separated list with no additional text, explanations, or formatting. Example format: url1,url2,url3" 
+            Text = $"Fetch all content article URLs from {contentSiteURL}. Return ONLY the URLs as a comma-separated list with no additional text, explanations, or formatting. Example format: url1,url2,url3" 
         });
 
         if (string.IsNullOrEmpty(response.Text))
@@ -110,15 +110,15 @@ public class NewsDiscoveryWorkflow
             throw new InvalidOperationException("No response text from web agent");
         }
 
-        var newsURLs = response.Text.Split(',').ToList();
-        return newsURLs;
+        var contentURLs = response.Text.Split(',').ToList();
+        return contentURLs;
     }
 
     /// <summary>
     /// Ensures that a recurring schedule exists for this workflow.
     /// Uses the workflow-aware Schedule SDK - automatically uses activities when in workflow context!
     /// </summary>
-    private async Task EnsureScheduleExists(int intervalMinutes, string newsSiteURL)
+    private async Task EnsureScheduleExists(int intervalMinutes, string contentSiteURL)
     {
         try
         {
@@ -128,9 +128,9 @@ public class NewsDiscoveryWorkflow
             // Call the Schedule SDK directly - it automatically detects workflow context
             // and uses ScheduleActivities under the hood!
             var schedule = await workflow.Schedules!
-                .Create($"news-discovery-scheduler-{newsSiteURL}-{intervalMinutes}")
+                .Create($"content-discovery-scheduler-{contentSiteURL}-{intervalMinutes}")
                 .WithIntervalSchedule(TimeSpan.FromMinutes(intervalMinutes))
-                .WithInput( new object[] { newsSiteURL, intervalMinutes } )
+                .WithInput( new object[] { contentSiteURL, intervalMinutes } )
                 .StartAsync();
 
             _logger.LogInformation(
@@ -153,3 +153,4 @@ public class NewsDiscoveryWorkflow
         }
     }
 }
+

@@ -49,12 +49,15 @@ internal class MessageService
         ValidationHelper.ValidatePositive(page + 1, nameof(page)); // +1 because page is 0-indexed
         ValidationHelper.ValidatePositive(pageSize, nameof(pageSize));
         
+        // For page 1, fetch +1 message since we'll drop the latest (current) message
+        var fetchSize = page == 1 ? pageSize + 1 : pageSize;
+        
         // Build query string with proper URL encoding
         var endpoint = $"api/agent/conversation/history?" +
                       $"workflowType={Uri.EscapeDataString(workflowType ?? string.Empty)}" +
                       $"&participantId={Uri.EscapeDataString(participantId ?? string.Empty)}" +
                       $"&page={page}" +
-                      $"&pageSize={pageSize}" +
+                      $"&pageSize={fetchSize}" +
                       $"&scope={Uri.EscapeDataString(scope ?? string.Empty)}";
 
         _logger.LogTrace("Fetching message history from {Endpoint}", endpoint);
@@ -87,9 +90,30 @@ internal class MessageService
             return new List<DbMessage>();
         }
 
-        _logger.LogInformation(
-            "Message history fetched successfully: {Count} messages",
-            messages.Count);
+        // For page 1, drop the latest message (the current message being processed)
+        if (page == 1 && messages.Count > 0)
+        {
+            // Remove the most recent message by timestamp
+            var latestMessage = messages.OrderByDescending(m => m.CreatedAt).First();
+            messages = messages.Where(m => m.RequestId != latestMessage.RequestId).ToList();
+            
+            _logger.LogInformation(
+                "Message history fetched (page 1): {Count} messages (dropped latest message)",
+                messages.Count);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Message history fetched (page {Page}): {Count} messages",
+                page,
+                messages.Count);
+        }
+
+        // print all messages and requestId, and text
+        foreach (var message in messages)
+        {
+            _logger.LogInformation("Message: {Message}, RequestId: {RequestId}, Text: {Text}", message.Text, message.RequestId, message.Text);
+        }
 
         return messages;
     }

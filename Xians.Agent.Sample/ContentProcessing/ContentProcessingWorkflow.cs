@@ -2,8 +2,8 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Xians.Agent.Sample;
 
-[Workflow(Constants.AgentName + ":News Processor Workflow")]
-public class NewsProcessorWorkflow
+[Workflow(Constants.AgentName + ":Content Processing Workflow")]
+public class ContentProcessingWorkflow
 {
     private bool _approved = false;
     [WorkflowRun]
@@ -26,3 +26,4 @@ public class NewsProcessorWorkflow
         return Task.CompletedTask;
     }
 }
+

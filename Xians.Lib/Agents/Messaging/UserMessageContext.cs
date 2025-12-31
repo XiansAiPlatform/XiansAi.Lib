@@ -176,6 +176,7 @@ public class UserMessageContext
         
         // If in workflow, execute as activity for determinism
         // If in activity, execute directly
+        // Note: Filtering is done in MessageService for consistency across all paths
         if (Workflow.InWorkflow)
         {
             messages = await Workflow.ExecuteActivityAsync(
@@ -199,18 +200,12 @@ public class UserMessageContext
             messages = await activity.GetMessageHistoryAsync(request);
         }
 
-        // Filter out the current message to avoid duplication
-        var filteredMessages = messages.Where(m => 
-            !(m.Direction.Equals("inbound", StringComparison.OrdinalIgnoreCase) && 
-              m.Text == Message.Text)).ToList();
-
         logger.LogInformation(
-            "Chat history fetched: {Count} messages (filtered from {Total}), Tenant={Tenant}",
-            filteredMessages.Count,
+            "Chat history retrieved: {Count} messages, Tenant={Tenant}",
             messages.Count,
             TenantId);
 
-        return filteredMessages;
+        return messages;
     }
 
     /// <summary>

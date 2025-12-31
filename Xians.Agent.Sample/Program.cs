@@ -40,11 +40,11 @@ var conversationalWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.Conve
 // Define a web workflow to handle web interactions
 var webWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.WebWorkflowName);
 
-// Define a news processor workflow to handle news processing
-var newsProcessorWorkflow = agent.Workflows.DefineCustom<NewsProcessorWorkflow>();
+// Define a content processing workflow to handle content processing
+var contentProcessingWorkflow = agent.Workflows.DefineCustom<ContentProcessingWorkflow>();
  
-// Define a news discovery workflow to handle news discovery
-var newsDiscoveryWorkflow = agent.Workflows.DefineCustom<NewsDiscoveryWorkflow>();
+// Define a content discovery workflow to handle content discovery
+var contentDiscoveryWorkflow = agent.Workflows.DefineCustom<ContentDiscoveryWorkflow>();
 
 // Register handler for conversational workflow
 conversationalWorkflow.OnUserMessage(async (context) =>
