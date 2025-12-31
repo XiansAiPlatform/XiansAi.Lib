@@ -27,7 +27,7 @@ public class XiansWorkflow
     private readonly List<Type> _activityTypes = new();
     private readonly Type? _workflowClassType;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
@@ -35,14 +35,17 @@ public class XiansWorkflow
         if (string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentNullException(nameof(workflowType));
 
-        // Enforce that workflow type starts with agent name prefix
-        var expectedPrefix = agent.Name + ":";
-        if (!workflowType.StartsWith(expectedPrefix))
+        // Enforce that workflow type starts with agent name prefix (unless it's a platform workflow)
+        if (!isPlatformWorkflow)
         {
-            throw new ArgumentException(
-                $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
-                $"Expected format: '{expectedPrefix}WorkflowName'",
-                nameof(workflowType));
+            var expectedPrefix = agent.Name + ":";
+            if (!workflowType.StartsWith(expectedPrefix))
+            {
+                throw new ArgumentException(
+                    $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                    $"Expected format: '{expectedPrefix}WorkflowName'",
+                    nameof(workflowType));
+            }
         }
 
         _agent = agent;

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows.Knowledge;
@@ -58,7 +59,7 @@ internal class KnowledgeService
         }
 
         // Build URL
-        var endpoint = $"api/agent/knowledge/latest?" +
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeLatest}?" +
                       $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
                       $"&agent={UrlEncoder.Default.Encode(agentName)}";
 
@@ -70,7 +71,7 @@ internal class KnowledgeService
 
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -161,11 +162,11 @@ internal class KnowledgeService
             tenantId);
 
         // POST to api/agent/knowledge
-        var endpoint = "api/agent/knowledge";
+        var endpoint = WorkflowConstants.ApiEndpoints.Knowledge;
         
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
         httpRequest.Content = JsonContent.Create(knowledge);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -207,7 +208,7 @@ internal class KnowledgeService
         ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
 
         // Build URL
-        var endpoint = $"api/agent/knowledge?" +
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.Knowledge}?" +
                       $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
                       $"&agent={UrlEncoder.Default.Encode(agentName)}";
 
@@ -218,7 +219,7 @@ internal class KnowledgeService
             tenantId);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -268,7 +269,7 @@ internal class KnowledgeService
         ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
 
         // Build URL
-        var endpoint = $"api/agent/knowledge/list?" +
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeList}?" +
                       $"agent={UrlEncoder.Default.Encode(agentName)}";
 
         _logger.LogDebug(
@@ -277,7 +278,7 @@ internal class KnowledgeService
             tenantId);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 

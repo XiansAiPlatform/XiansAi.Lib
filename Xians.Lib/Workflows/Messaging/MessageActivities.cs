@@ -183,6 +183,36 @@ public class MessageActivities
     }
 
     /// <summary>
+    /// Retrieves the last hint for a conversation from the server.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Delegates to shared MessageService.
+    /// </summary>
+    [Activity]
+    public async Task<string?> GetLastHintAsync(GetLastHintRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "GetLastHint activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+            request.WorkflowType,
+            request.ParticipantId);
+        
+        try
+        {
+            return await _messageService.GetLastHintAsync(
+                request.WorkflowType,
+                request.ParticipantId,
+                request.Scope,
+                request.TenantId);
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error fetching last hint for WorkflowType={WorkflowType}",
+                request.WorkflowType);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Sends a chat or data message to a participant via the Xians platform API.
     /// Uses the same endpoint format as XiansAi.Lib.Src SystemActivities.
     /// For system-scoped agents, includes X-Tenant-Id header to route to correct tenant.
@@ -329,6 +359,20 @@ public class ActivityUserMessageContext : UserMessageContext
             _tenantId,
             page,
             pageSize);
+    }
+
+    /// <summary>
+    /// Retrieves the last hint via HTTP instead of workflow activity.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Delegates to shared MessageService.
+    /// </summary>
+    public override async Task<string?> GetLastHintAsync()
+    {
+        return await _messageService.GetLastHintAsync(
+            _workflowType,
+            _participantId,
+            _scope,
+            _tenantId);
     }
 
     /// <summary>

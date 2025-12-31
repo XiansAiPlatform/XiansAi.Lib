@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Models;
 using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Common.MultiTenancy.Exceptions;
+using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Common.MultiTenancy;
 
@@ -11,7 +13,7 @@ namespace Xians.Lib.Common.MultiTenancy;
 /// 
 /// Workflow ID Format: {TenantId}:{WorkflowType}:{OptionalSuffix}
 /// Examples:
-///   - "acme-corp:CustomerService:Default Workflow:uuid-123"
+///   - "acme-corp:CustomerService:BuiltIn Workflow:uuid-123"
 ///   - "contoso:GlobalNotifications:Alerts:uuid-456"
 /// </summary>
 public static class TenantContext
@@ -23,7 +25,7 @@ public static class TenantContext
     {
         if (string.IsNullOrWhiteSpace(workflowId))
         {
-            throw new WorkflowException("WorkflowId cannot be null or empty.", null, workflowId);
+            throw new WorkflowException(WorkflowConstants.ErrorMessages.WorkflowIdNullOrEmpty, null, workflowId);
         }
 
         var parts = workflowId.Split(':');
@@ -161,15 +163,23 @@ public static class TenantContext
     {
         if (string.IsNullOrWhiteSpace(workflowType))
         {
-            throw new ArgumentException("Workflow type cannot be null or empty.", nameof(workflowType));
+            throw new ArgumentException(WorkflowConstants.ErrorMessages.WorkflowTypeNullOrEmpty, nameof(workflowType));
         }
 
         if (string.IsNullOrWhiteSpace(tenantId))
         {
-            throw new ArgumentException("Tenant ID cannot be null or empty.", nameof(tenantId));
+            throw new ArgumentException(WorkflowConstants.ErrorMessages.TenantIdNullOrEmpty, nameof(tenantId));
         }
 
-        var workflowId = $"{tenantId}:{workflowType}";
+        var agent = XiansContext.CurrentAgent;
+
+        //if workflowType have : take the second part as workflowType
+        if (workflowType.Contains(':'))
+        {
+            workflowType = workflowType.Split(':')[1];
+        }
+
+        var workflowId = $"{tenantId}:{agent.Name}:{workflowType}";
 
         // Append non-null, non-empty suffix parts
         foreach (var part in suffixParts)

@@ -1,6 +1,7 @@
 using Temporalio.Common;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 
 namespace Xians.Lib.Agents.Workflows;
@@ -25,7 +26,7 @@ public class SubWorkflowOptions : ChildWorkflowOptions
     {
         if (string.IsNullOrWhiteSpace(workflowType))
         {
-            throw new ArgumentException("Workflow type cannot be null or empty.", nameof(workflowType));
+            throw new ArgumentException(WorkflowConstants.ErrorMessages.WorkflowTypeNullOrEmpty, nameof(workflowType));
         }
 
         // Always inherit system-scoped setting from parent workflow
@@ -69,7 +70,7 @@ public class SubWorkflowOptions : ChildWorkflowOptions
         }
 
         // Try to get from memo
-        if (Workflow.Memo.TryGetValue("SystemScoped", out var value))
+        if (Workflow.Memo.TryGetValue(WorkflowConstants.Keys.SystemScoped, out var value))
         {
             var stringValue = value.Payload.Data.ToStringUtf8();
             return stringValue == "true" || stringValue == "True";
@@ -91,18 +92,18 @@ public class SubWorkflowOptions : ChildWorkflowOptions
 
         var memo = new Dictionary<string, object>
         {
-            { "TenantId", tenantId },
-            { "Agent", agentName },
-            { "SystemScoped", systemScoped }
+            { WorkflowConstants.Keys.TenantId, tenantId },
+            { WorkflowConstants.Keys.Agent, agentName },
+            { WorkflowConstants.Keys.SystemScoped, systemScoped }
         };
 
         // Try to propagate UserId from parent if available
-        if (Workflow.Memo.TryGetValue("UserId", out var userId))
+        if (Workflow.Memo.TryGetValue(WorkflowConstants.Keys.UserId, out var userId))
         {
             var userIdStr = userId.Payload.Data.ToStringUtf8();
             if (!string.IsNullOrWhiteSpace(userIdStr))
             {
-                memo["UserId"] = userIdStr;
+                memo[WorkflowConstants.Keys.UserId] = userIdStr;
             }
         }
 
@@ -120,16 +121,16 @@ public class SubWorkflowOptions : ChildWorkflowOptions
             : workflowType;
 
         var builder = new SearchAttributeCollection.Builder()
-            .Set(SearchAttributeKey.CreateKeyword("TenantId"), tenantId)
-            .Set(SearchAttributeKey.CreateKeyword("Agent"), agentName);
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName);
 
         // Try to propagate UserId from parent if available
-        if (Workflow.Memo.TryGetValue("UserId", out var userId))
+        if (Workflow.Memo.TryGetValue(WorkflowConstants.Keys.UserId, out var userId))
         {
             var userIdStr = userId.Payload.Data.ToStringUtf8();
             if (!string.IsNullOrWhiteSpace(userIdStr))
             {
-                builder.Set(SearchAttributeKey.CreateKeyword("UserId"), userIdStr);
+                builder.Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userIdStr);
             }
         }
 

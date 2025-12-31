@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Http;
 
 namespace Xians.Lib.Agents.Workflows;
@@ -20,8 +21,6 @@ internal class WorkflowDefinitionUploader
     private readonly ILogger<WorkflowDefinitionUploader>? _logger;
     private static readonly HashSet<string> _uploadedDefinitions = new();
     private static readonly object _uploadLock = new();
-    
-    private const string API_ENDPOINT = "/api/agent/definitions";
 
     public WorkflowDefinitionUploader(IHttpClientService httpService, ILogger<WorkflowDefinitionUploader>? logger = null)
     {
@@ -81,7 +80,7 @@ internal class WorkflowDefinitionUploader
             var hash = ComputeHash(serializedDefinition);
 
             // Check if definition is already up to date
-            var checkUrl = $"{API_ENDPOINT}/check?workflowType={Uri.EscapeDataString(definition.WorkflowType)}&systemScoped={definition.SystemScoped}&hash={hash}";
+            var checkUrl = $"{WorkflowConstants.ApiEndpoints.AgentDefinitions}/check?workflowType={Uri.EscapeDataString(definition.WorkflowType)}&systemScoped={definition.SystemScoped}&hash={hash}";
             var hashCheckResponse = await client.GetAsync(checkUrl);
 
             switch (hashCheckResponse.StatusCode)
@@ -102,7 +101,7 @@ internal class WorkflowDefinitionUploader
             }
 
             // Upload the definition
-            var uploadResponse = await client.PostAsync(API_ENDPOINT, JsonContent.Create(definition));
+            var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition));
             
             if (uploadResponse.StatusCode == HttpStatusCode.BadRequest)
             {

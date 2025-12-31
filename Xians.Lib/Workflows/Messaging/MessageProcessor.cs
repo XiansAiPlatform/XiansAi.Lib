@@ -23,7 +23,6 @@ internal static class MessageProcessor
         ConcurrentDictionary<string, WorkflowHandlerMetadata> handlerRegistry,
         string workflowType,
         string workflowId,
-        string taskQueue,
         ILogger logger)
     {
         logger.LogDebug(

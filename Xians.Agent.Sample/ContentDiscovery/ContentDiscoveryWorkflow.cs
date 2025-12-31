@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Exceptions;
 using Temporalio.Workflows;
 using Xians.Agent.Sample;
 using Xians.Lib.Agents.A2A;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling.Models;
+using Xians.Lib.Agents.Workflows;
 
 [Workflow(Constants.AgentName + ":Content Discovery Workflow")]
 public class ContentDiscoveryWorkflow
@@ -11,52 +13,85 @@ public class ContentDiscoveryWorkflow
 
     private readonly ILogger<ContentDiscoveryWorkflow> _logger;
 
-    private int? _intervalMinutes;
-    private string? _contentSiteURL;
-
+    private int _intervalHours;
+    private string _contentSiteURL = string.Empty;
+    private string _reportingUserID = string.Empty;
     public ContentDiscoveryWorkflow()
     {
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<ContentDiscoveryWorkflow>();
     }
 
     [WorkflowRun]
-    public async Task<List<string>> RunAsync(string contentSiteURL, int intervalMinutes)
+    public async Task<List<string>> RunAsync(string contentSiteURL, int intervalHours, string reportingUserID)
     {
-        if (intervalMinutes <= 0)
-        {
-            throw new ArgumentException("Interval minutes must be greater than 0");
-        }
+        _intervalHours = ValidateInterval(intervalHours);
+        _contentSiteURL = ValidateAndNormalizeUrl(contentSiteURL);
+        _reportingUserID = reportingUserID;
 
-        if (string.IsNullOrEmpty(contentSiteURL) || !Uri.TryCreate(contentSiteURL, UriKind.Absolute, out _))
-        {
-            throw new ArgumentException("Content site URL is required and must be a valid URL");
-        }
-
-        _intervalMinutes = intervalMinutes;
-        _contentSiteURL = contentSiteURL;
-        _logger.LogInformation("Content site URL: {ContentSiteURL}, Interval minutes: {IntervalMinutes}", contentSiteURL, intervalMinutes);
+        _logger.LogInformation("Content site URL: {ContentSiteURL}, Interval hours: {IntervalHours}", _contentSiteURL, _intervalHours);
 
         // At the start of the workflow, ensure a recurring schedule exists
-        await EnsureScheduleExists( intervalMinutes, contentSiteURL );
+        await EnsureScheduleExists();
 
-        _logger.LogInformation("Processing {ContentSiteURL}", contentSiteURL);
+        // Fetch content URLs from the content site
+        var contentURLs = await FetchContentUrlsAsync(_contentSiteURL);
 
-        var contentURLs = await FetchContentUrlsAsync(contentSiteURL);
-
-        var newlyProcessedURLs = new List<string>();
+        var newContentURLs = new List<string>();
 
         // For each content URL
         foreach (var contentURL in contentURLs)
         {
-            // Check if the url is already processed, if not mark it in Document DB as processed
-            var isProcessed = await IsContentProcessedAsync(contentURL);
-            if (!isProcessed)
+            try
             {
-                await ProcessContentAsync(contentURL);
-                newlyProcessedURLs.Add(contentURL);
+                // Check if the url is already processed, if not mark it in Document DB as processed
+                var isProcessed = await IsContentProcessedAsync(contentURL);
+                if (!isProcessed)
+                {
+                    newContentURLs.Add(contentURL);
+                    await StartContentProcessingWorkflowAsync(contentURL);
+                    _logger.LogInformation("Content URL processing started: {ContentURL}", contentURL);
+                }
+                else
+                {
+                    _logger.LogInformation("Content URL previously processed: {ContentURL}", contentURL);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing content URL: {ContentURL}", contentURL);
             }
         }
-        return newlyProcessedURLs;
+        return newContentURLs; // Successfully processed all content URLs
+    }
+
+    private int ValidateInterval(int intervalHours)
+    {
+        const int hoursInMonth = 744; // Approximately 31 days
+        
+        if (intervalHours <= 0)
+        {
+            throw new ApplicationFailureException("Interval hours must be greater than 0");
+        }
+        
+        if (intervalHours > hoursInMonth)
+        {
+            throw new ApplicationFailureException($"Interval hours must be less than a month ({hoursInMonth} hours)");
+        }
+
+        return intervalHours;
+    }
+
+    private string ValidateAndNormalizeUrl(string contentSiteURL)
+    {
+        if (string.IsNullOrEmpty(contentSiteURL) || !Uri.TryCreate(contentSiteURL, UriKind.Absolute, out var uri))
+        {
+            throw new ApplicationFailureException("Content site URL is required and must be a valid URL: " + contentSiteURL);
+        }
+
+        // Remove trailing slashes
+        var normalized = uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
+        
+        return normalized;
     }
 
     private async Task<bool> IsContentProcessedAsync(string contentURL)
@@ -80,17 +115,23 @@ public class ContentDiscoveryWorkflow
             Content = System.Text.Json.JsonSerializer.SerializeToElement(new 
             {
                 processedBy = XiansContext.WorkflowId,
-                processedAt = DateTime.UtcNow
+                reportingUserID = _reportingUserID
             })
         });
         
         return false;
     }
 
-    private async Task ProcessContentAsync(string contentURL)
+    private async Task StartContentProcessingWorkflowAsync(string contentURL)
     {
-        //TODO: Implement content processing
-        _logger.LogInformation("Processing content: {ContentURL}", contentURL);
+        try
+        {
+            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>(contentURL, [contentURL, _reportingUserID]);
+        }
+        catch (WorkflowAlreadyStartedException)
+        {
+            _logger.LogInformation("Content processing workflow already running for: {ContentURL}", contentURL);
+        }
     }
 
     /// <summary>
@@ -98,6 +139,11 @@ public class ContentDiscoveryWorkflow
     /// </summary>
     private async Task<List<string>> FetchContentUrlsAsync(string contentSiteURL)
     {
+        if (Environment.GetEnvironmentVariable("USE_TEST_DATA") == "true")
+        {
+            return TestData.ContentURLs.Split(',').ToList();
+        }
+
         var webWorkflow = XiansContext.CurrentAgent.GetBuiltInWorkflow(Constants.WebWorkflowName);
         var client = new A2AClient(webWorkflow ?? throw new InvalidOperationException($"{Constants.WebWorkflowName} workflow not found"));
         var response = await client.SendMessageAsync(new A2AMessage 
@@ -109,8 +155,16 @@ public class ContentDiscoveryWorkflow
         {
             throw new InvalidOperationException("No response text from web agent");
         }
+        _logger.LogInformation("Content URLs: {ContentURLs}", response.Text);
 
         var contentURLs = response.Text.Split(',').ToList();
+
+        //remove duplicates
+        contentURLs = contentURLs.Distinct().ToList();
+
+        //remove invalid URLs
+        contentURLs = contentURLs.Where(url => Uri.TryCreate(url, UriKind.Absolute, out _)).ToList();
+
         return contentURLs;
     }
 
@@ -118,7 +172,7 @@ public class ContentDiscoveryWorkflow
     /// Ensures that a recurring schedule exists for this workflow.
     /// Uses the workflow-aware Schedule SDK - automatically uses activities when in workflow context!
     /// </summary>
-    private async Task EnsureScheduleExists(int intervalMinutes, string contentSiteURL)
+    private async Task EnsureScheduleExists()
     {
         try
         {
@@ -128,15 +182,15 @@ public class ContentDiscoveryWorkflow
             // Call the Schedule SDK directly - it automatically detects workflow context
             // and uses ScheduleActivities under the hood!
             var schedule = await workflow.Schedules!
-                .Create($"content-discovery-scheduler-{contentSiteURL}-{intervalMinutes}")
-                .WithIntervalSchedule(TimeSpan.FromMinutes(intervalMinutes))
-                .WithInput( new object[] { contentSiteURL, intervalMinutes } )
+                .Create($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
+                .WithIntervalSchedule(TimeSpan.FromHours(_intervalHours))
+                .WithInput( new object[] { _contentSiteURL, _intervalHours, _reportingUserID } )
                 .StartAsync();
 
             _logger.LogInformation(
-                "Schedule '{ScheduleId}' ensured - will run every {IntervalMinutes} minutes",
+                "Schedule '{ScheduleId}' ensured - will run every {IntervalHours} hours",
                 schedule.Id,
-                intervalMinutes);
+                _intervalHours);
         }
         catch (ScheduleAlreadyExistsException ex)
         {
@@ -146,10 +200,7 @@ public class ContentDiscoveryWorkflow
         }
         catch (Exception ex)
         {
-            // Log the error but don't fail the workflow
-            _logger.LogWarning(
-                ex,
-                "Failed to create schedule, but continuing workflow execution");
+            throw new ApplicationFailureException("Failed to create schedule", ex);
         }
     }
 }

@@ -2,21 +2,28 @@ using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.A2A;
+using Xians.Lib.Agents.Messaging;
 
 namespace Xians.Agent.Sample.SupervisorAgent;
 
 /// <summary>
 /// Tools available to the MAF Agent for enhanced functionality.
 /// </summary>
-internal static class SupervisorAgentTools
+internal class WebTools
 {
-    private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.Instance.CreateLogger("SupervisorAgentTools");
+    private readonly ILogger _logger;
+    private readonly UserMessageContext _context;
+    public WebTools(UserMessageContext context)
+    {
+        _context = context;
+        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.Instance.CreateLogger<WebTools>();
+    }
 
     /// <summary>
     /// Conducts research on a company and returns detailed information.
     /// </summary>
     [Description("Research a company and get detailed information about it.")]
-    public static async Task<string> ResearchCompany([Description("The company name or website URL to research")] string companyIdentifier)
+    public async Task<string> ResearchCompany([Description("The company name or website URL to research")] string companyIdentifier)
     {
         _logger.LogInformation("ResearchCompany tool invoked with CompanyIdentifier={CompanyIdentifier}", companyIdentifier);
 

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Messaging.Models;
@@ -23,6 +24,14 @@ namespace Xians.Lib.Agents.Messaging;
 /// 
 /// // Send with custom scope
 /// await UserMessaging.SendChatAsync("user-123", "Hello!", scope: "notifications");
+/// 
+/// // Send as an impersonated builtin workflow
+/// var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType("MyAgent", "ContentDiscovery");
+/// await UserMessaging.SendChatAsWorkflowAsync(workflowType, "user-123", "Content discovered!");
+/// 
+/// // Send as an impersonated platform workflow
+/// var taskWorkflowType = WorkflowIdentity.BuildPlatformWorkflowType("Task Workflow");
+/// await UserMessaging.SendChatAsWorkflowAsync(taskWorkflowType, "user-123", "Task completed!");
 /// </example>
 public static class UserMessaging
 {
@@ -47,6 +56,38 @@ public static class UserMessaging
     }
 
     /// <summary>
+    /// Sends a chat message to a participant while impersonating a workflow.
+    /// Use <see cref="WorkflowIdentity"/> to construct builtin or platform workflow types.
+    /// </summary>
+    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:BuiltIn Workflow", "Platform:Task Workflow").</param>
+    /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
+    /// <param name="text">The chat message content.</param>
+    /// <param name="data">Optional data object to include with the message.</param>
+    /// <param name="scope">Optional scope for the message (e.g., "notifications", "alerts").</param>
+    /// <param name="hint">Optional hint for message processing.</param>
+    /// <returns>A task representing the async operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
+    /// <example>
+    /// // Impersonate a builtin workflow
+    /// var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType("MyAgent", "ContentDiscovery");
+    /// await UserMessaging.SendChatAsWorkflowAsync(workflowType, "user-123", "Content discovered!");
+    /// 
+    /// // Impersonate a platform workflow
+    /// var taskWorkflowType = WorkflowIdentity.BuildPlatformWorkflowType("Task Workflow");
+    /// await UserMessaging.SendChatAsWorkflowAsync(taskWorkflowType, "user-123", "Task completed!");
+    /// </example>
+    public static async Task SendChatAsWorkflowAsync(
+        string builtInworkflowName,
+        string participantId,
+        string text,
+        object? data = null,
+        string? scope = null,
+        string? hint = null)
+    {
+        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, "chat");
+    }
+
+    /// <summary>
     /// Sends a data message to a participant using the current workflow context.
     /// Data messages are typically used for structured data that may be processed differently than chat messages.
     /// </summary>
@@ -68,79 +109,99 @@ public static class UserMessaging
     }
 
     /// <summary>
-    /// Sends a chat message to a participant while impersonating a different workflow as the sender.
-    /// Useful when one workflow needs to send messages on behalf of another.
+    /// Retrieves the last hint for a conversation from the server.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Works in both workflow and activity contexts.
     /// </summary>
-    /// <param name="workflowType">The workflow type to impersonate as the sender (format: "AgentName:WorkflowName").</param>
-    /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
-    /// <param name="text">The chat message content.</param>
-    /// <param name="data">Optional data object to include with the message.</param>
-    /// <param name="scope">Optional scope for the message.</param>
-    /// <param name="hint">Optional hint for message processing.</param>
-    /// <returns>A task representing the async operation.</returns>
-    public static async Task SendChatAsAsync(
-        string workflowType,
+    /// <param name="participantId">The ID of the participant (user).</param>
+    /// <param name="scope">Optional scope for the conversation.</param>
+    /// <returns>The last hint string, or null if not found.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
+    public static async Task<string?> GetLastHintAsync(
         string participantId,
-        string text,
-        object? data = null,
-        string? scope = null,
-        string? hint = null)
+        string? scope = null)
     {
-        await SendMessageAsAsync(workflowType, participantId, text, data, scope, hint, "chat");
+        if (string.IsNullOrWhiteSpace(participantId))
+        {
+            throw new ArgumentException("Participant ID cannot be null or empty.", nameof(participantId));
+        }
+
+        var workflowType = XiansContext.WorkflowType;
+        var tenantId = XiansContext.TenantId;
+        
+        var request = new GetLastHintRequest
+        {
+            WorkflowType = workflowType,
+            ParticipantId = participantId,
+            Scope = scope ?? string.Empty,
+            TenantId = tenantId
+        };
+
+        if (Workflow.InWorkflow)
+        {
+            // Execute via Temporal activity for proper determinism and retry handling
+            return await Workflow.ExecuteActivityAsync(
+                (MessageActivities act) => act.GetLastHintAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else if (XiansContext.InActivity)
+        {
+            // Direct HTTP call when in activity context
+            var agent = XiansContext.CurrentAgent;
+            if (agent.HttpService == null)
+            {
+                throw new InvalidOperationException(
+                    "HTTP service not available for message operations. Ensure the agent is properly configured.");
+            }
+
+            var logger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageService>();
+            var messageService = new MessageService(agent.HttpService.Client, logger);
+
+            return await messageService.GetLastHintAsync(
+                request.WorkflowType,
+                request.ParticipantId,
+                request.Scope,
+                request.TenantId);
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "UserMessaging can only be used within a Temporal workflow or activity context.");
+        }
     }
 
     /// <summary>
-    /// Sends a data message to a participant while impersonating a different workflow as the sender.
+    /// Sends a data message to a participant while impersonating a workflow.
+    /// Data messages are typically used for structured data that may be processed differently than chat messages.
+    /// Use <see cref="WorkflowIdentity"/> to construct builtin or platform workflow types.
     /// </summary>
-    /// <param name="workflowType">The workflow type to impersonate as the sender (format: "AgentName:WorkflowName").</param>
+    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:BuiltIn Workflow", "Platform:Task Workflow").</param>
     /// <param name="participantId">The ID of the participant (user) to send the data to.</param>
     /// <param name="text">The message content/description.</param>
     /// <param name="data">The data object to send.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
     /// <returns>A task representing the async operation.</returns>
-    public static async Task SendDataAsAsync(
-        string workflowType,
+    /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
+    public static async Task SendDataAsWorkflowAsync(
+        string builtInworkflowName,
         string participantId,
         string text,
         object data,
         string? scope = null,
         string? hint = null)
     {
-        await SendMessageAsAsync(workflowType, participantId, text, data, scope, hint, "data");
-    }
-
-    /// <summary>
-    /// Internal method for sending messages as a different workflow.
-    /// </summary>
-    private static async Task SendMessageAsAsync(
-        string targetWorkflowType,
-        string participantId,
-        string text,
-        object? data,
-        string? scope,
-        string? hint,
-        string messageType)
-    {
-        if (string.IsNullOrWhiteSpace(targetWorkflowType))
-        {
-            throw new ArgumentException("Workflow type cannot be null or empty.", nameof(targetWorkflowType));
-        }
-
-        if (string.IsNullOrWhiteSpace(participantId))
-        {
-            throw new ArgumentException("Participant ID cannot be null or empty.", nameof(participantId));
-        }
-
-        // Get tenant from current context (the impersonated workflow still uses current tenant)
-        var tenantId = XiansContext.TenantId;
-        
-        // Generate a workflow ID for the impersonated workflow
-        var workflowId = TenantContext.BuildWorkflowId(targetWorkflowType, tenantId, participantId, scope);
-
-        await SendMessageInternalAsync(
-            workflowId, targetWorkflowType, tenantId,
-            participantId, text, data, scope, hint, messageType);
+        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, "data");
     }
 
     /// <summary>
@@ -165,6 +226,43 @@ public static class UserMessaging
         var tenantId = XiansContext.TenantId;
         
         await SendMessageInternalAsync(
+            workflowId, workflowType, tenantId,
+            participantId, text, data, scope, hint, messageType);
+    }
+
+    /// <summary>
+    /// Internal method that handles sending messages while impersonating a workflow.
+    /// Uses Temporal activities for workflow context, or direct HTTP for activity context.
+    /// Constructs workflow ID following the standard pattern using WorkflowIdentity utility.
+    /// </summary>
+    private static async Task SendMessageAsWorkflowAsync(
+        string builtInworkflowName,
+        string participantId,
+        string text,
+        object? data,
+        string? scope,
+        string? hint,
+        string messageType)
+    {
+        if (string.IsNullOrWhiteSpace(builtInworkflowName))
+        {
+            throw new ArgumentException("Workflow type cannot be null or empty.", nameof(builtInworkflowName));
+        }
+
+        if (string.IsNullOrWhiteSpace(participantId))
+        {
+            throw new ArgumentException("Participant ID cannot be null or empty.", nameof(participantId));
+        }
+
+        var tenantId = XiansContext.TenantId;
+        
+        // Build workflow ID using standard utility
+        // Format: {tenantId}:{workflowType}:{participantId}
+        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(XiansContext.CurrentAgent.Name, builtInworkflowName);
+        var workflowId = WorkflowIdentity.BuildBuiltInWorkflowId(XiansContext.CurrentAgent.Name, builtInworkflowName);
+
+        
+        await SendMessageInternalAsync( 
             workflowId, workflowType, tenantId,
             participantId, text, data, scope, hint, messageType);
     }

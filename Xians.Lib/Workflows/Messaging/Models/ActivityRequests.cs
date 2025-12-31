@@ -57,3 +57,14 @@ public class GetMessageHistoryRequest
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 10;
 }
+
+/// <summary>
+/// Request object for retrieving the last hint via activity.
+/// </summary>
+public class GetLastHintRequest
+{
+    public required string WorkflowType { get; set; }
+    public required string ParticipantId { get; set; }
+    public required string Scope { get; set; }
+    public required string TenantId { get; set; }
+}

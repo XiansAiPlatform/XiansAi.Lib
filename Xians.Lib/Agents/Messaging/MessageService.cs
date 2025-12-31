@@ -1,8 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Workflows.Models;
-using Xians.Lib.Agents.Messaging.Models;
-using Xians.Lib.Workflows.Messaging;
+using Xians.Lib.Common;
 using Xians.Lib.Workflows.Messaging.Models;
 using Xians.Lib.Common.Infrastructure;
 
@@ -53,7 +51,7 @@ internal class MessageService
         var fetchSize = page == 1 ? pageSize + 1 : pageSize;
         
         // Build query string with proper URL encoding
-        var endpoint = $"api/agent/conversation/history?" +
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationHistory}?" +
                       $"workflowType={Uri.EscapeDataString(workflowType ?? string.Empty)}" +
                       $"&participantId={Uri.EscapeDataString(participantId ?? string.Empty)}" +
                       $"&page={page}" +
@@ -64,7 +62,7 @@ internal class MessageService
 
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -186,7 +184,7 @@ internal class MessageService
         };
 
         // Use endpoint: api/agent/conversation/outbound/{type}
-        var endpoint = $"api/agent/conversation/outbound/{type}";
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationOutbound}/{type}";
 
         _logger.LogTrace(
             "Posting to {Endpoint}: TextLength={TextLength}",
@@ -196,7 +194,7 @@ internal class MessageService
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
         httpRequest.Content = JsonContent.Create(payload);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -212,6 +210,62 @@ internal class MessageService
         }
 
         _logger.LogInformation("Message sent successfully: RequestId={RequestId}", requestId);
+    }
+
+    /// <summary>
+    /// Retrieves the last hint for a conversation from the server.
+    /// </summary>
+    /// <param name="workflowType">The workflow type identifier.</param>
+    /// <param name="participantId">The participant ID.</param>
+    /// <param name="scope">The message scope.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The last hint string, or null if not found.</returns>
+    public async Task<string?> GetLastHintAsync(
+        string workflowType,
+        string participantId,
+        string scope,
+        string tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidationHelper.ValidateRequired(workflowType, nameof(workflowType));
+        ValidationHelper.ValidateRequired(participantId, nameof(participantId));
+        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        
+        // Build query string with proper URL encoding
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationLastHint}?" +
+                      $"workflowType={Uri.EscapeDataString(workflowType ?? string.Empty)}" +
+                      $"&participantId={Uri.EscapeDataString(participantId ?? string.Empty)}" +
+                      $"&scope={Uri.EscapeDataString(scope ?? string.Empty)}";
+
+        _logger.LogTrace("Fetching last hint from {Endpoint}", endpoint);
+
+        // Create HTTP request with tenant header
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
+
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Failed to fetch last hint: StatusCode={StatusCode}, Error={Error}",
+                response.StatusCode,
+                error);
+            throw new HttpRequestException(
+                $"Failed to fetch last hint. Status: {response.StatusCode}");
+        }
+
+        var hint = await response.Content.ReadFromJsonAsync<string?>(cancellationToken);
+
+        _logger.LogInformation(
+            "Last hint fetched: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Found={Found}",
+            workflowType,
+            participantId,
+            hint != null);
+
+        return hint;
     }
 }
 

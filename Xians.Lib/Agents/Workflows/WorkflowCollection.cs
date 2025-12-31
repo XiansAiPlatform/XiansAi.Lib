@@ -4,6 +4,7 @@ using Xians.Lib.Agents.Workflows.Models;
 using System.Linq;
 using System.Reflection;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 
 namespace Xians.Lib.Agents.Workflows;
 
@@ -20,6 +21,9 @@ public class WorkflowCollection
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _uploader = uploader;
+        
+        // Automatically register TaskWorkflow for human-in-the-loop tasks
+        DefineTaskWorkflow();
     }
 
     /// <summary>
@@ -43,7 +47,7 @@ public class WorkflowCollection
             throw new InvalidOperationException("An unnamed workflow has already been registered. Only one unnamed workflow is allowed.");
         }
         
-        var workflowType = _agent.Name + ":Default Workflow" + (name != null ? $" - {name}" : "");
+        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(_agent.Name, name);
         var workflow = new XiansWorkflow(_agent, workflowType, name, workers, isBuiltIn: true);
         _workflows.Add(workflow);
         
@@ -61,17 +65,28 @@ public class WorkflowCollection
     /// <exception cref="InvalidOperationException">Thrown when a workflow of the same type already exists.</exception>
     public XiansWorkflow DefineCustom<T>(int workers = 1) where T : class
     {
+        return DefineCustomInternal<T>(workers, validateAgentPrefix: true);
+    }
+
+    /// <summary>
+    /// Internal method to define a custom workflow with optional agent prefix validation.
+    /// </summary>
+    private XiansWorkflow DefineCustomInternal<T>(int workers, bool validateAgentPrefix, bool isPlatformWorkflow = false) where T : class
+    {
         // Get workflow type from [Workflow] attribute if present, otherwise use class name
         var workflowType = GetWorkflowTypeFromAttribute<T>() ?? typeof(T).Name;
         
-        // Validate that workflow type follows the naming convention
-        var expectedPrefix = _agent.Name + ":";
-        if (!workflowType.StartsWith(expectedPrefix))
+        // Validate that workflow type follows the naming convention (unless it's a platform workflow)
+        if (validateAgentPrefix)
         {
-            throw new InvalidOperationException(
-                $"Custom workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
-                $"Add [Workflow(\"{expectedPrefix}{workflowType}\")] attribute to your workflow class, " +
-                $"or rename the class to start with the agent name.");
+            var expectedPrefix = _agent.Name + ":";
+            if (!workflowType.StartsWith(expectedPrefix))
+            {
+                throw new InvalidOperationException(
+                    $"Custom workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                    $"Add [Workflow(\"{expectedPrefix}{workflowType}\")] attribute to your workflow class, " +
+                    $"or rename the class to start with the agent name.");
+            }
         }
         
         // Check if workflow with same type already exists
@@ -80,12 +95,23 @@ public class WorkflowCollection
             throw new InvalidOperationException($"A workflow of type '{workflowType}' has already been registered.");
         }
         
-        var workflow = new XiansWorkflow(_agent, workflowType, null, workers, isBuiltIn: false, workflowClassType: typeof(T));
+        var workflow = new XiansWorkflow(_agent, workflowType, null, workers, isBuiltIn: false, workflowClassType: typeof(T), isPlatformWorkflow: isPlatformWorkflow);
         _workflows.Add(workflow);
         
         // Note: Workflow definition will be uploaded when RunAllAsync() is called
         
         return workflow;
+    }
+
+    /// <summary>
+    /// Automatically defines the TaskWorkflow for human-in-the-loop tasks.
+    /// This is a platform workflow and doesn't follow agent naming conventions.
+    /// </summary>
+    private void DefineTaskWorkflow()
+    {
+        // Register TaskWorkflow without agent prefix validation
+        // TaskWorkflow is a platform-level workflow with type "Platform:Task Workflow"
+        DefineCustomInternal<TaskWorkflow>(workers: 1, validateAgentPrefix: false, isPlatformWorkflow: true);
     }
 
     /// <summary>
@@ -151,9 +177,9 @@ public class WorkflowCollection
     /// <returns>The built-in workflow or null if not found.</returns>
     public XiansWorkflow? GetBuiltIn(string? name = null)
     {
-        // Built-in workflows are identified by their WorkflowType containing "Default Workflow"
+        // Built-in workflows are identified by their WorkflowType containing "BuiltIn Workflow"
         return _workflows.FirstOrDefault(w => 
-            w.WorkflowType.Contains("Default Workflow") && w.Name == name);
+            WorkflowIdentity.IsBuiltInWorkflow(w.WorkflowType) && w.Name == name);
     }
 
     /// <summary>

@@ -1,15 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Workflows;
-using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging.Models;
-using Xians.Lib.Agents.Workflows.Models;
-using Xians.Lib.Workflows;
-using Xians.Lib.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Documents.Models;
-using Xians.Lib.Common.Caching;
-using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows.Knowledge;
 using Xians.Lib.Workflows.Knowledge.Models;
 using Xians.Lib.Workflows.Messaging;
@@ -206,6 +200,66 @@ public class UserMessageContext
             TenantId);
 
         return messages;
+    }
+
+    /// <summary>
+    /// Retrieves the last hint for this conversation from the server.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <returns>The last hint string, or null if not found.</returns>
+    public virtual async Task<string?> GetLastHintAsync()
+    {
+        var logger = GetLogger();
+        var workflowType = GetWorkflowType();
+        
+        logger.LogInformation(
+            "Fetching last hint: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
+            workflowType,
+            _participantId,
+            TenantId);
+
+        var request = new GetLastHintRequest
+        {
+            WorkflowType = workflowType,
+            ParticipantId = _participantId,
+            Scope = _scope,
+            TenantId = TenantId
+        };
+
+        string? hint;
+        
+        // If in workflow, execute as activity for determinism
+        // If in activity, execute directly
+        if (Workflow.InWorkflow)
+        {
+            hint = await Workflow.ExecuteActivityAsync(
+                (MessageActivities act) => act.GetLastHintAsync(request),
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new()
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+        }
+        else
+        {
+            // Direct execution when not in workflow
+            var activity = GetMessageActivity();
+            hint = await activity.GetLastHintAsync(request);
+        }
+
+        logger.LogInformation(
+            "Last hint retrieved: Found={Found}, Tenant={Tenant}",
+            hint != null,
+            TenantId);
+
+        return hint;
     }
 
     /// <summary>

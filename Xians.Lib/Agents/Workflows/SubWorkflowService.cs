@@ -21,64 +21,6 @@ public static class SubWorkflowService
 {
     private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<SubWorkflowServiceLogger>();
 
-    /// <summary>
-    /// Starts a child workflow without waiting for its completion.
-    /// If called from within a workflow, starts a child workflow.
-    /// If called outside a workflow, starts a new workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
-    /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <param name="cancellationToken">Cancellation token (only applicable when called outside workflow context).</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task StartAsync<TWorkflow>(string? idPostfix = null, params object[] args)
-    {
-        var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
-        await StartAsync(workflowType, idPostfix, args);
-    }
-
-    /// <summary>
-    /// Starts a child workflow without arguments.
-    /// If called from within a workflow, starts a child workflow.
-    /// If called outside a workflow, starts a new workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task StartAsync<TWorkflow>()
-    {
-        await StartAsync<TWorkflow>(null, Array.Empty<object>());
-    }
-
-    /// <summary>
-    /// Starts a child workflow with a single argument.
-    /// If called from within a workflow, starts a child workflow.
-    /// If called outside a workflow, starts a new workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="arg">The single argument to pass to the workflow.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task StartAsync<TWorkflow>(object arg)
-    {
-        await StartAsync<TWorkflow>(null, new[] { arg });
-    }
-
-    /// <summary>
-    /// Starts a child workflow with two arguments.
-    /// If called from within a workflow, starts a child workflow.
-    /// If called outside a workflow, starts a new workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="arg1">The first argument to pass to the workflow.</param>
-    /// <param name="arg2">The second argument to pass to the workflow.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task StartAsync<TWorkflow>(object arg1, object arg2)
-    {
-        await StartAsync<TWorkflow>(null, new[] { arg1, arg2 });
-    }
 
     /// <summary>
     /// Starts a child workflow without waiting for its completion.
@@ -112,6 +54,23 @@ public static class SubWorkflowService
             await StartViaClientAsync(workflowType, idPostfix, args);
         }
     }
+    
+    /// <summary>
+    /// Starts a child workflow without waiting for its completion.
+    /// If called from within a workflow, starts a child workflow.
+    /// If called outside a workflow, starts a new workflow using the Temporal client.
+    /// </summary>
+    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
+    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <param name="cancellationToken">Cancellation token (only applicable when called outside workflow context).</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
+    public static async Task StartAsync<TWorkflow>(string? idPostfix = null, params object[] args)
+    {
+        var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
+        await StartAsync(workflowType, idPostfix, args);
+    }
 
     /// <summary>
     /// Executes a child workflow and waits for its result.
@@ -128,51 +87,6 @@ public static class SubWorkflowService
     {
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
         return await ExecuteAsync<TResult>(workflowType, idPostfix, args);
-    }
-
-    /// <summary>
-    /// Executes a child workflow without arguments and waits for its result.
-    /// If called from within a workflow, executes a child workflow.
-    /// If called outside a workflow, executes a workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <returns>The workflow result.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task<TResult> ExecuteAsync<TWorkflow, TResult>()
-    {
-        return await ExecuteAsync<TWorkflow, TResult>(null, Array.Empty<object>());
-    }
-
-    /// <summary>
-    /// Executes a child workflow with a single argument and waits for its result.
-    /// If called from within a workflow, executes a child workflow.
-    /// If called outside a workflow, executes a workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <param name="arg">The single argument to pass to the workflow.</param>
-    /// <returns>The workflow result.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object arg)
-    {
-        return await ExecuteAsync<TWorkflow, TResult>(null, new[] { arg });
-    }
-
-    /// <summary>
-    /// Executes a child workflow with two arguments and waits for its result.
-    /// If called from within a workflow, executes a child workflow.
-    /// If called outside a workflow, executes a workflow using the Temporal client.
-    /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <param name="arg1">The first argument to pass to the workflow.</param>
-    /// <param name="arg2">The second argument to pass to the workflow.</param>
-    /// <returns>The workflow result.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object arg1, object arg2)
-    {
-        return await ExecuteAsync<TWorkflow, TResult>(null, new[] { arg1, arg2 });
     }
 
     /// <summary>

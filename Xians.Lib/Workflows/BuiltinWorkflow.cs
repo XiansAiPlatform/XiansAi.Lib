@@ -121,7 +121,6 @@ public class BuiltinWorkflow
                             _handlersByWorkflowType,
                             Workflow.Info.WorkflowType,
                             Workflow.Info.WorkflowId,
-                            Workflow.Info.TaskQueue,
                             Workflow.Logger);
                         
                         Workflow.Logger.LogDebug(

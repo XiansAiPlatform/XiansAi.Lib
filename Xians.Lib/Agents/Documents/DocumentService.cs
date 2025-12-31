@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Documents.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Agents.Documents;
@@ -13,7 +14,7 @@ internal class DocumentService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger _logger;
-    private const string BaseEndpoint = "api/agent/documents";
+    private static string BaseEndpoint => WorkflowConstants.ApiEndpoints.Documents;
 
     public DocumentService(HttpClient httpClient, ILogger logger)
     {
@@ -59,7 +60,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/save");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -102,7 +103,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/get");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
@@ -155,7 +156,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/get-by-key");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
@@ -200,7 +201,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/query");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -244,7 +245,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/update");
         httpRequest.Content = JsonContent.Create(document);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
@@ -294,7 +295,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/delete");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
@@ -345,7 +346,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/delete-many");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -386,7 +387,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/exists");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 

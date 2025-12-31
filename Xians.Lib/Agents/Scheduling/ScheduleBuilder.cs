@@ -5,6 +5,7 @@ using Temporalio.Workflows;
 using Xians.Lib.Agents.Scheduling.Models;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 
 namespace Xians.Lib.Agents.Scheduling;
@@ -221,7 +222,7 @@ public class ScheduleBuilder
 
             // Generate workflow ID prefix for scheduled executions - always includes tenant
             // Temporal will automatically append a unique suffix for each scheduled execution
-            var workflowId = $"{tenantId}:{_agent.Name}:{_workflowType}:{_scheduleId}";
+            var workflowId = $"{tenantId}:{_workflowType}:{_scheduleId}";
 
             // Create schedule action using Temporal SDK pattern with search attributes and memo for workflow executions
             var scheduleAction = ScheduleActionStartWorkflow.Create(
@@ -312,9 +313,9 @@ public class ScheduleBuilder
         var userId = _agent.Options?.CertificateInfo?.UserId ?? "system";
 
         var searchAttributesBuilder = new SearchAttributeCollection.Builder()
-            .Set(SearchAttributeKey.CreateKeyword("tenantId"), tenantId)
-            .Set(SearchAttributeKey.CreateKeyword("agent"), agentName)
-            .Set(SearchAttributeKey.CreateKeyword("userId"), userId);
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userId);
 
         return searchAttributesBuilder.ToSearchAttributeCollection();
     }
@@ -331,10 +332,10 @@ public class ScheduleBuilder
         // Start with system-required metadata
         var memo = new Dictionary<string, object>
         {
-            { "tenantId", tenantId },
-            { "agent", agentName },
-            { "userId", userId },
-            { "systemScoped", _agent.SystemScoped }
+            { WorkflowConstants.Keys.TenantId, tenantId },
+            { WorkflowConstants.Keys.Agent, agentName },
+            { WorkflowConstants.Keys.UserId, userId },
+            { WorkflowConstants.Keys.SystemScoped, _agent.SystemScoped }
         };
 
         // Merge custom memo if provided
