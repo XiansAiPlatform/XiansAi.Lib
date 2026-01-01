@@ -43,10 +43,18 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Sets a cron-based schedule specification.
+    /// Sets a cron-based schedule specification using standard 5-field cron format.
+    /// Format: [minute] [hour] [day of month] [month] [day of week]
     /// </summary>
-    /// <param name="cronExpression">Cron expression (e.g., "0 9 * * *" for daily at 9 AM).</param>
-    /// <param name="timezone">Optional timezone (defaults to UTC).</param>
+    /// <param name="cronExpression">Cron expression (e.g., "0 9 * * *" for daily at 9 AM UTC).</param>
+    /// <param name="timezone">Optional IANA timezone (e.g., "America/New_York"). Defaults to UTC if not specified.</param>
+    /// <example>
+    /// Common patterns:
+    /// - "0 9 * * *" = Daily at 9 AM
+    /// - "0 9 * * 1-5" = Weekdays at 9 AM
+    /// - "*/30 * * * *" = Every 30 minutes
+    /// - "0 0 1 * *" = First of month at midnight
+    /// </example>
     public ScheduleBuilder WithCronSchedule(string cronExpression, string? timezone = null)
     {
         if (string.IsNullOrWhiteSpace(cronExpression))
@@ -122,9 +130,14 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Sets the input arguments for the workflow execution.
+    /// Sets the input arguments that will be passed to each scheduled workflow execution.
+    /// These arguments must match the parameters of the workflow's [WorkflowRun] method.
     /// </summary>
-    /// <param name="args">Workflow input arguments.</param>
+    /// <param name="args">Workflow input arguments in the same order as the workflow method parameters.</param>
+    /// <example>
+    /// For workflow: public async Task RunAsync(string url, int retries)
+    /// Use: .WithInput("https://example.com", 3)
+    /// </example>
     public ScheduleBuilder WithInput(params object[] args)
     {
         _workflowArgs = args;
@@ -172,6 +185,21 @@ public class ScheduleBuilder
     public ScheduleBuilder WithSchedulePolicy(SchedulePolicy policy)
     {
         _schedulePolicy = policy ?? throw new ArgumentNullException(nameof(policy));
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the overlap policy that controls what happens when a new scheduled execution 
+    /// is triggered while a previous one is still running.
+    /// Alias for WithSchedulePolicy with overlap-specific configuration.
+    /// </summary>
+    /// <param name="overlapPolicy">The overlap policy to apply.</param>
+    public ScheduleBuilder WithOverlapPolicy(Temporalio.Api.Enums.V1.ScheduleOverlapPolicy overlapPolicy)
+    {
+        _schedulePolicy = new SchedulePolicy
+        {
+            Overlap = overlapPolicy
+        };
         return this;
     }
 
