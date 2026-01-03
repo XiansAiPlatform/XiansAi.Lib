@@ -5,8 +5,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Http;
 
 namespace Xians.Lib.Agents.Workflows;
@@ -20,8 +20,6 @@ internal class WorkflowDefinitionUploader
     private readonly ILogger<WorkflowDefinitionUploader>? _logger;
     private static readonly HashSet<string> _uploadedDefinitions = new();
     private static readonly object _uploadLock = new();
-    
-    private const string API_ENDPOINT = "/api/agent/definitions";
 
     public WorkflowDefinitionUploader(IHttpClientService httpService, ILogger<WorkflowDefinitionUploader>? logger = null)
     {
@@ -81,7 +79,7 @@ internal class WorkflowDefinitionUploader
             var hash = ComputeHash(serializedDefinition);
 
             // Check if definition is already up to date
-            var checkUrl = $"{API_ENDPOINT}/check?workflowType={Uri.EscapeDataString(definition.WorkflowType)}&systemScoped={definition.SystemScoped}&hash={hash}";
+            var checkUrl = $"{WorkflowConstants.ApiEndpoints.AgentDefinitions}/check?workflowType={Uri.EscapeDataString(definition.WorkflowType)}&systemScoped={definition.SystemScoped}&hash={hash}";
             var hashCheckResponse = await client.GetAsync(checkUrl);
 
             switch (hashCheckResponse.StatusCode)
@@ -102,16 +100,15 @@ internal class WorkflowDefinitionUploader
             }
 
             // Upload the definition
-            var uploadResponse = await client.PostAsync(API_ENDPOINT, JsonContent.Create(definition));
+            var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition));
             
-            if (uploadResponse.StatusCode == HttpStatusCode.BadRequest)
+            if (!uploadResponse.IsSuccessStatusCode)
             {
                 var errorMessage = await uploadResponse.Content.ReadAsStringAsync();
-                _logger?.LogError("Server rejected workflow definition: {Error}", errorMessage);
-                throw new InvalidOperationException($"Server rejected workflow definition: {errorMessage}");
+                _logger?.LogError("Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
+                throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
             }
             
-            uploadResponse.EnsureSuccessStatusCode();
             return uploadResponse;
         });
     }

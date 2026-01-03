@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Models;
 using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Common.MultiTenancy.Exceptions;
+using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Common.MultiTenancy;
 
@@ -11,11 +13,33 @@ namespace Xians.Lib.Common.MultiTenancy;
 /// 
 /// Workflow ID Format: {TenantId}:{WorkflowType}:{OptionalSuffix}
 /// Examples:
-///   - "acme-corp:CustomerService:Default Workflow:uuid-123"
+///   - "acme-corp:CustomerService:BuiltIn Workflow:uuid-123"
 ///   - "contoso:GlobalNotifications:Alerts:uuid-456"
 /// </summary>
 public static class TenantContext
 {
+    /// <summary>
+    /// Validates and splits a workflow ID into its component parts.
+    /// </summary>
+    private static string[] ValidateAndSplitWorkflowId(string workflowId, int minParts, string expectedFormat)
+    {
+        if (string.IsNullOrWhiteSpace(workflowId))
+        {
+            throw new WorkflowException(WorkflowConstants.ErrorMessages.WorkflowIdNullOrEmpty, null, workflowId);
+        }
+
+        var parts = workflowId.Split(':');
+        if (parts.Length < minParts)
+        {
+            throw new WorkflowException(
+                $"Invalid WorkflowId format. Expected '{expectedFormat}', got '{workflowId}'",
+                null,
+                workflowId);
+        }
+
+        return parts;
+    }
+
     /// <summary>
     /// Extracts the tenant ID from a workflow ID.
     /// </summary>
@@ -24,20 +48,7 @@ public static class TenantContext
     /// <exception cref="WorkflowException">Thrown when the workflow ID format is invalid.</exception>
     public static string ExtractTenantId(string workflowId)
     {
-        if (string.IsNullOrWhiteSpace(workflowId))
-        {
-            throw new WorkflowException("WorkflowId cannot be null or empty.", null, workflowId);
-        }
-
-        var parts = workflowId.Split(':');
-        if (parts.Length < 2)
-        {
-            throw new WorkflowException(
-                $"Invalid WorkflowId format. Expected 'TenantId:WorkflowType:...', got '{workflowId}'",
-                null,
-                workflowId);
-        }
-
+        var parts = ValidateAndSplitWorkflowId(workflowId, 2, "TenantId:WorkflowType:...");
         return parts[0];
     }
 
@@ -49,23 +60,8 @@ public static class TenantContext
     /// <exception cref="WorkflowException">Thrown when the workflow ID format is invalid.</exception>
     public static string ExtractWorkflowType(string workflowId)
     {
-        if (string.IsNullOrWhiteSpace(workflowId))
-        {
-            throw new WorkflowException("WorkflowId cannot be null or empty.", null, workflowId);
-        }
-
-        var parts = workflowId.Split(':');
-        if (parts.Length < 2)
-        {
-            throw new WorkflowException(
-                $"Invalid WorkflowId format. Expected 'TenantId:WorkflowType:...', got '{workflowId}'",
-                null,
-                workflowId);
-        }
-
-        // WorkflowType may contain colons (e.g., "AgentName:FlowName")
-        // So we take everything after the first colon and before any additional postfix
-        // For backwards compatibility with current format where WorkflowType is at position 1
+        var parts = ValidateAndSplitWorkflowId(workflowId, 2, "TenantId:WorkflowType:...");
+        // Return the workflow type at position 1
         return parts[1];
     }
 
@@ -85,19 +81,17 @@ public static class TenantContext
             // This allows a single worker pool to handle requests from multiple tenants
             return workflowType;
         }
-        else
+
+        // Non-system-scoped agents use TenantId:WorkflowType format
+        // This ensures tenant isolation at the worker level
+        if (string.IsNullOrWhiteSpace(tenantId))
         {
-            // Non-system-scoped agents use TenantId:WorkflowType format
-            // This ensures tenant isolation at the worker level
-            if (string.IsNullOrWhiteSpace(tenantId))
-            {
-                throw new TenantIsolationException(
-                    "TenantId is required for non-system-scoped workflows.",
-                    tenantId,
-                    null);
-            }
-            return $"{tenantId}:{workflowType}";
+            throw new TenantIsolationException(
+                "TenantId is required for non-system-scoped workflows.",
+                tenantId,
+                null);
         }
+        return $"{tenantId}:{workflowType}";
     }
 
     /// <summary>
@@ -124,23 +118,21 @@ public static class TenantContext
                 workflowTenantId);
             return true;
         }
-        else
-        {
-            // Non-system-scoped agents must validate tenant isolation
-            if (expectedTenantId != workflowTenantId)
-            {
-                logger?.LogError(
-                    "Tenant isolation violation: ExpectedTenant={ExpectedTenant}, WorkflowTenant={WorkflowTenant}",
-                    expectedTenantId,
-                    workflowTenantId);
-                return false;
-            }
 
-            logger?.LogDebug(
-                "Tenant validation passed: TenantId={TenantId}",
+        // Non-system-scoped agents must validate tenant isolation
+        if (expectedTenantId != workflowTenantId)
+        {
+            logger?.LogError(
+                "Tenant isolation violation: ExpectedTenant={ExpectedTenant}, WorkflowTenant={WorkflowTenant}",
+                expectedTenantId,
                 workflowTenantId);
-            return true;
+            return false;
         }
+
+        logger?.LogDebug(
+            "Tenant validation passed: TenantId={TenantId}",
+            workflowTenantId);
+        return true;
     }
 
     /// <summary>
@@ -171,15 +163,23 @@ public static class TenantContext
     {
         if (string.IsNullOrWhiteSpace(workflowType))
         {
-            throw new ArgumentException("Workflow type cannot be null or empty.", nameof(workflowType));
+            throw new ArgumentException(WorkflowConstants.ErrorMessages.WorkflowTypeNullOrEmpty, nameof(workflowType));
         }
 
         if (string.IsNullOrWhiteSpace(tenantId))
         {
-            throw new ArgumentException("Tenant ID cannot be null or empty.", nameof(tenantId));
+            throw new ArgumentException(WorkflowConstants.ErrorMessages.TenantIdNullOrEmpty, nameof(tenantId));
         }
 
-        var workflowId = $"{tenantId}:{workflowType}";
+        var agent = XiansContext.CurrentAgent;
+
+        //if workflowType have : take the second part as workflowType
+        if (workflowType.Contains(':'))
+        {
+            workflowType = workflowType.Split(':')[1];
+        }
+
+        var workflowId = $"{tenantId}:{agent.Name}:{workflowType}";
 
         // Append non-null, non-empty suffix parts
         foreach (var part in suffixParts)

@@ -1,144 +1,97 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Activities;
-using Temporalio.Workflows;
-using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
-using Xians.Lib.Agents.Workflows.Models;
-using Xians.Lib.Workflows;
-using Xians.Lib.Workflows.Models;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Documents.Models;
-using Xians.Lib.Common.Caching;
-using Xians.Lib.Common.Infrastructure;
-using Xians.Lib.Workflows.Knowledge;
-using Xians.Lib.Workflows.Knowledge.Models;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Messaging.Models;
-using Xians.Lib.Workflows.Documents;
-using Xians.Lib.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Messaging;
 
 /// <summary>
 /// Context provided to user message handlers.
-/// Contains message information and methods to reply.
+/// Contains message-specific information and messaging operations.
+/// For agent-wide operations (Knowledge, Documents, Schedules), use XiansContext.CurrentAgent or XiansContext.CurrentWorkflow.
+/// All operations are workflow-aware and handle both workflow and activity contexts.
+/// 
+/// Access message properties (ParticipantId, RequestId, TenantId, etc.) via the Message property.
 /// </summary>
 public class UserMessageContext
 {
-    private readonly string _participantId;
-    private readonly string _requestId;
-    private readonly string _scope;
-    private readonly string _hint;
-    private readonly string? _authorization;
-    private readonly string? _threadId;
-    private readonly object _data;
-    private readonly string _tenantId;
+    private readonly Dictionary<string, string>? _metadata;
+    private readonly MessageActivityExecutor _executor;
+    private readonly ILogger<UserMessageContext> _logger;
 
     /// <summary>
-    /// Gets the user message.
+    /// Gets the current message with text, data, and context information.
+    /// Use this to access ParticipantId, RequestId, TenantId, Scope, Hint, ThreadId, Data, Authorization, etc.
     /// </summary>
-    public UserMessage Message { get; private set; }
+    public virtual CurrentMessage Message { get; protected set; }
 
     /// <summary>
-    /// Gets the participant ID (user ID).
+    /// Gets the optional metadata for the message.
     /// </summary>
-    public string ParticipantId => _participantId;
+    public Dictionary<string, string>? Metadata => _metadata;
 
     /// <summary>
-    /// Gets the request ID for tracking.
+    /// When set to true, prevents messages from being sent to the user.
+    /// Useful when you want to process messages without generating responses.
     /// </summary>
-    public virtual string RequestId => _requestId;
-
-    /// <summary>
-    /// Gets the scope of the message.
-    /// </summary>
-    public virtual string Scope => _scope;
-
-    /// <summary>
-    /// Gets the hint for message processing.
-    /// </summary>
-    public string Hint => _hint;
-
-    /// <summary>
-    /// Gets the thread ID for conversation tracking.
-    /// </summary>
-    public string? ThreadId => _threadId;
-
-    /// <summary>
-    /// Gets the tenant ID for this workflow instance.
-    /// For system-scoped agents, this indicates which tenant initiated the workflow.
-    /// For non-system-scoped agents, this is always the agent's registered tenant.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when tenant ID is not properly initialized.</exception>
-    public virtual string TenantId 
-    { 
-        get 
-        {
-            if (string.IsNullOrEmpty(_tenantId))
-            {
-                throw new InvalidOperationException(
-                    "Tenant ID is not available. UserMessageContext was not properly initialized.");
-            }
-            return _tenantId;
-        }
-    }
-
-    /// <summary>
-    /// Gets the data object associated with the message.
-    /// </summary>
-    public object Data => _data;
-
-    internal UserMessageContext(UserMessage message)
-    {
-        Message = message;
-        _participantId = string.Empty;
-        _requestId = string.Empty;
-        _scope = string.Empty;
-        _hint = string.Empty;
-        _data = new object();
-        _tenantId = string.Empty;
-    }
+    public bool SkipResponse { get; set; } = false;
 
     internal UserMessageContext(
-        UserMessage message, 
+        string text, 
         string participantId, 
         string requestId, 
-        string scope,
-        string hint,
-        object data,
+        string? scope,
+        string? hint,
+        object? data,
         string tenantId,
         string? authorization = null,
-        string? threadId = null)
+        string? threadId = null,
+        Dictionary<string, string>? metadata = null)
     {
-        Message = message;
-        _participantId = participantId;
-        _requestId = requestId;
-        _scope = scope;
-        _hint = hint;
-        _data = data;
-        _tenantId = tenantId;
-        _authorization = authorization;
-        _threadId = threadId;
+        _metadata = metadata;
+        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<UserMessageContext>();
+
+        // Initialize current message with context
+        Message = new CurrentMessage(
+            text, participantId, requestId, scope, hint, data, tenantId, authorization, threadId);
+
+        // Initialize executor for context-aware execution
+        var agent = XiansContext.CurrentAgent;
+        var executorLogger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageActivityExecutor>();
+        _executor = new MessageActivityExecutor(agent, executorLogger);
     }
 
     /// <summary>
-    /// Sends a reply to the user (synchronous wrapper).
-    /// Note: Prefer using ReplyAsync in async contexts.
+    /// Sends a simple text reply to the user.
+    /// Works in both workflow and activity contexts.
     /// </summary>
-    /// <param name="response">The response object to send.</param>
-    public virtual async Task ReplyAsync(string response)
+    /// <param name="text">The text content to send.</param>
+    public virtual async Task ReplyAsync(string text)
     {
-        await SendMessageToUserAsync(response, null);
+        await SendMessageToUserAsync(text, null);
     }
 
     /// <summary>
-    /// Sends a reply with both text and data to the user.
+    /// Sends a chat reply with both text and data to the user.
+    /// Works in both workflow and activity contexts.
     /// </summary>
-    /// <param name="content">The text content to send.</param>
+    /// <param name="text">The text content to send.</param>
     /// <param name="data">The data object to send.</param>
-    public virtual async Task ReplyWithDataAsync(string content, object? data)
+    public virtual async Task ReplyAsync(string text, object? data)
     {
-        await SendMessageToUserAsync(content, data);
+        await SendMessageToUserAsync(text, data);
+    }
+
+    /// <summary>
+    /// Sends data message to the user with optional text content.
+    /// Primarily for sending structured data responses.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="data">The data object to send.</param>
+    /// <param name="content">Optional text content to accompany the data.</param>
+    public virtual async Task SendDataAsync(object data, string? content = null)
+    {
+        await SendMessageToUserAsync(content ?? string.Empty, data, "Data");
     }
 
     /// <summary>
@@ -151,722 +104,241 @@ public class UserMessageContext
     /// <returns>A list of DbMessage objects representing the chat history.</returns>
     public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        var logger = GetLogger();
-        var workflowType = GetWorkflowType();
+        var workflowType = WorkflowContextHelper.GetWorkflowType();
         
-        logger.LogInformation(
+        _logger.LogInformation(
             "Fetching chat history: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
             workflowType,
-            _participantId,
+            Message.ParticipantId,
             page,
             pageSize,
-            TenantId);
+            Message.TenantId);
 
-        var request = new GetMessageHistoryRequest
+        // Shared business logic: Build request
+        var request = BuildMessageHistoryRequest(workflowType, page, pageSize);
+
+        // Context-aware execution via executor
+        var messages = await _executor.GetHistoryAsync(request);
+
+        _logger.LogInformation(
+            "Chat history retrieved: {Count} messages, Tenant={Tenant}",
+            messages.Count,
+            Message.TenantId);
+
+        return messages;
+    }
+
+    /// <summary>
+    /// Retrieves the last hint for this conversation from the server.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <returns>The last hint string, or null if not found.</returns>
+    public virtual async Task<string?> GetLastHintAsync()
+    {
+        var workflowType = WorkflowContextHelper.GetWorkflowType();
+        
+        _logger.LogInformation(
+            "Fetching last hint: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
+            workflowType,
+            Message.ParticipantId,
+            Message.TenantId);
+
+        // Shared business logic: Build request
+        var request = BuildLastHintRequest(workflowType);
+
+        // Context-aware execution via executor
+        var hint = await _executor.GetLastHintAsync(request);
+
+        _logger.LogInformation(
+            "Last hint retrieved: Found={Found}, Tenant={Tenant}",
+            hint != null,
+            Message.TenantId);
+
+        return hint;
+    }
+
+
+    /// <summary>
+    /// Sends a handoff request to transfer the conversation to another workflow using its workflow ID.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="targetWorkflowId">The workflow ID of the target workflow to hand off to.</param>
+    /// <param name="message">Optional custom message for the handoff. If null, uses the current message text.</param>
+    /// <param name="data">Optional data to pass with the handoff. If null, uses the current message data.</param>
+    /// <param name="userMessage">Optional message to send to the user before the handoff.</param>
+    /// <returns>The response from the handoff operation.</returns>
+    public virtual async Task<string?> SendHandoffAsync(string targetWorkflowId, string? message = null, object? data = null, string? userMessage = null)
+    {
+        if (string.IsNullOrEmpty(targetWorkflowId))
+        {
+            throw new ArgumentException("Target workflow ID cannot be null or empty", nameof(targetWorkflowId));
+        }
+
+        // Send message to user if provided
+        if (!string.IsNullOrEmpty(userMessage))
+        {
+            await ReplyAsync(userMessage);
+        }
+
+        return await SendHandoffInternalAsync(targetWorkflowId, null, message, data);
+    }
+
+    /// <summary>
+    /// Internal method to send messages back to the user.
+    /// Context-aware: Uses activity in workflow, direct service call in activity.
+    /// </summary>
+    private async Task SendMessageToUserAsync(string content, object? data, string messageType = "Chat")
+    {
+        // Shared business logic: Check skip response flag
+        if (SkipResponse)
+        {
+            _logger.LogDebug(
+                "Skipping message send due to SkipResponse flag: ParticipantId={ParticipantId}, RequestId={RequestId}",
+                Message.ParticipantId,
+                Message.RequestId);
+            return;
+        }
+
+        _logger.LogDebug(
+            "Preparing to send message: ParticipantId={ParticipantId}, RequestId={RequestId}, ContentLength={ContentLength}, Tenant={Tenant}",
+            Message.ParticipantId,
+            Message.RequestId,
+            content.Length,
+            Message.TenantId);
+        
+        // Shared business logic: Build request
+        var request = BuildSendMessageRequest(content, data, messageType);
+
+        // Context-aware execution via executor
+        await _executor.SendMessageAsync(request);
+
+        _logger.LogInformation(
+            "Message sent successfully: ParticipantId={ParticipantId}, RequestId={RequestId}",
+            Message.ParticipantId,
+            Message.RequestId);
+    }
+
+    /// <summary>
+    /// Internal method to send handoff requests.
+    /// Context-aware: Uses activity in workflow, direct service call in activity.
+    /// </summary>
+    private async Task<string?> SendHandoffInternalAsync(string targetWorkflowId, string? targetWorkflowType, string? message, object? data)
+    {
+        if (string.IsNullOrEmpty(Message.ThreadId))
+        {
+            throw new InvalidOperationException("ThreadId is required for handoff operations");
+        }
+
+        // Use provided message or fall back to current message text
+        var text = message ?? Message.Text;
+        if (string.IsNullOrEmpty(text))
+        {
+            throw new InvalidOperationException("Message text is required for handoff");
+        }
+
+        _logger.LogInformation(
+            "Preparing to send handoff: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}, Tenant={Tenant}",
+            targetWorkflowId,
+            targetWorkflowType,
+            Message.TenantId);
+
+        // Shared business logic: Build request
+        var request = BuildSendHandoffRequest(targetWorkflowId, targetWorkflowType, text, data);
+
+        // Context-aware execution via executor
+        var result = await _executor.SendHandoffAsync(request);
+
+        _logger.LogInformation(
+            "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+            targetWorkflowId,
+            targetWorkflowType);
+
+        return result;
+    }
+
+    #region Shared Business Logic Methods
+
+    /// <summary>
+    /// Builds a message history request.
+    /// Shared business logic used by GetChatHistoryAsync.
+    /// </summary>
+    private GetMessageHistoryRequest BuildMessageHistoryRequest(string workflowType, int page, int pageSize)
+    {
+        return new GetMessageHistoryRequest
         {
             WorkflowType = workflowType,
-            ParticipantId = _participantId,
-            Scope = _scope,
-            TenantId = TenantId,
+            ParticipantId = Message.ParticipantId,
+            Scope = Message.Scope,
+            TenantId = Message.TenantId,
             Page = page,
             PageSize = pageSize
         };
-
-        List<DbMessage> messages;
-        
-        // If in workflow, execute as activity for determinism
-        // If in activity, execute directly
-        if (Workflow.InWorkflow)
-        {
-            messages = await Workflow.ExecuteActivityAsync(
-                (MessageActivities act) => act.GetMessageHistoryAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            // Direct execution when not in workflow
-            var activity = GetMessageActivity();
-            messages = await activity.GetMessageHistoryAsync(request);
-        }
-
-        // Filter out the current message to avoid duplication
-        var filteredMessages = messages.Where(m => 
-            !(m.Direction.Equals("inbound", StringComparison.OrdinalIgnoreCase) && 
-              m.Text == Message.Text)).ToList();
-
-        logger.LogInformation(
-            "Chat history fetched: {Count} messages (filtered from {Total}), Tenant={Tenant}",
-            filteredMessages.Count,
-            messages.Count,
-            TenantId);
-
-        return filteredMessages;
     }
 
     /// <summary>
-    /// Retrieves knowledge by name from the platform.
-    /// Automatically uses the current tenant and agent context.
-    /// Works in both workflow and activity contexts.
+    /// Builds a last hint request.
+    /// Shared business logic used by GetLastHintAsync.
     /// </summary>
-    /// <param name="knowledgeName">The name of the knowledge to fetch.</param>
-    /// <returns>The knowledge object, or null if not found.</returns>
-    public virtual async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
+    private GetLastHintRequest BuildLastHintRequest(string workflowType)
     {
-        var logger = GetLogger();
-        var workflowType = GetWorkflowType();
-        
-        logger.LogInformation(
-            "Fetching knowledge: Name={Name}, WorkflowType={WorkflowType}, Tenant={Tenant}",
-            knowledgeName,
-            workflowType,
-            TenantId);
-
-        var request = new GetKnowledgeRequest
+        return new GetLastHintRequest
         {
-            KnowledgeName = knowledgeName,
-            AgentName = GetAgentNameFromWorkflow(),
-            TenantId = TenantId
+            WorkflowType = workflowType,
+            ParticipantId = Message.ParticipantId,
+            Scope = Message.Scope,
+            TenantId = Message.TenantId
         };
-
-        Xians.Lib.Agents.Knowledge.Models.Knowledge? knowledge;
-        
-        // If in workflow, execute as activity for determinism
-        // If in activity (e.g., from A2A call in tool), execute directly
-        if (Workflow.InWorkflow)
-        {
-            knowledge = await Workflow.ExecuteActivityAsync(
-                (KnowledgeActivities act) => act.GetKnowledgeAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            // Direct execution when not in workflow (e.g., called from activity via A2A)
-            var activity = GetKnowledgeActivity();
-            knowledge = await activity.GetKnowledgeAsync(request);
-        }
-
-        logger.LogInformation(
-            "Knowledge fetch completed: Name={Name}, Found={Found}",
-            knowledgeName,
-            knowledge != null);
-
-        return knowledge;
     }
 
     /// <summary>
-    /// Updates or creates knowledge in the platform.
-    /// Automatically uses the current tenant and agent context.
-    /// Works in both workflow and activity contexts.
+    /// Builds a send message request.
+    /// Shared business logic used by SendMessageToUserAsync.
     /// </summary>
-    /// <param name="knowledgeName">The name of the knowledge.</param>
-    /// <param name="content">The knowledge content.</param>
-    /// <param name="type">Optional knowledge type (e.g., "instruction", "document").</param>
-    /// <returns>True if successful, false otherwise.</returns>
-    public virtual async Task<bool> UpdateKnowledgeAsync(
-        string knowledgeName,
-        string content,
-        string? type = null)
+    private SendMessageRequest BuildSendMessageRequest(string content, object? data, string messageType)
     {
-        var logger = GetLogger();
-        var workflowType = GetWorkflowType();
-        
-        logger.LogInformation(
-            "Updating knowledge: Name={Name}, WorkflowType={WorkflowType}, Type={Type}, Tenant={Tenant}",
-            knowledgeName,
-            workflowType,
-            type,
-            TenantId);
-
-        var request = new UpdateKnowledgeRequest
+        return new SendMessageRequest
         {
-            KnowledgeName = knowledgeName,
-            Content = content,
-            Type = type,
-            AgentName = GetAgentNameFromWorkflow(),
-            TenantId = TenantId
+            ParticipantId = Message.ParticipantId,
+            WorkflowId = WorkflowContextHelper.GetWorkflowId(),
+            WorkflowType = WorkflowContextHelper.GetWorkflowType(),
+            Text = content,
+            Data = data ?? Message.Data,
+            RequestId = Message.RequestId,
+            Scope = Message.Scope,
+            ThreadId = Message.ThreadId,
+            Authorization = Message.Authorization,
+            Hint = Message.Hint,
+            Origin = null,
+            Type = messageType,
+            TenantId = Message.TenantId
         };
-
-        bool result;
-        
-        if (Workflow.InWorkflow)
-        {
-            result = await Workflow.ExecuteActivityAsync(
-                (KnowledgeActivities act) => act.UpdateKnowledgeAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetKnowledgeActivity();
-            result = await activity.UpdateKnowledgeAsync(request);
-        }
-
-        logger.LogInformation(
-            "Knowledge update completed: Name={Name}, Success={Success}",
-            knowledgeName,
-            result);
-
-        return result;
     }
 
     /// <summary>
-    /// Deletes knowledge from the platform.
-    /// Automatically uses the current tenant and agent context.
-    /// Works in both workflow and activity contexts.
+    /// Builds a send handoff request.
+    /// Shared business logic used by SendHandoffInternalAsync.
     /// </summary>
-    /// <param name="knowledgeName">The name of the knowledge to delete.</param>
-    /// <returns>True if deleted, false if not found.</returns>
-    public virtual async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
+    private SendHandoffRequest BuildSendHandoffRequest(string? targetWorkflowId, string? targetWorkflowType, string text, object? data)
     {
-        var logger = GetLogger();
-        var workflowType = GetWorkflowType();
+        var agent = XiansContext.CurrentAgent;
         
-        logger.LogInformation(
-            "Deleting knowledge: Name={Name}, WorkflowType={WorkflowType}, Tenant={Tenant}",
-            knowledgeName,
-            workflowType,
-            TenantId);
-
-        var request = new DeleteKnowledgeRequest
+        return new SendHandoffRequest
         {
-            KnowledgeName = knowledgeName,
-            AgentName = GetAgentNameFromWorkflow(),
-            TenantId = TenantId
+            TargetWorkflowId = targetWorkflowId,
+            TargetWorkflowType = targetWorkflowType,
+            SourceAgent = agent.Name,
+            SourceWorkflowType = WorkflowContextHelper.GetWorkflowType(),
+            SourceWorkflowId = WorkflowContextHelper.GetWorkflowId(),
+            ThreadId = Message.ThreadId!,
+            ParticipantId = Message.ParticipantId,
+            Authorization = Message.Authorization,
+            Text = text,
+            Data = data ?? Message.Data,
+            TenantId = Message.TenantId
         };
-
-        bool result;
-        
-        if (Workflow.InWorkflow)
-        {
-            result = await Workflow.ExecuteActivityAsync(
-                (KnowledgeActivities act) => act.DeleteKnowledgeAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetKnowledgeActivity();
-            result = await activity.DeleteKnowledgeAsync(request);
-        }
-
-        logger.LogInformation(
-            "Knowledge delete completed: Name={Name}, Success={Success}",
-            knowledgeName,
-            result);
-
-        return result;
-    }
-
-    /// <summary>
-    /// Lists all knowledge for this agent.
-    /// Automatically uses the current tenant and agent context.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <returns>A list of knowledge items.</returns>
-    public virtual async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListKnowledgeAsync()
-    {
-        var logger = GetLogger();
-        var workflowType = GetWorkflowType();
-        
-        logger.LogInformation(
-            "Listing knowledge: WorkflowType={WorkflowType}, Tenant={Tenant}",
-            workflowType,
-            TenantId);
-
-        var request = new ListKnowledgeRequest
-        {
-            AgentName = GetAgentNameFromWorkflow(),
-            TenantId = TenantId
-        };
-
-        List<Xians.Lib.Agents.Knowledge.Models.Knowledge> knowledgeList;
-        
-        if (Workflow.InWorkflow)
-        {
-            knowledgeList = await Workflow.ExecuteActivityAsync(
-                (KnowledgeActivities act) => act.ListKnowledgeAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetKnowledgeActivity();
-            knowledgeList = await activity.ListKnowledgeAsync(request);
-        }
-
-        logger.LogInformation(
-            "Knowledge list completed: Count={Count}",
-            knowledgeList.Count);
-
-        return knowledgeList;
-    }
-
-    #region Document Operations
-
-    /// <summary>
-    /// Saves a document to the database.
-    /// Automatically uses the current tenant context.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <param name="document">The document to save.</param>
-    /// <param name="options">Optional storage options (TTL, overwrite, etc.).</param>
-    /// <returns>The saved document with its assigned ID.</returns>
-    public virtual async Task<Document> SaveDocumentAsync(Document document, DocumentOptions? options = null)
-    {
-        var logger = GetLogger();
-        
-        logger.LogInformation(
-            "Saving document: Tenant={Tenant}",
-            TenantId);
-
-        var request = new SaveDocumentRequest
-        {
-            Document = document,
-            Options = options,
-            TenantId = TenantId
-        };
-
-        Document savedDocument;
-        
-        if (Workflow.InWorkflow)
-        {
-            savedDocument = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.SaveDocumentAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetDocumentActivity();
-            savedDocument = await activity.SaveDocumentAsync(request);
-        }
-
-        logger.LogInformation(
-            "Document saved: Id={Id}",
-            savedDocument.Id);
-
-        return savedDocument;
-    }
-
-    /// <summary>
-    /// Retrieves a document by its ID.
-    /// Automatically uses the current tenant context.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <param name="id">The document ID.</param>
-    /// <returns>The document if found, null otherwise.</returns>
-    public virtual async Task<Document?> GetDocumentAsync(string id)
-    {
-        var logger = GetLogger();
-        
-        logger.LogInformation(
-            "Getting document: Id={Id}, Tenant={Tenant}",
-            id,
-            TenantId);
-
-        var request = new GetDocumentRequest
-        {
-            Id = id,
-            TenantId = TenantId
-        };
-
-        Document? document;
-        
-        if (Workflow.InWorkflow)
-        {
-            document = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.GetDocumentAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetDocumentActivity();
-            document = await activity.GetDocumentAsync(request);
-        }
-
-        logger.LogInformation(
-            "Document get completed: Found={Found}",
-            document != null);
-
-        return document;
-    }
-
-    /// <summary>
-    /// Queries documents based on filters.
-    /// Automatically uses the current tenant context.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <param name="query">The query parameters.</param>
-    /// <returns>A list of matching documents.</returns>
-    public virtual async Task<List<Document>> QueryDocumentsAsync(DocumentQuery query)
-    {
-        var logger = GetLogger();
-        
-        logger.LogInformation(
-            "Querying documents: Type={Type}, Limit={Limit}, Tenant={Tenant}",
-            query.Type,
-            query.Limit,
-            TenantId);
-
-        var request = new QueryDocumentsRequest
-        {
-            Query = query,
-            TenantId = TenantId
-        };
-
-        List<Document> documents;
-        
-        if (Workflow.InWorkflow)
-        {
-            documents = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.QueryDocumentsAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetDocumentActivity();
-            documents = await activity.QueryDocumentsAsync(request);
-        }
-
-        logger.LogInformation(
-            "Query completed: Count={Count}",
-            documents.Count);
-
-        return documents;
-    }
-
-    /// <summary>
-    /// Updates an existing document.
-    /// Automatically uses the current tenant context.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <param name="document">The document to update (must have an ID).</param>
-    /// <returns>True if updated, false if not found.</returns>
-    public virtual async Task<bool> UpdateDocumentAsync(Document document)
-    {
-        var logger = GetLogger();
-        
-        logger.LogInformation(
-            "Updating document: Id={Id}, Tenant={Tenant}",
-            document.Id,
-            TenantId);
-
-        var request = new UpdateDocumentRequest
-        {
-            Document = document,
-            TenantId = TenantId
-        };
-
-        bool result;
-        
-        if (Workflow.InWorkflow)
-        {
-            result = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.UpdateDocumentAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetDocumentActivity();
-            result = await activity.UpdateDocumentAsync(request);
-        }
-
-        logger.LogInformation(
-            "Update completed: Success={Success}",
-            result);
-
-        return result;
-    }
-
-    /// <summary>
-    /// Deletes a document by its ID.
-    /// Automatically uses the current tenant context.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <param name="id">The document ID to delete.</param>
-    /// <returns>True if deleted, false if not found.</returns>
-    public virtual async Task<bool> DeleteDocumentAsync(string id)
-    {
-        var logger = GetLogger();
-        
-        logger.LogInformation(
-            "Deleting document: Id={Id}, Tenant={Tenant}",
-            id,
-            TenantId);
-
-        var request = new DeleteDocumentRequest
-        {
-            Id = id,
-            TenantId = TenantId
-        };
-
-        bool result;
-        
-        if (Workflow.InWorkflow)
-        {
-            result = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.DeleteDocumentAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
-        }
-        else
-        {
-            var activity = GetDocumentActivity();
-            result = await activity.DeleteDocumentAsync(request);
-        }
-
-        logger.LogInformation(
-            "Delete completed: Success={Success}",
-            result);
-
-        return result;
     }
 
     #endregion
-
-    /// <summary>
-    /// Extracts agent name from workflow type.
-    /// Workflow type format: "AgentName:WorkflowName"
-    /// </summary>
-    private string GetAgentNameFromWorkflow()
-    {
-        var workflowType = GetWorkflowType();
-        var separatorIndex = workflowType.IndexOf(':');
-        
-        if (separatorIndex > 0)
-        {
-            return workflowType.Substring(0, separatorIndex);
-        }
-        
-        // Fallback: use entire workflow type as agent name
-        return workflowType;
-    }
-
-    /// <summary>
-    /// Gets the workflow type from current context (workflow or activity).
-    /// Can be overridden in derived classes (e.g., A2AMessageContext).
-    /// </summary>
-    protected virtual string GetWorkflowType()
-    {
-        if (Workflow.InWorkflow)
-        {
-            return Workflow.Info.WorkflowType;
-        }
-        else if (ActivityExecutionContext.HasCurrent)
-        {
-            return ActivityExecutionContext.Current.Info.WorkflowType;
-        }
-        else
-        {
-            throw new InvalidOperationException("Not in workflow or activity context");
-        }
-    }
-
-    /// <summary>
-    /// Gets an appropriate logger for the current context.
-    /// </summary>
-    protected virtual ILogger GetLogger()
-    {
-        return XiansLogger.GetLogger<UserMessageContext>();
-    }
-
-    /// <summary>
-    /// Gets a KnowledgeActivities instance for direct execution.
-    /// Used when not in workflow context.
-    /// </summary>
-    private KnowledgeActivities GetKnowledgeActivity()
-    {
-        // Get HTTP client from the current agent
-        var agent = XiansContext.CurrentAgent;
-        if (agent.HttpService == null)
-        {
-            throw new InvalidOperationException("HTTP service not available for knowledge operations");
-        }
-        
-        return new KnowledgeActivities(agent.HttpService.Client, agent.CacheService);
-    }
-
-    /// <summary>
-    /// Gets a MessageActivities instance for direct execution.
-    /// Used when not in workflow context.
-    /// </summary>
-    private MessageActivities GetMessageActivity()
-    {
-        var agent = XiansContext.CurrentAgent;
-        if (agent.HttpService == null)
-        {
-            throw new InvalidOperationException("HTTP service not available for message operations");
-        }
-        
-        return new MessageActivities(agent.HttpService.Client);
-    }
-
-    /// <summary>
-    /// Gets a DocumentActivities instance for direct execution.
-    /// Used when not in workflow context.
-    /// </summary>
-    private DocumentActivities GetDocumentActivity()
-    {
-        var agent = XiansContext.CurrentAgent;
-        if (agent.HttpService == null)
-        {
-            throw new InvalidOperationException("HTTP service not available for document operations");
-        }
-        
-        return new DocumentActivities(agent.HttpService.Client);
-    }
-
-    /// <summary>
-    /// Internal method to send messages back to the user via Temporal activity.
-    /// Uses Workflow.ExecuteActivityAsync to ensure proper determinism and retry handling.
-    /// Exceptions bubble up to be handled by the workflow's top-level event loop.
-    /// </summary>
-    private async Task SendMessageToUserAsync(string content, object? data)
-    {
-        Workflow.Logger.LogDebug(
-            "Preparing to send message: ParticipantId={ParticipantId}, RequestId={RequestId}, ContentLength={ContentLength}, Tenant={Tenant}",
-            _participantId,
-            _requestId,
-            content?.Length ?? 0,
-            TenantId);
-        
-        var request = new SendMessageRequest
-        {
-            ParticipantId = _participantId,
-            WorkflowId = Workflow.Info.WorkflowId,
-            WorkflowType = Workflow.Info.WorkflowType,
-            Text = content,
-            Data = data ?? _data, // Use provided data or original message data
-            RequestId = _requestId,
-            Scope = _scope,
-            ThreadId = _threadId,
-            Authorization = _authorization,
-            Hint = _hint, // Pass through the hint from the original message
-            Origin = null,
-            Type = "Chat",
-            TenantId = TenantId  // Pass tenant context for system-scoped agents
-        };
-
-        Workflow.Logger.LogDebug(
-            "Executing SendMessage activity: WorkflowId={WorkflowId}, WorkflowType={WorkflowType}, Tenant={Tenant}, Endpoint=api/agent/conversation/outbound/chat",
-            request.WorkflowId,
-            request.WorkflowType,
-            TenantId);
-
-        // Execute as Temporal activity for proper determinism, retries, and observability
-        await Workflow.ExecuteActivityAsync(
-            (MessageActivities act) => act.SendMessageAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
-                {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
-        
-        Workflow.Logger.LogDebug(
-            "Message sent successfully: ParticipantId={ParticipantId}, RequestId={RequestId}",
-            _participantId,
-            _requestId);
-    }
 }
 

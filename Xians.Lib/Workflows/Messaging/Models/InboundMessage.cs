@@ -1,4 +1,3 @@
-using Xians.Lib.Agents.Messaging.Models;
 namespace Xians.Lib.Workflows.Messaging.Models;
 
 /// <summary>
@@ -24,7 +23,14 @@ public class InboundMessagePayload
     public required string ParticipantId { get; set; }
     public string? Authorization { get; set; }
     public required string Text { get; set; }
-    public required string RequestId { get; set; }
+    
+    private string? _requestId;
+    public required string RequestId 
+    { 
+        get => string.IsNullOrEmpty(_requestId) ? $"generated-{Guid.NewGuid()}" : _requestId;
+        set => _requestId = value;
+    }
+    
     public required string Hint { get; set; }
     public required string Scope { get; set; }
     public required object Data { get; set; }
@@ -49,6 +55,7 @@ public class DbMessage
     public required string ParticipantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
+    public string? RequestId { get; set; }
 }
 
 

@@ -37,10 +37,7 @@ public class DocumentActivities
         
         try
         {
-            return await _documentService.SaveAsync(
-                request.Document,
-                request.TenantId,
-                request.Options);
+            return await _documentService.SaveAsync(request);
         }
         catch (Exception ex)
         {
@@ -64,9 +61,7 @@ public class DocumentActivities
         
         try
         {
-            return await _documentService.GetAsync(
-                request.Id,
-                request.TenantId);
+            return await _documentService.GetAsync(request);
         }
         catch (Exception ex)
         {
@@ -91,9 +86,7 @@ public class DocumentActivities
         
         try
         {
-            return await _documentService.QueryAsync(
-                request.Query,
-                request.TenantId);
+            return await _documentService.QueryAsync(request);
         }
         catch (Exception ex)
         {
@@ -117,9 +110,7 @@ public class DocumentActivities
         
         try
         {
-            return await _documentService.UpdateAsync(
-                request.Document,
-                request.TenantId);
+            return await _documentService.UpdateAsync(request);
         }
         catch (Exception ex)
         {
@@ -144,9 +135,7 @@ public class DocumentActivities
         
         try
         {
-            return await _documentService.DeleteAsync(
-                request.Id,
-                request.TenantId);
+            return await _documentService.DeleteAsync(request);
         }
         catch (Exception ex)
         {

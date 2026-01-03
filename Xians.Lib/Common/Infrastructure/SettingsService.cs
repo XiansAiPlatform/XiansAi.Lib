@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Models;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Http;
@@ -12,7 +13,6 @@ namespace Xians.Lib.Common.Infrastructure;
 /// </summary>
 public static class SettingsService
 {
-    private const string SETTINGS_ENDPOINT = "/api/agent/settings/flowserver";
     private const int MAX_RESPONSE_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
     private const int JSON_MAX_DEPTH = 32;
     
@@ -83,7 +83,7 @@ public static class SettingsService
         var response = await httpService.ExecuteWithRetryAsync(async () =>
         {
             var client = await httpService.GetHealthyClientAsync();
-            return await client.GetAsync(SETTINGS_ENDPOINT);
+            return await client.GetAsync(WorkflowConstants.ApiEndpoints.FlowServerSettings);
         });
 
         if (response.StatusCode != HttpStatusCode.OK)

@@ -27,7 +27,7 @@ public class XiansWorkflow
     private readonly List<Type> _activityTypes = new();
     private readonly Type? _workflowClassType;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
@@ -35,14 +35,17 @@ public class XiansWorkflow
         if (string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentNullException(nameof(workflowType));
 
-        // Enforce that workflow type starts with agent name prefix
-        var expectedPrefix = agent.Name + ":";
-        if (!workflowType.StartsWith(expectedPrefix))
+        // Enforce that workflow type starts with agent name prefix (unless it's a platform workflow)
+        if (!isPlatformWorkflow)
         {
-            throw new ArgumentException(
-                $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
-                $"Expected format: '{expectedPrefix}WorkflowName'",
-                nameof(workflowType));
+            var expectedPrefix = agent.Name + ":";
+            if (!workflowType.StartsWith(expectedPrefix))
+            {
+                throw new ArgumentException(
+                    $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                    $"Expected format: '{expectedPrefix}WorkflowName'",
+                    nameof(workflowType));
+            }
         }
 
         _agent = agent;
@@ -82,6 +85,11 @@ public class XiansWorkflow
     /// Gets the schedule collection for managing scheduled executions of this workflow.
     /// </summary>
     public ScheduleCollection? Schedules { get; }
+
+    /// <summary>
+    /// Gets the workflow class type for custom workflows, or null for built-in workflows.
+    /// </summary>
+    internal Type? GetWorkflowClassType() => _workflowClassType;
 
     /// <summary>
     /// Adds an activity instance to the workflow.
@@ -131,23 +139,20 @@ public class XiansWorkflow
     }
 
     /// <summary>
-    /// Registers a handler for user messages.
+    /// Registers a handler for user chat messages.
     /// </summary>
-    /// <param name="handler">The async handler to process user messages.</param>
-    public void OnUserMessage(Func<UserMessageContext, Task> handler)
+    /// <param name="handler">The async handler to process user chat messages.</param>
+    public void OnUserChatMessage(Func<UserMessageContext, Task> handler)
     {
         if (!_isBuiltIn)
         {
             throw new InvalidOperationException(
-                "OnUserMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+                "OnUserChatMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
         }
 
         var tenantId = GetTenantIdOrNull();
 
-        // Register the handler with tenant isolation metadata
-        // This allows multiple default workflows to each have their own isolated handler
-        // and enforces tenant boundaries for security
-        BuiltinWorkflow.RegisterMessageHandler(
+        BuiltinWorkflow.RegisterChatHandler(
             workflowType: WorkflowType,
             handler: handler,
             agentName: _agent.Name,
@@ -156,12 +161,43 @@ public class XiansWorkflow
         );
         
         _logger.LogDebug(
-            "User message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            "Chat message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
             WorkflowType,
             _agent.Name,
             _agent.SystemScoped,
             tenantId ?? "(system)");
     }
+
+    /// <summary>
+    /// Registers a handler for user data messages.
+    /// </summary>
+    /// <param name="handler">The async handler to process user data messages.</param>
+    public void OnUserDataMessage(Func<UserMessageContext, Task> handler)
+    {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnUserDataMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
+        var tenantId = GetTenantIdOrNull();
+
+        BuiltinWorkflow.RegisterDataHandler(
+            workflowType: WorkflowType,
+            handler: handler,
+            agentName: _agent.Name,
+            tenantId: tenantId,
+            systemScoped: _agent.SystemScoped
+        );
+        
+        _logger.LogDebug(
+            "Data message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            WorkflowType,
+            _agent.Name,
+            _agent.SystemScoped,
+            tenantId ?? "(system)");
+    }
+
 
     /// <summary>
     /// Runs the workflow asynchronously.
@@ -203,75 +239,34 @@ public class XiansWorkflow
                     .SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information))
         };
 
-        // Register workflow based on type
+        // Initialize registrars
+        var workflowRegistrar = new WorkflowRegistrar(_logger);
+        var activityRegistrar = new ActivityRegistrar(_agent, _logger);
+
+        // Register workflow and activities
+        int totalActivityCount = 0;
+        
         if (_isBuiltIn)
         {
-            // Register the BuiltinWorkflow class for built-in workflows
-            workerOptions.AddWorkflow<BuiltinWorkflow>();
-            
-            // Register activities for message sending, knowledge, and document operations
-            // Get HTTP client from the platform's HTTP service
-            if (_agent.HttpService != null)
-            {
-                var messageActivities = new Xians.Lib.Workflows.Messaging.MessageActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Messaging.MessageActivities), messageActivities);
-                
-                var knowledgeActivities = new Xians.Lib.Workflows.Knowledge.KnowledgeActivities(
-                    _agent.HttpService.Client, 
-                    _agent.CacheService);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Knowledge.KnowledgeActivities), knowledgeActivities);
-                
-                var documentActivities = new Xians.Lib.Workflows.Documents.DocumentActivities(_agent.HttpService.Client);
-                workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Documents.DocumentActivities), documentActivities);
-            }
-            else
-            {
-                _logger.LogWarning("HTTP service not available - message sending, knowledge, and document operations will not work");
-            }
-
-            // Register system schedule activities (always available for all workflows)
-            RegisterScheduleActivities(workerOptions);
+            workflowRegistrar.RegisterBuiltInWorkflow(workerOptions, WorkflowType);
+            totalActivityCount = activityRegistrar.RegisterSystemActivities(workerOptions, WorkflowType);
         }
         else
         {
-            // Register custom workflow type
-            if (_workflowClassType == null)
-            {
-                throw new InvalidOperationException($"Workflow class type not provided for custom workflow '{WorkflowType}'");
-            }
-
-            // Register the custom workflow using the stored type
-            var addWorkflowMethod = typeof(TemporalWorkerOptions).GetMethod("AddWorkflow", Type.EmptyTypes);
-            var genericAddWorkflowMethod = addWorkflowMethod?.MakeGenericMethod(_workflowClassType);
-            genericAddWorkflowMethod?.Invoke(workerOptions, null);
-
-            // Register user-provided activity instances
-            foreach (var activityInstance in _activityInstances)
-            {
-                workerOptions.AddAllActivities(activityInstance.GetType(), activityInstance);
-                _logger.LogInformation(
-                    "Registered activity instance '{ActivityType}' for workflow '{WorkflowType}'",
-                    activityInstance.GetType().Name, WorkflowType);
-            }
-
-            // Register user-provided activity types
-            foreach (var activityType in _activityTypes)
-            {
-                var instance = Activator.CreateInstance(activityType);
-                if (instance != null)
-                {
-                    workerOptions.AddAllActivities(activityType, instance);
-                    _logger.LogInformation(
-                        "Registered activity type '{ActivityType}' for workflow '{WorkflowType}'",
-                        activityType.Name, WorkflowType);
-                }
-            }
-
-            // Register system schedule activities (always available for all custom workflows)
-            RegisterScheduleActivities(workerOptions);
+            workflowRegistrar.RegisterCustomWorkflow(workerOptions, WorkflowType, _workflowClassType!);
             
-            _logger.LogInformation("Custom workflow '{WorkflowType}' registered successfully with {ActivityCount} activities",
-                WorkflowType, _activityInstances.Count + _activityTypes.Count + 1); // +1 for ScheduleActivities
+            // Register user activities first
+            totalActivityCount += activityRegistrar.RegisterUserActivityInstances(
+                workerOptions, WorkflowType, _activityInstances);
+            totalActivityCount += activityRegistrar.RegisterUserActivityTypes(
+                workerOptions, WorkflowType, _activityTypes);
+            
+            // Then register system activities (always available)
+            totalActivityCount += activityRegistrar.RegisterSystemActivities(workerOptions, WorkflowType);
+            
+            _logger.LogInformation(
+                "Custom workflow '{WorkflowType}' registered with {ActivityCount} activities",
+                WorkflowType, totalActivityCount);
         }
 
         // Create and start workers
@@ -351,26 +346,5 @@ public class XiansWorkflow
                 "XiansOptions is not configured properly. Cannot determine TenantId for non-system-scoped agent.");
     }
 
-    /// <summary>
-    /// Registers the system ScheduleActivities for managing schedules from workflows.
-    /// This is automatically done for all workflows, making schedule management available by default.
-    /// </summary>
-    private void RegisterScheduleActivities(TemporalWorkerOptions workerOptions)
-    {
-        try
-        {
-            // Register the system ScheduleActivities
-            var scheduleActivities = new Xians.Lib.Workflows.Scheduling.ScheduleActivities();
-            workerOptions.AddAllActivities(typeof(Xians.Lib.Workflows.Scheduling.ScheduleActivities), scheduleActivities);
-
-            _logger.LogInformation(
-                "Registered system ScheduleActivities for workflow '{WorkflowType}'",
-                WorkflowType);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not register ScheduleActivities for workflow '{WorkflowType}'", WorkflowType);
-        }
-    }
 }
 

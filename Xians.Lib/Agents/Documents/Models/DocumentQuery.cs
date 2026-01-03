@@ -17,6 +17,12 @@ public class DocumentQuery
     public string? Key { get; set; }
 
     /// <summary>
+    /// Filter by agent ID.
+    /// Automatically set by the SDK to scope documents to the current agent.
+    /// </summary>
+    public string? AgentId { get; set; }
+
+    /// <summary>
     /// Filter by metadata key-value pairs.
     /// All metadata filters must match for a document to be included.
     /// </summary>

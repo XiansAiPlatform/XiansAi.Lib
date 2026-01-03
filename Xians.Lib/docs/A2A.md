@@ -1,395 +1,242 @@
 # Agent-to-Agent (A2A) Communication
 
-## What is A2A?
+## Overview
 
-Enable your agents to talk to each other! A2A provides fast, in-memory messaging between agents in the same runtime - perfect for building sophisticated multi-agent workflows.
+A2A (Agent-to-Agent) communication enables synchronous request-response messaging between workflows in the same runtime. It's designed for workflows to call other workflows' message handlers directly and receive responses.
 
-**In 3 lines of code:**
-```csharp
-var webWorkflow = XiansContext.CurrentAgent.GetBuiltInWorkflow("Web");
-var client = new A2AClient(webWorkflow);
-var response = await client.SendMessageAsync(new A2AMessage { Text = "Research Acme Corp" });
-```
+**Two Modes:**
+1. **Built-in Workflows** - Standardized message handlers (this document)
+2. **Custom Workflows** - Temporal signals/queries/updates ([see A2A-CustomWorkflows.md](A2A-CustomWorkflows.md))
 
-## Quick Start
-
-### Setup Multiple Workflows
-
-```csharp
-var agent = platform.Agents.Register("ResearchAgent", systemScoped: true);
-
-// Create workflows for different capabilities
-var supervisorFlow = await agent.Workflows.DefineBuiltIn("Supervisor");
-var webFlow = await agent.Workflows.DefineBuiltIn("Web");
-
-// Supervisor orchestrates, Web executes
-supervisorFlow.OnUserMessage(async (context) =>
-{
-    var webWorkflow = XiansContext.CurrentAgent.GetBuiltInWorkflow("Web");
-    var client = new A2AClient(webWorkflow);
-    
-    var result = await client.SendMessageAsync(new A2AMessage
-    {
-        Text = "Research company: " + context.Message.Text
-    });
-    
-    await context.ReplyAsync(result.Text);
-});
-
-webFlow.OnUserMessage(async (context) =>
-{
-    var research = await PerformWebSearch(context.Message.Text);
-    await context.ReplyAsync(research);
-});
-```
-
-## Core API
-
-### A2AClient
-
-```csharp
-var client = new A2AClient(targetWorkflow);
-var response = await client.SendMessageAsync(message);
-```
-
-### A2AMessage
-
-```csharp
-new A2AMessage
-{
-    Text = "Your request",           // Required
-    Data = optionalDataObject,       // Optional structured data
-    Metadata = metadataDict          // Optional (caller → handler only)
-}
-```
-
-### A2AMessageContext
-
-Detect A2A messages in your handler:
-
-```csharp
-workflow.OnUserMessage(async (context) =>
-{
-    if (context is A2AMessageContext a2a)
-    {
-        Console.WriteLine($"A2A from {a2a.SourceAgentName}");
-    }
-    
-    await context.ReplyAsync("Done");
-});
-```
-
-### XiansContext
-
-Static access to agents from anywhere:
-
-```csharp
-var agent = XiansContext.CurrentAgent;              // Current agent
-var other = XiansContext.GetAgent("WebAgent");      // Any agent
-var workflow = agent.GetBuiltInWorkflow("Web");     // Any workflow
-```
-
-## Common Patterns
-
-### Pattern 1: Sequential Agent Chain
-
-```csharp
-// Step 1: Research
-var researchAgent = XiansContext.GetAgent("ResearchAgent");
-var research = await new A2AClient(researchAgent.GetBuiltInWorkflow())
-    .SendMessageAsync(new A2AMessage { Text = "Research Acme Corp" });
-
-// Step 2: Analyze
-var analysisAgent = XiansContext.GetAgent("AnalysisAgent");
-var analysis = await new A2AClient(analysisAgent.GetBuiltInWorkflow())
-    .SendMessageAsync(new A2AMessage 
-    { 
-        Text = "Analyze", 
-        Data = research.Data 
-    });
-
-// Step 3: Report
-await context.ReplyAsync(analysis.Text);
-```
-
-### Pattern 2: Parallel Agent Calls
-
-```csharp
-var tasks = new[]
-{
-    new A2AClient(newsAgent.GetBuiltInWorkflow())
-        .SendMessageAsync(new A2AMessage { Text = "Latest news" }),
-    new A2AClient(weatherAgent.GetBuiltInWorkflow())
-        .SendMessageAsync(new A2AMessage { Text = "Weather" }),
-    new A2AClient(stockAgent.GetBuiltInWorkflow())
-        .SendMessageAsync(new A2AMessage { Text = "Stocks" })
-};
-
-var responses = await Task.WhenAll(tasks);
-var summary = string.Join("\n", responses.Select(r => r.Text));
-```
-
-### Pattern 3: A2A from AI Tools
-
-```csharp
-[Description("Research a company")]
-public static async Task<string> ResearchCompany(string companyName)
-{
-    // Works from activities/tools too!
-    var webWorkflow = XiansContext.CurrentAgent.GetBuiltInWorkflow("Web");
-    var client = new A2AClient(webWorkflow);
-    
-    var response = await client.SendMessageAsync(new A2AMessage
-    {
-        Text = $"Research: {companyName}"
-    });
-    
-    return response.Text;
-}
-```
-
-### Pattern 4: Conditional Routing
-
-```csharp
-XiansWorkflow? target = context.Message.Text.ToLower() switch
-{
-    var m when m.Contains("weather") => GetAgent("WeatherAgent").GetBuiltInWorkflow(),
-    var m when m.Contains("news") => GetAgent("NewsAgent").GetBuiltInWorkflow(),
-    _ => null
-};
-
-if (target != null)
-{
-    var response = await new A2AClient(target).SendMessageAsync(new A2AMessage 
-    { 
-        Text = context.Message.Text 
-    });
-    await context.ReplyAsync(response.Text);
-}
-```
-
-## What You Need to Know
-
-### ✅ What Works
-
-- **Fast & Simple**: Direct function call, ~1-5ms latency
-- **Context-Aware**: Works from workflows AND activities
-- **Full Handler API**: Knowledge, data, everything works
-- **Metadata**: Pass tracking info, priorities, routing hints
-
-### ❌ Key Limitations
-
-| Limitation | Impact | Workaround |
-|------------|--------|------------|
-| **No Recording** | A2A not in DB | Manually log if needed |
-| **No History** | Empty chat history | Pass context in `Data` field |
-| **No Temporal UI** | Can't see in Temporal | Use logs for debugging |
-| **Same Runtime** | One process only | Use platform API for cross-process |
-| **No Timeout** | Waits indefinitely | Wrap with `Task.WhenAny` if needed |
-
-### 🔍 How Metadata Works
-
-```csharp
-// Caller sets metadata
-var response = await client.SendMessageAsync(new A2AMessage
-{
-    Text = "Process",
-    Metadata = new Dictionary<string, string>
-    {
-        ["priority"] = "high",
-        ["requestId"] = "req-123"
-    }
-});
-
-// Handler reads metadata (read-only)
-if (context is A2AMessageContext a2a)
-{
-    var priority = a2a.Metadata?["priority"];  // "high"
-}
-
-// Response contains original request metadata
-Console.WriteLine(response.Metadata["requestId"]);  // "req-123"
-```
-
-**Note:** Handler can READ metadata but cannot modify it. Response returns original request metadata.
-
-## Advanced: Prevent Infinite Loops
-
-```csharp
-var depth = (context as A2AMessageContext)?.Metadata?.ContainsKey("depth") == true 
-    ? int.Parse((context as A2AMessageContext).Metadata["depth"]) 
-    : 0;
-
-if (depth > 5)
-{
-    await context.ReplyAsync("Max depth reached");
-    return;
-}
-
-var response = await client.SendMessageAsync(new A2AMessage
-{
-    Text = "Continue",
-    Metadata = new Dictionary<string, string> { ["depth"] = (depth + 1).ToString() }
-});
-```
-
-## Error Handling
-
-```csharp
-try
-{
-    var response = await client.SendMessageAsync(message);
-}
-catch (KeyNotFoundException)
-{
-    // Agent/workflow not found
-}
-catch (InvalidOperationException ex)
-{
-    // Handler failed: ex.Message contains the error
-}
-```
-
-Handler exceptions bubble up to caller automatically.
-
-## When to Use A2A
-
-### ✅ Perfect For:
-- Multiple workflows in one agent (coordinator pattern)
-- Fast agent collaboration (same runtime)
-- Workflow orchestration
-- AI tool chains
-
-### ❌ Not For:
-- Cross-process communication → Use platform API
-- Audit requirements → Use user messages
-- Temporal observability → Use child workflows
-- Long-running ops → Use background workflows
-
-## Comparison Table
-
-| Feature | A2A | User Messages | Child Workflows |
-|---------|-----|---------------|-----------------|
-| Speed | ⚡ 1-5ms | 🐌 100ms+ | 🐌 100ms+ |
-| Recording | ❌ | ✅ | ✅ |
-| History | ❌ | ✅ | ✅ |
-| Temporal UI | ❌ | ✅ | ✅ |
-| Same Runtime | Required | Optional | Optional |
-| Complexity | ✅ Simple | ⚠️ Medium | ⚠️ Complex |
+This document covers A2A with **built-in workflows**. For custom workflows, see [A2A-CustomWorkflows.md](A2A-CustomWorkflows.md).
 
 ## Architecture
 
-```
-User Message
-    ↓
-SupervisorWorkflow.OnUserMessage
-    ↓
-    ├─→ A2AClient.SendMessageAsync()
-    │       ↓
-    │   Direct function call (in-memory)
-    │       ↓
-    │   WebWorkflow.OnUserMessage (handler)
-    │       ↓
-    │   context.ReplyAsync()
-    │       ↓
-    │   Response captured
-    ├─← Return response
-    ↓
-await context.ReplyAsync() → User
-```
+### Key Components
 
-**No signals, no queues, no network** - just a direct function call.
+1. **A2AClient** - Core client for sending A2A messages
+2. **A2AService** - Service for direct message processing (activity context)
+3. **A2AActivityExecutor** - Context-aware executor using the Activity Executor pattern
+4. **A2AContextOperations** - Simplified API accessible via `XiansContext.A2A`
+5. **A2AMessageContext** - Specialized context that captures responses instead of sending to users
+6. **A2ACurrentMessage** - Message that captures responses
 
-## Security
+### Context-Aware Execution
 
-### Tenant Isolation
+A2A automatically handles execution based on context:
+- **From workflow**: Executes target handler in isolated activity (retryable, fault-tolerant)
+- **From activity**: Executes target handler directly (avoids nested activities)
 
-System-scoped agents: Tenant flows from source → target  
-Tenant-scoped agents: Must be same tenant
+## Usage
 
-### Access Control
+### Simple API (Within Workflows)
 
-**Built-in:** None. Any agent can call any other.
+The easiest way to use A2A is through `XiansContext.A2A`:
 
-**Recommendation:** Validate in handler:
 ```csharp
-if (context is A2AMessageContext a2a && a2a.SourceAgentName != "TrustedAgent")
+[Workflow]
+public class ContentDiscoveryWorkflow
 {
-    throw new UnauthorizedAccessException();
+    [WorkflowRun]
+    public async Task RunAsync()
+    {
+        // Send chat message to a built-in workflow by name
+        var response = await XiansContext.A2A.SendChatToBuiltInAsync(
+            "WebWorkflow",
+            new A2AMessage 
+            { 
+                Text = "Fetch all URLs from example.com" 
+            });
+        
+        // Use the response
+        var urls = response.Text.Split(',');
+    }
 }
 ```
 
-## Complete Example
+### Advanced API
+
+For more control or when calling from outside workflows:
 
 ```csharp
-// Setup
-var agent = platform.Agents.Register("CompanyResearch", systemScoped: true);
-var coordFlow = await agent.Workflows.DefineBuiltIn("Coordinator");
-var webFlow = await agent.Workflows.DefineBuiltIn("Web");
-var analysisFlow = await agent.Workflows.DefineBuiltIn("Analysis");
+// Get target workflow
+var webWorkflow = XiansContext.GetBuiltInWorkflow("WebWorkflow");
 
-// Coordinator orchestrates
-coordFlow.OnUserMessage(async (context) =>
-{
-    // Step 1: Web research
-    var webResult = await new A2AClient(XiansContext.CurrentAgent.GetBuiltInWorkflow("Web"))
-        .SendMessageAsync(new A2AMessage 
-        { 
-            Text = "Research: " + context.Message.Text,
-            Metadata = new Dictionary<string, string> { ["priority"] = "high" }
-        });
-    
-    // Step 2: Analysis
-    var analysisResult = await new A2AClient(XiansContext.CurrentAgent.GetBuiltInWorkflow("Analysis"))
-        .SendMessageAsync(new A2AMessage 
-        { 
-            Text = "Analyze",
-            Data = webResult.Data 
-        });
-    
-    await context.ReplyAsync(analysisResult.Text);
-});
+// Create A2A client
+var client = new A2AClient(webWorkflow);
 
-// Web workflow
-webFlow.OnUserMessage(async (context) =>
+// Send message
+var response = await client.SendMessageAsync(new A2AMessage
 {
-    if (context is A2AMessageContext a2a && a2a.Metadata?["priority"] == "high")
-    {
-        // Priority processing
-    }
-    
-    var data = await FetchWebData(context.Message.Text);
-    await context.ReplyWithDataAsync("Found data", data);
-});
-
-// Analysis workflow
-analysisFlow.OnUserMessage(async (context) =>
-{
-    var webData = context.Data;  // From previous A2A call
-    var analysis = await AnalyzeData(webData);
-    await context.ReplyAsync(analysis);
+    Text = "Process this request",
+    Data = new { Key = "value" }
 });
 ```
 
-## Summary
+### Handling A2A Messages
 
-A2A = **Fast agent collaboration** for same-runtime scenarios.
+Target workflows register handlers using the normal `OnUserChatMessage`:
 
-**Think of it as:**
-- 🚀 Function call between agents
-- 📞 Request-response pattern
-- 🎯 Orchestration tool
+```csharp
+var webWorkflow = agent.Workflows.DefineBuiltIn(name: "WebWorkflow");
 
-**Remember:**
-- No recording (ephemeral)
-- No history (stateless)
-- Same runtime only
-- Handler exceptions bubble up
+webWorkflow.OnUserChatMessage(async (context) =>
+{
+    // Cast to A2AMessageContext to access A2A-specific properties
+    if (context is A2AMessageContext a2aContext)
+    {
+        Console.WriteLine($"Received from: {a2aContext.SourceAgentName}");
+    }
+    
+    // Process the request
+    var result = await ProcessWebRequest(context.Message.Text);
+    
+    // Send response back
+    await context.ReplyAsync(result);
+});
+```
 
-**Perfect for:** Multi-workflow orchestration, agent coordination, AI tool chains
+## API Reference
 
----
+### XiansContext.A2A Methods
 
-**See also:**
-- [Design Details](Agent2Agent.md) - Architecture and implementation
-- [Getting Started](GettingStarted.md) - General Xians.Lib setup
+#### Built-in Workflow Chat Messages
+```csharp
+// Send chat to built-in workflow (by name)
+Task<A2AMessage> SendChatToBuiltInAsync(string builtInWorkflowName, A2AMessage message)
+
+// Send chat to workflow instance
+Task<A2AMessage> SendChatAsync(XiansWorkflow targetWorkflow, A2AMessage message)
+
+// Send text-only chat message (convenience)
+Task<A2AMessage> SendTextAsync(string builtInWorkflowName, string messageText)
+```
+
+#### Built-in Workflow Data Messages
+```csharp
+// Send data to built-in workflow (by name)
+Task<A2AMessage> SendDataToBuiltInAsync(string builtInWorkflowName, A2AMessage message)
+
+// Send data to workflow instance
+Task<A2AMessage> SendDataAsync(XiansWorkflow targetWorkflow, A2AMessage message)
+```
+
+#### Custom Workflow Signal/Query/Update (New!)
+
+For custom workflows, use Temporal's native primitives:
+
+```csharp
+// Send signal (fire-and-forget)
+Task SendSignalAsync(XiansWorkflow targetWorkflow, string signalName, params object[] args)
+Task SendSignalAsync(string workflowId, string signalName, params object[] args)
+
+// Query workflow state (read-only)
+Task<TResult> QueryAsync<TResult>(XiansWorkflow targetWorkflow, string queryName, params object[] args)
+Task<TResult> QueryAsync<TResult>(string workflowId, string queryName, params object[] args)
+
+// Update workflow (synchronous request-response)
+Task<TResult> UpdateAsync<TResult>(XiansWorkflow targetWorkflow, string updateName, params object[] args)
+Task<TResult> UpdateAsync<TResult>(string workflowId, string updateName, params object[] args)
+```
+
+See [A2A-CustomWorkflows.md](A2A-CustomWorkflows.md) for detailed usage and examples.
+
+#### Graceful Error Handling
+```csharp
+// Try* methods return (Success, Response, ErrorMessage) tuple
+Task<(bool, A2AMessage?, string?)> TrySendChatToBuiltInAsync(string builtInWorkflowName, A2AMessage message)
+Task<(bool, A2AMessage?, string?)> TrySendChatAsync(XiansWorkflow targetWorkflow, A2AMessage message)
+Task<(bool, A2AMessage?, string?)> TrySendDataToBuiltInAsync(string builtInWorkflowName, A2AMessage message)
+Task<(bool, A2AMessage?, string?)> TrySendDataAsync(XiansWorkflow targetWorkflow, A2AMessage message)
+```
+
+### A2AMessage Structure
+
+```csharp
+public class A2AMessage
+{
+    public string Text { get; set; }           // Message text
+    public object? Data { get; set; }          // Optional data payload
+    public Dictionary<string, string>? Metadata { get; set; }  // Optional metadata
+}
+```
+
+## Real-World Example
+
+See `Xians.Examples/LeadDiscoveryAgent/ContentDiscovery/ContentDiscoveryWorkflow.cs` for a complete working example:
+
+```csharp
+private async Task<List<string>> FetchContentUrlsAsync(string contentSiteURL)
+{
+    // Send A2A chat message to web workflow using the simplified API
+    var response = await XiansContext.A2A.SendChatToBuiltInAsync(
+        Constants.WebWorkflowName,
+        new A2AMessage 
+        { 
+            Text = $"Fetch all content article URLs from {contentSiteURL}..."
+        });
+
+    if (string.IsNullOrEmpty(response.Text))
+    {
+        throw new InvalidOperationException("No response from web agent");
+    }
+
+    return response.Text.Split(',').ToList();
+}
+```
+
+## Benefits Over Alternative Approaches
+
+1. **Synchronous** - Get response immediately vs. async signals
+2. **Same Runtime** - No HTTP overhead, direct function calls
+3. **Type-Safe** - Compile-time checking of workflow types
+4. **Context-Aware** - Automatically handles workflow vs. activity context
+5. **Simplified API** - `XiansContext.A2A` reduces boilerplate
+
+## Context Requirements
+
+A2A is designed to work in **Temporal contexts** (workflows and activities):
+
+✅ **From Workflow Context**: Handler executes in isolated activity
+✅ **From Activity Context**: Handler executes directly (no nested activities)
+❌ **From Test/Script Context**: Not supported (no Temporal context available)
+
+## Limitations
+
+- **Same Runtime Only** - Both workflows must be running in the same process
+- **Requires Temporal Context** - Must be called from within a workflow or activity
+- **Synchronous Only** - Blocks until response received (use signals for async)
+
+## Testing
+
+A2A requires **Temporal context** (workflow or activity). Testing approaches:
+
+### Integration Testing (Recommended)
+Run actual workflows with Temporal workers:
+```bash
+# See Xians.Examples/LeadDiscoveryAgent for full example
+dotnet run --project Xians.Examples/LeadDiscoveryAgent
+```
+
+### Unit Testing
+A2A calls within workflows can be tested by:
+1. Running the workflow with test workers
+2. Mocking the target workflow handler
+3. Using the LeadDiscoveryAgent pattern
+
+### Why Tests Are Skipped
+The `RealServerA2ATests.cs` tests are skipped because:
+- They call A2A from plain test methods (no Temporal context)
+- A2A requires `XiansContext` which is only available in workflows/activities
+- To test properly, you need to run actual Temporal workers
+
+**Working Example**: See `ContentDiscoveryWorkflow.cs` lines 146-149 for production A2A usage.
+
+## Refactoring Summary
+
+The A2A subsystem was refactored to:
+- ✅ Use `ContextAwareActivityExecutor` pattern (eliminates manual branching)
+- ✅ Eliminate code duplication (removed ~148 lines)
+- ✅ Provide simplified `XiansContext.A2A` API
+- ✅ Delete redundant classes (A2AActivityMessageCollection, A2AActivityMessageContext, A2AHelper)
+- ✅ Consistent with other subsystems (Messaging, Documents, Knowledge)

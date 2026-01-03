@@ -61,6 +61,18 @@ public class KnowledgeActivities
     }
 
     /// <summary>
+    /// Clears static services. Intended for testing purposes only.
+    /// </summary>
+    internal static void ClearStaticServicesForTests()
+    {
+        lock (_initLock)
+        {
+            _staticHttpClient = null;
+            _staticCacheService = null;
+        }
+    }
+
+    /// <summary>
     /// Retrieves knowledge by name from the server.
     /// Delegates to shared KnowledgeService.
     /// </summary>

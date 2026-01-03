@@ -3,12 +3,17 @@ using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Agents.Workflows;
+using Xians.Lib.Agents.Knowledge;
+using Xians.Lib.Agents.Documents;
+using Xians.Lib.Agents.Scheduling;
+using Xians.Lib.Agents.Messaging;
+using Xians.Lib.Agents.A2A;
 
 namespace Xians.Lib.Agents.Core;
 
 /// <summary>
-/// Static context helper for accessing workflow/activity context and agent registry.
-/// Provides convenient access to current workflow information, registered agents, and workflows.
+/// Central context hub for accessing all Xians SDK functionality.
+/// Provides unified access to agents, workflows, messaging, knowledge, documents, and schedules.
 /// </summary>
 public static class XiansContext
 {
@@ -22,53 +27,14 @@ public static class XiansContext
     #region Workflow/Activity Context
 
     /// <summary>
-    /// Gets the current workflow ID.
+    /// Gets the current workflow ID from Temporal context.
+    /// Internal - for public access, use XiansContext.CurrentWorkflow.WorkflowId
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string WorkflowId
-    {
-        get
-        {
-            if (Workflow.InWorkflow)
-            {
-                return Workflow.Info.WorkflowId;
-            }
-            else if (ActivityExecutionContext.HasCurrent)
-            {
-                return ActivityExecutionContext.Current.Info.WorkflowId;
-            }
-            else
-            {
-                throw new InvalidOperationException("Not in workflow or activity context. WorkflowId is only available within Temporal workflows or activities.");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets the current workflow type.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string WorkflowType
-    {
-        get
-        {
-            if (Workflow.InWorkflow)
-            {
-                return Workflow.Info.WorkflowType;
-            }
-            else if (ActivityExecutionContext.HasCurrent)
-            {
-                return ActivityExecutionContext.Current.Info.WorkflowType;
-            }
-            else
-            {
-                throw new InvalidOperationException("Not in workflow or activity context. WorkflowType is only available within Temporal workflows or activities.");
-            }
-        }
-    }
+    public static string WorkflowId => WorkflowContextHelper.GetWorkflowId();
 
     /// <summary>
     /// Gets the current tenant ID extracted from the workflow ID.
+    /// This is global context information that applies to the entire workflow execution.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
     public static string TenantId
@@ -89,11 +55,16 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Gets the current agent name extracted from the workflow type.
-    /// Workflow type format: "AgentName:WorkflowName"
+    /// Gets the current workflow type from Temporal context.
+    /// Internal - for public access, use XiansContext.CurrentWorkflow.WorkflowType
     /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string AgentName
+    internal static string WorkflowType => WorkflowContextHelper.GetWorkflowType();
+
+    /// <summary>
+    /// Gets the current agent name extracted from the workflow type.
+    /// Internal - for public access, use XiansContext.CurrentAgent.Name
+    /// </summary>
+    internal static string AgentName
     {
         get
         {
@@ -111,37 +82,14 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Gets the task queue name for the current workflow.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string TaskQueue
-    {
-        get
-        {
-            if (Workflow.InWorkflow)
-            {
-                return Workflow.Info.TaskQueue;
-            }
-            else if (ActivityExecutionContext.HasCurrent)
-            {
-                return ActivityExecutionContext.Current.Info.TaskQueue;
-            }
-            else
-            {
-                throw new InvalidOperationException("Not in workflow or activity context. TaskQueue is only available within Temporal workflows or activities.");
-            }
-        }
-    }
-
-    /// <summary>
     /// Checks if the code is currently executing within a Temporal workflow.
     /// </summary>
-    public static bool InWorkflow => Workflow.InWorkflow;
+    public static bool InWorkflow => WorkflowContextHelper.InWorkflow;
 
     /// <summary>
     /// Checks if the code is currently executing within a Temporal activity.
     /// </summary>
-    public static bool InActivity => ActivityExecutionContext.HasCurrent;
+    public static bool InActivity => WorkflowContextHelper.InActivity;
 
     #endregion
 
@@ -149,6 +97,7 @@ public static class XiansContext
 
     /// <summary>
     /// Gets the current agent instance based on the workflow context.
+    /// Use this to access agent-level operations like Knowledge and Documents.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow/activity context or agent not found.</exception>
     public static XiansAgent CurrentAgent
@@ -168,7 +117,7 @@ public static class XiansContext
 
     /// <summary>
     /// Gets the current workflow instance based on the workflow context.
-    /// Useful for accessing workflow-scoped services like Schedules within workflows.
+    /// Use this to access workflow-level operations like Schedules.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow/activity context or workflow not found.</exception>
     public static XiansWorkflow CurrentWorkflow
@@ -193,6 +142,23 @@ public static class XiansContext
                 $"Ensure the workflow has been registered and is running.");
         }
     }
+
+    #endregion
+
+    #region Operation Helpers
+
+    private static readonly WorkflowHelper _workflowHelper = new();
+    private static readonly MessagingHelper _messagingHelper = new();
+
+    /// <summary>
+    /// Gets workflow execution operations for starting and executing child workflows.
+    /// </summary>
+    public static WorkflowHelper Workflows => _workflowHelper;
+
+    /// <summary>
+    /// Gets messaging operations for proactive messaging and A2A communication.
+    /// </summary>
+    public static MessagingHelper Messaging => _messagingHelper;
 
     #endregion
 
@@ -238,67 +204,170 @@ public static class XiansContext
         return _agents.TryGetValue(agentName, out agent);
     }
 
+    /// <summary>
+    /// Gets all registered agents.
+    /// </summary>
+    /// <returns>Enumerable of all registered agent instances.</returns>
+    public static IEnumerable<XiansAgent> GetAllAgents()
+    {
+        return _agents.Values;
+    }
+
     #endregion
 
-    #region Sub-Workflow Execution
+    #region Workflow Registry Access
 
     /// <summary>
-    /// Starts a child workflow without waiting for its completion.
-    /// If called from within a workflow, starts a child workflow.
-    /// If called outside a workflow, starts a new workflow using the Temporal client.
+    /// Gets a registered workflow by workflow type.
     /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
-    /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async Task StartWorkflowAsync<TWorkflow>(string? idPostfix = null, params object[] args)
+    /// <param name="workflowType">The workflow type identifier (format: "AgentName:WorkflowName").</param>
+    /// <returns>The workflow instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when workflowType is null or empty.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the workflow is not found.</exception>
+    public static XiansWorkflow GetWorkflow(string workflowType)
     {
-        await Workflows.SubWorkflowService.StartAsync<TWorkflow>(idPostfix, args);
+        if (string.IsNullOrWhiteSpace(workflowType))
+        {
+            throw new ArgumentNullException(nameof(workflowType), "Workflow type cannot be null or empty.");
+        }
+
+        if (_workflows.TryGetValue(workflowType, out var workflow))
+        {
+            return workflow;
+        }
+
+        throw new KeyNotFoundException(
+            $"Workflow '{workflowType}' not found. Available workflows: {string.Join(", ", _workflows.Keys)}");
     }
 
     /// <summary>
-    /// Starts a child workflow without waiting for its completion.
-    /// If called from within a workflow, starts a child workflow.
-    /// If called outside a workflow, starts a new workflow using the Temporal client.
+    /// Gets a built-in workflow by name for the current agent.
+    /// Automatically constructs the workflow type using the current agent's name and built-in workflow conventions.
     /// </summary>
-    /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
-    /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async Task StartWorkflowAsync(string workflowType, string? idPostfix = null, params object[] args)
+    /// <param name="workflowName">The built-in workflow name (e.g., "Conversational", "WebWorkflow").</param>
+    /// <returns>The workflow instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when workflowName is null or empty.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the workflow is not found.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when not in agent context.</exception>
+    public static XiansWorkflow GetBuiltInWorkflow(string workflowName)
     {
-        await Workflows.SubWorkflowService.StartAsync(workflowType, idPostfix, args);
+        if (string.IsNullOrWhiteSpace(workflowName))
+        {
+            throw new ArgumentNullException(nameof(workflowName), "Workflow name cannot be null or empty.");
+        }
+
+        // Get current agent to construct the workflow type
+        var agent = CurrentAgent;
+        if (agent == null)
+        {
+            throw new InvalidOperationException(
+                "Cannot get built-in workflow: No agent context available. " +
+                "Ensure you're calling this from within a workflow or after registering an agent.");
+        }
+
+        // Use WorkflowIdentity to construct the built-in workflow type
+        // Format: "{AgentName}:BuiltIn Workflow - {name}"
+        var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
+
+        if (_workflows.TryGetValue(workflowType, out var workflow))
+        {
+            return workflow;
+        }
+
+        throw new KeyNotFoundException(
+            $"Built-in workflow '{workflowName}' not found for agent '{agent.Name}'. " +
+            $"Expected workflow type: '{workflowType}'. " +
+            $"Available workflows: {string.Join(", ", _workflows.Keys)}");
     }
 
     /// <summary>
-    /// Executes a child workflow and waits for its result.
-    /// If called from within a workflow, executes a child workflow.
-    /// If called outside a workflow, executes a workflow using the Temporal client.
+    /// Tries to get a built-in workflow by name for the current agent.
+    /// Automatically constructs the workflow type using the current agent's name and built-in workflow conventions.
     /// </summary>
-    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
-    /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <returns>The workflow result.</returns>
-    public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(string? idPostfix = null, params object[] args)
+    /// <param name="workflowName">The built-in workflow name.</param>
+    /// <param name="workflow">The workflow instance if found, null otherwise.</param>
+    /// <returns>True if the workflow was found, false otherwise.</returns>
+    public static bool TryGetBuiltInWorkflow(string workflowName, out XiansWorkflow? workflow)
     {
-        return await Workflows.SubWorkflowService.ExecuteAsync<TWorkflow, TResult>(idPostfix, args);
+        workflow = null;
+
+        if (string.IsNullOrWhiteSpace(workflowName))
+        {
+            return false;
+        }
+
+        var agent = CurrentAgent;
+        if (agent == null)
+        {
+            return false;
+        }
+
+        // Use WorkflowIdentity to construct the built-in workflow type
+        var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
+        return _workflows.TryGetValue(workflowType, out workflow);
     }
 
     /// <summary>
-    /// Executes a child workflow and waits for its result.
-    /// If called from within a workflow, executes a child workflow.
-    /// If called outside a workflow, executes a workflow using the Temporal client.
+    /// Tries to get a registered workflow by workflow type.
     /// </summary>
-    /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
-    /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <returns>The workflow result.</returns>
-    public static async Task<TResult> ExecuteWorkflowAsync<TResult>(string workflowType, string? idPostfix = null, params object[] args)
+    /// <param name="workflowType">The workflow type identifier.</param>
+    /// <param name="workflow">The workflow instance if found, null otherwise.</param>
+    /// <returns>True if the workflow was found, false otherwise.</returns>
+    public static bool TryGetWorkflow(string workflowType, out XiansWorkflow? workflow)
     {
-        return await Workflows.SubWorkflowService.ExecuteAsync<TResult>(workflowType, idPostfix, args);
+        if (string.IsNullOrWhiteSpace(workflowType))
+        {
+            workflow = null;
+            return false;
+        }
+
+        return _workflows.TryGetValue(workflowType, out workflow);
     }
+
+    /// <summary>
+    /// Gets all registered workflows.
+    /// </summary>
+    /// <returns>Enumerable of all registered workflow instances.</returns>
+    public static IEnumerable<XiansWorkflow> GetAllWorkflows()
+    {
+        return _workflows.Values;
+    }
+
+
+    /// <summary>
+    /// Extracts workflow type from [Workflow] attribute on a class.
+    /// </summary>
+    private static string? GetWorkflowTypeFromAttribute<T>() where T : class
+    {
+        var workflowAttr = typeof(T).GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
+            .FirstOrDefault() as Temporalio.Workflows.WorkflowAttribute;
+        
+        return workflowAttr?.Name;
+    }
+
+    #endregion
+
+    #region A2A Operations
+
+    private static readonly Lazy<A2AContextOperations> _a2aOperations = new(() => new A2AContextOperations());
+
+    /// <summary>
+    /// Gets the A2A (Agent-to-Agent) operations for sending messages between workflows.
+    /// Provides simplified API for A2A communication without manually creating A2AClient instances.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// // Send chat to a built-in workflow by name
+    /// var response = await XiansContext.A2A.SendChatToBuiltInAsync("WebWorkflow", new A2AMessage { Text = "Fetch data" });
+    /// 
+    /// // Send simple text message
+    /// var response = await XiansContext.A2A.SendTextAsync("WebWorkflow", "Hello");
+    /// 
+    /// // Send data to a built-in workflow
+    /// var response = await XiansContext.A2A.SendDataToBuiltInAsync("DataWorkflow", new A2AMessage { Data = myData });
+    /// </code>
+    /// </example>
+    public static A2AContextOperations A2A => _a2aOperations.Value;
 
     #endregion
 
@@ -357,6 +426,14 @@ public static class XiansContext
     {
         _agents.Clear();
         _workflows.Clear();
+        // Clear workflow handlers to prevent test contamination
+        Xians.Lib.Workflows.BuiltinWorkflow.ClearHandlersForTests();
+        // Clear static services in activities to prevent cross-test contamination
+        Xians.Lib.Workflows.Knowledge.KnowledgeActivities.ClearStaticServicesForTests();
+        // Clear cached server settings to prevent cross-test contamination
+        Xians.Lib.Common.Infrastructure.SettingsService.ResetCache();
+        // Clear certificate cache to prevent stale certificates
+        Xians.Lib.Common.Security.CertificateCache.Clear();
     }
 
     /// <summary>

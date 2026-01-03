@@ -18,9 +18,21 @@ public class A2ARequest
     public required string SourceWorkflowId { get; set; }
 
     /// <summary>
-    /// Gets or sets the source agent name.
+    /// Gets or sets the source agent name extracted from the source workflow type.
+    /// Cached to avoid repeated string splitting.
     /// </summary>
-    public required string SourceAgentName { get; set; }
+    private string? _sourceAgentName;
+    public string SourceAgentName
+    {
+        get
+        {
+            if (_sourceAgentName == null)
+            {
+                _sourceAgentName = SourceWorkflowType?.Split(':', 2).FirstOrDefault() ?? "unknown";
+            }
+            return _sourceAgentName;
+        }
+    }
 
     /// <summary>
     /// Gets or sets the source workflow type.
@@ -46,6 +58,36 @@ public class A2ARequest
     /// Gets or sets optional metadata.
     /// </summary>
     public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional authorization token.
+    /// </summary>
+    public string? Authorization { get; set; }
+
+    /// <summary>
+    /// Gets or sets the participant ID from the original context.
+    /// </summary>
+    public string? ParticipantId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the request ID from the original context.
+    /// </summary>
+    public string? RequestId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the scope from the original context.
+    /// </summary>
+    public string? Scope { get; set; }
+
+    /// <summary>
+    /// Gets or sets the hint from the original context.
+    /// </summary>
+    public string? Hint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the thread ID from the original context.
+    /// </summary>
+    public string? ThreadId { get; set; }
 
     /// <summary>
     /// Gets or sets the timestamp when the request was created.

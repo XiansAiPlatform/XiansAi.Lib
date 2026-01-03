@@ -40,14 +40,22 @@ workflow.OnUserMessage(async (context) =>
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `Message` | `UserMessage` | The user's message (`.Text` for content) |
+| `Message` | `CurrentMessage` | The current message with text, data, and messaging operations |
+| `Metadata` | `Dictionary<string, string>?` | Optional metadata for the message |
+
+### CurrentMessage Properties (via context.Message)
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Text` | `string` | The user's message text |
 | `ParticipantId` | `string` | User's unique identifier |
 | `RequestId` | `string` | Tracking ID for this request |
-| `Scope` | `string` | Message scope (e.g., "support", "sales") |
-| `Hint` | `string` | Processing hint from the platform |
+| `Scope` | `string?` | Message scope (e.g., "support", "sales") |
+| `Hint` | `string?` | Processing hint from the platform |
 | `ThreadId` | `string?` | Conversation thread identifier |
 | `TenantId` | `string` | Tenant that initiated the workflow |
-| `Data` | `object` | Structured data attached to message |
+| `Data` | `object?` | Structured data attached to message |
+| `Authorization` | `string?` | Authorization token, if provided |
 
 ### Sending Replies
 
@@ -325,11 +333,11 @@ Scopes help organize and route messages:
 // User message comes with a scope
 workflow.OnUserMessage(async (context) =>
 {
-    if (context.Scope == "support")
+    if (context.Message.Scope == "support")
     {
         // Handle support requests
     }
-    else if (context.Scope == "sales")
+    else if (context.Message.Scope == "sales")
     {
         // Handle sales inquiries
     }
@@ -442,7 +450,7 @@ Tenant is automatically extracted from the workflow context:
 workflow.OnUserMessage(async (context) =>
 {
     // TenantId is available from context
-    var tenant = context.TenantId;
+    var tenant = context.Message.TenantId;
     
     // All operations are scoped to this tenant
     var knowledge = await context.GetKnowledgeAsync("tenant-config");
@@ -480,7 +488,7 @@ chatWorkflow.OnUserMessage(async (context) =>
     
     if (message.Contains("order status"))
     {
-        var orders = await GetUserOrders(context.ParticipantId);
+        var orders = await GetUserOrders(context.Message.ParticipantId);
         
         await context.ReplyWithDataAsync(
             "Here are your recent orders:",
@@ -489,7 +497,7 @@ chatWorkflow.OnUserMessage(async (context) =>
     }
     else if (message.Contains("subscribe"))
     {
-        await SubscribeToNotifications(context.ParticipantId);
+        await SubscribeToNotifications(context.Message.ParticipantId);
         await context.ReplyAsync("You're now subscribed to order updates! 🔔");
     }
     else

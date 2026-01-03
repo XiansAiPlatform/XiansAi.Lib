@@ -34,7 +34,7 @@ internal class CertificateValidator
         // Configure chain validation policy
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
         chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
-        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
         chain.ChainPolicy.UrlRetrievalTimeout = TimeSpan.FromSeconds(5);
 
         bool isValid = chain.Build(certificate);

@@ -8,7 +8,8 @@ namespace Xians.Lib.Workflows.Models;
 /// </summary>
 internal class WorkflowHandlerMetadata
 {
-    public required Func<UserMessageContext, Task> Handler { get; set; }
+    public Func<UserMessageContext, Task>? ChatHandler { get; set; }
+    public Func<UserMessageContext, Task>? DataHandler { get; set; }
     public required string AgentName { get; set; }
     public string? TenantId { get; set; }
     public required bool SystemScoped { get; set; }

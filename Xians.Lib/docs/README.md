@@ -13,6 +13,7 @@ Welcome to the Xians.Lib documentation! This library provides robust HTTP and Te
 ### Guides
 - **[User Messaging](Messaging.md)** - Respond to users and send proactive notifications
 - **[Document Storage](Documents.md)** - Store and query structured data with metadata
+- **[HITL Tasks](HITL_Tasks.md)** - Human-in-the-loop workflows for approvals and human input
 - **[HTTP Client Guide](HttpClient.md)** - Comprehensive HTTP client usage and best practices
 - **[Temporal Client Guide](TemporalClient.md)** - Comprehensive Temporal client usage and best practices
 - **[Knowledge Guide](Knowledge.md)** - Store and manage agent knowledge (prompts, configs, docs)
@@ -98,7 +99,14 @@ var client = await temporalService.GetClientAsync();
    - TTL and Expiration
    - Use Cases
 
-7. [Knowledge](Knowledge.md)
+7. [HITL Tasks](HITL_Tasks.md)
+   - Human-in-the-Loop Workflows
+   - Task Creation and Waiting
+   - Common Patterns (Multi-Stage, Parallel, Conditional)
+   - Deterministic Workflow IDs
+   - Best Practices
+
+8. [Knowledge](Knowledge.md)
    - What is Knowledge
    - Storing and Retrieving Knowledge
    - Knowledge Types
@@ -106,7 +114,7 @@ var client = await temporalService.GetClientAsync();
    - Real-World Examples
    - Best Practices
 
-8. [Agent-to-Agent Communication (A2A)](A2A.md)
+9. [Agent-to-Agent Communication (A2A)](A2A.md)
    - Quick Start
    - Core Components (A2AClient, A2AMessage, A2AMessageContext)
    - Usage Patterns
@@ -115,26 +123,26 @@ var client = await temporalService.GetClientAsync();
    - Advanced Scenarios
    - Performance and Security
 
-9. [Caching](Caching.md)
-   - How Caching Works
-   - Configuration Options
-   - Performance Impact
-   - Auto-Invalidation
-   - Troubleshooting
+10. [Caching](Caching.md)
+    - How Caching Works
+    - Configuration Options
+    - Performance Impact
+    - Auto-Invalidation
+    - Troubleshooting
 
-10. [System-Scoped Agents](SystemScopedAgents.md)
+11. [System-Scoped Agents](SystemScopedAgents.md)
     - Multi-Tenant Architecture
     - Tenant Isolation
     - Usage Examples
     - Security Best Practices
     - Troubleshooting
 
-11. [Worker Registration](WorkerRegistration.md)
+12. [Worker Registration](WorkerRegistration.md)
     - Temporal Worker Setup
     - Task Queue Configuration
     - Worker Lifecycle
 
-12. [Examples](Examples/)
+13. [Examples](Examples/)
    - HTTP Client Examples
    - Temporal Client Examples
 

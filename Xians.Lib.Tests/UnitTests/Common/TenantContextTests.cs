@@ -13,7 +13,7 @@ namespace Xians.Lib.Tests.UnitTests.Common;
 public class TenantContextTests
 {
     [Theory]
-    [InlineData("acme-corp:CustomerService:Default Workflow:uuid-123", "acme-corp")]
+    [InlineData("acme-corp:CustomerService:BuiltIn Workflow:uuid-123", "acme-corp")]
     [InlineData("contoso:GlobalNotifications:Alerts:uuid-456", "contoso")]
     [InlineData("tenant-123:MyAgent:Flow", "tenant-123")]
     [InlineData("a:b:c:d:e:f", "a")] // Multiple colons
@@ -66,7 +66,7 @@ public class TenantContextTests
     }
 
     [Theory]
-    [InlineData("acme-corp:CustomerService:Default Workflow:uuid-123", "CustomerService")]
+    [InlineData("acme-corp:CustomerService:BuiltIn Workflow:uuid-123", "CustomerService")]
     [InlineData("contoso:GlobalNotifications:Alerts:uuid-456", "GlobalNotifications")]
     [InlineData("tenant-123:MyAgent:Flow", "MyAgent")]
     public void ExtractWorkflowType_ValidWorkflowId_ReturnsWorkflowType(string workflowId, string expectedWorkflowType)
@@ -120,7 +120,7 @@ public class TenantContextTests
     public void GetTaskQueueName_SystemScoped_ReturnsWorkflowType()
     {
         // Arrange
-        var workflowType = "GlobalNotifications:Default Workflow";
+        var workflowType = "GlobalNotifications:BuiltIn Workflow";
 
         // Act
         var taskQueue = TenantContext.GetTaskQueueName(
@@ -136,7 +136,7 @@ public class TenantContextTests
     public void GetTaskQueueName_NonSystemScoped_ReturnsTenantIdColonWorkflowType()
     {
         // Arrange
-        var workflowType = "CustomerService:Default Workflow";
+        var workflowType = "CustomerService:BuiltIn Workflow";
         var tenantId = "acme-corp";
 
         // Act
@@ -146,14 +146,14 @@ public class TenantContextTests
             tenantId: tenantId);
 
         // Assert
-        Assert.Equal("acme-corp:CustomerService:Default Workflow", taskQueue);
+        Assert.Equal("acme-corp:CustomerService:BuiltIn Workflow", taskQueue);
     }
 
     [Fact]
     public void GetTaskQueueName_NonSystemScopedWithoutTenantId_ThrowsException()
     {
         // Arrange
-        var workflowType = "CustomerService:Default Workflow";
+        var workflowType = "CustomerService:BuiltIn Workflow";
 
         // Act & Assert
         var exception = Assert.Throws<TenantIsolationException>(() =>
@@ -169,7 +169,7 @@ public class TenantContextTests
     public void GetTaskQueueName_NonSystemScopedWithEmptyTenantId_ThrowsException(string emptyTenantId)
     {
         // Arrange
-        var workflowType = "CustomerService:Default Workflow";
+        var workflowType = "CustomerService:BuiltIn Workflow";
 
         // Act & Assert
         var exception = Assert.Throws<TenantIsolationException>(() =>
@@ -281,7 +281,7 @@ public class TenantContextTests
     public void Parse_ValidWorkflowId_ReturnsWorkflowIdentifier()
     {
         // Arrange
-        var workflowId = "acme-corp:CustomerService:Default Workflow:uuid-123";
+        var workflowId = "acme-corp:CustomerService:BuiltIn Workflow:uuid-123";
 
         // Act
         var identifier = TenantContext.Parse(workflowId);
@@ -308,7 +308,7 @@ public class TenantContextTests
     public void WorkflowIdentifier_ToString_ReturnsFormattedString()
     {
         // Arrange
-        var workflowId = "acme-corp:CustomerService:Default Workflow:uuid-123";
+        var workflowId = "acme-corp:CustomerService:BuiltIn Workflow:uuid-123";
         var identifier = TenantContext.Parse(workflowId);
 
         // Act
@@ -340,7 +340,7 @@ public class TenantContextTests
     public void GetTaskQueueName_SystemScopedWithTenantId_IgnoresTenantId()
     {
         // Arrange
-        var workflowType = "GlobalNotifications:Default Workflow";
+        var workflowType = "GlobalNotifications:BuiltIn Workflow";
         var tenantId = "some-tenant";
 
         // Act - System-scoped should ignore tenantId even if provided

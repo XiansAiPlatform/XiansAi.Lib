@@ -3,12 +3,12 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Messaging.Models;
 using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows.Knowledge;
+using Xians.Lib.Workflows.Models;
 
 namespace Xians.Lib.Workflows.Messaging;
 
@@ -39,28 +39,31 @@ public class MessageActivities
     public async Task ProcessAndSendMessageAsync(ProcessMessageActivityRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "ProcessAndSendMessage activity started: RequestId={RequestId}, WorkflowType={WorkflowType}",
+            "ProcessAndSendMessage activity started: RequestId={RequestId}, WorkflowType={WorkflowType}, MessageType={MessageType}",
             request.RequestId,
-            request.WorkflowType);
+            request.WorkflowType,
+            request.MessageType);
 
         try
         {
-            // Look up the handler from the static registry (avoids serialization issues)
-            if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(request.WorkflowType, out var metadata))
+            var metadata = GetHandlerMetadata(request.WorkflowType);
+
+            // Get the appropriate handler based on message type
+            var handler = request.MessageType.ToLower() == "chat" 
+                ? metadata.ChatHandler 
+                : metadata.DataHandler;
+
+            if (handler == null)
             {
-                var errorMessage = $"No message handler registered for workflow type '{request.WorkflowType}' in activity.";
-                ActivityExecutionContext.Current.Logger.LogError(
-                    "Handler lookup failed: WorkflowType={WorkflowType}",
-                    request.WorkflowType);
-                
-                // Throw exception to let workflow handle error response
-                throw new InvalidOperationException(errorMessage);
+                throw new InvalidOperationException(
+                    $"No {request.MessageType} handler registered for workflow type '{request.WorkflowType}'. " +
+                    $"Use OnUser{request.MessageType}Message() to register a handler.");
             }
 
             // Create a context that sends responses via HTTP instead of collecting them
             var context = new ActivityUserMessageContext(
                 _httpClient,
-                new UserMessage { Text = request.MessageText },
+                request.MessageText,
                 request.ParticipantId,
                 request.RequestId,
                 request.Scope,
@@ -70,11 +73,12 @@ public class MessageActivities
                 request.WorkflowId,
                 request.WorkflowType,
                 request.Authorization,
-                request.ThreadId
+                request.ThreadId,
+                request.Metadata
             );
 
             // Invoke the registered handler (which makes agent API calls and sends responses)
-            await metadata.Handler(context);
+            await handler(context);
 
             ActivityExecutionContext.Current.Logger.LogInformation(
                 "Message processed and responses sent: RequestId={RequestId}",
@@ -88,6 +92,41 @@ public class MessageActivities
 
             // Re-throw to let Temporal handle retry
             // The workflow will send error response to user after all retries are exhausted
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Processes an A2A (Agent-to-Agent) message by invoking the handler and capturing the response.
+    /// Unlike ProcessAndSendMessageAsync, this returns the response instead of sending it via HTTP.
+    /// Delegates to shared A2AService to avoid code duplication.
+    /// </summary>
+    [Activity]
+    public async Task<Xians.Lib.Agents.A2A.A2AActivityResponse> ProcessA2AMessageAsync(ProcessMessageActivityRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "ProcessA2AMessage activity started: RequestId={RequestId}, WorkflowType={WorkflowType}, MessageType={MessageType}",
+            request.RequestId,
+            request.WorkflowType,
+            request.MessageType);
+
+        try
+        {
+            // Delegate to shared A2AService for consistent handler invocation
+            var a2aService = new Xians.Lib.Agents.A2A.A2AService(request.WorkflowType);
+            var response = await a2aService.ProcessDirectAsync(request);
+
+            ActivityExecutionContext.Current.Logger.LogInformation(
+                "A2A message processed: RequestId={RequestId}",
+                request.RequestId);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error processing A2A message: RequestId={RequestId}",
+                request.RequestId);
             throw;
         }
     }
@@ -108,18 +147,38 @@ public class MessageActivities
         
         try
         {
-            return await _messageService.GetHistoryAsync(
-                request.WorkflowType,
-                request.ParticipantId,
-                request.Scope,
-                request.TenantId,
-                request.Page,
-                request.PageSize);
+            return await _messageService.GetHistoryAsync(request);
         }
         catch (Exception ex)
         {
             ActivityExecutionContext.Current.Logger.LogError(ex,
                 "Error fetching message history for WorkflowType={WorkflowType}",
+                request.WorkflowType);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Retrieves the last hint for a conversation from the server.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Delegates to shared MessageService.
+    /// </summary>
+    [Activity]
+    public async Task<string?> GetLastHintAsync(GetLastHintRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "GetLastHint activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+            request.WorkflowType,
+            request.ParticipantId);
+        
+        try
+        {
+            return await _messageService.GetLastHintAsync(request);
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error fetching last hint for WorkflowType={WorkflowType}",
                 request.WorkflowType);
             throw;
         }
@@ -141,20 +200,7 @@ public class MessageActivities
         
         try
         {
-            await _messageService.SendAsync(
-                request.ParticipantId,
-                request.WorkflowId,
-                request.WorkflowType,
-                request.RequestId,
-                request.Scope ?? string.Empty,
-                request.Text ?? string.Empty,
-                request.Data,
-                request.TenantId,
-                request.Authorization,
-                request.ThreadId,
-                request.Hint ?? string.Empty,
-                request.Origin,
-                request.Type);
+            await _messageService.SendAsync(request);
 
             ActivityExecutionContext.Current.Logger.LogInformation(
                 "Message sent successfully: RequestId={RequestId}",
@@ -167,6 +213,58 @@ public class MessageActivities
                 request.RequestId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Sends a handoff request to transfer a conversation to another agent/workflow.
+    /// Delegates to shared MessageService.
+    /// </summary>
+    [Activity]
+    public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "SendHandoff activity started: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+            request.TargetWorkflowId,
+            request.TargetWorkflowType);
+        
+        try
+        {
+            var result = await _messageService.SendHandoffAsync(request);
+
+            ActivityExecutionContext.Current.Logger.LogInformation(
+                "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+                request.TargetWorkflowId,
+                request.TargetWorkflowType);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error sending handoff: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+                request.TargetWorkflowId,
+                request.TargetWorkflowType);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Looks up the handler metadata from the registry.
+    /// Throws InvalidOperationException if not found.
+    /// </summary>
+    private WorkflowHandlerMetadata GetHandlerMetadata(string workflowType)
+    {
+        if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(workflowType, out var metadata))
+        {
+            var errorMessage = $"No message handler registered for workflow type '{workflowType}' in activity.";
+            ActivityExecutionContext.Current.Logger.LogError(
+                "Handler lookup failed: WorkflowType={WorkflowType}",
+                workflowType);
+            
+            throw new InvalidOperationException(errorMessage);
+        }
+
+        return metadata;
     }
 }
 
@@ -182,26 +280,27 @@ public class ActivityUserMessageContext : UserMessageContext
     private readonly string _workflowType;
     private readonly string _participantId;
     private readonly string _requestId;
-    private readonly string _scope;
+    private readonly string? _scope;
     private readonly string? _threadId;
     private readonly string? _authorization;
-    private readonly string _hint;
+    private readonly string? _hint;
     private readonly string _tenantId;
 
     public ActivityUserMessageContext(
         HttpClient httpClient,
-        UserMessage message,
+        string text,
         string participantId,
         string requestId,
-        string scope,
-        string hint,
-        object data,
+        string? scope,
+        string? hint,
+        object? data,
         string tenantId,
         string workflowId,
         string workflowType,
         string? authorization = null,
-        string? threadId = null)
-        : base(message, participantId, requestId, scope, hint, data, tenantId, authorization, threadId)
+        string? threadId = null,
+        Dictionary<string, string>? metadata = null)
+        : base(text, participantId, requestId, scope, hint, data, tenantId, authorization, threadId, metadata)
     {
         _participantId = participantId;
         _requestId = requestId;
@@ -231,13 +330,6 @@ public class ActivityUserMessageContext : UserMessageContext
         await SendHttpMessageAsync(response, null);
     }
 
-    /// <summary>
-    /// Sends response with data via HTTP instead of workflow activity.
-    /// </summary>
-    public override async Task ReplyWithDataAsync(string content, object? data)
-    {
-        await SendHttpMessageAsync(content, data);
-    }
 
     /// <summary>
     /// Retrieves chat history via HTTP instead of workflow activity.
@@ -246,20 +338,40 @@ public class ActivityUserMessageContext : UserMessageContext
     /// </summary>
     public override async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        return await _messageService.GetHistoryAsync(
-            _workflowType,
-            _participantId,
-            _scope,
-            _tenantId,
-            page,
-            pageSize);
+        var request = new GetMessageHistoryRequest
+        {
+            WorkflowType = _workflowType,
+            ParticipantId = _participantId,
+            Scope = _scope,
+            TenantId = _tenantId,
+            Page = page,
+            PageSize = pageSize
+        };
+        return await _messageService.GetHistoryAsync(request);
+    }
+
+    /// <summary>
+    /// Retrieves the last hint via HTTP instead of workflow activity.
+    /// For system-scoped agents, uses tenant ID from workflow context.
+    /// Delegates to shared MessageService.
+    /// </summary>
+    public override async Task<string?> GetLastHintAsync()
+    {
+        var request = new GetLastHintRequest
+        {
+            WorkflowType = _workflowType,
+            ParticipantId = _participantId,
+            Scope = _scope,
+            TenantId = _tenantId
+        };
+        return await _messageService.GetLastHintAsync(request);
     }
 
     /// <summary>
     /// Retrieves knowledge via HTTP instead of workflow activity.
     /// Delegates to shared KnowledgeService.
     /// </summary>
-    public override async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
     {
         return await _knowledgeService.GetAsync(
             knowledgeName,
@@ -271,7 +383,7 @@ public class ActivityUserMessageContext : UserMessageContext
     /// Updates knowledge via HTTP instead of workflow activity.
     /// Delegates to shared KnowledgeService.
     /// </summary>
-    public override async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string content, string? type = null)
+    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string content, string? type = null)
     {
         return await _knowledgeService.UpdateAsync(
             knowledgeName,
@@ -285,7 +397,7 @@ public class ActivityUserMessageContext : UserMessageContext
     /// Deletes knowledge via HTTP instead of workflow activity.
     /// Delegates to shared KnowledgeService.
     /// </summary>
-    public override async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
+    public async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
     {
         return await _knowledgeService.DeleteAsync(
             knowledgeName,
@@ -297,7 +409,7 @@ public class ActivityUserMessageContext : UserMessageContext
     /// Lists knowledge via HTTP instead of workflow activity.
     /// Delegates to shared KnowledgeService.
     /// </summary>
-    public override async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListKnowledgeAsync()
+    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListKnowledgeAsync()
     {
         return await _knowledgeService.ListAsync(
             GetAgentNameFromWorkflowType(),
@@ -319,19 +431,22 @@ public class ActivityUserMessageContext : UserMessageContext
     /// </summary>
     private async Task SendHttpMessageAsync(string text, object? data)
     {
-        await _messageService.SendAsync(
-            _participantId,
-            _workflowId,
-            _workflowType,
-            _requestId,
-            _scope,
-            text,
-            data,
-            _tenantId,
-            _authorization,
-            _threadId,
-            _hint,
-            origin: null,
-            messageType: "chat");
+        var request = new SendMessageRequest
+        {
+            ParticipantId = _participantId,
+            WorkflowId = _workflowId,
+            WorkflowType = _workflowType,
+            RequestId = _requestId,
+            Scope = _scope,
+            Text = text,
+            Data = data,
+            TenantId = _tenantId,
+            Authorization = _authorization,
+            ThreadId = _threadId,
+            Hint = _hint,
+            Origin = null,
+            Type = "chat"
+        };
+        await _messageService.SendAsync(request);
     }
 }

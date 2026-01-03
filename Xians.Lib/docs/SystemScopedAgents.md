@@ -60,7 +60,7 @@ Examples:
    └─> TenantId = "acme-corp"
    
 5. Tenant context passed to handler
-   └─> context.TenantId = "acme-corp"
+   └─> context.Message.TenantId = "acme-corp"
 ```
 
 ## Tenant Isolation
@@ -69,7 +69,7 @@ Examples:
 
 System-scoped agents:
 - ✅ **Extract** tenant from WorkflowId
-- ✅ **Pass** tenant context to handlers via `context.TenantId`
+- ✅ **Pass** tenant context to handlers via `context.Message.TenantId`
 - ✅ **Include** `X-Tenant-Id` header in API requests (automatic)
 - ❌ **Do NOT validate** tenant against a registered tenant
 - ✅ **Can handle** multiple tenants simultaneously
@@ -97,7 +97,7 @@ Non-system-scoped agents:
 - ✅ **Extract** tenant from WorkflowId
 - ✅ **Validate** tenant matches registered tenant
 - ✅ **Reject** messages from other tenants
-- ✅ **Pass** tenant context to handlers via `context.TenantId`
+- ✅ **Pass** tenant context to handlers via `context.Message.TenantId`
 - ✅ **Include** `X-Tenant-Id` header in API requests (automatic)
 
 **Note:** For non-system-scoped agents, the tenant from the WorkflowId always matches the agent's registered tenant (validated at runtime).
@@ -151,11 +151,11 @@ workflow.OnUserMessage(async (context) =>
     await context.SaveDocumentAsync(new Document
     {
         Type = "user-data",
-        Key = context.ParticipantId,
+        Key = context.Message.ParticipantId,
         Content = JsonSerializer.SerializeToElement(data)
     });
     
-    // Messaging - tenant from context.TenantId
+    // Messaging - tenant from context.Message.TenantId
     await context.ReplyAsync("Done!");
     
     // Proactive messaging - tenant from XiansContext
@@ -202,8 +202,8 @@ var workflow = await agent.Workflows.DefineBuiltIn(
 // Register handler with tenant-aware logic
 workflow.OnUserMessage(async (context) =>
 {
-    // Tenant context available via context.TenantId
-    var tenant = context.TenantId;  // e.g., "acme-corp"
+    // Tenant context available via context.Message.TenantId
+    var tenant = context.Message.TenantId;  // e.g., "acme-corp"
     
     Console.WriteLine($"Processing alert for tenant: {tenant}");
     
@@ -249,8 +249,8 @@ var workflow = await agent.Workflows.DefineBuiltIn(
 // Register handler
 workflow.OnUserMessage(async (context) =>
 {
-    // context.TenantId is always the agent's registered tenant
-    var tenant = context.TenantId;  // Always same tenant
+    // context.Message.TenantId is always the agent's registered tenant
+    var tenant = context.Message.TenantId;  // Always same tenant
     
     await HandleSupportTicket(context.Message.Text);
     await context.ReplyAsync("Ticket created");
@@ -273,7 +273,7 @@ await agent.RunAllAsync();
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
-    var config = await GetTenantConfig(context.TenantId);
+    var config = await GetTenantConfig(context.Message.TenantId);
     
     // Use tenant-specific settings
     if (config.EnableFeatureX)
@@ -293,11 +293,11 @@ workflow.OnUserMessage(async (context) =>
 workflow.OnUserMessage(async (context) =>
 {
     // Get tenant-specific database connection
-    using var db = GetTenantDatabase(context.TenantId);
+    using var db = GetTenantDatabase(context.Message.TenantId);
     
     // All operations scoped to tenant's data
     var userRecords = await db.Users
-        .Where(u => u.TenantId == context.TenantId)
+        .Where(u => u.TenantId == context.Message.TenantId)
         .ToListAsync();
     
     await context.ReplyAsync($"Found {userRecords.Count} users");
@@ -311,8 +311,8 @@ workflow.OnUserMessage(async (context) =>
 {
     _logger.LogInformation(
         "Processing message for tenant {TenantId}, user {UserId}",
-        context.TenantId,
-        context.ParticipantId
+        context.Message.TenantId,
+        context.Message.ParticipantId
     );
     
     // Process with full audit trail
@@ -324,7 +324,7 @@ workflow.OnUserMessage(async (context) =>
 
 ### ✅ Safe Practices
 
-1. **Always use `context.TenantId`** - Don't trust external tenant claims
+1. **Always use `context.Message.TenantId`** - Don't trust external tenant claims
 2. **Scope database queries** - Include tenant ID in WHERE clauses
 3. **Validate permissions** - Check user belongs to tenant
 4. **Audit tenant context** - Log tenant ID with all operations
@@ -336,15 +336,15 @@ workflow.OnUserMessage(async (context) =>
 // ❌ WRONG: Trusting external tenant claim
 workflow.OnUserMessage(async (context) =>
 {
-    var tenantId = context.Data["tenantId"]; // DON'T DO THIS
-    // Use context.TenantId instead!
+    var tenantId = context.Message.Data["tenantId"]; // DON'T DO THIS
+    // Use context.Message.TenantId instead!
 });
 
 // ❌ WRONG: Not filtering by tenant
 workflow.OnUserMessage(async (context) =>
 {
     var allUsers = await db.Users.ToListAsync(); // LEAKS DATA
-    // Filter by context.TenantId!
+    // Filter by context.Message.TenantId!
 });
 
 // ❌ WRONG: Mixing tenant data
@@ -355,10 +355,10 @@ var cache = new Dictionary<string, object>(); // Shared across tenants!
 ### ✅ Correct Patterns
 
 ```csharp
-// ✅ CORRECT: Use context.TenantId
+// ✅ CORRECT: Use context.Message.TenantId
 workflow.OnUserMessage(async (context) =>
 {
-    var tenant = context.TenantId; // From WorkflowId, validated
+    var tenant = context.Message.TenantId; // From WorkflowId, validated
     
     // ✅ Scope database query
     var users = await db.Users
@@ -366,10 +366,10 @@ workflow.OnUserMessage(async (context) =>
         .ToListAsync();
     
     // ✅ Tenant-specific cache key
-    var cacheKey = $"{tenant}:users:{context.ParticipantId}";
+    var cacheKey = $"{tenant}:users:{context.Message.ParticipantId}";
     
     // ✅ Validate permissions
-    if (!await HasAccess(tenant, context.ParticipantId))
+    if (!await HasAccess(tenant, context.Message.ParticipantId))
     {
         await context.ReplyAsync("Access denied");
         return;
@@ -454,7 +454,7 @@ httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 **Cause:** Missing or incorrect `X-Tenant-Id` header in HTTP request
 
 **Solution:**
-- Verify `context.TenantId` contains correct tenant
+- Verify `context.Message.TenantId` contains correct tenant
 - Check that WorkflowId format is correct: `TenantId:WorkflowType:...`
 - Ensure MessageActivities is adding the header (should be automatic)
 
@@ -478,13 +478,13 @@ httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
 
 ### Agent Processing Wrong Tenant's Data
 
-**Cause:** Handler not using `context.TenantId` for data isolation
+**Cause:** Handler not using `context.Message.TenantId` for data isolation
 
 **Solution:**
 ```csharp
 // Always scope queries by tenant
 var data = await db.Records
-    .Where(r => r.TenantId == context.TenantId)  // Add this!
+    .Where(r => r.TenantId == context.Message.TenantId)  // Add this!
     .ToListAsync();
 ```
 
@@ -501,7 +501,7 @@ var data = await db.Records
    - Isolated environments
 
 3. **Always Validate Tenant Context**
-   - Use `context.TenantId` for all tenant operations
+   - Use `context.Message.TenantId` for all tenant operations
    - Never trust external tenant claims
    - Scope all database queries by tenant
 

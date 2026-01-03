@@ -1,7 +1,9 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Documents.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Infrastructure;
+using Xians.Lib.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Documents;
 
@@ -13,7 +15,7 @@ internal class DocumentService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger _logger;
-    private const string BaseEndpoint = "api/agent/documents";
+    private static string BaseEndpoint => WorkflowConstants.ApiEndpoints.Documents;
 
     public DocumentService(HttpClient httpClient, ILogger logger)
     {
@@ -24,24 +26,23 @@ internal class DocumentService
     /// <summary>
     /// Saves a document to the database.
     /// </summary>
-    /// <param name="document">The document to save.</param>
-    /// <param name="tenantId">The tenant ID for isolation.</param>
-    /// <param name="options">Optional document storage options.</param>
+    /// <param name="request">The save document request containing document, tenant ID, and options.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The saved document with its assigned ID.</returns>
-    public async Task<Document> SaveAsync(Document document, string tenantId, DocumentOptions? options = null, CancellationToken cancellationToken = default)
+    public async Task<Document> SaveAsync(SaveDocumentRequest request, CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateNotNull(document, nameof(document));
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidateNotNull(request, nameof(request));
+        ValidationHelper.ValidateNotNull(request.Document, nameof(request.Document));
+        ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         
-        _logger.LogTrace("Saving document{Id}", document.Id != null ? $" with ID: {document.Id}" : "");
+        _logger.LogTrace("Saving document{Id}", request.Document.Id != null ? $" with ID: {request.Document.Id}" : "");
 
         // Validate UseKeyAsIdentifier requirements
-        if (options?.UseKeyAsIdentifier == true)
+        if (request.Options?.UseKeyAsIdentifier == true)
         {
             var missingFields = new List<string>();
-            if (string.IsNullOrEmpty(document.Type)) missingFields.Add("Type");
-            if (string.IsNullOrEmpty(document.Key)) missingFields.Add("Key");
+            if (string.IsNullOrEmpty(request.Document.Type)) missingFields.Add("Type");
+            if (string.IsNullOrEmpty(request.Document.Key)) missingFields.Add("Key");
             
             if (missingFields.Any())
             {
@@ -51,15 +52,15 @@ internal class DocumentService
             }
         }
 
-        var request = new DocumentRequest 
+        var documentRequest = new DocumentRequest 
         { 
-            Document = document,
-            Options = options
+            Document = request.Document,
+            Options = request.Options
         };
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/save");
-        httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Content = JsonContent.Create(documentRequest);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -87,35 +88,35 @@ internal class DocumentService
     /// <summary>
     /// Retrieves a document by its ID.
     /// </summary>
-    /// <param name="id">The document ID.</param>
-    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="request">The get document request containing document ID and tenant ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The document if found, null otherwise.</returns>
-    public async Task<Document?> GetAsync(string id, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<Document?> GetAsync(GetDocumentRequest request, CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateRequired(id, nameof(id));
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidateNotNull(request, nameof(request));
+        ValidationHelper.ValidateRequired(request.Id, nameof(request.Id));
+        ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         
-        _logger.LogTrace("Getting document with ID: {Id}", id);
+        _logger.LogTrace("Getting document with ID: {Id}", request.Id);
 
-        var request = new DocumentIdRequest { Id = id };
+        var documentIdRequest = new DocumentIdRequest { Id = request.Id };
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/get");
-        httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Content = JsonContent.Create(documentIdRequest);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _logger.LogTrace("Document not found with ID: {Id}", id);
+            _logger.LogTrace("Document not found with ID: {Id}", request.Id);
             return null;
         }
         
         // Handle InternalServerError as "not found" (server may return 500 for non-existent documents)
         if (response.StatusCode == System.Net.HttpStatusCode.InternalServerError)
         {
-            _logger.LogTrace("Document not found (500) with ID: {Id}", id);
+            _logger.LogTrace("Document not found (500) with ID: {Id}", request.Id);
             return null;
         }
 
@@ -131,7 +132,7 @@ internal class DocumentService
         }
         
         var document = await response.Content.ReadFromJsonAsync<Document>();
-        _logger.LogInformation("Document retrieved successfully with ID: {Id}", id);
+        _logger.LogInformation("Document retrieved successfully with ID: {Id}", request.Id);
         return document;
     }
 
@@ -155,7 +156,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/get-by-key");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
@@ -184,23 +185,23 @@ internal class DocumentService
     /// <summary>
     /// Queries documents based on filters.
     /// </summary>
-    /// <param name="query">The query parameters.</param>
-    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="request">The query request containing query parameters and tenant ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of matching documents.</returns>
-    public async Task<List<Document>> QueryAsync(DocumentQuery query, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<List<Document>> QueryAsync(QueryDocumentsRequest request, CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateNotNull(query, nameof(query));
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidateNotNull(request, nameof(request));
+        ValidationHelper.ValidateNotNull(request.Query, nameof(request.Query));
+        ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         
         _logger.LogTrace("Querying documents with filters: Type={Type}, Limit={Limit}", 
-            query.Type, query.Limit);
+            request.Query.Type, request.Query.Limit);
 
-        var request = new DocumentQueryRequest { Query = query };
+        var queryRequest = new DocumentQueryRequest { Query = request.Query };
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/query");
-        httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Content = JsonContent.Create(queryRequest);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -224,40 +225,40 @@ internal class DocumentService
     /// <summary>
     /// Updates an existing document.
     /// </summary>
-    /// <param name="document">The document to update (must have an ID).</param>
-    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="request">The update request containing document and tenant ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if updated successfully, false if not found.</returns>
-    public async Task<bool> UpdateAsync(Document document, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(UpdateDocumentRequest request, CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateNotNull(document, nameof(document));
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidateNotNull(request, nameof(request));
+        ValidationHelper.ValidateNotNull(request.Document, nameof(request.Document));
+        ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         
-        if (string.IsNullOrEmpty(document.Id))
+        if (string.IsNullOrEmpty(request.Document.Id))
         {
-            throw new ArgumentException("Document ID is required for update", nameof(document));
+            throw new ArgumentException("Document ID is required for update", nameof(request.Document));
         }
 
-        _logger.LogTrace("Updating document with ID: {Id}", document.Id);
+        _logger.LogTrace("Updating document with ID: {Id}", request.Document.Id);
 
-        document.UpdatedAt = DateTime.UtcNow;
+        request.Document.UpdatedAt = DateTime.UtcNow;
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/update");
-        httpRequest.Content = JsonContent.Create(document);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Content = JsonContent.Create(request.Document);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _logger.LogTrace("Document not found for update with ID: {Id}", document.Id);
+            _logger.LogTrace("Document not found for update with ID: {Id}", request.Document.Id);
             return false;
         }
         
         // Handle BadRequest as "not found" for update operations (server may return 400 for non-existent documents)
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
-            _logger.LogTrace("Document not found for update (400) with ID: {Id}", document.Id);
+            _logger.LogTrace("Document not found for update (400) with ID: {Id}", request.Document.Id);
             return false;
         }
 
@@ -272,42 +273,42 @@ internal class DocumentService
                 $"Failed to update document. Status: {response.StatusCode}");
         }
 
-        _logger.LogInformation("Document updated successfully with ID: {Id}", document.Id);
+        _logger.LogInformation("Document updated successfully with ID: {Id}", request.Document.Id);
         return true;
     }
 
     /// <summary>
     /// Deletes a document by its ID.
     /// </summary>
-    /// <param name="id">The document ID to delete.</param>
-    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="request">The delete request containing document ID and tenant ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if deleted successfully, false if not found.</returns>
-    public async Task<bool> DeleteAsync(string id, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(DeleteDocumentRequest request, CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateRequired(id, nameof(id));
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        ValidationHelper.ValidateNotNull(request, nameof(request));
+        ValidationHelper.ValidateRequired(request.Id, nameof(request.Id));
+        ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         
-        _logger.LogTrace("Deleting document with ID: {Id}", id);
+        _logger.LogTrace("Deleting document with ID: {Id}", request.Id);
 
-        var request = new DocumentIdRequest { Id = id };
+        var documentIdRequest = new DocumentIdRequest { Id = request.Id };
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/delete");
-        httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Content = JsonContent.Create(documentIdRequest);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
         
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _logger.LogTrace("Document not found for deletion with ID: {Id}", id);
+            _logger.LogTrace("Document not found for deletion with ID: {Id}", request.Id);
             return false;
         }
         
         // Handle BadRequest as "not found" for delete operations (server may return 400 for non-existent documents)
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
-            _logger.LogTrace("Document not found for deletion (400) with ID: {Id}", id);
+            _logger.LogTrace("Document not found for deletion (400) with ID: {Id}", request.Id);
             return false;
         }
 
@@ -322,7 +323,7 @@ internal class DocumentService
                 $"Failed to delete document. Status: {response.StatusCode}");
         }
 
-        _logger.LogInformation("Document deleted successfully with ID: {Id}", id);
+        _logger.LogInformation("Document deleted successfully with ID: {Id}", request.Id);
         return true;
     }
 
@@ -345,7 +346,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/delete-many");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 
@@ -386,7 +387,7 @@ internal class DocumentService
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseEndpoint}/exists");
         httpRequest.Content = JsonContent.Create(request);
-        httpRequest.Headers.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
 

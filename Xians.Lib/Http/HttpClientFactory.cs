@@ -70,7 +70,7 @@ internal class HttpClientFactory
             // Export the certificate as Base64 and add to request headers
             var exportedCertBytes = certificate.Export(X509ContentType.Cert);
             var exportedCertBase64 = Convert.ToBase64String(exportedCertBytes);
-            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {exportedCertBase64}");
+            client.DefaultRequestHeaders.Add(WorkflowConstants.Headers.Authorization, $"Bearer {exportedCertBase64}");
             
             _logger?.LogTrace("Client certificate configured for authentication");
         }

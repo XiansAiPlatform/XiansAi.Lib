@@ -11,23 +11,34 @@ public static class CertificateValidationHelper
 {
     /// <summary>
     /// Validates that a certificate is within its valid time period.
+    /// Allows a 15-minute clock skew tolerance to handle time sync issues.
     /// </summary>
     public static void ValidateExpiration(X509Certificate2 certificate, ILogger? logger = null)
     {
         var now = DateTime.UtcNow;
+        var clockSkewTolerance = TimeSpan.FromMinutes(15);
 
-        if (certificate.NotAfter < now)
+        // Normalize certificate dates to UTC for comparison
+        var notBefore = certificate.NotBefore.ToUniversalTime();
+        var notAfter = certificate.NotAfter.ToUniversalTime();
+
+        logger?.LogDebug(
+            "Certificate validation - Now: {Now:O} ({NowKind}), NotBefore: {NotBefore:O} ({NotBeforeKind}), NotAfter: {NotAfter:O} ({NotAfterKind})", 
+            now, now.Kind, notBefore, notBefore.Kind, notAfter, notAfter.Kind);
+
+        if (notAfter < now.Subtract(clockSkewTolerance))
         {
-            logger?.LogError("Certificate expired on {ExpirationDate}", certificate.NotAfter);
+            logger?.LogError("Certificate expired on {ExpirationDate}", notAfter);
             throw new CertificateException(
-                $"Certificate has expired on {certificate.NotAfter:yyyy-MM-dd}");
+                $"Certificate has expired on {notAfter:yyyy-MM-dd}");
         }
 
-        if (certificate.NotBefore > now)
+        if (notBefore > now.Add(clockSkewTolerance))
         {
-            logger?.LogError("Certificate not valid until {ValidFrom}", certificate.NotBefore);
+            logger?.LogError("Certificate not valid until {ValidFrom} (Current UTC: {Now}, Tolerance: {Tolerance} min)", 
+                notBefore, now, clockSkewTolerance.TotalMinutes);
             throw new CertificateException(
-                $"Certificate is not yet valid until {certificate.NotBefore:yyyy-MM-dd}");
+                $"Certificate is not yet valid until {notBefore:yyyy-MM-dd}");
         }
     }
 }

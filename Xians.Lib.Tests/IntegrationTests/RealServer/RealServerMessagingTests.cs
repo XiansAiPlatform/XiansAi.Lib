@@ -2,8 +2,9 @@ using System.Net.Http.Json;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Models;
+using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -17,7 +18,7 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// </summary>
 [Trait("Category", "RealServer")]
 [Collection("RealServerMessaging")] // Force sequential execution
-public class RealServerMessagingTests : RealServerTestBase, IDisposable
+public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
 {
     private XiansPlatform? _platform;
     private XiansAgent? _agent;
@@ -36,8 +37,17 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
         _agentName = $"MessagingTestAgent-{Guid.NewGuid().ToString()[..8]}";
     }
 
-    public void Dispose()
+    async Task IAsyncLifetime.InitializeAsync()
     {
+        // No initialization needed - tests call InitializePlatformAsync as needed
+        await Task.CompletedTask;
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        // Terminate workflows
+        await TerminateWorkflowsAsync();
+
         // Clear the context to allow other tests to register agents
         try
         {
@@ -46,6 +56,26 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
         catch
         {
             // Ignore cleanup errors
+        }
+    }
+
+    private async Task TerminateWorkflowsAsync()
+    {
+        if (_agent?.TemporalService == null) return;
+
+        try
+        {
+            var temporalClient = await _agent.TemporalService.GetClientAsync();
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                _agentName, 
+                new[] { WORKFLOW_NAME });
+            
+            Console.WriteLine("✓ Workflows terminated");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to terminate workflows: {ex.Message}");
         }
     }
 
@@ -101,21 +131,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             var text = $"Hello from messaging test at {DateTime.UtcNow:O}";
 
             // Act
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: text,
-                data: null,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "test",
-                origin: "integration-test",
-                messageType: "chat"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = text,
+                Data = null,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "test",
+                Origin = "integration-test",
+                Type = "chat"
+            };
+            await messageService.SendAsync(request);
 
             // Assert - If we get here without exception, the message was sent
             Console.WriteLine($"✓ Message sent successfully: RequestId={requestId}");
@@ -152,21 +184,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             };
 
             // Act
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: "Order update",
-                data: data,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "order-notification",
-                origin: "integration-test",
-                messageType: "data"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = "Order update",
+                Data = data,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "order-notification",
+                Origin = "integration-test",
+                Type = "data"
+            };
+            await messageService.SendAsync(request);
 
             // Assert
             Console.WriteLine($"✓ Data message sent successfully: RequestId={requestId}");
@@ -209,21 +243,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             };
 
             // Act
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: "Here are your products:",
-                data: data,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "product-list",
-                origin: "integration-test",
-                messageType: "chat"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = "Here are your products:",
+                Data = data,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "product-list",
+                Origin = "integration-test",
+                Type = "chat"
+            };
+            await messageService.SendAsync(request);
 
             // Assert
             Console.WriteLine($"✓ Chat with data sent successfully: RequestId={requestId}");
@@ -256,34 +292,38 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             var requestId = Guid.NewGuid().ToString();
             var testMessage = $"History test message at {DateTime.UtcNow:O}";
 
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: testMessage,
-                data: null,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "",
-                origin: "integration-test",
-                messageType: "chat"
-            );
+            var sendRequest = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = testMessage,
+                Data = null,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "",
+                Origin = "integration-test",
+                Type = "chat"
+            };
+            await messageService.SendAsync(sendRequest);
 
             // Wait a moment for message to be stored
             await Task.Delay(500);
 
             // Act - Get history
-            var history = await messageService.GetHistoryAsync(
-                workflowType: workflowType,
-                participantId: _testParticipantId,
-                scope: _testScope,
-                tenantId: _platform.Options.CertificateTenantId!,
-                page: 1,
-                pageSize: 10
-            );
+            var historyRequest = new GetMessageHistoryRequest
+            {
+                WorkflowType = workflowType,
+                ParticipantId = _testParticipantId,
+                Scope = _testScope,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Page = 1,
+                PageSize = 10
+            };
+            var history = await messageService.GetHistoryAsync(historyRequest);
 
             // Assert
             Assert.NotNull(history);
@@ -318,14 +358,16 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             var randomParticipantId = $"nonexistent-{Guid.NewGuid()}";
 
             // Act
-            var history = await messageService.GetHistoryAsync(
-                workflowType: workflowType,
-                participantId: randomParticipantId,
-                scope: "nonexistent-scope",
-                tenantId: _platform!.Options.CertificateTenantId!,
-                page: 1,
-                pageSize: 10
-            );
+            var historyRequest = new GetMessageHistoryRequest
+            {
+                WorkflowType = workflowType,
+                ParticipantId = randomParticipantId,
+                Scope = "nonexistent-scope",
+                TenantId = _platform!.Options.CertificateTenantId!,
+                Page = 1,
+                PageSize = 10
+            };
+            var history = await messageService.GetHistoryAsync(historyRequest);
 
             // Assert
             Assert.NotNull(history);
@@ -364,21 +406,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             for (int i = 1; i <= messageCount; i++)
             {
                 var requestId = Guid.NewGuid().ToString();
-                await messageService.SendAsync(
-                    participantId: _testParticipantId,
-                    workflowId: workflowId,
-                    workflowType: workflowType,
-                    requestId: requestId,
-                    scope: _testScope,
-                    text: $"Message {i} of {messageCount}",
-                    data: new { MessageNumber = i },
-                    tenantId: _platform.Options.CertificateTenantId!,
-                    authorization: null,
-                    threadId: null,
-                    hint: "",
-                    origin: "integration-test",
-                    messageType: "chat"
-                );
+                var sendRequest = new SendMessageRequest
+                {
+                    ParticipantId = _testParticipantId,
+                    WorkflowId = workflowId,
+                    WorkflowType = workflowType,
+                    RequestId = requestId,
+                    Scope = _testScope,
+                    Text = $"Message {i} of {messageCount}",
+                    Data = new { MessageNumber = i },
+                    TenantId = _platform.Options.CertificateTenantId!,
+                    Authorization = null,
+                    ThreadId = null,
+                    Hint = "",
+                    Origin = "integration-test",
+                    Type = "chat"
+                };
+                await messageService.SendAsync(sendRequest);
                 Console.WriteLine($"  ✓ Sent message {i}/{messageCount}");
             }
 
@@ -386,14 +430,16 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             await Task.Delay(500);
 
             // Verify in history
-            var history = await messageService.GetHistoryAsync(
-                workflowType: workflowType,
-                participantId: _testParticipantId,
-                scope: _testScope,
-                tenantId: _platform.Options.CertificateTenantId!,
-                page: 1,
-                pageSize: 20
-            );
+            var historyRequest = new GetMessageHistoryRequest
+            {
+                WorkflowType = workflowType,
+                ParticipantId = _testParticipantId,
+                Scope = _testScope,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Page = 1,
+                PageSize = 20
+            };
+            var history = await messageService.GetHistoryAsync(historyRequest);
 
             // Assert
             Assert.NotNull(history);
@@ -431,21 +477,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             var longMessage = new string('x', 5000);
 
             // Act
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: longMessage,
-                data: null,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "",
-                origin: "integration-test",
-                messageType: "chat"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = longMessage,
+                Data = null,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "",
+                Origin = "integration-test",
+                Type = "chat"
+            };
+            await messageService.SendAsync(request);
 
             // Assert
             Console.WriteLine($"✓ Long message ({longMessage.Length} chars) sent successfully");
@@ -479,21 +527,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             var specialMessage = "Hello! 你好! مرحبا! 🎉🚀 Special chars: <>&\"'\\/ \n\t";
 
             // Act
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: specialMessage,
-                data: null,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "",
-                origin: "integration-test",
-                messageType: "chat"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = specialMessage,
+                Data = null,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "",
+                Origin = "integration-test",
+                Type = "chat"
+            };
+            await messageService.SendAsync(request);
 
             // Assert
             Console.WriteLine("✓ Special characters message sent successfully");
@@ -527,21 +577,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             var data = new { Type = "silent-update", Value = 42 };
 
             // Act
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: requestId,
-                scope: _testScope,
-                text: "",
-                data: data,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "",
-                origin: "integration-test",
-                messageType: "data"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = requestId,
+                Scope = _testScope,
+                Text = "",
+                Data = data,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "",
+                Origin = "integration-test",
+                Type = "data"
+            };
+            await messageService.SendAsync(request);
 
             // Assert
             Console.WriteLine("✓ Empty text data message sent successfully");
@@ -575,21 +627,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(async () =>
         {
-            await messageService.SendAsync(
-                participantId: _testParticipantId,
-                workflowId: workflowId,
-                workflowType: workflowType,
-                requestId: Guid.NewGuid().ToString(),
-                scope: _testScope,
-                text: "Test",
-                data: null,
-                tenantId: _platform.Options.CertificateTenantId!,
-                authorization: null,
-                threadId: null,
-                hint: "",
-                origin: "test",
-                messageType: "invalid-type"
-            );
+            var request = new SendMessageRequest
+            {
+                ParticipantId = _testParticipantId,
+                WorkflowId = workflowId,
+                WorkflowType = workflowType,
+                RequestId = Guid.NewGuid().ToString(),
+                Scope = _testScope,
+                Text = "Test",
+                Data = null,
+                TenantId = _platform.Options.CertificateTenantId!,
+                Authorization = null,
+                ThreadId = null,
+                Hint = "",
+                Origin = "test",
+                Type = "invalid-type"
+            };
+            await messageService.SendAsync(request);
         });
 
         Console.WriteLine("✓ Invalid message type correctly throws ArgumentException");
@@ -620,21 +674,23 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
             // Act - Send multiple messages in same thread
             for (int i = 1; i <= 2; i++)
             {
-                await messageService.SendAsync(
-                    participantId: _testParticipantId,
-                    workflowId: workflowId,
-                    workflowType: workflowType,
-                    requestId: Guid.NewGuid().ToString(),
-                    scope: _testScope,
-                    text: $"Thread message {i}",
-                    data: null,
-                    tenantId: _platform.Options.CertificateTenantId!,
-                    authorization: null,
-                    threadId: threadId,
-                    hint: "",
-                    origin: "integration-test",
-                    messageType: "chat"
-                );
+                var sendRequest = new SendMessageRequest
+                {
+                    ParticipantId = _testParticipantId,
+                    WorkflowId = workflowId,
+                    WorkflowType = workflowType,
+                    RequestId = Guid.NewGuid().ToString(),
+                    Scope = _testScope,
+                    Text = $"Thread message {i}",
+                    Data = null,
+                    TenantId = _platform.Options.CertificateTenantId!,
+                    Authorization = null,
+                    ThreadId = threadId,
+                    Hint = "",
+                    Origin = "integration-test",
+                    Type = "chat"
+                };
+                await messageService.SendAsync(sendRequest);
             }
 
             // Assert

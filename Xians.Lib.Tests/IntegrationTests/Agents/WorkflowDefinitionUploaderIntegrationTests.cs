@@ -5,7 +5,6 @@ using WireMock.ResponseBuilders;
 using WireMock.Server;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Tests.TestUtilities;
 
@@ -105,7 +104,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var uploadedDefinition = JsonSerializer.Deserialize<WorkflowDefinition>(capturedBody);
         Assert.NotNull(uploadedDefinition);
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
-        Assert.Equal($"{uniqueAgentName}:Default Workflow - Conversational", uploadedDefinition.WorkflowType);
+        Assert.Equal($"{uniqueAgentName}:BuiltIn Workflow - Conversational", uploadedDefinition.WorkflowType);
         Assert.Equal("Conversational", uploadedDefinition.Name);
         Assert.False(uploadedDefinition.SystemScoped);
         Assert.Equal(1, uploadedDefinition.Workers);
@@ -137,7 +136,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var uploadedDefinition = JsonSerializer.Deserialize<WorkflowDefinition>(postRequest.RequestMessage.Body!);
         Assert.NotNull(uploadedDefinition);
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
-        Assert.Equal($"{uniqueAgentName}:Default Workflow - SystemWorkflow", uploadedDefinition.WorkflowType);
+        Assert.Equal($"{uniqueAgentName}:BuiltIn Workflow - SystemWorkflow", uploadedDefinition.WorkflowType);
         Assert.True(uploadedDefinition.SystemScoped);
         Assert.Equal(2, uploadedDefinition.Workers);
     }

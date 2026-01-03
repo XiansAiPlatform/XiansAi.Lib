@@ -60,7 +60,64 @@ public class BuiltinWorkflow
 
 
     /// <summary>
-    /// Registers a user message handler for a specific workflow type with tenant isolation metadata.
+    /// Registers a chat message handler for a specific workflow type with tenant isolation metadata.
+    /// </summary>
+    /// <param name="workflowType">The unique workflow type identifier.</param>
+    /// <param name="handler">The handler function to register.</param>
+    /// <param name="agentName">The agent name for validation.</param>
+    /// <param name="tenantId">The tenant ID (null for system-scoped agents).</param>
+    /// <param name="systemScoped">Whether this is a system-scoped agent.</param>
+    public static void RegisterChatHandler(
+        string workflowType, 
+        Func<UserMessageContext, Task> handler,
+        string agentName,
+        string? tenantId,
+        bool systemScoped)
+    {
+        var metadata = _handlersByWorkflowType.GetOrAdd(workflowType, _ => new WorkflowHandlerMetadata
+        {
+            AgentName = agentName.Trim(),
+            TenantId = tenantId,
+            SystemScoped = systemScoped
+        });
+        
+        metadata.ChatHandler = handler;
+        metadata.AgentName = agentName.Trim();
+        metadata.TenantId = tenantId;
+        metadata.SystemScoped = systemScoped;
+    }
+
+    /// <summary>
+    /// Registers a data message handler for a specific workflow type with tenant isolation metadata.
+    /// </summary>
+    /// <param name="workflowType">The unique workflow type identifier.</param>
+    /// <param name="handler">The handler function to register.</param>
+    /// <param name="agentName">The agent name for validation.</param>
+    /// <param name="tenantId">The tenant ID (null for system-scoped agents).</param>
+    /// <param name="systemScoped">Whether this is a system-scoped agent.</param>
+    public static void RegisterDataHandler(
+        string workflowType, 
+        Func<UserMessageContext, Task> handler,
+        string agentName,
+        string? tenantId,
+        bool systemScoped)
+    {
+        var metadata = _handlersByWorkflowType.GetOrAdd(workflowType, _ => new WorkflowHandlerMetadata
+        {
+            AgentName = agentName.Trim(),
+            TenantId = tenantId,
+            SystemScoped = systemScoped
+        });
+        
+        metadata.DataHandler = handler;
+        metadata.AgentName = agentName.Trim();
+        metadata.TenantId = tenantId;
+        metadata.SystemScoped = systemScoped;
+    }
+
+    /// <summary>
+    /// Registers a user message handler for both chat and data messages.
+    /// Legacy method - prefer RegisterChatHandler and RegisterDataHandler for more granular control.
     /// </summary>
     /// <param name="workflowType">The unique workflow type identifier.</param>
     /// <param name="handler">The handler function to register.</param>
@@ -74,13 +131,16 @@ public class BuiltinWorkflow
         string? tenantId,
         bool systemScoped)
     {
-        _handlersByWorkflowType[workflowType] = new WorkflowHandlerMetadata
-        {
-            Handler = handler,
-            AgentName = agentName.Trim(), // Trim to handle whitespace variations
-            TenantId = tenantId,
-            SystemScoped = systemScoped
-        };
+        // Register for chat messages by default for backward compatibility
+        RegisterChatHandler(workflowType, handler, agentName, tenantId, systemScoped);
+    }
+
+    /// <summary>
+    /// Clears all registered handlers. Intended for testing purposes only.
+    /// </summary>
+    internal static void ClearHandlersForTests()
+    {
+        _handlersByWorkflowType.Clear();
     }
 
     /// <summary>
@@ -119,9 +179,8 @@ public class BuiltinWorkflow
                         await MessageProcessor.ProcessMessageAsync(
                             message,
                             _handlersByWorkflowType,
-                            Workflow.Info.WorkflowType,
-                            Workflow.Info.WorkflowId,
-                            Workflow.Info.TaskQueue,
+                            Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowType(),
+                            Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowId(),
                             Workflow.Logger);
                         
                         Workflow.Logger.LogDebug(

@@ -23,7 +23,6 @@ internal static class MessageProcessor
         ConcurrentDictionary<string, WorkflowHandlerMetadata> handlerRegistry,
         string workflowType,
         string workflowId,
-        string taskQueue,
         ILogger logger)
     {
         logger.LogDebug(
@@ -33,11 +32,14 @@ internal static class MessageProcessor
                 ? $"{message.Payload.Text[..50]}..."
                 : message.Payload.Text);
 
-        // Only process Chat type messages (skip Data and Handoff for now)
-        if (message.Payload.Type.ToLower() != "chat")
+        // Normalize message type for comparison
+        var messageType = message.Payload.Type.ToLower();
+        
+        // Only process Chat and Data type messages (skip Handoff and others for now)
+        if (messageType != "chat" && messageType != "data")
         {
             logger.LogWarning(
-                "Skipping non-chat message: Type={Type}, RequestId={RequestId}",
+                "Skipping unsupported message type: Type={Type}, RequestId={RequestId}",
                 message.Payload.Type,
                 message.Payload.RequestId);
             return;
@@ -75,6 +77,31 @@ internal static class MessageProcessor
             await MessageResponseHelper.SendSimpleMessageAsync(
                 message.Payload.ParticipantId,
                 $"No message handler registered for workflow type '{workflowType}'.",
+                message.Payload.RequestId,
+                message.Payload.Scope,
+                message.Payload.ThreadId,
+                message.Payload.Authorization,
+                message.Payload.Hint,
+                workflowTenantId,
+                workflowId,
+                workflowType);
+            return;
+        }
+
+        // Check if appropriate handler exists for this message type
+        var handler = messageType == "chat" ? metadata.ChatHandler : metadata.DataHandler;
+        if (handler == null)
+        {
+            logger.LogWarning(
+                "No {MessageType} handler registered for WorkflowType={WorkflowType}, RequestId={RequestId}",
+                messageType,
+                workflowType,
+                message.Payload.RequestId);
+
+            await MessageResponseHelper.SendSimpleMessageAsync(
+                message.Payload.ParticipantId,
+                $"No {messageType} message handler registered for workflow type '{workflowType}'. " +
+                $"Use OnUser{char.ToUpper(messageType[0]) + messageType.Substring(1)}Message() to register a handler.",
                 message.Payload.RequestId,
                 message.Payload.Scope,
                 message.Payload.ThreadId,
@@ -141,22 +168,13 @@ internal static class MessageProcessor
             WorkflowId = workflowId,
             WorkflowType = workflowType,
             Authorization = message.Payload.Authorization,
-            ThreadId = message.Payload.ThreadId
+            ThreadId = message.Payload.ThreadId,
+            MessageType = messageType
         };
 
         await Workflow.ExecuteActivityAsync(
             (MessageActivities act) => act.ProcessAndSendMessageAsync(activityRequest),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromMinutes(5),
-                RetryPolicy = new()
-                {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(2),
-                    MaximumInterval = TimeSpan.FromSeconds(30),
-                    BackoffCoefficient = 2
-                }
-            });
+            MessageActivityOptions.GetStandardOptions());
 
         logger.LogInformation(
             "Message processed and responses sent: RequestId={RequestId}",
