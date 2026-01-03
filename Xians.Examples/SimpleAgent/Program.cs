@@ -33,7 +33,7 @@ var mafAgent = new MafSubAgent(openAiApiKey);
 conversationalWorkflow.OnUserChatMessage(async (context) =>
 {
     var response = await mafAgent.RunAsync(context);
-    await context.Message.ReplyAsync(response);
+    await context.ReplyAsync(response);
 });
 
 // Start the agent and all workflows

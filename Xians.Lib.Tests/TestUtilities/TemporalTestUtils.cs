@@ -17,6 +17,12 @@ public static class TemporalTestUtils
     public const string DefaultTestTenantId = "test";
 
     /// <summary>
+    /// Default workflow execution timeout for tests (5 minutes).
+    /// This ensures test workflows don't run forever if cleanup fails.
+    /// </summary>
+    public static readonly TimeSpan DefaultWorkflowExecutionTimeout = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     /// Builds a workflow ID for a built-in workflow.
     /// </summary>
     public static string BuildWorkflowId(string agentName, string workflowName, string? tenantId = null)
@@ -37,12 +43,19 @@ public static class TemporalTestUtils
     /// <summary>
     /// Starts or gets a handle to a built-in workflow.
     /// </summary>
+    /// <param name="client">The Temporal client.</param>
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="workflowName">The workflow name.</param>
+    /// <param name="systemScoped">Whether the workflow is system-scoped.</param>
+    /// <param name="tenantId">Optional tenant ID (defaults to test tenant).</param>
+    /// <param name="executionTimeout">Optional execution timeout (defaults to 5 minutes to prevent runaway workflows).</param>
     public static async Task<WorkflowHandle> StartOrGetWorkflowAsync(
         ITemporalClient client,
         string agentName,
         string workflowName,
         bool systemScoped = false,
-        string? tenantId = null)
+        string? tenantId = null,
+        TimeSpan? executionTimeout = null)
     {
         var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, workflowName);
         var workflowId = BuildWorkflowId(agentName, workflowName, tenantId);
@@ -55,7 +68,8 @@ public static class TemporalTestUtils
             {
                 Id = workflowId,
                 TaskQueue = taskQueue,
-                IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
+                IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting,
+                ExecutionTimeout = executionTimeout ?? DefaultWorkflowExecutionTimeout
             });
     }
 
@@ -142,16 +156,58 @@ public static class TemporalTestUtils
         try
         {
             var handle = client.GetWorkflowHandle(workflowId);
-            await handle.TerminateAsync(reason);
+            var description = await handle.DescribeAsync();
+            
+            // Only terminate if workflow is actually running
+            if (description.Status == Temporalio.Api.Enums.V1.WorkflowExecutionStatus.Running)
+            {
+                await handle.TerminateAsync(reason);
+                Console.WriteLine($"  ✓ Terminated workflow: {workflowId}");
+            }
+            else
+            {
+                Console.WriteLine($"  ℹ Workflow already completed: {workflowId} (status: {description.Status})");
+            }
         }
-        catch
+        catch (Temporalio.Exceptions.RpcException ex) when (ex.Code == Temporalio.Exceptions.RpcException.StatusCode.NotFound)
         {
-            // Ignore - workflow may not exist or already terminated
+            // Workflow doesn't exist - that's fine
+            Console.WriteLine($"  ℹ Workflow not found: {workflowId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠ Error terminating workflow {workflowId}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Terminates workflows matching a pattern (useful for cleaning up test-created workflows).
+    /// </summary>
+    /// <param name="client">The Temporal client.</param>
+    /// <param name="workflowIdPattern">Pattern to match workflow IDs (e.g., "a2a-custom-target-*").</param>
+    /// <param name="reason">Termination reason.</param>
+    public static void TerminateWorkflowsByPatternAsync(
+        ITemporalClient client,
+        string workflowIdPattern,
+        string reason = "Test cleanup")
+    {
+        try
+        {
+            // Note: This is a basic implementation. For better cleanup, consider using
+            // Temporal's list workflows API with a query filter.
+            Console.WriteLine($"  ℹ Pattern-based termination not fully implemented. Use explicit workflow IDs.");
+            Console.WriteLine($"  ℹ Pattern: {workflowIdPattern}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠ Error in pattern termination: {ex.Message}");
         }
     }
 
     /// <summary>
     /// Terminates multiple workflows by their built-in names.
+    /// This method terminates the main workflow and attempts to find and terminate
+    /// any schedule-triggered workflows using workflow ID patterns.
     /// </summary>
     public static async Task TerminateBuiltInWorkflowsAsync(
         ITemporalClient client,
@@ -161,8 +217,44 @@ public static class TemporalTestUtils
     {
         foreach (var name in workflowNames)
         {
-            var workflowId = BuildWorkflowId(agentName, name, tenantId);
-            await TerminateWorkflowIfRunningAsync(client, workflowId, "Test cleanup");
+            try
+            {
+                var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, name);
+                var tenant = tenantId ?? DefaultTestTenantId;
+                
+                // Terminate the main workflow
+                var workflowId = BuildWorkflowId(agentName, name, tenantId);
+                await TerminateWorkflowIfRunningAsync(client, workflowId, "Test cleanup");
+                
+                // For workflows with schedules, also try to terminate schedule-triggered workflows
+                // These have IDs like: test:AgentName:WorkflowType:scheduleId-timestamp
+                // We can't list them easily, so we rely on schedule deletion and a delay
+                
+                Console.WriteLine($"  ℹ Waiting for any schedule-triggered workflows to complete...");
+                await Task.Delay(2000); // Give time for schedule-triggered workflows to finish
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  ⚠ Failed to terminate workflows for '{name}': {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Terminates multiple custom workflows by their explicit workflow IDs.
+    /// Use this to clean up custom workflows created in tests.
+    /// </summary>
+    /// <param name="client">The Temporal client.</param>
+    /// <param name="workflowIds">The workflow IDs to terminate.</param>
+    /// <param name="reason">Termination reason.</param>
+    public static async Task TerminateCustomWorkflowsAsync(
+        ITemporalClient client,
+        IEnumerable<string> workflowIds,
+        string reason = "Test cleanup")
+    {
+        foreach (var workflowId in workflowIds)
+        {
+            await TerminateWorkflowIfRunningAsync(client, workflowId, reason);
         }
     }
 

@@ -28,13 +28,13 @@ A **tenant** represents an isolated customer or organization in a multi-tenant a
 
 ### What is Tenant Context?
 
-**Tenant context** is the tenant information automatically tracked throughout your workflow execution. The library extracts this from the workflow ID and makes it available via `context.TenantId`.
+**Tenant context** is the tenant information automatically tracked throughout your workflow execution. The library extracts this from the workflow ID and makes it available via `context.Message.TenantId`.
 
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
     // Tenant context is automatically available
-    var tenantId = context.TenantId;  // e.g., "acme-corp"
+    var tenantId = context.Message.TenantId;  // e.g., "acme-corp"
     
     Console.WriteLine($"Processing request for tenant: {tenantId}");
 });
@@ -93,7 +93,7 @@ Xians.Lib supports two types of agents based on their tenant handling:
 |---------|--------------|-------------------|
 | **Worker Pool** | Shared across all tenants | Isolated per tenant |
 | **Tenant Validation** | No automatic validation | Automatic validation |
-| **Tenant Context** | Available via `context.TenantId` | Available via `context.TenantId` |
+| **Tenant Context** | Available via `context.Message.TenantId` | Available via `context.Message.TenantId` |
 | **Use Case** | Multi-tenant services | Single-tenant services |
 | **Worker Efficiency** | High (shared pool) | Lower (separate pools) |
 | **Isolation** | Manual (in your code) | Automatic (by library) |
@@ -131,12 +131,12 @@ var workflow = await agent.Workflows.DefineBuiltIn(
 // Register message handler
 workflow.OnUserMessage(async (context) =>
 {
-    // context.TenantId is always your registered tenant
+    // context.Message.TenantId is always your registered tenant
     // The library automatically rejects requests from other tenants
     
     var ticketId = await CreateSupportTicket(
-        tenantId: context.TenantId,  // Your tenant only
-        userId: context.ParticipantId,
+        tenantId: context.Message.TenantId,  // Your tenant only
+        userId: context.Message.ParticipantId,
         message: context.Message.Text
     );
     
@@ -181,10 +181,10 @@ var workflow = await agent.Workflows.DefineBuiltIn(
 // Register message handler
 workflow.OnUserMessage(async (context) =>
 {
-    // context.TenantId tells you which tenant this request is for
+    // context.Message.TenantId tells you which tenant this request is for
     // You MUST implement tenant isolation in your code
     
-    var tenantId = context.TenantId;  // e.g., "acme-corp", "contoso", etc.
+    var tenantId = context.Message.TenantId;  // e.g., "acme-corp", "contoso", etc.
     
     // Load tenant-specific configuration
     var config = await GetTenantConfig(tenantId);
@@ -207,7 +207,7 @@ await agent.RunAllAsync();
 **What happens**:
 1. Worker listens on queue: `NotificationService:Default Workflow - EmailAlerts`
 2. Can process workflows from ANY tenant
-3. Each request includes tenant context via `context.TenantId`
+3. Each request includes tenant context via `context.Message.TenantId`
 4. Your code is responsible for tenant isolation
 
 ---
@@ -235,7 +235,7 @@ The library automatically extracts the tenant ID from the workflow ID and provid
 workflow.OnUserMessage(async (context) =>
 {
     // Tenant ID is automatically extracted and available
-    var tenantId = context.TenantId;  // "acme-corp"
+    var tenantId = context.Message.TenantId;  // "acme-corp"
     
     // Use it in your business logic
     var data = await LoadTenantData(tenantId);
@@ -280,7 +280,7 @@ Result: Processes workflows for ALL tenants
    │
 5. Library extracts tenant: "acme-corp"
    │
-6. Your handler receives context with context.TenantId = "acme-corp"
+6. Your handler receives context with context.Message.TenantId = "acme-corp"
    │
 7. When you call context.ReplyAsync():
    └─> Library adds X-Tenant-Id: acme-corp header
@@ -300,7 +300,7 @@ workflow.OnUserMessage(async (context) =>
 {
     // ✅ CORRECT: Filter by tenant
     var users = await db.Users
-        .Where(u => u.TenantId == context.TenantId)
+        .Where(u => u.TenantId == context.Message.TenantId)
         .ToListAsync();
     
     await context.ReplyAsync($"Found {users.Count} users in your organization");
@@ -319,17 +319,17 @@ var users = await db.Users.ToListAsync();
 workflow.OnUserMessage(async (context) =>
 {
     // Load tenant-specific settings
-    var config = await GetTenantConfiguration(context.TenantId);
+    var config = await GetTenantConfiguration(context.Message.TenantId);
     
     // Apply tenant-specific behavior
     if (config.Features.EnableAdvancedSearch)
     {
-        var results = await AdvancedSearch(context.Message.Text, context.TenantId);
+        var results = await AdvancedSearch(context.Message.Text, context.Message.TenantId);
         await context.ReplyAsync(FormatResults(results));
     }
     else
     {
-        var results = await BasicSearch(context.Message.Text, context.TenantId);
+        var results = await BasicSearch(context.Message.Text, context.Message.TenantId);
         await context.ReplyAsync(FormatResults(results));
     }
 });
@@ -340,7 +340,7 @@ workflow.OnUserMessage(async (context) =>
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
-    var tenantId = context.TenantId;
+    var tenantId = context.Message.TenantId;
     
     // Get tenant-specific database connection
     using var db = GetTenantDatabase(tenantId);
@@ -364,9 +364,9 @@ workflow.OnUserMessage(async (context) =>
     // Include tenant ID in all logs
     _logger.LogInformation(
         "Processing request for tenant {TenantId}, user {UserId}, request {RequestId}",
-        context.TenantId,
-        context.ParticipantId,
-        context.RequestId
+        context.Message.TenantId,
+        context.Message.ParticipantId,
+        context.Message.RequestId
     );
     
     try
@@ -376,7 +376,7 @@ workflow.OnUserMessage(async (context) =>
         // Track metrics per tenant
         _metrics.IncrementCounter("requests_processed", new Dictionary<string, string>
         {
-            { "tenant_id", context.TenantId },
+            { "tenant_id", context.Message.TenantId },
             { "status", "success" }
         });
     }
@@ -384,12 +384,12 @@ workflow.OnUserMessage(async (context) =>
     {
         _logger.LogError(ex,
             "Request failed for tenant {TenantId}",
-            context.TenantId
+            context.Message.TenantId
         );
         
         _metrics.IncrementCounter("requests_processed", new Dictionary<string, string>
         {
-            { "tenant_id", context.TenantId },
+            { "tenant_id", context.Message.TenantId },
             { "status", "error" }
         });
         
@@ -405,17 +405,17 @@ workflow.OnUserMessage(async (context) =>
 var cacheKey = $"user:{userId}";  // Can collide across tenants!
 
 // ✅ CORRECT - Include tenant ID in cache key
-var cacheKey = $"{context.TenantId}:user:{userId}";
+var cacheKey = $"{context.Message.TenantId}:user:{userId}";
 
 workflow.OnUserMessage(async (context) =>
 {
-    var cacheKey = $"{context.TenantId}:config";
+    var cacheKey = $"{context.Message.TenantId}:config";
     
     // Try to get from cache
     if (!_cache.TryGetValue(cacheKey, out var config))
     {
         // Load from database
-        config = await LoadTenantConfig(context.TenantId);
+        config = await LoadTenantConfig(context.Message.TenantId);
         
         // Cache with tenant-specific key
         _cache.Set(cacheKey, config, TimeSpan.FromMinutes(10));
@@ -431,7 +431,7 @@ workflow.OnUserMessage(async (context) =>
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
-    var tenantId = context.TenantId;
+    var tenantId = context.Message.TenantId;
     
     // Check rate limit per tenant
     if (!await _rateLimiter.AllowRequest(tenantId))
@@ -451,13 +451,13 @@ workflow.OnUserMessage(async (context) =>
 
 ## Security Best Practices
 
-### ✅ DO: Always Use context.TenantId
+### ✅ DO: Always Use context.Message.TenantId
 
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
     // ✅ CORRECT - Use the library-provided tenant ID
-    var tenantId = context.TenantId;
+    var tenantId = context.Message.TenantId;
     
     var data = await LoadData(tenantId);
     await context.ReplyAsync($"Loaded data for {tenantId}");
@@ -470,13 +470,13 @@ workflow.OnUserMessage(async (context) =>
 workflow.OnUserMessage(async (context) =>
 {
     // ❌ WRONG - Never trust tenant ID from user input
-    var tenantId = context.Data["tenantId"];  // Could be forged!
+    var tenantId = context.Message.Data["tenantId"];  // Could be forged!
     
     // ❌ WRONG - Don't parse from message
     var tenantId = ExtractTenantFromMessage(context.Message.Text);
     
-    // ✅ CORRECT - Use context.TenantId
-    var tenantId = context.TenantId;
+    // ✅ CORRECT - Use context.Message.TenantId
+    var tenantId = context.Message.TenantId;
 });
 ```
 
@@ -487,8 +487,8 @@ workflow.OnUserMessage(async (context) =>
 {
     // ✅ CORRECT - Always filter by tenant
     var orders = await db.Orders
-        .Where(o => o.TenantId == context.TenantId)
-        .Where(o => o.UserId == context.ParticipantId)
+        .Where(o => o.TenantId == context.Message.TenantId)
+        .Where(o => o.UserId == context.Message.ParticipantId)
         .ToListAsync();
     
     await context.ReplyAsync($"Found {orders.Count} orders");
@@ -502,8 +502,8 @@ workflow.OnUserMessage(async (context) =>
 {
     // ✅ Verify user belongs to the tenant
     var user = await db.Users
-        .Where(u => u.Id == context.ParticipantId)
-        .Where(u => u.TenantId == context.TenantId)
+        .Where(u => u.Id == context.Message.ParticipantId)
+        .Where(u => u.TenantId == context.Message.TenantId)
         .FirstOrDefaultAsync();
     
     if (user == null)
@@ -523,7 +523,7 @@ workflow.OnUserMessage(async (context) =>
 workflow.OnUserMessage(async (context) =>
 {
     // ✅ CORRECT - Separate storage per tenant
-    var storagePath = $"tenants/{context.TenantId}/uploads/{fileName}";
+    var storagePath = $"tenants/{context.Message.TenantId}/uploads/{fileName}";
     await SaveFile(storagePath, fileData);
     
     // ❌ WRONG - Shared storage without tenant separation
@@ -539,11 +539,11 @@ workflow.OnUserMessage(async (context) =>
     // Log all tenant access for audit trail
     await _auditLog.LogAccessAsync(new AuditEntry
     {
-        TenantId = context.TenantId,
-        UserId = context.ParticipantId,
+        TenantId = context.Message.TenantId,
+        UserId = context.Message.ParticipantId,
         Action = "ViewSensitiveData",
         Timestamp = DateTime.UtcNow,
-        RequestId = context.RequestId
+        RequestId = context.Message.RequestId
     });
     
     // Process request
@@ -581,7 +581,7 @@ Console.WriteLine($"Tenant ID: {platform.Options.CertificateTenantId}");
 
 **Symptom**: System-scoped agent sends reply to wrong tenant.
 
-**Cause**: Not using `context.TenantId` consistently.
+**Cause**: Not using `context.Message.TenantId` consistently.
 
 **Solution**:
 ```csharp
@@ -590,7 +590,7 @@ workflow.OnUserMessage(async (context) =>
     // ✅ CORRECT - Library automatically routes to correct tenant
     await context.ReplyAsync("Message");
     
-    // The library adds X-Tenant-Id header automatically using context.TenantId
+    // The library adds X-Tenant-Id header automatically using context.Message.TenantId
 });
 ```
 
@@ -607,7 +607,7 @@ var data = await db.Records.ToListAsync();
 
 // ✅ CORRECT - Filter by tenant
 var data = await db.Records
-    .Where(r => r.TenantId == context.TenantId)
+    .Where(r => r.TenantId == context.Message.TenantId)
     .ToListAsync();
 ```
 
@@ -631,7 +631,7 @@ var data = await db.Records
 **Solution**:
 ```csharp
 // ✅ Use tenant-specific cache with expiration
-var cacheKey = $"{context.TenantId}:data:{key}";
+var cacheKey = $"{context.Message.TenantId}:data:{key}";
 _cache.Set(cacheKey, data, TimeSpan.FromMinutes(10));
 
 // ✅ Implement cache cleanup
@@ -825,11 +825,11 @@ public class MultiTenantSaasAgent
     {
         _logger.LogInformation(
             "Processing notification for tenant {TenantId}",
-            context.TenantId
+            context.Message.TenantId
         );
         
         // Load tenant-specific notification settings
-        var settings = await GetTenantNotificationSettings(context.TenantId);
+        var settings = await GetTenantNotificationSettings(context.Message.TenantId);
         
         // Send notification using tenant's preferences
         if (settings.EmailEnabled)
@@ -858,8 +858,8 @@ public class MultiTenantSaasAgent
     {
         _logger.LogInformation(
             "Processing support request for tenant {TenantId}, user {UserId}",
-            context.TenantId,
-            context.ParticipantId
+            context.Message.TenantId,
+            context.Message.ParticipantId
         );
         
         // Get conversation history
@@ -867,8 +867,8 @@ public class MultiTenantSaasAgent
         
         // Load tenant-specific data
         var user = await _database.Users
-            .Where(u => u.TenantId == context.TenantId)
-            .Where(u => u.Id == context.ParticipantId)
+            .Where(u => u.TenantId == context.Message.TenantId)
+            .Where(u => u.Id == context.Message.ParticipantId)
             .FirstOrDefaultAsync();
         
         if (user == null)
@@ -880,7 +880,7 @@ public class MultiTenantSaasAgent
         // Create support ticket
         var ticket = new SupportTicket
         {
-            TenantId = context.TenantId,
+            TenantId = context.Message.TenantId,
             UserId = user.Id,
             Subject = "Support Request",
             Description = context.Message.Text,
@@ -926,7 +926,7 @@ public class MultiTenantSaasAgent
 
 1. **Use Non-System-Scoped** for tenant-specific services where isolation is critical
 2. **Use System-Scoped** for shared services that need to handle multiple tenants
-3. **Always use `context.TenantId`** - never trust external tenant claims
+3. **Always use `context.Message.TenantId`** - never trust external tenant claims
 4. **Scope all queries** by tenant ID to prevent data leakage
 5. **Include tenant ID** in cache keys, logs, and metrics
 6. **Validate permissions** - ensure users belong to their claimed tenant

@@ -1,3 +1,5 @@
+using System.Reflection;
+using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common.MultiTenancy;
 
@@ -45,6 +47,32 @@ public static class WorkflowIdentity
     {
         return workflowType?.Contains("BuiltIn Workflow") ?? false;
     }
+
+    /// <summary>
+    /// Gets the workflow type string from a workflow class Type.
+    /// Extracts the name from the [Workflow] attribute.
+    /// </summary>
+    /// <param name="workflowClassType">The Type of the workflow class.</param>
+    /// <returns>The workflow type string from the WorkflowAttribute.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when workflowClassType is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the workflow class doesn't have a WorkflowAttribute with a Name.</exception>
+    public static string GetWorkflowTypeFor(Type workflowClassType)
+    {
+        if (workflowClassType == null)
+        {
+            throw new ArgumentNullException(nameof(workflowClassType));
+        }
+
+        var workflowAttr = workflowClassType.GetCustomAttribute<WorkflowAttribute>();
+        if (workflowAttr?.Name == null)
+        {
+            throw new InvalidOperationException(
+                $"Workflow class '{workflowClassType.Name}' does not have a WorkflowAttribute with a Name property set.");
+        }
+
+        return workflowAttr.Name;
+    }
+
 
 }
 

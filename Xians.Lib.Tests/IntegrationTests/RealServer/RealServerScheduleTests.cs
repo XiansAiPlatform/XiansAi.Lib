@@ -2,6 +2,7 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
+using Xians.Lib.Tests.TestUtilities;
 using Temporalio.Client.Schedules;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
@@ -65,7 +66,27 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
 
         Console.WriteLine($"Cleaning up {_scheduleIdsToCleanup.Count} test schedules...");
         
-        // Clean up all created schedules
+        // Step 1: Pause all schedules first to prevent new workflow triggers
+        foreach (var scheduleId in _scheduleIdsToCleanup)
+        {
+            try
+            {
+                if (await _workflow!.Schedules!.ExistsAsync(scheduleId))
+                {
+                    await _workflow.Schedules.PauseAsync(scheduleId, "Test cleanup");
+                    Console.WriteLine($"  ⏸ Paused schedule: {scheduleId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  ⚠ Failed to pause schedule {scheduleId}: {ex.Message}");
+            }
+        }
+        
+        // Step 2: Terminate any running workflows BEFORE deleting schedules
+        await TerminateWorkflowsAsync();
+        
+        // Step 3: Now delete the schedules
         foreach (var scheduleId in _scheduleIdsToCleanup)
         {
             try
@@ -83,6 +104,85 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         }
         
         Console.WriteLine("✓ Cleanup complete");
+    }
+
+    private async Task TerminateWorkflowsAsync()
+    {
+        if (_agent?.TemporalService == null || _platform == null) return;
+
+        try
+        {
+            var temporalClient = await _agent.TemporalService.GetClientAsync();
+            
+            // First, terminate workflows triggered by schedules
+            // We can get the exact workflow IDs from the schedule's RecentActions
+            Console.WriteLine("  Terminating schedule-triggered workflows...");
+            int totalTerminated = 0;
+            
+            foreach (var scheduleId in _scheduleIdsToCleanup)
+            {
+                try
+                {
+                    if (await _workflow!.Schedules!.ExistsAsync(scheduleId))
+                    {
+                        var schedule = await _workflow.Schedules.GetAsync(scheduleId);
+                        var description = await schedule.DescribeAsync();
+                        
+                        // Get recent workflow executions from the schedule
+                        var recentActions = description.Info.RecentActions;
+                        
+                        foreach (var action in recentActions)
+                        {
+                            try
+                            {
+                                // Get the workflow execution from the action result
+                                // ScheduleActionResult contains the workflow execution info
+                                var startedAt = action.StartedAt;
+                                
+                                // The action contains the scheduled time but not the workflow ID directly
+                                // We need to use the schedule ID and start time to construct the workflow ID
+                                // Workflow ID pattern: {tenantId}:{workflowType}:{scheduleId}-{timestamp}
+                                var timestamp = startedAt.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+                                var workflowType = Xians.Lib.Common.WorkflowIdentity.BuildBuiltInWorkflowType(_agentName, TEST_WORKFLOW_NAME);
+                                var tenantId = _platform.Options.CertificateTenantId ?? "test";
+                                var workflowId = $"{tenantId}:{workflowType}:{scheduleId}-{timestamp}";
+                                
+                                var handle = temporalClient.GetWorkflowHandle(workflowId);
+                                await handle.TerminateAsync("Test cleanup - schedule-triggered workflow");
+                                totalTerminated++;
+                                Console.WriteLine($"    ✓ Terminated workflow: {workflowId}");
+                            }
+                            catch (Exception ex)
+                            {
+                                // Workflow may already be terminated or not exist
+                                Console.WriteLine($"    ⚠ Could not terminate workflow from schedule action: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  ⚠ Error processing schedule {scheduleId}: {ex.Message}");
+                }
+            }
+            
+            if (totalTerminated > 0)
+            {
+                Console.WriteLine($"  ✓ Terminated {totalTerminated} schedule-triggered workflow(s)");
+            }
+            
+            // Then terminate the main workflow
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                _agentName, 
+                new[] { TEST_WORKFLOW_NAME });
+            
+            Console.WriteLine("✓ All workflows terminated");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to terminate workflows: {ex.Message}");
+        }
     }
 
     [Fact]

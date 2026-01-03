@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Documents.Models;
+using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -1152,6 +1153,9 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
 
     async Task IAsyncLifetime.DisposeAsync()
     {
+        // Terminate workflows first (before stopping workers)
+        await TerminateWorkflowsAsync();
+
         // Stop workers
         if (_workerCts != null)
         {
@@ -1204,6 +1208,26 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
         }
     }
 
+    private async Task TerminateWorkflowsAsync()
+    {
+        if (_agent?.TemporalService == null) return;
+
+        try
+        {
+            var temporalClient = await _agent.TemporalService.GetClientAsync();
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                AGENT_NAME, 
+                new[] { "document-workflow-tests" });
+            
+            Console.WriteLine("✓ Workflows terminated");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to terminate workflows: {ex.Message}");
+        }
+    }
+
     [Fact]
     public async Task Document_WorksFromWithinWorkflow_ContextAwareExecution()
     {
@@ -1240,7 +1264,8 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
                 new Temporalio.Client.WorkflowOptions
                 {
                     Id = workflowId,
-                    TaskQueue = taskQueue
+                    TaskQueue = taskQueue,
+                    ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
                 });
             
             Console.WriteLine("✓ Workflow started, waiting for completion...");

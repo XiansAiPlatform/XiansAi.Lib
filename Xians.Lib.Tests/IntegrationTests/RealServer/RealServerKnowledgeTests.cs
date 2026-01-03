@@ -1,4 +1,5 @@
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -49,6 +50,9 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
     async Task IAsyncLifetime.DisposeAsync()
     {
+        // Terminate workflows first (before stopping workers)
+        await TerminateWorkflowsAsync();
+
         // Stop workers
         if (_workerCts != null)
         {
@@ -75,6 +79,26 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         catch
         {
             // Ignore cleanup errors
+        }
+    }
+
+    private async Task TerminateWorkflowsAsync()
+    {
+        if (_agent?.TemporalService == null) return;
+
+        try
+        {
+            var temporalClient = await _agent.TemporalService.GetClientAsync();
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                AGENT_NAME, 
+                new[] { "knowledge-tests" });
+            
+            Console.WriteLine("✓ Workflows terminated");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to terminate workflows: {ex.Message}");
         }
     }
 
@@ -730,7 +754,8 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
                 new Temporalio.Client.WorkflowOptions
                 {
                     Id = workflowId,
-                    TaskQueue = taskQueue
+                    TaskQueue = taskQueue,
+                    ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
                 });
             
             Console.WriteLine("✓ Workflow started, waiting for completion...");

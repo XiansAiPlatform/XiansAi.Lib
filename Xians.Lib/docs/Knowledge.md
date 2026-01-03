@@ -109,7 +109,7 @@ workflow.OnUserMessage(async (context) =>
     
     // Save user preference
     await context.UpdateKnowledgeAsync(
-        $"user-{context.ParticipantId}-language",
+        $"user-{context.Message.ParticipantId}-language",
         "Spanish",
         "preference"
     );
@@ -344,7 +344,7 @@ workflow.OnUserMessage(async (context) =>
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
-    var userId = context.ParticipantId;
+    var userId = context.Message.ParticipantId;
     var prefKey = $"user-{userId}-theme";
     
     if (context.Message.Text.StartsWith("/theme "))

@@ -331,6 +331,86 @@ internal class MessageService
     }
 
     /// <summary>
+    /// Sends a handoff request to transfer a conversation to another agent/workflow.
+    /// </summary>
+    /// <param name="request">The send handoff request containing target workflow information and message details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The response from the handoff operation.</returns>
+    public async Task<string?> SendHandoffAsync(
+        SendHandoffRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate required parameters
+        ValidationHelper.ValidateNotNull(request, nameof(request));
+        ValidationHelper.ValidateRequired(request.ParticipantId, nameof(request.ParticipantId));
+        ValidationHelper.ValidateRequired(request.SourceWorkflowId, nameof(request.SourceWorkflowId));
+        ValidationHelper.ValidateRequired(request.SourceWorkflowType, nameof(request.SourceWorkflowType));
+        ValidationHelper.ValidateRequired(request.SourceAgent, nameof(request.SourceAgent));
+        ValidationHelper.ValidateRequired(request.ThreadId, nameof(request.ThreadId));
+        ValidationHelper.ValidateRequired(request.Text, nameof(request.Text));
+        ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
+
+        // Validate that at least one target is specified
+        if (string.IsNullOrEmpty(request.TargetWorkflowId) && string.IsNullOrEmpty(request.TargetWorkflowType))
+        {
+            throw new ArgumentException("Either TargetWorkflowId or TargetWorkflowType must be specified", nameof(request));
+        }
+
+        // Build payload
+        var payload = new
+        {
+            targetWorkflowId = request.TargetWorkflowId,
+            targetWorkflowType = request.TargetWorkflowType,
+            sourceAgent = request.SourceAgent,
+            sourceWorkflowType = request.SourceWorkflowType,
+            sourceWorkflowId = request.SourceWorkflowId,
+            threadId = request.ThreadId,
+            participantId = request.ParticipantId,
+            authorization = request.Authorization,
+            text = request.Text,
+            data = request.Data,
+            type = "Handoff"
+        };
+
+        // Use endpoint: api/agent/conversation/outbound/handoff
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationOutbound}/handoff";
+
+        _logger.LogTrace(
+            "Posting handoff to {Endpoint}: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+            endpoint,
+            request.TargetWorkflowId,
+            request.TargetWorkflowType);
+
+        // Create HTTP request with tenant header
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        httpRequest.Content = JsonContent.Create(payload);
+        httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
+
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Handoff send failed: StatusCode={StatusCode}, Error={Error}",
+                response.StatusCode,
+                error);
+
+            throw new HttpRequestException(
+                $"Failed to send handoff. Status: {response.StatusCode}");
+        }
+
+        var result = await response.Content.ReadAsStringAsync(cancellationToken);
+        
+        _logger.LogInformation(
+            "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+            request.TargetWorkflowId,
+            request.TargetWorkflowType);
+
+        return result;
+    }
+
+    /// <summary>
     /// Extracts the retry-after duration from the HTTP response.
     /// Checks both the Retry-After header and the response body.
     /// </summary>

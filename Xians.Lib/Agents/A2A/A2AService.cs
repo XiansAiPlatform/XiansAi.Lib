@@ -41,7 +41,7 @@ internal class A2AService
             request.RequestId);
 
         // Get the handler for the target workflow
-        var handlerMetadata = GetHandlerMetadata(request.WorkflowType);
+        var handlerMetadata = GetHandlerMetadata(_targetWorkflowType);
         var handler = GetHandler(handlerMetadata, request.MessageType);
 
         // Create response capture
@@ -82,7 +82,7 @@ internal class A2AService
         {
             throw new InvalidOperationException(
                 $"Target workflow handler did not send a response. " +
-                $"Ensure the handler calls context.Message.ReplyAsync() or context.Message.ReplyWithDataAsync().");
+                $"Ensure the handler calls context.ReplyAsync() or context.ReplyWithDataAsync().");
         }
 
         _logger.LogInformation(

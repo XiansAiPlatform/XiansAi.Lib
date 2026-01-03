@@ -16,7 +16,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         CancellationToken cancellationToken)
     {
         // Get chat history from Xians
-        var xiansMessages = await _context.Message.GetHistoryAsync(page: 1, pageSize: 10);
+        var xiansMessages = await _context.GetChatHistoryAsync(page: 1, pageSize: 10);
         
         // Convert to ChatMessage format
         var chatMessages = xiansMessages
@@ -41,7 +41,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
     public override JsonElement Serialize(JsonSerializerOptions? jsonSerializerOptions = null)
     {
         // Serialize the thread ID for state persistence
-        return JsonSerializer.SerializeToElement(_context.ThreadId);
+        return JsonSerializer.SerializeToElement(_context.Message.ThreadId);
     }
 }
 

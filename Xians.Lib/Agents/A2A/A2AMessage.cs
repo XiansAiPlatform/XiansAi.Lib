@@ -64,7 +64,7 @@ public class A2AMessage
     /// </summary>
     /// <param name="sourceContext">The source context to copy fields from.</param>
     /// <param name="text">Optional text for the message. If not provided, uses context.Message.Text.</param>
-    /// <param name="data">Optional data for the message. If not provided, uses context.Data.</param>
+    /// <param name="data">Optional data for the message. If not provided, uses context.Message.Data.</param>
     /// <returns>A new A2AMessage with context fields populated.</returns>
     public static A2AMessage FromContext(
         UserMessageContext sourceContext,
@@ -74,13 +74,13 @@ public class A2AMessage
         return new A2AMessage
         {
             Text = text ?? sourceContext.Message.Text,
-            Data = data ?? sourceContext.Data,
-            ParticipantId = sourceContext.ParticipantId,
-            RequestId = sourceContext.RequestId,
-            Scope = sourceContext.Scope,
-            Hint = sourceContext.Hint,
-            ThreadId = sourceContext.ThreadId,
-            Authorization = sourceContext.Authorization,
+            Data = data ?? sourceContext.Message.Data,
+            ParticipantId = sourceContext.Message.ParticipantId,
+            RequestId = sourceContext.Message.RequestId,
+            Scope = sourceContext.Message.Scope,
+            Hint = sourceContext.Message.Hint,
+            ThreadId = sourceContext.Message.ThreadId,
+            Authorization = sourceContext.Message.Authorization,
             Metadata = sourceContext.Metadata
         };
     }

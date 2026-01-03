@@ -92,7 +92,7 @@ webWorkflow.OnUserChatMessage(async (context) =>
     var result = await ProcessWebRequest(context.Message.Text);
     
     // Send response back
-    await context.Message.ReplyAsync(result);
+    await context.ReplyAsync(result);
 });
 ```
 

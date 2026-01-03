@@ -67,5 +67,16 @@ internal class MessageActivityExecutor : ContextAwareActivityExecutor<MessageAct
             svc => svc.GetLastHintAsync(request),
             operationName: "GetLastHint");
     }
+
+    /// <summary>
+    /// Sends a handoff request using context-aware execution.
+    /// </summary>
+    public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
+    {
+        return await ExecuteAsync(
+            act => act.SendHandoffAsync(request),
+            svc => svc.SendHandoffAsync(request),
+            operationName: "SendHandoff");
+    }
 }
 

@@ -216,6 +216,39 @@ public class MessageActivities
     }
 
     /// <summary>
+    /// Sends a handoff request to transfer a conversation to another agent/workflow.
+    /// Delegates to shared MessageService.
+    /// </summary>
+    [Activity]
+    public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "SendHandoff activity started: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+            request.TargetWorkflowId,
+            request.TargetWorkflowType);
+        
+        try
+        {
+            var result = await _messageService.SendHandoffAsync(request);
+
+            ActivityExecutionContext.Current.Logger.LogInformation(
+                "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+                request.TargetWorkflowId,
+                request.TargetWorkflowType);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error sending handoff: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
+                request.TargetWorkflowId,
+                request.TargetWorkflowType);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Looks up the handler metadata from the registry.
     /// Throws InvalidOperationException if not found.
     /// </summary>
@@ -292,25 +325,18 @@ public class ActivityUserMessageContext : UserMessageContext
     /// <summary>
     /// Sends response via HTTP instead of workflow activity.
     /// </summary>
-    public async Task ReplyAsync(string response)
+    public override async Task ReplyAsync(string response)
     {
         await SendHttpMessageAsync(response, null);
     }
 
-    /// <summary>
-    /// Sends response with data via HTTP instead of workflow activity.
-    /// </summary>
-    public async Task ReplyWithDataAsync(string content, object? data)
-    {
-        await SendHttpMessageAsync(content, data);
-    }
 
     /// <summary>
     /// Retrieves chat history via HTTP instead of workflow activity.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Delegates to shared MessageService.
     /// </summary>
-    public async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
+    public override async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
         var request = new GetMessageHistoryRequest
         {
@@ -329,7 +355,7 @@ public class ActivityUserMessageContext : UserMessageContext
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Delegates to shared MessageService.
     /// </summary>
-    public async Task<string?> GetLastHintAsync()
+    public override async Task<string?> GetLastHintAsync()
     {
         var request = new GetLastHintRequest
         {

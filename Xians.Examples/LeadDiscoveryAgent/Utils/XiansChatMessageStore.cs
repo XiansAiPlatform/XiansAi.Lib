@@ -30,7 +30,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         }
         
         // Use Xians ThreadId if available
-        ThreadId ??= context.ThreadId;
+        ThreadId ??= context.Message.ThreadId;
     }
 
     public string? ThreadId { get; private set; }
@@ -50,7 +50,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         // Retrieve chat history from Xians
         // Using a reasonable page size to get recent history
         // Note: GetHistoryAsync automatically filters out the current message
-        var xiansMessages = await _context.Message.GetHistoryAsync(page: 1, pageSize: 10);
+        var xiansMessages = await _context.GetChatHistoryAsync(page: 1, pageSize: 10);
         
         // Console.WriteLine($"[XiansChatMessageStore] Fetched {xiansMessages.Count} messages from server:");
         // foreach (var msg in xiansMessages)
@@ -80,7 +80,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
     public override JsonElement Serialize(JsonSerializerOptions? jsonSerializerOptions = null)
     {
         // Serialize the thread ID for state persistence
-        return JsonSerializer.SerializeToElement(ThreadId ?? _context.ThreadId);
+        return JsonSerializer.SerializeToElement(ThreadId ?? _context.Message.ThreadId);
     }
 
     /// <summary>

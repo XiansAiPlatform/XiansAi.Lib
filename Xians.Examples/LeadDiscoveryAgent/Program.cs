@@ -45,7 +45,7 @@ var conversationalAgent = new ConversationalAgent(openAiApiKey);
 conversationalWorkflow.OnUserChatMessage(async (context) =>
 {
     var response = await conversationalAgent.ProcessMessageAsync(context);
-    await context.Message.ReplyAsync(response);
+    await context.ReplyAsync(response);
 });
 
 // Register handler for web workflow
@@ -53,7 +53,7 @@ var webWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.WebWorkflowName)
 webWorkflow.OnUserChatMessage(async (context) =>
 {
     var response = await WebAgent.ProcessMessageAsync(context, openAiApiKey);
-    await context.Message.ReplyAsync(response);
+    await context.ReplyAsync(response);
 });
 
 // Run all workflows

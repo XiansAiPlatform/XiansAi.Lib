@@ -71,7 +71,7 @@ workflow.OnUserMessage(async (context) =>
     var state = new Document
     {
         Type = "conversation-state",
-        Key = context.ParticipantId,
+        Key = context.Message.ParticipantId,
         Content = JsonSerializer.SerializeToElement(new
         {
             LastTopic = context.Message.Text,
@@ -360,7 +360,7 @@ workflow.OnUserMessage(async (context) =>
         var prefs = new Document
         {
             Type = "user-preferences",
-            Key = context.ParticipantId,
+            Key = context.Message.ParticipantId,
             Content = JsonSerializer.SerializeToElement(new
             {
                 Theme = "dark",
@@ -385,7 +385,7 @@ workflow.OnUserMessage(async (context) =>
 workflow.OnUserMessage(async (context) =>
 {
     // Retrieve conversation memory
-    var memory = await context.GetDocumentAsync($"memory-{context.ParticipantId}");
+    var memory = await context.GetDocumentAsync($"memory-{context.Message.ParticipantId}");
     
     var previousTopics = memory != null 
         ? memory.Content!.Value.GetProperty("Topics").Deserialize<List<string>>()
@@ -399,7 +399,7 @@ workflow.OnUserMessage(async (context) =>
     {
         Id = memory?.Id,  // Update if exists
         Type = "conversation-memory",
-        Key = context.ParticipantId,
+        Key = context.Message.ParticipantId,
         Content = JsonSerializer.SerializeToElement(new
         {
             Topics = previousTopics,
@@ -610,7 +610,7 @@ workflow.OnUserMessage(async (context) =>
     var doc = new Document
     {
         Type = "user-data",
-        Key = context.ParticipantId,
+        Key = context.Message.ParticipantId,
         Content = JsonSerializer.SerializeToElement(new { Data = "value" })
     };
     
@@ -753,7 +753,7 @@ workflow.OnUserMessage(async (context) =>
             Key = $"order-{Guid.NewGuid()}",
             Content = JsonSerializer.SerializeToElement(new
             {
-                CustomerId = context.ParticipantId,
+                CustomerId = context.Message.ParticipantId,
                 Status = "Pending",
                 Items = new[] { "Product A", "Product B" },
                 Total = 149.99,
@@ -761,7 +761,7 @@ workflow.OnUserMessage(async (context) =>
             }),
             Metadata = new Dictionary<string, object>
             {
-                ["customerId"] = context.ParticipantId,
+                ["customerId"] = context.Message.ParticipantId,
                 ["status"] = "pending",
                 ["total"] = 149.99
             }
@@ -782,7 +782,7 @@ workflow.OnUserMessage(async (context) =>
             Type = "order",
             MetadataFilters = new Dictionary<string, object>
             {
-                ["customerId"] = context.ParticipantId
+                ["customerId"] = context.Message.ParticipantId
             },
             Limit = 10,
             SortBy = "CreatedAt",

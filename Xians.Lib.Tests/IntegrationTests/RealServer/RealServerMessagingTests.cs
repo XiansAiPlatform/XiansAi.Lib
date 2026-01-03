@@ -4,6 +4,7 @@ using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Workflows.Models;
 using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -17,7 +18,7 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// </summary>
 [Trait("Category", "RealServer")]
 [Collection("RealServerMessaging")] // Force sequential execution
-public class RealServerMessagingTests : RealServerTestBase, IDisposable
+public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
 {
     private XiansPlatform? _platform;
     private XiansAgent? _agent;
@@ -36,8 +37,17 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
         _agentName = $"MessagingTestAgent-{Guid.NewGuid().ToString()[..8]}";
     }
 
-    public void Dispose()
+    async Task IAsyncLifetime.InitializeAsync()
     {
+        // No initialization needed - tests call InitializePlatformAsync as needed
+        await Task.CompletedTask;
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        // Terminate workflows
+        await TerminateWorkflowsAsync();
+
         // Clear the context to allow other tests to register agents
         try
         {
@@ -46,6 +56,26 @@ public class RealServerMessagingTests : RealServerTestBase, IDisposable
         catch
         {
             // Ignore cleanup errors
+        }
+    }
+
+    private async Task TerminateWorkflowsAsync()
+    {
+        if (_agent?.TemporalService == null) return;
+
+        try
+        {
+            var temporalClient = await _agent.TemporalService.GetClientAsync();
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                _agentName, 
+                new[] { WORKFLOW_NAME });
+            
+            Console.WriteLine("✓ Workflows terminated");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Failed to terminate workflows: {ex.Message}");
         }
     }
 
