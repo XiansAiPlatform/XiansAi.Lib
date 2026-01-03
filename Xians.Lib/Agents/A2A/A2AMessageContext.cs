@@ -17,7 +17,8 @@ public class A2AMessageContext : UserMessageContext
     private readonly A2AResponseCapture _responseCapture;
     private readonly string _targetWorkflowId;
     private readonly string _targetWorkflowType;
-    private bool _responseSent = false;
+    private readonly A2AMessageCollection _a2aMessages;
+    private readonly ILogger _logger;
 
     internal A2AMessageContext(
         UserMessage message,
@@ -25,13 +26,33 @@ public class A2AMessageContext : UserMessageContext
         string workflowId,
         string workflowType,
         A2AResponseCapture responseCapture)
-        : base(message)
+        : base(
+            message,
+            participantId: request.ParticipantId ?? request.CorrelationId,
+            requestId: request.RequestId ?? request.CorrelationId,
+            scope: request.Scope ?? "a2a",
+            hint: request.Hint ?? string.Empty,  // Hint is for message processing, not agent name
+            data: request.Data ?? new object(),
+            tenantId: request.TenantId,
+            authorization: request.Authorization,
+            threadId: request.ThreadId ?? request.CorrelationId,
+            metadata: request.Metadata)
     {
         _request = request;
         _responseCapture = responseCapture;
         _targetWorkflowId = workflowId;
         _targetWorkflowType = workflowType;
+        _logger = XiansLogger.GetLogger<A2AMessageContext>();
+        
+        // Create A2A-specific message collection
+        _a2aMessages = new A2AMessageCollection(this, _responseCapture);
     }
+
+    /// <summary>
+    /// Gets the A2A-specific messaging operations collection.
+    /// Overrides base to provide A2A reply behavior that captures responses instead of sending to users.
+    /// </summary>
+    public override MessageCollection Messages => _a2aMessages;
 
     /// <summary>
     /// Gets the source agent name that sent this A2A request.
@@ -54,61 +75,26 @@ public class A2AMessageContext : UserMessageContext
     public string CorrelationId => _request.CorrelationId;
 
     /// <summary>
-    /// Gets optional metadata from the request.
-    /// </summary>
-    public Dictionary<string, string>? Metadata => _request.Metadata;
-
-    /// <summary>
     /// Sends a reply back to the calling agent.
-    /// Overrides the base implementation to capture the response instead of sending to a user.
+    /// Captures the response instead of sending to a user.
+    /// Delegates to the message collection for consistency.
     /// </summary>
     /// <param name="response">The response text to send.</param>
-    public override Task ReplyAsync(string response)
+    public Task ReplyAsync(string response)
     {
-        CaptureResponse(response, null);
-        return Task.CompletedTask;
+        return _a2aMessages.ReplyAsync(response);
     }
 
     /// <summary>
     /// Sends a reply with both text and data back to the calling agent.
-    /// Overrides the base implementation to capture the response instead of sending to a user.
+    /// Captures the response instead of sending to a user.
+    /// Delegates to the message collection for consistency.
     /// </summary>
     /// <param name="content">The text content to send.</param>
     /// <param name="data">The data object to send.</param>
-    public override Task ReplyWithDataAsync(string content, object? data)
+    public Task ReplyWithDataAsync(string content, object? data)
     {
-        CaptureResponse(content, data);
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Internal method to capture the A2A response.
-    /// </summary>
-    private void CaptureResponse(string text, object? data)
-    {
-        var logger = GetLogger();
-        
-        if (_responseSent)
-        {
-            logger.LogWarning(
-                "A2A response already sent from {SourceAgent}. Ignoring duplicate response.",
-                _request.SourceAgentName);
-            return;
-        }
-
-        logger.LogDebug(
-            "Capturing A2A response: From={TargetAgent}, To={SourceAgent}",
-            XiansContext.AgentName,
-            _request.SourceAgentName);
-
-        _responseCapture.HasResponse = true;
-        _responseCapture.Text = text;
-        _responseCapture.Data = data;
-        _responseSent = true;
-
-        logger.LogInformation(
-            "A2A response captured from {Agent}",
-            XiansContext.AgentName);
+        return _a2aMessages.ReplyWithDataAsync(content, data);
     }
 
     /// <summary>
@@ -124,40 +110,19 @@ public class A2AMessageContext : UserMessageContext
 
     /// <summary>
     /// Gets the scope for this A2A message.
-    /// A2A messages use "a2a" scope.
+    /// A2A messages use "A2A" scope.
     /// </summary>
-    public override string Scope => "a2a";
-
-    /// <summary>
-    /// Overrides GetWorkflowType to return the target workflow's type, not the calling workflow.
-    /// This ensures knowledge and other operations use the target agent's context.
-    /// </summary>
-    protected override string GetWorkflowType()
-    {
-        return _targetWorkflowType;
-    }
-
-    /// <summary>
-    /// Gets a context-aware logger for A2A messages.
-    /// </summary>
-    protected override ILogger GetLogger()
-    {
-        return XiansLogger.GetLogger<A2AMessageContext>();
-    }
+    public override string Scope => "A2A";
 
     /// <summary>
     /// Chat history is not available for A2A messages.
     /// Returns an empty list since A2A messages are stateless one-off requests.
     /// </summary>
-    public override Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
+    [Obsolete("Use ctx.Messages.GetHistoryAsync() instead. This method will be removed in a future version.")]
+    public Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        var logger = GetLogger();
-        logger.LogDebug(
-            "Chat history requested in A2A context - returning empty list. " +
-            "A2A messages are stateless and don't have conversation history.");
-        
-        // Return empty list for A2A - these are one-off requests without conversation context
-        return Task.FromResult(new List<DbMessage>());
+        // Delegate to the A2A message collection which returns empty list
+        return _a2aMessages.GetHistoryAsync(page, pageSize);
     }
 }
 

@@ -8,14 +8,22 @@ public class ProcessMessageActivityRequest
     public required string MessageText { get; set; }
     public required string ParticipantId { get; set; }
     public required string RequestId { get; set; }
-    public required string Scope { get; set; }
-    public required string Hint { get; set; }
-    public required object Data { get; set; }
+    public string? Scope { get; set; }
+    public string? Hint { get; set; }
+    public  object? Data { get; set; }
     public required string TenantId { get; set; }
     public required string WorkflowId { get; set; }
     public required string WorkflowType { get; set; }
     public string? Authorization { get; set; }
     public string? ThreadId { get; set; }
+    /// <summary>
+    /// Optional metadata for the message.
+    /// </summary>
+    public Dictionary<string, string>? Metadata { get; set; }
+    /// <summary>
+    /// The type of message: "Chat" or "Data"
+    /// </summary>
+    public string MessageType { get; set; } = "Chat";
     // Handler is looked up from static registry using WorkflowType - not passed to avoid serialization issues
 }
 
@@ -52,7 +60,7 @@ public class GetMessageHistoryRequest
 {
     public required string WorkflowType { get; set; }
     public required string ParticipantId { get; set; }
-    public required string Scope { get; set; }
+    public string? Scope { get; set; }
     public required string TenantId { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 10;
@@ -65,6 +73,6 @@ public class GetLastHintRequest
 {
     public required string WorkflowType { get; set; }
     public required string ParticipantId { get; set; }
-    public required string Scope { get; set; }
+    public string? Scope { get; set; }
     public required string TenantId { get; set; }
 }

@@ -29,9 +29,9 @@ internal class WebTools
 
         try
         {
-            // Get the Web workflow from the current agent
-            var agent = XiansContext.CurrentAgent;  // Company Research Agent
-            var workflow = agent.GetBuiltInWorkflow("Web") ?? throw new InvalidOperationException("Web workflow not found");
+            // Get the Web built-in workflow
+            var workflow = XiansContext.CurrentAgent.Workflows.GetBuiltIn("Web")
+                ?? throw new InvalidOperationException("Web workflow not found. Ensure it's registered as a built-in workflow.");
             
             _logger.LogDebug("Creating A2A client for Web workflow");
             var client = new A2AClient(workflow);

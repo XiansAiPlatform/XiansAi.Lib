@@ -27,7 +27,7 @@ internal static class WebAgent
         string openAiApiKey,
         string modelName = "gpt-4o-mini")
     {
-        var instructions = await context.GetKnowledgeAsync("Web Agent Instructions");
+        var instructions = await XiansContext.CurrentAgent.Knowledge.GetAsync("Web Agent Instructions");
 
         if (instructions == null)
         {

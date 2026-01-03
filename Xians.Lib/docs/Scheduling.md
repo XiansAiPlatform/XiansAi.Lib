@@ -247,6 +247,9 @@ Create a schedule in paused state for later activation:
 ### Retrieve and Inspect
 
 ```csharp
+// Get workflow context
+var workflow = XiansContext.CurrentWorkflow;
+
 // Get existing schedule
 var schedule = await workflow.Schedules!.GetAsync("my-schedule");
 
@@ -264,6 +267,8 @@ Console.WriteLine($"Status: {(isPaused ? "Paused" : "Active")}");
 ### Pause and Resume
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 // Pause with optional note
 await schedule.PauseAsync("System maintenance in progress");
 
@@ -278,6 +283,8 @@ await workflow.Schedules!.UnpauseAsync("my-schedule");
 ### Trigger Immediate Execution
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 // Trigger now (doesn't affect schedule)
 await schedule.TriggerAsync();
 
@@ -312,6 +319,8 @@ await schedule.UpdateAsync(input =>
 ### Delete Schedule
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 // Delete via schedule instance
 await schedule.DeleteAsync();
 
@@ -328,6 +337,8 @@ if (await workflow.Schedules!.ExistsAsync("my-schedule"))
 ### List All Schedules
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 // List all schedules for this workflow (tenant-filtered)
 var schedules = await workflow.Schedules!.ListAsync();
 
@@ -396,6 +407,8 @@ The SDK provides specific exceptions for different error scenarios:
 ```csharp
 using Xians.Lib.Agents.Scheduling.Models;
 
+var workflow = XiansContext.CurrentWorkflow;
+
 try
 {
     var schedule = await workflow.Schedules!
@@ -427,6 +440,8 @@ catch (InvalidScheduleSpecException ex)
 ### Handling Missing Schedules
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 try
 {
     var schedule = await workflow.Schedules!.GetAsync("non-existent-schedule");
@@ -448,6 +463,7 @@ catch (ScheduleNotFoundException ex)
 Check for existence before creating:
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
 var scheduleId = "my-recurring-task";
 
 if (!await workflow.Schedules!.ExistsAsync(scheduleId))
@@ -587,6 +603,8 @@ public class ContentDiscoveryWorkflow
 ### Multiple Schedules Pattern
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 // Create schedules for multiple entities
 var companies = new[] { "ACME Corp", "TechCo", "GlobalInc" };
 
@@ -781,6 +799,8 @@ Ensure schedules run at the expected local time:
 Avoid errors when schedules might already exist:
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 if (!await workflow.Schedules!.ExistsAsync("my-schedule"))
 {
     await workflow.Schedules!.Create("my-schedule")...StartAsync();
@@ -927,6 +947,8 @@ The Xians.Lib Schedule SDK is production-ready and developer-friendly! 🚀
 ### Essential Operations
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 // Create
 var schedule = await workflow.Schedules!
     .Create("my-schedule")
@@ -954,6 +976,8 @@ var schedules = await workflow.Schedules!.ListAsync();
 ### Production Template
 
 ```csharp
+var workflow = XiansContext.CurrentWorkflow;
+
 var schedule = await workflow.Schedules!
     .Create("production-task")
     .Daily(hour: 9, timezone: "America/New_York")

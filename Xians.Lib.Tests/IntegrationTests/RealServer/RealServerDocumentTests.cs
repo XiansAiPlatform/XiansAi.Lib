@@ -796,6 +796,258 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
 
     #endregion
 
+    #region Agent Isolation Tests
+
+    [Fact]
+    public async Task Document_AgentIsolation_DifferentAgentsCannotAccessEachOthersDocuments()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Create a second agent
+            var agent2Name = $"DocumentTestAgent2-{Guid.NewGuid().ToString()[..8]}";
+            var agent2 = _platform!.Agents.Register(new XiansAgentRegistration 
+            { 
+                Name = agent2Name,
+                SystemScoped = false
+            });
+            
+            var workflow2 = agent2.Workflows.DefineBuiltIn("document-tests-2");
+            await agent2.UploadWorkflowDefinitionsAsync();
+
+            // Agent 1 creates a document
+            var document = new Document
+            {
+                Type = "isolation-test",
+                Content = JsonSerializer.SerializeToElement(new { Owner = _agentName })
+            };
+
+            var saved = await _agent!.Documents.SaveAsync(document);
+            _createdDocumentIds.Add(saved.Id!);
+            
+            Console.WriteLine($"  ✓ Agent 1 created document: {saved.Id}");
+
+            // Agent 2 tries to get Agent 1's document - should return null (filtered out)
+            var retrievedByAgent2 = await agent2.Documents.GetAsync(saved.Id!);
+            Assert.Null(retrievedByAgent2);
+            
+            Console.WriteLine("  ✓ Agent 2 cannot access Agent 1's document");
+
+            // Agent 2 tries to delete Agent 1's document - should return false
+            var deletedByAgent2 = await agent2.Documents.DeleteAsync(saved.Id!);
+            Assert.False(deletedByAgent2);
+            
+            Console.WriteLine("  ✓ Agent 2 cannot delete Agent 1's document");
+
+            // Agent 1 can still access and delete it
+            var retrievedByAgent1 = await _agent!.Documents.GetAsync(saved.Id!);
+            Assert.NotNull(retrievedByAgent1);
+            
+            var deletedByAgent1 = await _agent!.Documents.DeleteAsync(saved.Id!);
+            Assert.True(deletedByAgent1);
+            _createdDocumentIds.Remove(saved.Id!);
+            
+            Console.WriteLine("  ✓ Agent 1 can access and delete its own document");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"AgentIsolation test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Document_AgentIdAutoPopulation_DocumentsGetAgentIdSet()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Create document without setting AgentId
+            var document = new Document
+            {
+                Type = "agentid-test",
+                Content = JsonSerializer.SerializeToElement(new { Test = true })
+            };
+
+            Assert.Null(document.AgentId); // Initially null
+
+            // Save - AgentId should be auto-populated
+            var saved = await _agent!.Documents.SaveAsync(document);
+            _createdDocumentIds.Add(saved.Id!);
+
+            // Verify AgentId was set
+            Assert.Equal(_agentName, saved.AgentId);
+            Console.WriteLine($"  ✓ AgentId auto-populated: {saved.AgentId}");
+
+            // Retrieve and verify AgentId persisted
+            var retrieved = await _agent!.Documents.GetAsync(saved.Id!);
+            Assert.NotNull(retrieved);
+            Assert.Equal(_agentName, retrieved.AgentId);
+            
+            Console.WriteLine("  ✓ AgentId persisted correctly");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"AgentIdAutoPopulation test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Document_DeleteMany_WithMixedOwnership_OnlyDeletesOwnDocuments()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Create second agent
+            var agent2Name = $"DocumentTestAgent2-{Guid.NewGuid().ToString()[..8]}";
+            var agent2 = _platform!.Agents.Register(new XiansAgentRegistration 
+            { 
+                Name = agent2Name,
+                SystemScoped = false
+            });
+            
+            var workflow2 = agent2.Workflows.DefineBuiltIn("document-tests-2");
+            await agent2.UploadWorkflowDefinitionsAsync();
+
+            // Agent 1 creates 2 documents
+            var agent1Doc1 = await _agent!.Documents.SaveAsync(new Document
+            {
+                Type = "ownership-test",
+                Content = JsonSerializer.SerializeToElement(new { Owner = "Agent1", Index = 1 })
+            });
+            _createdDocumentIds.Add(agent1Doc1.Id!);
+
+            var agent1Doc2 = await _agent!.Documents.SaveAsync(new Document
+            {
+                Type = "ownership-test",
+                Content = JsonSerializer.SerializeToElement(new { Owner = "Agent1", Index = 2 })
+            });
+            _createdDocumentIds.Add(agent1Doc2.Id!);
+
+            // Agent 2 creates 1 document
+            var agent2Doc = await agent2.Documents.SaveAsync(new Document
+            {
+                Type = "ownership-test",
+                Content = JsonSerializer.SerializeToElement(new { Owner = "Agent2" })
+            });
+
+            Console.WriteLine($"  ✓ Created documents: Agent1={agent1Doc1.Id}, {agent1Doc2.Id}, Agent2={agent2Doc.Id}");
+
+            // Agent 1 tries to delete all three IDs (including Agent 2's document)
+            var idsToDelete = new[] { agent1Doc1.Id!, agent1Doc2.Id!, agent2Doc.Id! };
+            var deletedCount = await _agent!.Documents.DeleteManyAsync(idsToDelete);
+
+            // Should only delete Agent 1's documents (2), not Agent 2's
+            Assert.Equal(2, deletedCount);
+            Console.WriteLine($"  ✓ Deleted {deletedCount} documents (own documents only)");
+
+            // Verify Agent 1's documents are deleted
+            Assert.Null(await _agent!.Documents.GetAsync(agent1Doc1.Id!));
+            Assert.Null(await _agent!.Documents.GetAsync(agent1Doc2.Id!));
+            _createdDocumentIds.Remove(agent1Doc1.Id!);
+            _createdDocumentIds.Remove(agent1Doc2.Id!);
+
+            // Verify Agent 2's document still exists
+            var agent2DocStillExists = await agent2.Documents.GetAsync(agent2Doc.Id!);
+            Assert.NotNull(agent2DocStillExists);
+            
+            Console.WriteLine("  ✓ Agent 2's document was not deleted");
+
+            // Cleanup Agent 2's document
+            await agent2.Documents.DeleteAsync(agent2Doc.Id!);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"DeleteManyWithMixedOwnership test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Document_Query_AutomaticallyFiltersToCurrentAgent()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Create second agent
+            var agent2Name = $"DocumentTestAgent2-{Guid.NewGuid().ToString()[..8]}";
+            var agent2 = _platform!.Agents.Register(new XiansAgentRegistration 
+            { 
+                Name = agent2Name,
+                SystemScoped = false
+            });
+            
+            var workflow2 = agent2.Workflows.DefineBuiltIn("document-tests-2");
+            await agent2.UploadWorkflowDefinitionsAsync();
+
+            var testType = $"query-isolation-{Guid.NewGuid().ToString()[..8]}";
+
+            // Agent 1 creates 2 documents
+            for (int i = 1; i <= 2; i++)
+            {
+                var doc = await _agent!.Documents.SaveAsync(new Document
+                {
+                    Type = testType,
+                    Content = JsonSerializer.SerializeToElement(new { Agent = _agentName, Index = i })
+                });
+                _createdDocumentIds.Add(doc.Id!);
+            }
+
+            // Agent 2 creates 1 document
+            var agent2Doc = await agent2.Documents.SaveAsync(new Document
+            {
+                Type = testType,
+                Content = JsonSerializer.SerializeToElement(new { Agent = agent2Name })
+            });
+
+            await Task.Delay(2000); // Wait for indexing
+
+            // Query from Agent 1 - should only return Agent 1's documents
+            var agent1Results = await _agent!.Documents.QueryAsync(new DocumentQuery
+            {
+                Type = testType,
+                Limit = 10
+            });
+
+            // Server now properly filters by AgentId - should only get Agent 1's documents
+            Assert.Equal(2, agent1Results.Count);
+            Assert.All(agent1Results, doc => Assert.Equal(_agentName, doc.AgentId));
+            
+            Console.WriteLine($"  ✓ Agent 1 query returned {agent1Results.Count} documents (own documents only)");
+
+            // Query from Agent 2 - should only return Agent 2's document
+            var agent2Results = await agent2.Documents.QueryAsync(new DocumentQuery
+            {
+                Type = testType,
+                Limit = 10
+            });
+
+            Assert.Single(agent2Results);
+            Assert.Equal(agent2Name, agent2Results[0].AgentId);
+            
+            Console.WriteLine($"  ✓ Agent 2 query returned {agent2Results.Count} document (own documents only)");
+
+            // Cleanup Agent 2's document
+            await agent2.Documents.DeleteAsync(agent2Doc.Id!);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"QueryAutoFiltering test failed: {ex.Message}", ex);
+        }
+    }
+
+    #endregion
+
     #region System-Scoped Agent Tests
 
     [Fact]

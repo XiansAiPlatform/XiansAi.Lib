@@ -142,17 +142,7 @@ public static class UserMessaging
             // Execute via Temporal activity for proper determinism and retry handling
             return await Workflow.ExecuteActivityAsync(
                 (MessageActivities act) => act.GetLastHintAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
+                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
         {
@@ -167,11 +157,7 @@ public static class UserMessaging
             var logger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageService>();
             var messageService = new MessageService(agent.HttpService.Client, logger);
 
-            return await messageService.GetLastHintAsync(
-                request.WorkflowType,
-                request.ParticipantId,
-                request.Scope,
-                request.TenantId);
+            return await messageService.GetLastHintAsync(request);
         }
         else
         {
@@ -302,17 +288,7 @@ public static class UserMessaging
             // Execute via Temporal activity for proper determinism and retry handling
             await Workflow.ExecuteActivityAsync(
                 (MessageActivities act) => act.SendMessageAsync(request),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                    RetryPolicy = new()
-                    {
-                        MaximumAttempts = 3,
-                        InitialInterval = TimeSpan.FromSeconds(1),
-                        MaximumInterval = TimeSpan.FromSeconds(10),
-                        BackoffCoefficient = 2
-                    }
-                });
+                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
         {
@@ -327,20 +303,7 @@ public static class UserMessaging
             var logger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageService>();
             var messageService = new MessageService(agent.HttpService.Client, logger);
 
-            await messageService.SendAsync(
-                request.ParticipantId,
-                request.WorkflowId,
-                request.WorkflowType,
-                request.RequestId,
-                request.Scope ?? string.Empty,
-                request.Text ?? string.Empty,
-                request.Data,
-                request.TenantId,
-                authorization: null,
-                threadId: null,
-                request.Hint ?? string.Empty,
-                request.Origin,
-                request.Type);
+            await messageService.SendAsync(request);
         }
         else
         {

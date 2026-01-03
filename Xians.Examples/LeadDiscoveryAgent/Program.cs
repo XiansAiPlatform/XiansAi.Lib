@@ -1,7 +1,6 @@
 ﻿using DotNetEnv;
 using Xians.Lib.Agents.Core;
 using Xians.Agent.Sample;
-using Xians.Agent.Sample.ConversationalAgent;
 using Xians.Agent.Sample.WebAgent;
 
 Env.Load();
@@ -34,30 +33,27 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
     SystemScoped = true
 });
 
-// Define a supervisor workflow to handle user messages and conversations
-var conversationalWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.ConversationalWorkflowName);
-
-// Define a web workflow to handle web interactions
-var webWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.WebWorkflowName);
-
 // Define a content processing workflow to handle content processing
 var contentProcessingWorkflow = agent.Workflows.DefineCustom<ContentProcessingWorkflow>();
  
 // Define a content discovery workflow to handle content discovery
 var contentDiscoveryWorkflow = agent.Workflows.DefineCustom<ContentDiscoveryWorkflow>();
 
-// Register handler for conversational workflow
-conversationalWorkflow.OnUserMessage(async (context) =>
+// Define a conversational workflow to handle user messages and conversations
+var conversationalWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.ConversationalWorkflowName);
+var conversationalAgent = new ConversationalAgent(openAiApiKey);
+conversationalWorkflow.OnUserChatMessage(async (context) =>
 {
-    var response = await ConversationalAgent.ProcessMessageAsync(context, openAiApiKey);
-    await context.ReplyAsync(response);
+    var response = await conversationalAgent.ProcessMessageAsync(context);
+    await context.Messages.ReplyAsync(response);
 });
 
 // Register handler for web workflow
-webWorkflow.OnUserMessage(async (context) =>
+var webWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.WebWorkflowName);
+webWorkflow.OnUserChatMessage(async (context) =>
 {
     var response = await WebAgent.ProcessMessageAsync(context, openAiApiKey);
-    await context.ReplyAsync(response);
+    await context.Messages.ReplyAsync(response);
 });
 
 // Run all workflows

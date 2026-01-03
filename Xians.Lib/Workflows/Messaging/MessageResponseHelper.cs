@@ -47,17 +47,7 @@ internal static class MessageResponseHelper
 
         await Workflow.ExecuteActivityAsync(
             (MessageActivities act) => act.SendMessageAsync(request),
-            new()
-            {
-                StartToCloseTimeout = TimeSpan.FromSeconds(30),
-                RetryPolicy = new()
-                {
-                    MaximumAttempts = 3,
-                    InitialInterval = TimeSpan.FromSeconds(1),
-                    MaximumInterval = TimeSpan.FromSeconds(10),
-                    BackoffCoefficient = 2
-                }
-            });
+            MessageActivityOptions.GetStandardOptions());
     }
 
     /// <summary>
@@ -93,7 +83,7 @@ internal static class MessageResponseHelper
         ILogger logger)
     {
         // Extract tenant ID from WorkflowId using centralized utility
-        var workflowId = Workflow.Info.WorkflowId;
+        var workflowId = Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowId();
         string workflowTenantId;
         try
         {
@@ -113,6 +103,6 @@ internal static class MessageResponseHelper
             errorMessage,
             workflowTenantId,
             workflowId,
-            Workflow.Info.WorkflowType);
+            Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowType());
     }
 }

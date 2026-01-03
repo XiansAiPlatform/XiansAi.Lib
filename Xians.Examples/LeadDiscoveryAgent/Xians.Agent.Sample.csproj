@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Xians.Lib\Xians.Lib.csproj" />
+    <ProjectReference Include="..\..\Xians.Lib\Xians.Lib.csproj" />
   </ItemGroup>
 
   <ItemGroup>

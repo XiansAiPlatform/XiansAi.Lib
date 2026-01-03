@@ -9,37 +9,43 @@ using Xians.Agent.Sample.Utils;
 using Xians.Agent.Sample.SupervisorAgent;
 using Microsoft.Extensions.Logging;
 
-namespace Xians.Agent.Sample.ConversationalAgent;
+namespace Xians.Agent.Sample;
 
 /// <summary>
 /// MAF Agent that uses OpenAI with Xians chat message store for conversation history.
 /// </summary>
-internal static class ConversationalAgent
+internal class ConversationalAgent
 {
     private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.Instance.CreateLogger("ConversationalAgent");
+    
+    private readonly ChatClient _chatClient;
+
+    /// <summary>
+    /// Initializes a new instance of the ConversationalAgent.
+    /// </summary>
+    /// <param name="openAiApiKey">OpenAI API key for authentication</param>
+    /// <param name="modelName">OpenAI model to use (defaults to gpt-4o-mini)</param>
+    public ConversationalAgent(string openAiApiKey, string modelName = "gpt-4o-mini")
+    {
+        _chatClient = new OpenAIClient(openAiApiKey).GetChatClient(modelName);
+    }
+
     /// <summary>
     /// Processes a user message using OpenAI's chat model with Xians conversation history.
     /// </summary>
     /// <param name="context">The Xians user message context containing the message and chat history</param>
-    /// <param name="openAiApiKey">OpenAI API key for authentication</param>
-    /// <param name="modelName">OpenAI model to use (defaults to gpt-4o-mini)</param>
     /// <returns>The AI agent's response text</returns>
-    public static async Task<string> ProcessMessageAsync(
-        UserMessageContext context,
-        string openAiApiKey,
-        string modelName = "gpt-4o-mini")
+    public async Task<string> ProcessMessageAsync(UserMessageContext context)
     {
-        var taskWorkflowId = await context.GetLastHintAsync();
+        var taskWorkflowId = await context.Messages.GetLastHintAsync();
         _logger.LogInformation("Task workflow ID: {TaskWorkflowId}", taskWorkflowId);
 
-        // Create tools instance
+        // Create context-specific tools
         var webTools = new WebTools(context);
         var taskTools = new TaskTools(context);
 
         // Create AI agent with custom Xians chat message store and tools
-        AIAgent mafAgent = new OpenAIClient(openAiApiKey)
-            .GetChatClient(modelName)
-            .CreateAIAgent(new ChatClientAgentOptions
+        AIAgent mafAgent = _chatClient.CreateAIAgent(new ChatClientAgentOptions
             {
                 ChatOptions = new ChatOptions
                 {

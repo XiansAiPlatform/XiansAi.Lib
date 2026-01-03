@@ -96,11 +96,10 @@ public class ContentDiscoveryWorkflow
 
     private async Task<bool> IsContentProcessedAsync(string contentURL)
     {
-        var agent = XiansContext.CurrentAgent;
-        var type = "processed-content-url";
+        var type = "processed-content-url-for-user-" + _reportingUserID;
         
         // Check if the url is already processed (automatically uses activity when in workflow)
-        var doc = await agent.Documents.GetByKeyAsync(type, contentURL);
+        var doc = await XiansContext.CurrentAgent.Documents.GetByKeyAsync(type, contentURL);
         
         if (doc != null)
         {
@@ -108,7 +107,7 @@ public class ContentDiscoveryWorkflow
         }
         
         // Mark as processed (automatically uses activity when in workflow)
-        await agent.Documents.SaveAsync(new Xians.Lib.Agents.Documents.Models.Document
+        await XiansContext.CurrentAgent.Documents.SaveAsync(new Xians.Lib.Agents.Documents.Models.Document
         {
             Type = type,
             Key = contentURL,
@@ -144,12 +143,14 @@ public class ContentDiscoveryWorkflow
             return TestData.ContentURLs.Split(',').ToList();
         }
 
-        var webWorkflow = XiansContext.CurrentAgent.GetBuiltInWorkflow(Constants.WebWorkflowName);
-        var client = new A2AClient(webWorkflow ?? throw new InvalidOperationException($"{Constants.WebWorkflowName} workflow not found"));
-        var response = await client.SendMessageAsync(new A2AMessage 
-        { 
-            Text = $"Fetch all content article URLs from {contentSiteURL}. Return ONLY the URLs as a comma-separated list with no additional text, explanations, or formatting. Example format: url1,url2,url3" 
-        });
+        // Send A2A message to web workflow using the simplified API
+        var response = await XiansContext.A2A.SendChatToBuiltInAsync(
+            Constants.WebWorkflowName,
+            new A2AMessage 
+            { 
+                Data = {},
+                Text = $"Fetch all content article URLs from {contentSiteURL}. Return ONLY the URLs as a comma-separated list with no additional text, explanations, or formatting. Example format: url1,url2,url3" 
+            });
 
         if (string.IsNullOrEmpty(response.Text))
         {
@@ -176,12 +177,9 @@ public class ContentDiscoveryWorkflow
     {
         try
         {
-            // Get the current workflow instance using XiansContext
-            var workflow = XiansContext.CurrentWorkflow;
-
             // Call the Schedule SDK directly - it automatically detects workflow context
             // and uses ScheduleActivities under the hood!
-            var schedule = await workflow.Schedules!
+            var schedule = await XiansContext.CurrentWorkflow.Schedules!
                 .Create($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
                 .WithIntervalSchedule(TimeSpan.FromHours(_intervalHours))
                 .WithInput( new object[] { _contentSiteURL, _intervalHours, _reportingUserID } )

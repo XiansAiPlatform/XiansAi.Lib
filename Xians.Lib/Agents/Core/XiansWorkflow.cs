@@ -139,23 +139,20 @@ public class XiansWorkflow
     }
 
     /// <summary>
-    /// Registers a handler for user messages.
+    /// Registers a handler for user chat messages.
     /// </summary>
-    /// <param name="handler">The async handler to process user messages.</param>
-    public void OnUserMessage(Func<UserMessageContext, Task> handler)
+    /// <param name="handler">The async handler to process user chat messages.</param>
+    public void OnUserChatMessage(Func<UserMessageContext, Task> handler)
     {
         if (!_isBuiltIn)
         {
             throw new InvalidOperationException(
-                "OnUserMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+                "OnUserChatMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
         }
 
         var tenantId = GetTenantIdOrNull();
 
-        // Register the handler with tenant isolation metadata
-        // This allows multiple default workflows to each have their own isolated handler
-        // and enforces tenant boundaries for security
-        BuiltinWorkflow.RegisterMessageHandler(
+        BuiltinWorkflow.RegisterChatHandler(
             workflowType: WorkflowType,
             handler: handler,
             agentName: _agent.Name,
@@ -164,12 +161,43 @@ public class XiansWorkflow
         );
         
         _logger.LogDebug(
-            "User message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            "Chat message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
             WorkflowType,
             _agent.Name,
             _agent.SystemScoped,
             tenantId ?? "(system)");
     }
+
+    /// <summary>
+    /// Registers a handler for user data messages.
+    /// </summary>
+    /// <param name="handler">The async handler to process user data messages.</param>
+    public void OnUserDataMessage(Func<UserMessageContext, Task> handler)
+    {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnUserDataMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
+        var tenantId = GetTenantIdOrNull();
+
+        BuiltinWorkflow.RegisterDataHandler(
+            workflowType: WorkflowType,
+            handler: handler,
+            agentName: _agent.Name,
+            tenantId: tenantId,
+            systemScoped: _agent.SystemScoped
+        );
+        
+        _logger.LogDebug(
+            "Data message handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            WorkflowType,
+            _agent.Name,
+            _agent.SystemScoped,
+            tenantId ?? "(system)");
+    }
+
 
     /// <summary>
     /// Runs the workflow asynchronously.

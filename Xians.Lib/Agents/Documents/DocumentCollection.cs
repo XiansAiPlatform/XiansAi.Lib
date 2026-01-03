@@ -11,11 +11,12 @@ namespace Xians.Lib.Agents.Documents;
 /// <summary>
 /// Provides document storage operations for an agent.
 /// Documents are scoped to the agent and tenant.
+/// REFACTORED: Uses DocumentActivityExecutor for context-aware execution.
 /// </summary>
 public class DocumentCollection
 {
     private readonly XiansAgent _agent;
-    private readonly DocumentService? _documentService;
+    private readonly DocumentActivityExecutor _executor;
     private readonly ILogger<DocumentCollection> _logger;
 
     internal DocumentCollection(XiansAgent agent, Http.IHttpClientService? httpService)
@@ -23,11 +24,9 @@ public class DocumentCollection
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<DocumentCollection>();
 
-        if (httpService != null)
-        {
-            var serviceLogger = Common.Infrastructure.LoggerFactory.CreateLogger<DocumentService>();
-            _documentService = new DocumentService(httpService.Client, serviceLogger);
-        }
+        // Initialize executor for context-aware execution
+        var executorLogger = Common.Infrastructure.LoggerFactory.CreateLogger<DocumentActivityExecutor>();
+        _executor = new DocumentActivityExecutor(agent, executorLogger);
     }
 
     /// <summary>
@@ -41,39 +40,18 @@ public class DocumentCollection
     /// <exception cref="InvalidOperationException">Thrown when HTTP service is not configured.</exception>
     public async Task<Document> SaveAsync(Document document, DocumentOptions? options = null, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
         var tenantId = GetTenantId();
         
-        // Populate AgentId and WorkflowId automatically
-        document.AgentId = _agent.Name;
-        if (Workflow.InWorkflow || ActivityExecutionContext.HasCurrent)
-        {
-            document.WorkflowId = XiansContext.WorkflowId;
-        }
+        // Shared business logic: Populate AgentId and WorkflowId automatically
+        PrepareDocumentForSave(document);
         
         _logger.LogInformation(
             "Saving document for agent '{AgentName}', tenant '{TenantId}'",
             _agent.Name,
             tenantId);
 
-        // If in workflow, execute as activity for determinism
-        if (Workflow.InWorkflow)
-        {
-            return await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.SaveDocumentAsync(new SaveDocumentRequest
-                {
-                    Document = document,
-                    TenantId = tenantId,
-                    Options = options
-                }),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
-                });
-        }
-
-        return await _documentService!.SaveAsync(document, tenantId, options, cancellationToken);
+        // Context-aware execution via executor
+        return await _executor.SaveAsync(document, tenantId, options, cancellationToken);
     }
 
     /// <summary>
@@ -84,8 +62,6 @@ public class DocumentCollection
     /// <returns>The document if found, null otherwise.</returns>
     public async Task<Document?> GetAsync(string id, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
         var tenantId = GetTenantId();
         
         _logger.LogDebug(
@@ -93,39 +69,11 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        Document? document;
+        // Context-aware execution via executor
+        var document = await _executor.GetAsync(id, tenantId, cancellationToken);
 
-        // If in workflow, execute as activity for determinism
-        if (Workflow.InWorkflow)
-        {
-            document = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.GetDocumentAsync(new GetDocumentRequest
-                {
-                    Id = id,
-                    TenantId = tenantId
-                }),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
-                });
-        }
-        else
-        {
-            document = await _documentService!.GetAsync(id, tenantId, cancellationToken);
-        }
-
-        // Filter by agent - only return if it belongs to this agent
-        if (document != null && document.AgentId != _agent.Name)
-        {
-            _logger.LogWarning(
-                "Document '{Id}' found but belongs to different agent. Expected: '{Expected}', Found: '{Found}'",
-                id,
-                _agent.Name,
-                document.AgentId);
-            return null;
-        }
-
-        return document;
+        // Shared business logic: Filter by agent
+        return FilterDocumentByAgent(document, id);
     }
 
     /// <summary>
@@ -138,8 +86,6 @@ public class DocumentCollection
     /// <returns>The document if found, null otherwise.</returns>
     public async Task<Document?> GetByKeyAsync(string type, string key, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
         var tenantId = GetTenantId();
         
         _logger.LogDebug(
@@ -148,43 +94,17 @@ public class DocumentCollection
             key,
             _agent.Name);
 
-        // If in workflow, use query activity (no direct GetByKey activity exists)
-        if (Workflow.InWorkflow)
+        // Use QueryAsync for consistency - shared business logic
+        var query = new DocumentQuery
         {
-            var docs = await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.QueryDocumentsAsync(new QueryDocumentsRequest
-                {
-                    Query = new DocumentQuery
-                    {
-                        Type = type,
-                        Key = key,
-                        AgentId = _agent.Name,
-                        Limit = 1
-                    },
-                    TenantId = tenantId
-                }),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
-                });
-            
-            return docs?.FirstOrDefault();
-        }
+            Type = type,
+            Key = key,
+            AgentId = _agent.Name,
+            Limit = 1
+        };
 
-        // For non-workflow calls, we need to verify the returned document belongs to this agent
-        var document = await _documentService!.GetByKeyAsync(type, key, tenantId, cancellationToken);
-        
-        // Filter by agent - only return if it belongs to this agent
-        if (document != null && document.AgentId != _agent.Name)
-        {
-            _logger.LogWarning(
-                "Document found but belongs to different agent. Expected: '{Expected}', Found: '{Found}'",
-                _agent.Name,
-                document.AgentId);
-            return null;
-        }
-        
-        return document;
+        var docs = await _executor.QueryAsync(query, tenantId, cancellationToken);
+        return docs?.FirstOrDefault();
     }
 
     /// <summary>
@@ -196,11 +116,9 @@ public class DocumentCollection
     /// <returns>A list of matching documents.</returns>
     public async Task<List<Document>> QueryAsync(DocumentQuery query, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
         var tenantId = GetTenantId();
         
-        // Automatically scope query to current agent
+        // Shared business logic: Automatically scope query to current agent
         query.AgentId = _agent.Name;
         
         _logger.LogDebug(
@@ -209,22 +127,8 @@ public class DocumentCollection
             query.Type,
             query.Limit);
 
-        // If in workflow, execute as activity for determinism
-        if (Workflow.InWorkflow)
-        {
-            return await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.QueryDocumentsAsync(new QueryDocumentsRequest
-                {
-                    Query = query,
-                    TenantId = tenantId
-                }),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
-                });
-        }
-
-        return await _documentService!.QueryAsync(query, tenantId, cancellationToken);
+        // Context-aware execution via executor
+        return await _executor.QueryAsync(query, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -236,38 +140,18 @@ public class DocumentCollection
     /// <returns>True if updated successfully, false if not found.</returns>
     public async Task<bool> UpdateAsync(Document document, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
         var tenantId = GetTenantId();
         
-        // Ensure AgentId and WorkflowId are set
-        document.AgentId = _agent.Name;
-        if (Workflow.InWorkflow || ActivityExecutionContext.HasCurrent)
-        {
-            document.WorkflowId = XiansContext.WorkflowId;
-        }
+        // Shared business logic: Ensure AgentId and WorkflowId are set
+        PrepareDocumentForSave(document);
         
         _logger.LogInformation(
             "Updating document '{Id}' for agent '{AgentName}'",
             document.Id,
             _agent.Name);
 
-        // If in workflow, execute as activity for determinism
-        if (Workflow.InWorkflow)
-        {
-            return await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.UpdateDocumentAsync(new UpdateDocumentRequest
-                {
-                    Document = document,
-                    TenantId = tenantId
-                }),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
-                });
-        }
-
-        return await _documentService!.UpdateAsync(document, tenantId, cancellationToken);
+        // Context-aware execution via executor
+        return await _executor.UpdateAsync(document, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -278,8 +162,6 @@ public class DocumentCollection
     /// <returns>True if deleted successfully, false if not found.</returns>
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
         var tenantId = GetTenantId();
         
         _logger.LogInformation(
@@ -287,7 +169,7 @@ public class DocumentCollection
             id,
             _agent.Name);
 
-        // First verify the document belongs to this agent
+        // Shared business logic: Verify the document belongs to this agent before deletion
         var document = await GetAsync(id, cancellationToken);
         if (document == null)
         {
@@ -298,22 +180,8 @@ public class DocumentCollection
             return false;
         }
 
-        // If in workflow, execute as activity for determinism
-        if (Workflow.InWorkflow)
-        {
-            return await Workflow.ExecuteActivityAsync(
-                (DocumentActivities act) => act.DeleteDocumentAsync(new DeleteDocumentRequest
-                {
-                    Id = id,
-                    TenantId = tenantId
-                }),
-                new()
-                {
-                    StartToCloseTimeout = TimeSpan.FromSeconds(30)
-                });
-        }
-
-        return await _documentService!.DeleteAsync(id, tenantId, cancellationToken);
+        // Context-aware execution via executor
+        return await _executor.DeleteAsync(id, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -324,9 +192,6 @@ public class DocumentCollection
     /// <returns>The number of documents successfully deleted.</returns>
     public async Task<int> DeleteManyAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
-        EnsureServiceAvailable();
-
-        var tenantId = GetTenantId();
         var idList = ids.ToList();
         
         _logger.LogInformation(
@@ -334,9 +199,97 @@ public class DocumentCollection
             idList.Count,
             _agent.Name);
 
-        // Filter IDs to only include documents belonging to this agent
+        // Shared business logic: Filter IDs to only include documents belonging to this agent
+        var validIds = await FilterValidDocumentIdsAsync(idList, cancellationToken);
+
+        if (validIds.Count == 0)
+        {
+            return 0;
+        }
+
+        // Delete each valid document (reuses DeleteAsync for consistency)
+        int deletedCount = 0;
+        foreach (var id in validIds)
+        {
+            if (await DeleteAsync(id, cancellationToken))
+            {
+                deletedCount++;
+            }
+        }
+
+        return deletedCount;
+    }
+
+    /// <summary>
+    /// Checks if a document exists.
+    /// </summary>
+    /// <param name="id">The document ID to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the document exists, false otherwise.</returns>
+    public async Task<bool> ExistsAsync(string id, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Checking existence of document '{Id}' for agent '{AgentName}'",
+            id,
+            _agent.Name);
+
+        // Reuse GetAsync - shared business logic with filtering
+        var document = await GetAsync(id, cancellationToken);
+        return document != null;
+    }
+
+    #region Shared Business Logic Methods
+
+    /// <summary>
+    /// Prepares a document for save/update by setting agent and workflow metadata.
+    /// This is shared business logic used by both SaveAsync and UpdateAsync.
+    /// </summary>
+    private void PrepareDocumentForSave(Document document)
+    {
+        document.AgentId = _agent.Name;
+        if (WorkflowContextHelper.InWorkflowOrActivity)
+        {
+            document.WorkflowId = WorkflowContextHelper.GetWorkflowId();
+        }
+    }
+
+    /// <summary>
+    /// Filters a document by agent ownership.
+    /// Returns null if document doesn't belong to this agent.
+    /// This is shared business logic used by GetAsync and GetByKeyAsync.
+    /// </summary>
+    private Document? FilterDocumentByAgent(Document? document, string? documentId = null)
+    {
+        if (document == null)
+        {
+            return null;
+        }
+
+        if (document.AgentId != _agent.Name)
+        {
+            var idInfo = documentId != null ? $"'{documentId}'" : "";
+            _logger.LogWarning(
+                "Document {Id} found but belongs to different agent. Expected: '{Expected}', Found: '{Found}'",
+                idInfo,
+                _agent.Name,
+                document.AgentId);
+            return null;
+        }
+
+        return document;
+    }
+
+    /// <summary>
+    /// Filters a list of document IDs to only include documents belonging to this agent.
+    /// This is shared business logic used by DeleteManyAsync.
+    /// </summary>
+    private async Task<List<string>> FilterValidDocumentIdsAsync(
+        List<string> ids,
+        CancellationToken cancellationToken)
+    {
         var validIds = new List<string>();
-        foreach (var id in idList)
+        
+        foreach (var id in ids)
         {
             var doc = await GetAsync(id, cancellationToken);
             if (doc != null)
@@ -348,50 +301,19 @@ public class DocumentCollection
         if (validIds.Count == 0)
         {
             _logger.LogDebug("No valid documents to delete for agent '{AgentName}'", _agent.Name);
-            return 0;
         }
-
-        if (validIds.Count < idList.Count)
+        else if (validIds.Count < ids.Count)
         {
             _logger.LogWarning(
                 "Filtered out {FilteredCount} documents that don't belong to agent '{AgentName}'",
-                idList.Count - validIds.Count,
+                ids.Count - validIds.Count,
                 _agent.Name);
         }
 
-        return await _documentService!.DeleteManyAsync(validIds, tenantId, cancellationToken);
+        return validIds;
     }
 
-    /// <summary>
-    /// Checks if a document exists.
-    /// </summary>
-    /// <param name="id">The document ID to check.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if the document exists, false otherwise.</returns>
-    public async Task<bool> ExistsAsync(string id, CancellationToken cancellationToken = default)
-    {
-        EnsureServiceAvailable();
-
-        var tenantId = GetTenantId();
-        
-        _logger.LogDebug(
-            "Checking existence of document '{Id}' for agent '{AgentName}'",
-            id,
-            _agent.Name);
-
-        // Use GetAsync which already filters by agent
-        var document = await GetAsync(id, cancellationToken);
-        return document != null;
-    }
-
-    private void EnsureServiceAvailable()
-    {
-        if (_documentService == null)
-        {
-            throw new InvalidOperationException(
-                "Document service is not available. Ensure HTTP service is configured for the agent.");
-        }
-    }
+    #endregion
 
     private string GetTenantId()
     {

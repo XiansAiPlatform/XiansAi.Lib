@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Workflows;
 
@@ -17,49 +15,121 @@ public class A2AClient
     private readonly ILogger _logger;
 
     /// <summary>
+    /// Gets whether A2A messages can be sent from the current context.
+    /// Always returns true now that A2A is context-aware.
+    /// - From workflow: Handler runs in isolated activity
+    /// - From activity: Handler runs directly (no nested activity)
+    /// </summary>
+    public static bool CanSendFromCurrentContext => true;
+
+    /// <summary>
     /// Creates a new A2A client for communicating with a target workflow.
     /// Source workflow context is automatically obtained from XiansContext.
-    /// Must be used from workflow context only (not activity context).
+    /// 
+    /// CONTEXT-AWARE BEHAVIOR:
+    /// - From workflow: Handler executes in isolated activity (retryable, non-deterministic ops allowed)
+    /// - From activity: Handler executes directly (no nested activity, shares retry behavior)
+    /// 
+    /// A2A message RECEIVING (handling) works in both workflow and activity contexts.
     /// </summary>
     /// <param name="targetWorkflow">The target workflow to send messages to.</param>
     /// <exception cref="ArgumentNullException">Thrown when targetWorkflow is null.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow context.</exception>
     public A2AClient(XiansWorkflow targetWorkflow)
     {
         _targetWorkflow = targetWorkflow ?? throw new ArgumentNullException(nameof(targetWorkflow));
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<A2AClient>();
+    }
 
-        // Validate that we're in a workflow context
-        if (!XiansContext.InWorkflow)
+    /// <summary>
+    /// Attempts to send a chat message to the target agent.
+    /// Returns success/failure without throwing exceptions.
+    /// </summary>
+    public Task<(bool Success, A2AMessage? Response, string? ErrorMessage)> TrySendMessageAsync(A2AMessage message)
+        => TrySendMessageInternalAsync(message, "Chat");
+
+    /// <summary>
+    /// Attempts to send a data message to the target agent.
+    /// Returns success/failure without throwing exceptions.
+    /// </summary>
+    public Task<(bool Success, A2AMessage? Response, string? ErrorMessage)> TrySendDataMessageAsync(A2AMessage message)
+        => TrySendMessageInternalAsync(message, "Data");
+
+    private async Task<(bool Success, A2AMessage? Response, string? ErrorMessage)> TrySendMessageInternalAsync(
+        A2AMessage message, string messageType)
+    {
+        try
         {
-            throw new InvalidOperationException(
-                $"A2AClient can only be used within a Temporal workflow context. " +
-                $"Current context: InWorkflow={XiansContext.InWorkflow}, InActivity={XiansContext.InActivity}. " +
-                $"A2A calls from activities are not supported to prevent nested activity dependencies.");
+            var response = await SendMessageInternalAsync(message, messageType);
+            return (true, response, null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "A2A send attempt failed");
+            return (false, null, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in A2A send");
+            return (false, null, $"Unexpected error: {ex.Message}");
         }
     }
 
     /// <summary>
+    /// Sends a chat message to the target agent and waits for a response.
+    /// </summary>
+    public Task<A2AMessage> SendMessageAsync(A2AMessage message)
+        => SendMessageInternalAsync(message, "Chat");
+
+    /// <summary>
+    /// Sends a data message to the target agent and waits for a response.
+    /// Data messages are routed to OnUserDataMessage handlers.
+    /// </summary>
+    public Task<A2AMessage> SendDataMessageAsync(A2AMessage message)
+        => SendMessageInternalAsync(message, "Data");
+
+    /// <summary>
     /// Sends a message to the target agent and waits for a response.
     /// Directly invokes the target workflow's handler in the same runtime.
+    /// Uses context-aware execution pattern via A2AActivityExecutor.
     /// </summary>
     /// <param name="message">The message to send.</param>
+    /// <param name="messageType">The message type: "Chat" or "Data".</param>
     /// <returns>The response message from the target agent.</returns>
     /// <exception cref="ArgumentNullException">Thrown when message is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request fails.</exception>
-    public async Task<A2AMessage> SendMessageAsync(A2AMessage message)
+    private async Task<A2AMessage> SendMessageInternalAsync(A2AMessage message, string messageType)
     {
         if (message == null)
         {
             throw new ArgumentNullException(nameof(message));
         }
 
+        // Get source agent name, tenant ID, and workflow ID (with fallbacks for non-workflow context)
+        string sourceAgentName;
+        string tenantId;
+        string sourceWorkflowId;
+        
+        try
+        {
+            sourceAgentName = XiansContext.AgentName;
+            tenantId = XiansContext.TenantId;
+            sourceWorkflowId = XiansContext.WorkflowId;
+        }
+        catch (InvalidOperationException)
+        {
+            // Not in workflow/activity context - extract from target workflow type
+            var parts = _targetWorkflow.WorkflowType.Split(':', 2);
+            sourceAgentName = parts.Length > 0 ? parts[0] : "unknown";
+            tenantId = "system"; // Default for non-workflow context calls
+            sourceWorkflowId = Guid.NewGuid().ToString("N"); // Generate fallback ID
+        }
+
         _logger.LogInformation(
             "Sending A2A message: Target={TargetWorkflow}, SourceAgent={SourceAgent}",
             _targetWorkflow.WorkflowType,
-            XiansContext.AgentName);
+            sourceAgentName);
 
-        // Get the handler for the target workflow
+        // Validate that target workflow has a handler
         if (!BuiltinWorkflow._handlersByWorkflowType.TryGetValue(
             _targetWorkflow.WorkflowType, out var handlerMetadata))
         {
@@ -68,61 +138,52 @@ public class A2AClient
                 $"Ensure the target workflow has called OnUserMessage().");
         }
 
-        if (handlerMetadata?.Handler == null)
+        // Validate the appropriate handler exists for the message type
+        var isDataMessage = messageType.Equals("Data", StringComparison.OrdinalIgnoreCase);
+        if (isDataMessage)
         {
-            throw new InvalidOperationException(
-                $"Message handler for workflow type '{_targetWorkflow.WorkflowType}' is null. " +
-                $"This indicates a registration error.");
+            if (handlerMetadata?.DataHandler == null)
+            {
+                throw new InvalidOperationException(
+                    $"No data message handler registered for workflow type '{_targetWorkflow.WorkflowType}'. " +
+                    $"Ensure the target workflow has called OnUserDataMessage().");
+            }
+        }
+        else
+        {
+            if (handlerMetadata?.ChatHandler == null)
+            {
+                throw new InvalidOperationException(
+                    $"No chat message handler registered for workflow type '{_targetWorkflow.WorkflowType}'. " +
+                    $"Ensure the target workflow has called OnUserChatMessage() or OnUserMessage().");
+            }
         }
 
-        // Create A2A request for context
-        var request = new A2ARequest
+        // Create A2A request
+        var activityRequest = new Xians.Lib.Workflows.Messaging.Models.ProcessMessageActivityRequest
         {
-            CorrelationId = Guid.NewGuid().ToString("N"),
-            SourceWorkflowId = XiansContext.WorkflowId,
-            SourceAgentName = XiansContext.AgentName,
-            SourceWorkflowType = XiansContext.WorkflowType,
-            Text = message.Text,
-            Data = message.Data,
-            TenantId = XiansContext.TenantId,
-            Metadata = message.Metadata
+            MessageText = message.Text,
+            ParticipantId = string.IsNullOrEmpty(message.ParticipantId) ? sourceWorkflowId : message.ParticipantId,
+            RequestId = string.IsNullOrEmpty(message.RequestId) ? Guid.NewGuid().ToString("N") : message.RequestId,
+            Scope = string.IsNullOrEmpty(message.Scope) ? "A2A" : message.Scope,
+            Hint = message.Hint ?? string.Empty,  // Hint is for message processing, not agent name
+            Data = message.Data ?? new object(),
+            TenantId = tenantId,
+            WorkflowId = _targetWorkflow.WorkflowType,
+            WorkflowType = _targetWorkflow.WorkflowType,
+            Authorization = message.Authorization,
+            ThreadId = string.IsNullOrEmpty(message.ThreadId) ? sourceWorkflowId : message.ThreadId,
+            Metadata = message.Metadata,
+            MessageType = messageType
         };
 
         try
         {
-            // A2A calls must be made from workflow context
-            // Activity-to-activity A2A is not supported as it would create nested activity dependencies
-            if (!XiansContext.InWorkflow)
-            {
-                throw new InvalidOperationException(
-                    "A2A calls can only be made from workflow context, not from activity context. " +
-                    "This prevents nested activity dependencies and ensures proper workflow orchestration.");
-            }
-
-            _logger.LogDebug(
-                "Executing A2A handler via activity: Target={TargetWorkflow}",
-                _targetWorkflow.WorkflowType);
-
-            // Create activity request
-            var activityRequest = new Xians.Lib.Workflows.Messaging.Models.ProcessMessageActivityRequest
-            {
-                MessageText = message.Text,
-                ParticipantId = request.CorrelationId, // Use correlation ID as participant
-                RequestId = request.CorrelationId,
-                Scope = "A2A",
-                Hint = request.SourceAgentName,
-                Data = message.Data ?? new object(),
-                TenantId = request.TenantId,
-                WorkflowId = _targetWorkflow.WorkflowType,
-                WorkflowType = _targetWorkflow.WorkflowType,
-                Authorization = null,
-                ThreadId = request.CorrelationId
-            };
-
-            // Execute handler in activity to avoid non-determinism
-            var activityResponse = await Workflow.ExecuteActivityAsync(
-                (Xians.Lib.Workflows.Messaging.MessageActivities act) => act.ProcessA2AMessageAsync(activityRequest),
-                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
+            // Use executor for context-aware execution
+            // - From workflow: Execute handler in isolated activity
+            // - From activity: Execute handler directly to avoid nested activities
+            var executor = new A2AActivityExecutor(_targetWorkflow, _logger);
+            var response = await executor.ProcessA2AMessageAsync(activityRequest);
 
             _logger.LogInformation(
                 "A2A response received from {TargetWorkflow}",
@@ -130,8 +191,8 @@ public class A2AClient
 
             return new A2AMessage
             {
-                Text = activityResponse.Text,
-                Data = activityResponse.Data,
+                Text = response.Text,
+                Data = response.Data,
                 Metadata = message.Metadata
             };
         }

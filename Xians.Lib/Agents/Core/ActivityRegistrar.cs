@@ -4,6 +4,7 @@ using Xians.Lib.Workflows.Scheduling;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Knowledge;
 using Xians.Lib.Workflows.Documents;
+using Xians.Lib.Workflows.A2A;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -23,7 +24,7 @@ internal class ActivityRegistrar
     }
 
     /// <summary>
-    /// Registers all system activities (Schedule, Message, Knowledge, Document).
+    /// Registers all system activities (Schedule, Message, Knowledge, Document, A2A).
     /// </summary>
     public int RegisterSystemActivities(TemporalWorkerOptions workerOptions, string workflowType)
     {
@@ -36,6 +37,14 @@ internal class ActivityRegistrar
             "ScheduleActivities",
             () => new ScheduleActivities(),
             typeof(ScheduleActivities));
+
+        // A2A Signal/Query activities (always available, no dependencies)
+        registeredCount += TryRegisterActivity(
+            workerOptions,
+            workflowType,
+            "A2ASignalQueryActivities",
+            () => new A2ASignalQueryActivities(),
+            typeof(A2ASignalQueryActivities));
 
         // HTTP-dependent activities
         if (_agent.HttpService != null)

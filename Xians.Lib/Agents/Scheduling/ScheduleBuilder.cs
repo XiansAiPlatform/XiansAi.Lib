@@ -7,6 +7,7 @@ using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
+using Xians.Lib.Workflows.Scheduling.Models;
 
 namespace Xians.Lib.Agents.Scheduling;
 
@@ -394,71 +395,125 @@ public class ScheduleBuilder
 
             bool created;
 
-            if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
+            if (Workflow.InWorkflow)
             {
-                // Cron-based schedule
-                var cronExpression = _scheduleSpec.CronExpressions.First();
-                var timezone = _scheduleSpec.TimeZoneName;
+                // WORKFLOW CONTEXT: Execute via activity for determinism
+                if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
+                {
+                    // Cron-based schedule
+                    var cronExpression = _scheduleSpec.CronExpressions.First();
+                    var timezone = _scheduleSpec.TimeZoneName;
 
-                created = await Workflow.ExecuteActivityAsync(
-                    (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.CreateScheduleIfNotExists(
-                        _scheduleId,
-                        cronExpression,
-                        _workflowArgs ?? Array.Empty<object>(),
-                        timezone),
-                    new()
+                    var request = new CreateCronScheduleRequest
                     {
-                        StartToCloseTimeout = TimeSpan.FromMinutes(2),
-                        RetryPolicy = new Temporalio.Common.RetryPolicy
-                        {
-                            MaximumAttempts = 3,
-                            InitialInterval = TimeSpan.FromSeconds(5),
-                            BackoffCoefficient = 2.0f
-                        }
-                    });
-            }
-            else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
-            {
-                // Interval-based schedule
-                var intervalSpec = _scheduleSpec.Intervals.First();
-                var interval = intervalSpec.Every;
+                        ScheduleId = _scheduleId,
+                        CronExpression = cronExpression,
+                        WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
+                        Timezone = timezone
+                    };
 
-                created = await Workflow.ExecuteActivityAsync(
-                    (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.CreateIntervalScheduleIfNotExists(
-                        _scheduleId,
-                        interval,
-                        _workflowArgs ?? Array.Empty<object>()),
-                    new()
+                    created = await Workflow.ExecuteActivityAsync(
+                        (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.CreateScheduleIfNotExists(request),
+                        Xians.Lib.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
+                }
+                else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
+                {
+                    // Interval-based schedule
+                    var intervalSpec = _scheduleSpec.Intervals.First();
+                    var interval = intervalSpec.Every;
+
+                    var request = new CreateIntervalScheduleRequest
                     {
-                        StartToCloseTimeout = TimeSpan.FromMinutes(2),
-                        RetryPolicy = new Temporalio.Common.RetryPolicy
-                        {
-                            MaximumAttempts = 3,
-                            InitialInterval = TimeSpan.FromSeconds(5),
-                            BackoffCoefficient = 2.0f
-                        }
-                    });
+                        ScheduleId = _scheduleId,
+                        Interval = interval,
+                        WorkflowInput = _workflowArgs ?? Array.Empty<object>()
+                    };
+
+                    created = await Workflow.ExecuteActivityAsync(
+                        (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.CreateIntervalScheduleIfNotExists(request),
+                        Xians.Lib.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
+                }
+                else
+                {
+                    throw new InvalidScheduleSpecException(
+                        "Complex schedule specifications with calendars or custom specs are not yet supported in workflow context. " +
+                        "Create the schedule outside the workflow using the direct SDK.");
+                }
             }
             else
             {
-                throw new InvalidScheduleSpecException(
-                    "Complex schedule specifications with calendars or custom specs are not yet supported in workflow context. " +
-                    "Create the schedule outside the workflow using the direct SDK.");
+                // ACTIVITY CONTEXT: Call Schedule SDK directly
+                var workflow = XiansContext.CurrentWorkflow;
+                
+                if (await workflow.Schedules!.ExistsAsync(_scheduleId))
+                {
+                    created = false;
+                }
+                else if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
+                {
+                    // Cron-based schedule
+                    var cronExpression = _scheduleSpec.CronExpressions.First();
+                    var timezone = _scheduleSpec.TimeZoneName;
+
+                    await workflow.Schedules!
+                        .Create(_scheduleId)
+                        .WithCronSchedule(cronExpression, timezone)
+                        .WithInput(_workflowArgs ?? Array.Empty<object>())
+                        .StartAsync();
+                    
+                    created = true;
+                }
+                else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
+                {
+                    // Interval-based schedule
+                    var intervalSpec = _scheduleSpec.Intervals.First();
+                    var interval = intervalSpec.Every;
+
+                    await workflow.Schedules!
+                        .Create(_scheduleId)
+                        .WithIntervalSchedule(interval)
+                        .WithInput(_workflowArgs ?? Array.Empty<object>())
+                        .StartAsync();
+                    
+                    created = true;
+                }
+                else
+                {
+                    throw new InvalidScheduleSpecException(
+                        "Complex schedule specifications with calendars or custom specs are not yet supported. " +
+                        "Use the direct Schedule SDK for advanced scenarios.");
+                }
             }
 
             if (created)
             {
-                Workflow.Logger.LogInformation("✅ Schedule '{ScheduleId}' created successfully", _scheduleId);
+                if (Workflow.InWorkflow)
+                    Workflow.Logger.LogInformation("✅ Schedule '{ScheduleId}' created successfully", _scheduleId);
+                else
+                    _logger.LogInformation("✅ Schedule '{ScheduleId}' created successfully", _scheduleId);
             }
             else
             {
-                Workflow.Logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists", _scheduleId);
+                if (Workflow.InWorkflow)
+                    Workflow.Logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists", _scheduleId);
+                else
+                    _logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists", _scheduleId);
             }
 
-            // Return a schedule handle (note: this gets the handle which involves I/O, but it's safe via activity)
-            var scheduleExists = await Workflow.ExecuteActivityAsync(
-                (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.ScheduleExists(_scheduleId),
-                new() { StartToCloseTimeout = TimeSpan.FromSeconds(30) });
+            // Verify schedule exists (context-aware)
+            bool scheduleExists;
+            if (Workflow.InWorkflow)
+            {
+                var request = new ScheduleExistsRequest { ScheduleId = _scheduleId };
+                scheduleExists = await Workflow.ExecuteActivityAsync(
+                    (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.ScheduleExists(request),
+                    Xians.Lib.Workflows.Scheduling.ScheduleActivityOptions.GetQuickCheckOptions());
+            }
+            else
+            {
+                var workflow = XiansContext.CurrentWorkflow;
+                scheduleExists = await workflow.Schedules!.ExistsAsync(_scheduleId);
+            }
 
             if (!scheduleExists)
             {

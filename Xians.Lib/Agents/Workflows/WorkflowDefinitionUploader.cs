@@ -103,14 +103,13 @@ internal class WorkflowDefinitionUploader
             // Upload the definition
             var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition));
             
-            if (uploadResponse.StatusCode == HttpStatusCode.BadRequest)
+            if (!uploadResponse.IsSuccessStatusCode)
             {
                 var errorMessage = await uploadResponse.Content.ReadAsStringAsync();
-                _logger?.LogError("Server rejected workflow definition: {Error}", errorMessage);
-                throw new InvalidOperationException($"Server rejected workflow definition: {errorMessage}");
+                _logger?.LogError("Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
+                throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
             }
             
-            uploadResponse.EnsureSuccessStatusCode();
             return uploadResponse;
         });
     }
