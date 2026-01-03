@@ -144,10 +144,10 @@ public static class SubWorkflowService
     /// </summary>
     private static async Task StartViaClientAsync(string workflowType, string? idPostfix, object[] args)
     {
-        var (client, tenantId, systemScoped) = await GetClientAndContextAsync(workflowType);
+        var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
-        // Build workflow ID and options
-        var workflowId = TenantContext.BuildWorkflowId(workflowType, tenantId, idPostfix);
+        // Build workflow ID manually (can't use TenantContext.BuildWorkflowId because it requires CurrentAgent)
+        var workflowId = BuildWorkflowIdManually(agentName, workflowType, tenantId, idPostfix);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
@@ -171,10 +171,10 @@ public static class SubWorkflowService
     /// </summary>
     private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string? idPostfix, object[] args)
     {
-        var (client, tenantId, systemScoped) = await GetClientAndContextAsync(workflowType);
+        var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
-        // Build workflow ID and options
-        var workflowId = TenantContext.BuildWorkflowId(workflowType, tenantId, idPostfix);
+        // Build workflow ID manually (can't use TenantContext.BuildWorkflowId because it requires CurrentAgent)
+        var workflowId = BuildWorkflowIdManually(agentName, workflowType, tenantId, idPostfix);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
@@ -198,7 +198,7 @@ public static class SubWorkflowService
     /// Gets the Temporal client and context information for a workflow.
     /// Extracts the agent name from the workflow type and retrieves the agent from XiansContext.
     /// </summary>
-    private static async Task<(ITemporalClient client, string tenantId, bool systemScoped)> GetClientAndContextAsync(string workflowType)
+    private static async Task<(ITemporalClient client, string tenantId, bool systemScoped, string agentName)> GetClientAndContextAsync(string workflowType)
     {
         // Extract agent name from workflow type
         var agentName = workflowType.Contains(':')
@@ -236,7 +236,29 @@ public static class SubWorkflowService
         
         var tenantId = agent.SystemScoped ? "default" : agent.Options!.CertificateTenantId;
 
-        return (client, tenantId, agent.SystemScoped);
+        return (client, tenantId, agent.SystemScoped, agentName);
+    }
+
+    /// <summary>
+    /// Builds a workflow ID manually without relying on XiansContext.CurrentAgent.
+    /// This is needed for out-of-workflow scenarios where there is no current agent context.
+    /// </summary>
+    private static string BuildWorkflowIdManually(string agentName, string workflowType, string tenantId, string? idPostfix)
+    {
+        // Extract workflow name from workflow type (format: "AgentName:WorkflowName")
+        var workflowName = workflowType.Contains(':') 
+            ? workflowType.Split(':')[1] 
+            : workflowType;
+
+        // Build workflow ID: {tenantId}:{agentName}:{workflowName}[:{idPostfix}]
+        var workflowId = $"{tenantId}:{agentName}:{workflowName}";
+        
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+        {
+            workflowId += $":{idPostfix}";
+        }
+
+        return workflowId;
     }
 }
 

@@ -90,7 +90,7 @@ public class TaskWorkflow
             Title = _request?.Title ?? string.Empty,
             Description = _request?.Description ?? string.Empty,
             CurrentDraft = _currentDraft,
-            Success = _rejectionMessage == null,
+            Success = _isCompleted && _rejectionMessage == null, // Only true if completed without rejection
             IsCompleted = _isCompleted,
             RejectionReason = _rejectionMessage,
             ParticipantId = _request?.ParticipantId ?? string.Empty,

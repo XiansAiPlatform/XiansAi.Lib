@@ -3,6 +3,7 @@ using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Agents.Documents;
+using Xians.Lib.Agents.Tasks;
 using Xians.Lib.Common.Caching;
 
 namespace Xians.Lib.Agents.Core;
@@ -27,6 +28,11 @@ public class XiansAgent
     /// Documents are scoped to the agent and tenant.
     /// </summary>
     public DocumentCollection Documents { get; private set; }
+
+    /// <summary>
+    /// Gets the task collection for creating and managing human-in-the-loop tasks.
+    /// </summary>
+    public TaskCollection Tasks { get; private set; }
 
     /// <summary>
     /// Gets the name of the agent.
@@ -67,6 +73,7 @@ public class XiansAgent
         Workflows = new WorkflowCollection(this, uploader);
         Knowledge = new KnowledgeCollection(this, httpService, cacheService);
         Documents = new DocumentCollection(this, httpService);
+        Tasks = new TaskCollection(this);
         
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);

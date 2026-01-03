@@ -5,6 +5,7 @@ using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Knowledge;
 using Xians.Lib.Workflows.Documents;
 using Xians.Lib.Workflows.A2A;
+using Xians.Lib.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -45,6 +46,18 @@ internal class ActivityRegistrar
             "A2ASignalQueryActivities",
             () => new A2ASignalQueryActivities(),
             typeof(A2ASignalQueryActivities));
+
+        // Task activities (requires Temporal client)
+        if (_agent.TemporalService != null)
+        {
+            var client = _agent.TemporalService.GetClientAsync().GetAwaiter().GetResult();
+            registeredCount += TryRegisterActivity(
+                workerOptions,
+                workflowType,
+                "TaskActivities",
+                () => new TaskActivities(client),
+                typeof(TaskActivities));
+        }
 
         // HTTP-dependent activities
         if (_agent.HttpService != null)
