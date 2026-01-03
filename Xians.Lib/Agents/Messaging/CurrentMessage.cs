@@ -2,19 +2,19 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Agents.Messaging;
 
 /// <summary>
-/// Provides messaging operations for user message contexts.
-/// Handles replies, chat history, and hints with workflow-aware execution.
+/// Represents the current message context with messaging operations.
+/// Contains the message text/data and provides reply, history, and hint operations.
 /// REFACTORED: Uses MessageActivityExecutor for context-aware execution.
 /// </summary>
-public class MessageCollection
+public class CurrentMessage
 {
+    private readonly string _text;
     private readonly string _participantId;
     private readonly string _requestId;
     private readonly string? _scope;
@@ -24,7 +24,7 @@ public class MessageCollection
     private readonly object? _data;
     private readonly string _tenantId;
     private readonly MessageActivityExecutor _executor;
-    private readonly ILogger<MessageCollection> _logger;
+    private readonly ILogger<CurrentMessage> _logger;
 
     /// <summary>
     /// When set to true, prevents messages from being sent to the user.
@@ -32,13 +32,35 @@ public class MessageCollection
     /// </summary>
     public bool SkipResponse { get; set; } = false;
 
-    /// <summary>
-    /// Gets the Agent-to-Agent (A2A) operations for sending messages to other agents.
-    /// Use this to communicate with other agents in the same runtime.
-    /// </summary>
-    public A2AOperations A2A { get; private set; }
+    /// <summary>Gets the text content of the message.</summary>
+    public string Text => _text;
 
-    internal MessageCollection(
+    /// <summary>The participant ID for this message context.</summary>
+    public string ParticipantId => _participantId;
+
+    /// <summary>The request ID for this message context.</summary>
+    public string RequestId => _requestId;
+
+    /// <summary>The scope for this message context, if any.</summary>
+    public string? Scope => _scope;
+
+    /// <summary>The hint for this message context, if any.</summary>
+    public string? Hint => _hint;
+
+    /// <summary>The authorization token for this message context, if any.</summary>
+    public string? Authorization => _authorization;
+
+    /// <summary>The thread ID for this message context, if any.</summary>
+    public string? ThreadId => _threadId;
+
+    /// <summary>The data associated with this message context, if any.</summary>
+    public object? Data => _data;
+
+    /// <summary>The tenant ID for this message context.</summary>
+    public string TenantId => _tenantId;
+
+    internal CurrentMessage(
+        string text,
         string participantId,
         string requestId,
         string? scope,
@@ -48,6 +70,7 @@ public class MessageCollection
         string? authorization = null,
         string? threadId = null)
     {
+        _text = text;
         _participantId = participantId;
         _requestId = requestId;
         _scope = scope;
@@ -56,15 +79,12 @@ public class MessageCollection
         _tenantId = tenantId;
         _authorization = authorization;
         _threadId = threadId;
-        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageCollection>();
+        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<CurrentMessage>();
         
         // Initialize executor for context-aware execution
         var agent = XiansContext.CurrentAgent;
         var executorLogger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageActivityExecutor>();
         _executor = new MessageActivityExecutor(agent, executorLogger);
-        
-        // Initialize A2A operations
-        A2A = new A2AOperations();
     }
 
     /// <summary>

@@ -19,7 +19,7 @@ This document covers A2A with **built-in workflows**. For custom workflows, see 
 3. **A2AActivityExecutor** - Context-aware executor using the Activity Executor pattern
 4. **A2AContextOperations** - Simplified API accessible via `XiansContext.A2A`
 5. **A2AMessageContext** - Specialized context that captures responses instead of sending to users
-6. **A2AMessageCollection** - Messaging collection that captures responses
+6. **A2ACurrentMessage** - Message that captures responses
 
 ### Context-Aware Execution
 
@@ -92,7 +92,7 @@ webWorkflow.OnUserChatMessage(async (context) =>
     var result = await ProcessWebRequest(context.Message.Text);
     
     // Send response back
-    await context.Messages.ReplyAsync(result);
+    await context.Message.ReplyAsync(result);
 });
 ```
 

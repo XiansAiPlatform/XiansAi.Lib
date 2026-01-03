@@ -49,6 +49,9 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
             return;
         }
 
+        // Clean up static registries from previous tests
+        XiansContext.CleanupForTests();
+
         // Clear any previous results
         _testResults.Clear();
         _targetWorkflowExecuted.Clear();
@@ -96,7 +99,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
             
             var response = context.Message.Text + " world";
             Console.WriteLine($"[ChatTarget] Responding: {response}");
-            await context.Messages.ReplyAsync(response);
+            await context.Message.ReplyAsync(response);
         });
 
         // Define DATA TARGET workflow - responds to data messages
@@ -143,7 +146,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
             };
             
             Console.WriteLine($"[DataTarget] Responding with data, originalValue={originalValue}");
-            await context.Messages.ReplyWithDataAsync("Data processed", responseData);
+            await context.Message.ReplyWithDataAsync("Data processed", responseData);
         });
 
         // Define SENDER workflow - sends A2A to both chat and data targets
@@ -183,13 +186,13 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                     Success = true
                 };
                 
-                await context.Messages.ReplyAsync($"CHAT_OK: {response.Text}");
+                await context.Message.ReplyAsync($"CHAT_OK: {response.Text}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Sender] Error: {ex.Message}");
                 _testResults[testId] = new A2ATestResult { Error = ex.Message, Success = false };
-                await context.Messages.ReplyAsync($"ERROR: {ex.Message}");
+                await context.Message.ReplyAsync($"ERROR: {ex.Message}");
             }
         });
         
@@ -225,13 +228,13 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                     Success = true
                 };
                 
-                await context.Messages.ReplyAsync($"DATA_OK: {response.Text}");
+                await context.Message.ReplyAsync($"DATA_OK: {response.Text}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Sender] Error: {ex.Message}");
                 _testResults[testId] = new A2ATestResult { Error = ex.Message, Success = false };
-                await context.Messages.ReplyAsync($"ERROR: {ex.Message}");
+                await context.Message.ReplyAsync($"ERROR: {ex.Message}");
             }
         });
 
@@ -289,7 +292,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 };
 
                 Console.WriteLine("[BuiltInToCustom] All A2A operations to custom workflow completed successfully");
-                await context.Messages.ReplyAsync($"SUCCESS: Signal/Update/Query completed, ProcessedCount={queryResult.ProcessedCount}");
+                await context.Message.ReplyAsync($"SUCCESS: Signal/Update/Query completed, ProcessedCount={queryResult.ProcessedCount}");
             }
             catch (Exception ex)
             {
@@ -301,7 +304,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                     Console.WriteLine($"[BuiltInToCustom] Inner Exception: {ex.InnerException.Message}");
                 }
                 _testResults[testId] = new A2ATestResult { Error = ex.Message, Success = false };
-                await context.Messages.ReplyAsync($"ERROR: {ex.Message}");
+                await context.Message.ReplyAsync($"ERROR: {ex.Message}");
             }
         });
 

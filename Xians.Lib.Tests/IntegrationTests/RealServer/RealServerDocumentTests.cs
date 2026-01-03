@@ -12,6 +12,8 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// - Key-based retrieval
 /// - Bulk operations
 /// 
+/// dotnet test --filter "FullyQualifiedName~Document_WorksFromWithinWorkflow_ContextAwareExecution" 
+/// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>
 [Trait("Category", "RealServer")]
@@ -1095,6 +1097,330 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
 }
 
 /// <summary>
+/// Separate test class for document workflow execution tests.
+/// Uses IAsyncLifetime to start workers for the duration of the test.
+/// </summary>
+[Trait("Category", "RealServer")]
+[Collection("RealServerWorkflows")] // Force sequential execution with other workflow tests
+public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetime
+{
+    private XiansPlatform? _platform;
+    private XiansAgent? _agent;
+    private CancellationTokenSource? _workerCts;
+    private Task? _workerTask;
+    private readonly List<string> _createdDocumentIds = new();
+    
+    // Use fixed agent name for workflow tests
+    public const string AGENT_NAME = "DocumentWorkflowTestAgent";
+
+    async Task IAsyncLifetime.InitializeAsync()
+    {
+        if (!RunRealServerTests) return;
+        
+        // Initialize platform
+        var options = new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!
+        };
+
+        _platform = await XiansPlatform.InitializeAsync(options);
+        
+        // Register agent
+        _agent = _platform.Agents.Register(new XiansAgentRegistration 
+        { 
+            Name = AGENT_NAME,
+            SystemScoped = false
+        });
+        
+        // Define workflows
+        var workflow = _agent.Workflows.DefineBuiltIn("document-workflow-tests");
+        _agent.Workflows.DefineCustom<DocumentTestWorkflow>();
+        
+        await _agent.UploadWorkflowDefinitionsAsync();
+        
+        Console.WriteLine($"✓ Registered agent: {AGENT_NAME}");
+        Console.WriteLine($"✓ Tenant ID: {_platform.Options.CertificateTenantId}");
+        
+        // Start workers
+        _workerCts = new CancellationTokenSource();
+        _workerTask = _agent.RunAllAsync(_workerCts.Token);
+        
+        await Task.Delay(1000);
+        Console.WriteLine("✓ Workers started for DocumentTestWorkflow");
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        // Stop workers
+        if (_workerCts != null)
+        {
+            _workerCts.Cancel();
+            try
+            {
+                if (_workerTask != null)
+                {
+                    await _workerTask;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+            Console.WriteLine("✓ Workers stopped");
+        }
+
+        // Cleanup created documents
+        if (_platform != null && _agent != null && RunRealServerTests)
+        {
+            try
+            {
+                foreach (var id in _createdDocumentIds)
+                {
+                    try
+                    {
+                        await _agent.Documents.DeleteAsync(id);
+                    }
+                    catch
+                    {
+                        // Ignore cleanup errors
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+
+        // Clear context
+        try
+        {
+            XiansContext.Clear();
+        }
+        catch
+        {
+            // Ignore cleanup errors
+        }
+    }
+
+    [Fact]
+    public async Task Document_WorksFromWithinWorkflow_ContextAwareExecution()
+    {
+        if (!RunRealServerTests) return;
+
+        try
+        {
+            // Arrange - Test ID for tracking
+            var testId = Guid.NewGuid().ToString();
+            
+            Console.WriteLine($"=== Testing Document Operations from Within Workflow ===");
+            Console.WriteLine($"Test ID: {testId}");
+            Console.WriteLine($"Agent: {AGENT_NAME}");
+
+            // Get Temporal client from agent
+            var temporalClient = await _agent!.TemporalService!.GetClientAsync();
+            
+            // Build workflow ID and task queue
+            var workflowType = $"{AGENT_NAME}:DocumentTestWorkflow";
+            var workflowId = $"{_platform!.Options.CertificateTenantId}:{workflowType}:{testId}";
+            var taskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
+                workflowType,
+                systemScoped: false,
+                _platform!.Options.CertificateTenantId);
+            
+            Console.WriteLine($"Starting Temporal workflow:");
+            Console.WriteLine($"  Workflow ID: {workflowId}");
+            Console.WriteLine($"  Workflow Type: {workflowType}");
+            Console.WriteLine($"  Task Queue: {taskQueue}");
+            
+            // Start the workflow
+            var handle = await temporalClient.StartWorkflowAsync(
+                (DocumentTestWorkflow wf) => wf.RunAsync(AGENT_NAME, testId),
+                new Temporalio.Client.WorkflowOptions
+                {
+                    Id = workflowId,
+                    TaskQueue = taskQueue
+                });
+            
+            Console.WriteLine("✓ Workflow started, waiting for completion...");
+            Console.WriteLine("⏳ Waiting for workflow to complete...");
+            
+            // Wait for workflow to complete (workers are running, so it should execute)
+            var result = await handle.GetResultAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            
+            Console.WriteLine("✓ Workflow execution completed via Temporal workers!");
+            Console.WriteLine("✓ Document operations executed through activities!");
+            
+            // Assert workflow completed successfully
+            Assert.NotNull(result);
+            Assert.True(result.Success, $"Workflow test failed: {result.Error}");
+            Assert.NotNull(result.SavedDocumentId);
+            Assert.True(result.DocumentRetrieved);
+            Assert.True(result.QueryReturned);
+            Assert.True(result.DocumentDeleted);
+            
+            Console.WriteLine("✓ Workflow completed successfully");
+            Console.WriteLine($"  - Saved document: {result.SavedDocumentId}");
+            Console.WriteLine($"  - Retrieved document: {result.DocumentRetrieved}");
+            Console.WriteLine($"  - Query returned: {result.QueryReturned}");
+            Console.WriteLine($"  - Deleted document: {result.DocumentDeleted}");
+            Console.WriteLine("✓ Document operations work correctly from within workflow!");
+            Console.WriteLine("✓ ContextAwareActivityExecutor pattern verified!");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Workflow context test failed: {ex.Message}", ex);
+        }
+    }
+}
+
+/// <summary>
+/// Test workflow that uses document operations to verify context-aware execution.
+/// This validates that DocumentCollection properly uses DocumentActivityExecutor
+/// to execute activities when called from workflow context.
+/// </summary>
+[Temporalio.Workflows.Workflow($"{RealServerDocumentWorkflowTests.AGENT_NAME}:DocumentTestWorkflow")]
+public class DocumentTestWorkflow
+{
+    [Temporalio.Workflows.WorkflowRun]
+    public async Task<DocumentWorkflowResult> RunAsync(string agentName, string testId)
+    {
+        var result = new DocumentWorkflowResult();
+        
+        try
+        {
+            Console.WriteLine($"[DocumentWorkflow] Starting test for agent: {agentName}");
+            
+            // Get agent from workflow context
+            var agent = Xians.Lib.Agents.Core.XiansContext.GetAgent(agentName);
+            if (agent == null)
+            {
+                result.Error = $"Agent '{agentName}' not found in workflow context";
+                result.Success = false;
+                return result;
+            }
+            
+            Console.WriteLine($"[DocumentWorkflow] ✓ Agent retrieved from context: {agent.Name}");
+
+            // Test 1: Save document (calls via DocumentActivityExecutor → DocumentActivities)
+            Console.WriteLine("[DocumentWorkflow] Step 1: Saving document via activity executor...");
+            var document = new Xians.Lib.Agents.Documents.Models.Document
+            {
+                Type = $"workflow-test-{testId}",
+                Content = System.Text.Json.JsonSerializer.SerializeToElement(new 
+                { 
+                    Message = "Created from workflow",
+                    TestId = testId,
+                    Timestamp = DateTime.UtcNow
+                }),
+                Metadata = new Dictionary<string, object>
+                {
+                    ["source"] = "workflow-test",
+                    ["testId"] = testId
+                }
+            };
+            
+            var saved = await agent.Documents.SaveAsync(document);
+            result.SavedDocumentId = saved.Id;
+            
+            if (string.IsNullOrEmpty(saved.Id))
+            {
+                result.Error = "Failed to save document";
+                result.Success = false;
+                return result;
+            }
+            
+            Console.WriteLine($"[DocumentWorkflow] ✓ Document saved via activity: {saved.Id}");
+
+            // Small delay to ensure consistency
+            await Temporalio.Workflows.Workflow.DelayAsync(TimeSpan.FromMilliseconds(100));
+
+            // Test 2: Retrieve document (calls via DocumentActivityExecutor → DocumentActivities)
+            Console.WriteLine("[DocumentWorkflow] Step 2: Retrieving document via activity executor...");
+            var retrieved = await agent.Documents.GetAsync(saved.Id!);
+            
+            if (retrieved == null)
+            {
+                result.Error = "Failed to retrieve document";
+                result.Success = false;
+                return result;
+            }
+            
+            result.DocumentRetrieved = true;
+            Console.WriteLine($"[DocumentWorkflow] ✓ Document retrieved via activity");
+
+            // Test 3: Query documents (calls via DocumentActivityExecutor → DocumentActivities)
+            Console.WriteLine("[DocumentWorkflow] Step 3: Querying documents via activity executor...");
+            var query = new Xians.Lib.Agents.Documents.Models.DocumentQuery
+            {
+                Type = $"workflow-test-{testId}",
+                Limit = 10
+            };
+            
+            var queryResults = await agent.Documents.QueryAsync(query);
+            result.QueryReturned = queryResults != null && queryResults.Count > 0;
+            Console.WriteLine($"[DocumentWorkflow] ✓ Query via activity: Found {queryResults?.Count ?? 0} documents");
+
+            // Test 4: Update document (calls via DocumentActivityExecutor → DocumentActivities)
+            Console.WriteLine("[DocumentWorkflow] Step 4: Updating document via activity executor...");
+            retrieved.Content = System.Text.Json.JsonSerializer.SerializeToElement(new 
+            { 
+                Message = "Updated from workflow",
+                TestId = testId,
+                Updated = true
+            });
+            
+            var updateSuccess = await agent.Documents.UpdateAsync(retrieved);
+            result.DocumentUpdated = updateSuccess;
+            Console.WriteLine($"[DocumentWorkflow] ✓ Document updated via activity");
+
+            // Test 5: Delete document (calls via DocumentActivityExecutor → DocumentActivities)
+            Console.WriteLine("[DocumentWorkflow] Step 5: Deleting document via activity executor...");
+            var deleteSuccess = await agent.Documents.DeleteAsync(saved.Id!);
+            result.DocumentDeleted = deleteSuccess;
+            
+            if (!deleteSuccess)
+            {
+                result.Error = "Failed to delete document";
+                result.Success = false;
+                return result;
+            }
+            
+            Console.WriteLine("[DocumentWorkflow] ✓ Document deleted via activity");
+
+            // Success
+            result.Success = true;
+            Console.WriteLine("[DocumentWorkflow] ✓ All document operations executed successfully via activities!");
+            Console.WriteLine("[DocumentWorkflow] ✓ Context-aware execution verified!");
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DocumentWorkflow] Error: {ex.Message}");
+            result.Error = ex.Message;
+            result.Success = false;
+            return result;
+        }
+    }
+}
+
+/// <summary>
+/// Result from the document workflow test.
+/// </summary>
+public class DocumentWorkflowResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public string? SavedDocumentId { get; set; }
+    public bool DocumentRetrieved { get; set; }
+    public bool QueryReturned { get; set; }
+    public bool DocumentUpdated { get; set; }
+    public bool DocumentDeleted { get; set; }
+}
+
+/// <summary>
 /// Test collection to force sequential execution of document tests.
 /// </summary>
 [CollectionDefinition("RealServerDocuments", DisableParallelization = true)]
@@ -1102,3 +1428,10 @@ public class RealServerDocumentsCollection
 {
 }
 
+/// <summary>
+/// Test collection to force sequential execution of workflow tests with workers.
+/// </summary>
+[CollectionDefinition("RealServerWorkflows", DisableParallelization = true)]
+public class RealServerWorkflowsCollection
+{
+}

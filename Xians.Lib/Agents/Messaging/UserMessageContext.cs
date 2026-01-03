@@ -1,4 +1,3 @@
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Workflows.Messaging.Models;
 
@@ -23,9 +22,9 @@ public class UserMessageContext
     private readonly Dictionary<string, string>? _metadata;
 
     /// <summary>
-    /// Gets the user message.
+    /// Gets the current message with text, data, and messaging operations.
     /// </summary>
-    public UserMessage Message { get; private set; }
+    public virtual CurrentMessage Message { get; protected set; }
 
     /// <summary>
     /// Gets the participant ID (user ID).
@@ -86,15 +85,8 @@ public class UserMessageContext
     /// </summary>
     public Dictionary<string, string>? Metadata => _metadata;
 
-    /// <summary>
-    /// Gets the messaging operations collection for replying and accessing chat history.
-    /// For agent-wide operations, use XiansContext.CurrentAgent (Knowledge, Documents) or XiansContext.CurrentWorkflow (Schedules).
-    /// </summary>
-    public virtual MessageCollection Messages { get; protected set; }
-
-    internal UserMessageContext(UserMessage message)
+    internal UserMessageContext(string text)
     {
-        Message = message;
         _participantId = string.Empty;
         _requestId = string.Empty;
         _scope = string.Empty;
@@ -102,13 +94,13 @@ public class UserMessageContext
         _data = new object();
         _tenantId = string.Empty;
 
-        // Initialize messaging collection
-        Messages = new MessageCollection(
-            _participantId, _requestId, _scope, _hint, _data, _tenantId, _authorization, _threadId);
+        // Initialize current message
+        Message = new CurrentMessage(
+            text, _participantId, _requestId, _scope, _hint, _data, _tenantId, _authorization, _threadId);
     }
 
     internal UserMessageContext(
-        UserMessage message, 
+        string text, 
         string participantId, 
         string requestId, 
         string? scope,
@@ -119,7 +111,6 @@ public class UserMessageContext
         string? threadId = null,
         Dictionary<string, string>? metadata = null)
     {
-        Message = message;
         _participantId = participantId;
         _requestId = requestId;
         _scope = scope;
@@ -130,9 +121,9 @@ public class UserMessageContext
         _threadId = threadId;
         _metadata = metadata;
 
-        // Initialize messaging collection with context
-        Messages = new MessageCollection(
-            participantId, requestId, scope, hint, data, tenantId, authorization, threadId);
+        // Initialize current message with context
+        Message = new CurrentMessage(
+            text, participantId, requestId, scope, hint, data, tenantId, authorization, threadId);
     }
 }
 

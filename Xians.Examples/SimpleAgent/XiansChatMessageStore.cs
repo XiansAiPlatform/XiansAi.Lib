@@ -16,7 +16,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         CancellationToken cancellationToken)
     {
         // Get chat history from Xians
-        var xiansMessages = await _context.Messages.GetHistoryAsync(page: 1, pageSize: 10);
+        var xiansMessages = await _context.Message.GetHistoryAsync(page: 1, pageSize: 10);
         
         // Convert to ChatMessage format
         var chatMessages = xiansMessages

@@ -426,6 +426,14 @@ public static class XiansContext
     {
         _agents.Clear();
         _workflows.Clear();
+        // Clear workflow handlers to prevent test contamination
+        Xians.Lib.Workflows.BuiltinWorkflow.ClearHandlersForTests();
+        // Clear static services in activities to prevent cross-test contamination
+        Xians.Lib.Workflows.Knowledge.KnowledgeActivities.ClearStaticServicesForTests();
+        // Clear cached server settings to prevent cross-test contamination
+        Xians.Lib.Common.Infrastructure.SettingsService.ResetCache();
+        // Clear certificate cache to prevent stale certificates
+        Xians.Lib.Common.Security.CertificateCache.Clear();
     }
 
     /// <summary>

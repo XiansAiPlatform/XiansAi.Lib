@@ -1,4 +1,3 @@
-using Xians.Lib.Agents.Messaging.Models;
 namespace Xians.Lib.Workflows.Messaging.Models;
 
 /// <summary>

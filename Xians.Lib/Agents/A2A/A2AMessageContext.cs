@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Messaging.Models;
 using Xians.Lib.Agents.Core;
 
@@ -17,17 +16,17 @@ public class A2AMessageContext : UserMessageContext
     private readonly A2AResponseCapture _responseCapture;
     private readonly string _targetWorkflowId;
     private readonly string _targetWorkflowType;
-    private readonly A2AMessageCollection _a2aMessages;
+    private readonly A2ACurrentMessage _a2aMessage;
     private readonly ILogger _logger;
 
     internal A2AMessageContext(
-        UserMessage message,
+        string text,
         A2ARequest request,
         string workflowId,
         string workflowType,
         A2AResponseCapture responseCapture)
         : base(
-            message,
+            text,
             participantId: request.ParticipantId ?? request.CorrelationId,
             requestId: request.RequestId ?? request.CorrelationId,
             scope: request.Scope ?? "a2a",
@@ -44,15 +43,15 @@ public class A2AMessageContext : UserMessageContext
         _targetWorkflowType = workflowType;
         _logger = XiansLogger.GetLogger<A2AMessageContext>();
         
-        // Create A2A-specific message collection
-        _a2aMessages = new A2AMessageCollection(this, _responseCapture);
+        // Create A2A-specific message
+        _a2aMessage = new A2ACurrentMessage(this, _responseCapture, text);
     }
 
     /// <summary>
-    /// Gets the A2A-specific messaging operations collection.
+    /// Gets the A2A-specific message.
     /// Overrides base to provide A2A reply behavior that captures responses instead of sending to users.
     /// </summary>
-    public override MessageCollection Messages => _a2aMessages;
+    public override CurrentMessage Message => _a2aMessage;
 
     /// <summary>
     /// Gets the source agent name that sent this A2A request.
@@ -77,24 +76,24 @@ public class A2AMessageContext : UserMessageContext
     /// <summary>
     /// Sends a reply back to the calling agent.
     /// Captures the response instead of sending to a user.
-    /// Delegates to the message collection for consistency.
+    /// Delegates to the message for consistency.
     /// </summary>
     /// <param name="response">The response text to send.</param>
     public Task ReplyAsync(string response)
     {
-        return _a2aMessages.ReplyAsync(response);
+        return _a2aMessage.ReplyAsync(response);
     }
 
     /// <summary>
     /// Sends a reply with both text and data back to the calling agent.
     /// Captures the response instead of sending to a user.
-    /// Delegates to the message collection for consistency.
+    /// Delegates to the message for consistency.
     /// </summary>
     /// <param name="content">The text content to send.</param>
     /// <param name="data">The data object to send.</param>
     public Task ReplyWithDataAsync(string content, object? data)
     {
-        return _a2aMessages.ReplyWithDataAsync(content, data);
+        return _a2aMessage.ReplyWithDataAsync(content, data);
     }
 
     /// <summary>
@@ -118,11 +117,11 @@ public class A2AMessageContext : UserMessageContext
     /// Chat history is not available for A2A messages.
     /// Returns an empty list since A2A messages are stateless one-off requests.
     /// </summary>
-    [Obsolete("Use ctx.Messages.GetHistoryAsync() instead. This method will be removed in a future version.")]
+    [Obsolete("Use ctx.Message.GetHistoryAsync() instead. This method will be removed in a future version.")]
     public Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        // Delegate to the A2A message collection which returns empty list
-        return _a2aMessages.GetHistoryAsync(page, pageSize);
+        // Delegate to the A2A message which returns empty list
+        return _a2aMessage.GetHistoryAsync(page, pageSize);
     }
 }
 

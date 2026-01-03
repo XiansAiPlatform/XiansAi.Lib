@@ -6,7 +6,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Http;
 

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Messaging;
 using Xians.Lib.Workflows.Messaging.Models;
 
@@ -12,7 +11,7 @@ namespace Xians.Lib.Agents.Messaging;
 /// <summary>
 /// Activity executor for messaging operations.
 /// Handles context-aware execution of message activities.
-/// Eliminates duplication of Workflow.InWorkflow checks in MessageCollection and UserMessaging.
+/// Eliminates duplication of Workflow.InWorkflow checks in CurrentMessage and UserMessaging.
 /// </summary>
 internal class MessageActivityExecutor : ContextAwareActivityExecutor<MessageActivities, MessageService>
 {

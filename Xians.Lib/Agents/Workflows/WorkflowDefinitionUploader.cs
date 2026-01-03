@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Common;
 using Xians.Lib.Http;

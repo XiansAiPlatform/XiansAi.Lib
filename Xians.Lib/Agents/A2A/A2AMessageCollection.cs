@@ -6,22 +6,22 @@ using Xians.Lib.Agents.Core;
 namespace Xians.Lib.Agents.A2A;
 
 /// <summary>
-/// Specialized messaging collection for Agent-to-Agent communication.
+/// Specialized message for Agent-to-Agent communication.
 /// Captures responses instead of sending them to users.
 /// </summary>
-public class A2AMessageCollection : MessageCollection
+public class A2ACurrentMessage : CurrentMessage
 {
     private readonly A2AMessageContext _context;
     private readonly A2AResponseCapture _responseCapture;
-    private readonly ILogger<A2AMessageCollection> _logger;
+    private readonly ILogger<A2ACurrentMessage> _logger;
     private bool _responseSent = false;
 
-    internal A2AMessageCollection(A2AMessageContext context, A2AResponseCapture responseCapture)
-        : base(string.Empty, string.Empty, "a2a", string.Empty, new object(), context.TenantId)
+    internal A2ACurrentMessage(A2AMessageContext context, A2AResponseCapture responseCapture, string text)
+        : base(text, string.Empty, string.Empty, "a2a", string.Empty, new object(), context.TenantId)
     {
         _context = context;
         _responseCapture = responseCapture;
-        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<A2AMessageCollection>();
+        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<A2ACurrentMessage>();
     }
 
     /// <summary>

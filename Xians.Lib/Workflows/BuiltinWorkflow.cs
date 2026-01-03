@@ -136,6 +136,14 @@ public class BuiltinWorkflow
     }
 
     /// <summary>
+    /// Clears all registered handlers. Intended for testing purposes only.
+    /// </summary>
+    internal static void ClearHandlersForTests()
+    {
+        _handlersByWorkflowType.Clear();
+    }
+
+    /// <summary>
     /// Main message processing loop - waits for signals and processes them.
     /// This is the top-level event loop where exceptions are caught to prevent workflow crashes.
     /// </summary>

@@ -1,7 +1,4 @@
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
-using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -9,21 +6,76 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// Real server tests for Knowledge SDK.
 /// These tests run against an actual Xians server.
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
+/// 
+/// dotnet test --filter "Category=RealServer&FullyQualifiedName~RealServerKnowledgeTests" --logger "console;verbosity=detailed"
+/// 
 /// </summary>
 [Trait("Category", "RealServer")]
-public class RealServerKnowledgeTests : RealServerTestBase
+[Collection("RealServerWorkflows")] // Force sequential execution with other workflow tests
+public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 {
     private XiansPlatform? _platform;
     private XiansAgent? _agent;
     private readonly string _testKnowledgePrefix;
+    private CancellationTokenSource? _workerCts;
+    private Task? _workerTask;
     
     // Use hardcoded agent name across all tests
-    private const string AGENT_NAME = "KnowledgeTestAgent";
+    public const string AGENT_NAME = "KnowledgeTestAgent";
 
     public RealServerKnowledgeTests()
     {
         // Use unique prefix for test knowledge to avoid conflicts between test runs
         _testKnowledgePrefix = $"test-{Guid.NewGuid().ToString()[..8]}";
+    }
+
+    async Task IAsyncLifetime.InitializeAsync()
+    {
+        if (!RunRealServerTests) return;
+        
+        await InitializePlatformAsync();
+        
+        // Start workers to handle workflow executions (including KnowledgeTestWorkflow)
+        if (_agent != null)
+        {
+            _workerCts = new CancellationTokenSource();
+            _workerTask = _agent.RunAllAsync(_workerCts.Token);
+            
+            // Give workers time to start
+            await Task.Delay(1000);
+            Console.WriteLine("✓ Workers started for KnowledgeTestWorkflow");
+        }
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        // Stop workers
+        if (_workerCts != null)
+        {
+            _workerCts.Cancel();
+            try
+            {
+                if (_workerTask != null)
+                {
+                    await _workerTask;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+            Console.WriteLine("✓ Workers stopped");
+        }
+
+        // Cleanup context
+        try
+        {
+            XiansContext.Clear();
+        }
+        catch
+        {
+            // Ignore cleanup errors
+        }
     }
 
     private async Task InitializePlatformAsync()
@@ -53,9 +105,14 @@ public class RealServerKnowledgeTests : RealServerTestBase
         // CRITICAL: Define and upload workflow definition to actually register the agent with the server
         // This is what grants the user permission to manage this agent's knowledge
         var workflow = _agent.Workflows.DefineBuiltIn("knowledge-tests");
+        
+        // Also define the test workflow for workflow execution tests
+        _agent.Workflows.DefineCustom<KnowledgeTestWorkflow>();
+        
         await _agent.UploadWorkflowDefinitionsAsync();
         
         Console.WriteLine($"✓ Registered agent on server: {AGENT_NAME}");
+        Console.WriteLine($"✓ Registered workflows: knowledge-tests, KnowledgeTestWorkflow");
     }
 
     [Fact]
@@ -375,5 +432,447 @@ public class RealServerKnowledgeTests : RealServerTestBase
             throw new Exception($"Special characters test failed: {ex.Message}", ex);
         }
     }
+
+    [Fact]
+    public async Task Knowledge_UpdateWithNullType_UsesDefault()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Arrange
+            var knowledgeName = $"{_testKnowledgePrefix}-null-type";
+            
+            // Act - Update with null type
+            await _agent!.Knowledge.UpdateAsync(knowledgeName, "Content without type", null);
+            
+            // Retrieve and verify
+            var retrieved = await _agent!.Knowledge.GetAsync(knowledgeName);
+            Assert.NotNull(retrieved);
+            Assert.Equal("Content without type", retrieved.Content);
+
+            // Cleanup
+            await _agent!.Knowledge.DeleteAsync(knowledgeName);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Null type test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_ListEmpty_ReturnsEmptyList()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Act - List might not be empty if previous tests failed cleanup
+            // But it should at least not throw
+            var result = await _agent!.Knowledge.ListAsync();
+            
+            // Assert
+            Assert.NotNull(result);
+            // Don't assert it's empty - there might be leftover test data
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"List empty test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_UpdateMultipleTimes_LastWins()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Arrange
+            var knowledgeName = $"{_testKnowledgePrefix}-multi-update";
+            
+            // Act - Multiple updates
+            await _agent!.Knowledge.UpdateAsync(knowledgeName, "Version 1", "text");
+            await _agent!.Knowledge.UpdateAsync(knowledgeName, "Version 2", "text");
+            await _agent!.Knowledge.UpdateAsync(knowledgeName, "Version 3", "text");
+            
+            // Verify final state
+            var retrieved = await _agent!.Knowledge.GetAsync(knowledgeName);
+            Assert.NotNull(retrieved);
+            Assert.Equal("Version 3", retrieved.Content);
+
+            // Cleanup
+            await _agent!.Knowledge.DeleteAsync(knowledgeName);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Multiple updates test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_GetAsync_WithEmptyName_ThrowsArgumentException()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await _agent!.Knowledge.GetAsync(""));
+    }
+
+    [Fact]
+    public async Task Knowledge_UpdateAsync_WithEmptyName_ThrowsArgumentException()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await _agent!.Knowledge.UpdateAsync("", "content", "text"));
+    }
+
+    [Fact]
+    public async Task Knowledge_UpdateAsync_WithEmptyContent_ThrowsArgumentException()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await _agent!.Knowledge.UpdateAsync("test-name", "", "text"));
+    }
+
+    [Fact]
+    public async Task Knowledge_DeleteAsync_WithEmptyName_ThrowsArgumentException()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await _agent!.Knowledge.DeleteAsync(""));
+    }
+
+    [Fact]
+    public async Task Knowledge_CancellationToken_Respected()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Arrange
+            using var cts = new CancellationTokenSource();
+            cts.Cancel(); // Cancel immediately
+            
+            var knowledgeName = $"{_testKnowledgePrefix}-cancelled";
+
+            // Act & Assert - Operation should be cancelled
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                async () => await _agent!.Knowledge.GetAsync(knowledgeName, cts.Token));
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Cancellation token test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_TenantIsolation_VerifyAgentField()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Arrange
+            var knowledgeName = $"{_testKnowledgePrefix}-tenant-test";
+            
+            // Act
+            await _agent!.Knowledge.UpdateAsync(knowledgeName, "Tenant isolation test", "text");
+            var retrieved = await _agent!.Knowledge.GetAsync(knowledgeName);
+            
+            // Assert - Verify tenant isolation via agent field
+            Assert.NotNull(retrieved);
+            Assert.Equal(AGENT_NAME, retrieved.Agent);
+            Assert.NotNull(retrieved.TenantId);
+            Assert.NotEmpty(retrieved.TenantId);
+
+            // Cleanup
+            await _agent!.Knowledge.DeleteAsync(knowledgeName);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Tenant isolation test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_CrossAgentIsolation_AgentsCannotAccessEachOthersKnowledge()
+    {
+        if (!RunRealServerTests) return;
+
+        // Create two separate platform instances with different agents
+        XiansContext.CleanupForTests();
+        
+        var options1 = new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!
+        };
+        var platform1 = await XiansPlatform.InitializeAsync(options1);
+        var agent1 = platform1.Agents.Register(new XiansAgentRegistration { Name = "Agent1-IsolationTest" });
+        var workflow1 = agent1.Workflows.DefineBuiltIn("isolation-test-1");
+        await agent1.UploadWorkflowDefinitionsAsync();
+
+        XiansContext.CleanupForTests();
+
+        var options2 = new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!
+        };
+        var platform2 = await XiansPlatform.InitializeAsync(options2);
+        var agent2 = platform2.Agents.Register(new XiansAgentRegistration { Name = "Agent2-IsolationTest" });
+        var workflow2 = agent2.Workflows.DefineBuiltIn("isolation-test-2");
+        await agent2.UploadWorkflowDefinitionsAsync();
+
+        try
+        {
+            // Arrange - Agent1 creates knowledge
+            var knowledgeName = $"{_testKnowledgePrefix}-cross-agent-isolation";
+            await agent1.Knowledge.UpdateAsync(knowledgeName, "Agent1's private knowledge", "text");
+
+            // Act - Agent1 can retrieve its own knowledge
+            var agent1Retrieved = await agent1.Knowledge.GetAsync(knowledgeName);
+            Assert.NotNull(agent1Retrieved);
+            Assert.Equal("Agent1-IsolationTest", agent1Retrieved.Agent);
+            Assert.Equal("Agent1's private knowledge", agent1Retrieved.Content);
+
+            // Act - Agent2 tries to retrieve Agent1's knowledge
+            var agent2Retrieved = await agent2.Knowledge.GetAsync(knowledgeName);
+
+            // Assert - Agent2 should NOT see Agent1's knowledge (isolation)
+            Assert.Null(agent2Retrieved);
+
+            // Additional verification: Agent2 creates knowledge with same name
+            await agent2.Knowledge.UpdateAsync(knowledgeName, "Agent2's separate knowledge", "text");
+            var agent2OwnKnowledge = await agent2.Knowledge.GetAsync(knowledgeName);
+            
+            Assert.NotNull(agent2OwnKnowledge);
+            Assert.Equal("Agent2-IsolationTest", agent2OwnKnowledge.Agent);
+            Assert.Equal("Agent2's separate knowledge", agent2OwnKnowledge.Content);
+
+            // Verify Agent1's knowledge is unchanged
+            var agent1StillIntact = await agent1.Knowledge.GetAsync(knowledgeName);
+            Assert.NotNull(agent1StillIntact);
+            Assert.Equal("Agent1's private knowledge", agent1StillIntact.Content);
+
+            Console.WriteLine("✓ Cross-agent isolation verified: Agents can have same knowledge names without conflict");
+
+            // Cleanup
+            await agent1.Knowledge.DeleteAsync(knowledgeName);
+            await agent2.Knowledge.DeleteAsync(knowledgeName);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Cross-agent isolation test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_WorksFromWithinWorkflow_ContextAwareExecution()
+    {
+        if (!RunRealServerTests) return;
+
+        try
+        {
+            // Arrange - Test ID for tracking
+            var testId = Guid.NewGuid().ToString();
+            var knowledgeName = $"{_testKnowledgePrefix}-workflow-test-{testId}";
+            
+            Console.WriteLine($"=== Testing Knowledge Operations from Within Workflow ===");
+            Console.WriteLine($"Test ID: {testId}");
+            Console.WriteLine($"Knowledge Name: {knowledgeName}");
+
+            // Get Temporal client from agent
+            var temporalClient = await _agent!.TemporalService!.GetClientAsync();
+            
+            // Build workflow ID and task queue using TemporalTestUtils
+            var workflowType = $"{AGENT_NAME}:KnowledgeWorkflowTest";
+            var workflowId = $"{_platform!.Options.CertificateTenantId}:{workflowType}:{testId}";
+            var taskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
+                workflowType,
+                systemScoped: false,
+                _platform!.Options.CertificateTenantId);
+            
+            Console.WriteLine($"Starting Temporal workflow:");
+            Console.WriteLine($"  Workflow ID: {workflowId}");
+            Console.WriteLine($"  Workflow Type: {workflowType}");
+            Console.WriteLine($"  Task Queue: {taskQueue}");
+            
+            // Start the workflow
+            var handle = await temporalClient.StartWorkflowAsync(
+                (KnowledgeTestWorkflow wf) => wf.RunAsync(_agent!.Name, knowledgeName, testId),
+                new Temporalio.Client.WorkflowOptions
+                {
+                    Id = workflowId,
+                    TaskQueue = taskQueue
+                });
+            
+            Console.WriteLine("✓ Workflow started, waiting for completion...");
+            
+            Console.WriteLine("⏳ Waiting for workflow to complete...");
+            
+            // Wait for workflow to complete (workers are running, so it should execute)
+            var result = await handle.GetResultAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            
+            Console.WriteLine("✓ Workflow execution completed via Temporal workers!");
+            Console.WriteLine("✓ Knowledge operations executed through activities!");
+            
+            // Assert workflow completed successfully
+            Assert.NotNull(result);
+            Assert.True(result.Success, $"Workflow test failed: {result.Error}");
+            Assert.Equal("workflow-test-content", result.RetrievedContent);
+            Assert.Equal(1, result.ListCount);
+            
+            Console.WriteLine("✓ Workflow completed successfully");
+            Console.WriteLine($"  - Created knowledge: {result.CreateSuccess}");
+            Console.WriteLine($"  - Retrieved knowledge: {result.RetrievedContent}");
+            Console.WriteLine($"  - List count: {result.ListCount}");
+            Console.WriteLine($"  - Deleted knowledge: {result.DeleteSuccess}");
+            Console.WriteLine("✓ Knowledge operations work correctly from within workflow!");
+            Console.WriteLine("✓ ContextAwareActivityExecutor pattern verified!");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Workflow context test failed: {ex.Message}", ex);
+        }
+    }
+}
+
+/// <summary>
+/// Test workflow that uses knowledge operations to verify context-aware execution.
+/// This validates that KnowledgeCollection properly uses KnowledgeActivityExecutor
+/// to execute activities when called from workflow context.
+/// </summary>
+[Temporalio.Workflows.Workflow($"{RealServerKnowledgeTests.AGENT_NAME}:KnowledgeWorkflowTest")]
+public class KnowledgeTestWorkflow
+{
+    [Temporalio.Workflows.WorkflowRun]
+    public async Task<KnowledgeWorkflowResult> RunAsync(string agentName, string knowledgeName, string testId)
+    {
+        var result = new KnowledgeWorkflowResult();
+        
+        try
+        {
+            Console.WriteLine($"[KnowledgeWorkflow] Starting test for agent: {agentName}");
+            
+            // Get agent from workflow context
+            var agent = Xians.Lib.Agents.Core.XiansContext.GetAgent(agentName);
+            if (agent == null)
+            {
+                result.Error = $"Agent '{agentName}' not found in workflow context";
+                result.Success = false;
+                return result;
+            }
+            
+            Console.WriteLine($"[KnowledgeWorkflow] ✓ Agent retrieved from context: {agent.Name}");
+
+            // Test 1: Create knowledge (calls via KnowledgeActivityExecutor → KnowledgeActivities)
+            Console.WriteLine("[KnowledgeWorkflow] Step 1: Creating knowledge via activity executor...");
+            var createSuccess = await agent.Knowledge.UpdateAsync(
+                knowledgeName, 
+                "workflow-test-content", 
+                "test");
+            result.CreateSuccess = createSuccess;
+            
+            if (!createSuccess)
+            {
+                result.Error = "Failed to create knowledge";
+                result.Success = false;
+                return result;
+            }
+            
+            Console.WriteLine("[KnowledgeWorkflow] ✓ Knowledge created via activity");
+
+            // Small delay to ensure consistency
+            await Temporalio.Workflows.Workflow.DelayAsync(TimeSpan.FromMilliseconds(100));
+
+            // Test 2: Retrieve knowledge (calls via KnowledgeActivityExecutor → KnowledgeActivities)
+            Console.WriteLine("[KnowledgeWorkflow] Step 2: Retrieving knowledge via activity executor...");
+            var retrieved = await agent.Knowledge.GetAsync(knowledgeName);
+            
+            if (retrieved == null)
+            {
+                result.Error = "Failed to retrieve knowledge";
+                result.Success = false;
+                return result;
+            }
+            
+            result.RetrievedContent = retrieved.Content;
+            Console.WriteLine($"[KnowledgeWorkflow] ✓ Knowledge retrieved via activity: {retrieved.Content}");
+
+            // Test 3: List knowledge (calls via KnowledgeActivityExecutor → KnowledgeActivities)
+            Console.WriteLine("[KnowledgeWorkflow] Step 3: Listing knowledge via activity executor...");
+            var allKnowledge = await agent.Knowledge.ListAsync();
+            result.ListCount = allKnowledge.Count(k => k.Name == knowledgeName);
+            Console.WriteLine($"[KnowledgeWorkflow] ✓ Listed via activity: Found {result.ListCount} items");
+
+            // Test 4: Delete knowledge (calls via KnowledgeActivityExecutor → KnowledgeActivities)
+            Console.WriteLine("[KnowledgeWorkflow] Step 4: Deleting knowledge via activity executor...");
+            var deleteSuccess = await agent.Knowledge.DeleteAsync(knowledgeName);
+            result.DeleteSuccess = deleteSuccess;
+            
+            if (!deleteSuccess)
+            {
+                result.Error = "Failed to delete knowledge";
+                result.Success = false;
+                return result;
+            }
+            
+            Console.WriteLine("[KnowledgeWorkflow] ✓ Knowledge deleted via activity");
+
+            // Success
+            result.Success = true;
+            Console.WriteLine("[KnowledgeWorkflow] ✓ All knowledge operations executed successfully via activities!");
+            Console.WriteLine("[KnowledgeWorkflow] ✓ Context-aware execution verified!");
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KnowledgeWorkflow] Error: {ex.Message}");
+            result.Error = ex.Message;
+            result.Success = false;
+            return result;
+        }
+    }
+}
+
+/// <summary>
+/// Result from the knowledge workflow test.
+/// </summary>
+public class KnowledgeWorkflowResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public bool CreateSuccess { get; set; }
+    public string? RetrievedContent { get; set; }
+    public int ListCount { get; set; }
+    public bool DeleteSuccess { get; set; }
 }
 

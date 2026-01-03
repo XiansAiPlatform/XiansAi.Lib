@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows;
 using Xians.Lib.Workflows.Messaging.Models;
 using Xians.Lib.Workflows.Models;
@@ -68,9 +67,8 @@ internal class A2AService
         };
 
         // Create A2A message context for the handler
-        var userMessage = new UserMessage { Text = request.MessageText };
         var context = new A2AMessageContext(
-            userMessage,
+            request.MessageText,
             a2aRequest,
             request.WorkflowId,
             request.WorkflowType,
@@ -84,7 +82,7 @@ internal class A2AService
         {
             throw new InvalidOperationException(
                 $"Target workflow handler did not send a response. " +
-                $"Ensure the handler calls context.Messages.ReplyAsync() or context.Messages.ReplyWithDataAsync().");
+                $"Ensure the handler calls context.Message.ReplyAsync() or context.Message.ReplyWithDataAsync().");
         }
 
         _logger.LogInformation(

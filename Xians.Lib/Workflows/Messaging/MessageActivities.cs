@@ -3,7 +3,6 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Workflows.Messaging.Models;
 using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Knowledge.Models;
@@ -64,7 +63,7 @@ public class MessageActivities
             // Create a context that sends responses via HTTP instead of collecting them
             var context = new ActivityUserMessageContext(
                 _httpClient,
-                new UserMessage { Text = request.MessageText },
+                request.MessageText,
                 request.ParticipantId,
                 request.RequestId,
                 request.Scope,
@@ -256,7 +255,7 @@ public class ActivityUserMessageContext : UserMessageContext
 
     public ActivityUserMessageContext(
         HttpClient httpClient,
-        UserMessage message,
+        string text,
         string participantId,
         string requestId,
         string? scope,
@@ -268,7 +267,7 @@ public class ActivityUserMessageContext : UserMessageContext
         string? authorization = null,
         string? threadId = null,
         Dictionary<string, string>? metadata = null)
-        : base(message, participantId, requestId, scope, hint, data, tenantId, authorization, threadId, metadata)
+        : base(text, participantId, requestId, scope, hint, data, tenantId, authorization, threadId, metadata)
     {
         _participantId = participantId;
         _requestId = requestId;

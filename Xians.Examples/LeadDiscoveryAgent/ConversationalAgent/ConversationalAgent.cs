@@ -37,7 +37,7 @@ internal class ConversationalAgent
     /// <returns>The AI agent's response text</returns>
     public async Task<string> ProcessMessageAsync(UserMessageContext context)
     {
-        var taskWorkflowId = await context.Messages.GetLastHintAsync();
+        var taskWorkflowId = await context.Message.GetLastHintAsync();
         _logger.LogInformation("Task workflow ID: {TaskWorkflowId}", taskWorkflowId);
 
         // Create context-specific tools

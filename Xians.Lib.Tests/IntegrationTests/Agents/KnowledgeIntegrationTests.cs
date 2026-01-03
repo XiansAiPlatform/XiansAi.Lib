@@ -5,7 +5,6 @@ using WireMock.ResponseBuilders;
 using WireMock.Server;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;

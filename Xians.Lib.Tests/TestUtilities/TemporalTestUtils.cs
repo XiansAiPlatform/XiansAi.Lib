@@ -1,6 +1,5 @@
 using Temporalio.Client;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Messaging.Models;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Workflows.Messaging.Models;

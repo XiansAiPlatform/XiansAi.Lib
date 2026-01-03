@@ -33,7 +33,7 @@ namespace Xians.Lib.Agents.Messaging;
 /// var taskWorkflowType = WorkflowIdentity.BuildPlatformWorkflowType("Task Workflow");
 /// await UserMessaging.SendChatAsWorkflowAsync(taskWorkflowType, "user-123", "Task completed!");
 /// </example>
-public static class UserMessaging
+internal static class UserMessaging
 {
     /// <summary>
     /// Sends a chat message to a participant using the current workflow context.

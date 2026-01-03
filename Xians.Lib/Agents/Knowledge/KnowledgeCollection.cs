@@ -14,26 +14,22 @@ namespace Xians.Lib.Agents.Knowledge;
 /// Manages knowledge operations for a specific agent.
 /// Provides methods to retrieve, update, delete, and list knowledge items.
 /// All operations are automatically scoped to the agent's name and tenant.
+/// REFACTORED: Uses KnowledgeActivityExecutor for context-aware execution.
 /// </summary>
 public class KnowledgeCollection
 {
     private readonly XiansAgent _agent;
-    private readonly IHttpClientService? _httpService;
-    private readonly KnowledgeService? _knowledgeService;
+    private readonly KnowledgeActivityExecutor _executor;
     private readonly ILogger<KnowledgeCollection> _logger;
 
     internal KnowledgeCollection(XiansAgent agent, IHttpClientService? httpService, Xians.Lib.Common.Caching.CacheService? cacheService)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
-        _httpService = httpService;
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<KnowledgeCollection>();
         
-        // Create shared knowledge service if HTTP service is available
-        if (httpService != null)
-        {
-            var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<KnowledgeService>();
-            _knowledgeService = new KnowledgeService(httpService.Client, cacheService, logger);
-        }
+        // Initialize executor for context-aware execution
+        var executorLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<KnowledgeActivityExecutor>();
+        _executor = new KnowledgeActivityExecutor(agent, executorLogger);
     }
 
     /// <summary>
@@ -48,18 +44,16 @@ public class KnowledgeCollection
     {
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
-        
-        EnsureKnowledgeService();
 
-        try
-        {
-            var tenantId = GetTenantId();
-            return await _knowledgeService!.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
-        {
-            throw new InvalidOperationException($"Failed to fetch knowledge '{knowledgeName}'", ex);
-        }
+        var tenantId = GetTenantId();
+        
+        _logger.LogDebug(
+            "Getting knowledge '{Name}' for agent '{AgentName}'",
+            knowledgeName,
+            _agent.Name);
+
+        // Context-aware execution via executor
+        return await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -78,23 +72,17 @@ public class KnowledgeCollection
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
         ValidationHelper.ValidateRequired(content, nameof(content));
-        
-        EnsureKnowledgeService();
 
-        try
-        {
-            var tenantId = GetTenantId();
-            return await _knowledgeService!.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Knowledge update operation was cancelled for '{KnowledgeName}'", knowledgeName);
-            throw;
-        }
-        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
-        {
-            throw new InvalidOperationException($"Failed to update knowledge '{knowledgeName}'", ex);
-        }
+        var tenantId = GetTenantId();
+        
+        _logger.LogInformation(
+            "Updating knowledge '{Name}' for agent '{AgentName}', type '{Type}'",
+            knowledgeName,
+            _agent.Name,
+            type);
+
+        // Context-aware execution via executor
+        return await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -109,23 +97,16 @@ public class KnowledgeCollection
     {
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
-        
-        EnsureKnowledgeService();
 
-        try
-        {
-            var tenantId = GetTenantId();
-            return await _knowledgeService!.DeleteAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Knowledge delete operation was cancelled for '{KnowledgeName}'", knowledgeName);
-            throw;
-        }
-        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
-        {
-            throw new InvalidOperationException($"Failed to delete knowledge '{knowledgeName}'", ex);
-        }
+        var tenantId = GetTenantId();
+        
+        _logger.LogInformation(
+            "Deleting knowledge '{Name}' for agent '{AgentName}'",
+            knowledgeName,
+            _agent.Name);
+
+        // Context-aware execution via executor
+        return await _executor.DeleteAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -137,34 +118,14 @@ public class KnowledgeCollection
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(CancellationToken cancellationToken = default)
     {
-        EnsureKnowledgeService();
+        var tenantId = GetTenantId();
+        
+        _logger.LogDebug(
+            "Listing knowledge for agent '{AgentName}'",
+            _agent.Name);
 
-        try
-        {
-            var tenantId = GetTenantId();
-            return await _knowledgeService!.ListAsync(_agent.Name, tenantId, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Knowledge list operation was cancelled for agent '{AgentName}'", _agent.Name);
-            throw;
-        }
-        catch (Exception ex) when (ex is not HttpRequestException and not ArgumentException)
-        {
-            throw new InvalidOperationException($"Failed to list knowledge for agent '{_agent.Name}'", ex);
-        }
-    }
-
-    /// <summary>
-    /// Ensures knowledge service is available.
-    /// </summary>
-    private void EnsureKnowledgeService()
-    {
-        if (_knowledgeService == null)
-        {
-            throw new InvalidOperationException(
-                "Knowledge service is not available. Ensure the agent was registered through XiansPlatform.Agents.");
-        }
+        // Context-aware execution via executor
+        return await _executor.ListAsync(_agent.Name, tenantId, cancellationToken);
     }
 
     /// <summary>

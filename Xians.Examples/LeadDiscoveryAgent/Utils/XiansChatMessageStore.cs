@@ -50,7 +50,7 @@ internal sealed class XiansChatMessageStore : ChatMessageStore
         // Retrieve chat history from Xians
         // Using a reasonable page size to get recent history
         // Note: GetHistoryAsync automatically filters out the current message
-        var xiansMessages = await _context.Messages.GetHistoryAsync(page: 1, pageSize: 10);
+        var xiansMessages = await _context.Message.GetHistoryAsync(page: 1, pageSize: 10);
         
         // Console.WriteLine($"[XiansChatMessageStore] Fetched {xiansMessages.Count} messages from server:");
         // foreach (var msg in xiansMessages)
