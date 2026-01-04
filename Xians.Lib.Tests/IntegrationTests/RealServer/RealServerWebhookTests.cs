@@ -109,6 +109,22 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         { 
             Name = _agentName 
         });
+
+        // Proactive cleanup: Terminate any lingering workflows from previous failed test runs
+        // This prevents message queue congestion
+        try
+        {
+            var temporalClient = await _agent.TemporalService!.GetClientAsync();
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                _agentName, 
+                new[] { WORKFLOW_NAME });
+            Console.WriteLine($"✓ Cleaned up any lingering workflows for {_agentName}");
+        }
+        catch
+        {
+            // Ignore if no workflows to clean up
+        }
     }
 
     [Fact]
@@ -168,13 +184,16 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         // Upload workflow definitions to server
         await _agent.UploadWorkflowDefinitionsAsync();
         Console.WriteLine($"✓ Workflow definition uploaded for {_agentName}");
+        
+        // Wait for definition to propagate
+        await Task.Delay(500);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
-        // Wait for workflow to be ready
-        await Task.Delay(3000);
+        // Wait longer for workflow to be ready (especially important when running many tests)
+        await Task.Delay(5000);
 
         try
         {
@@ -272,13 +291,16 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
 
         // Upload workflow definitions to server
         await _agent.UploadWorkflowDefinitionsAsync();
+        
+        // Wait for definition to propagate
+        await Task.Delay(500);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
-        // Wait for workflow to be ready
-        await Task.Delay(3000);
+        // Wait longer for workflow to be ready (especially important when running many tests)
+        await Task.Delay(5000);
 
         try
         {
@@ -358,13 +380,16 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
 
         // Upload workflow definitions to server
         await _agent.UploadWorkflowDefinitionsAsync();
+        
+        // Wait for definition to propagate
+        await Task.Delay(500);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
-        // Wait for workflow to be ready
-        await Task.Delay(3000);
+        // Wait longer for workflow to be ready (especially important when running many tests)
+        await Task.Delay(5000);
 
         try
         {
@@ -452,13 +477,16 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
 
         // Upload workflow definitions to server
         await _agent.UploadWorkflowDefinitionsAsync();
+        
+        // Wait for definition to propagate
+        await Task.Delay(500);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
-        // Wait for workflow to be ready
-        await Task.Delay(3000);
+        // Wait longer for workflow to be ready (especially important when running many tests)
+        await Task.Delay(5000);
 
         try
         {
@@ -540,13 +568,16 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
 
         // Upload workflow definitions to server
         await _agent.UploadWorkflowDefinitionsAsync();
+        
+        // Wait for definition to propagate
+        await Task.Delay(500);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
-        // Wait for workflow to be ready
-        await Task.Delay(3000);
+        // Wait longer for workflow to be ready (especially important when running many tests)
+        await Task.Delay(5000);
 
         try
         {
