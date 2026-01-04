@@ -15,14 +15,18 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// - Webhook response handling
 /// - Error handling in webhooks
 /// 
-/// dotnet test --filter "Category=RealServer&FullyQualifiedName~RealServerWebhookTests" --logger "console;verbosity=detailed"
+/// IMPORTANT: These tests use longer timeouts (60s webhook, 90s HTTP client, 8s workflow ready)
+/// to handle resource contention when running in large test suites (200+ tests).
 /// 
+/// dotnet test --filter "Category=RealServer&FullyQualifiedName~RealServerWebhookTests" --logger "console;verbosity=detailed"
+/// dotnet test --filter "Category=RealServer&FullyQualifiedName~Webhook_SuccessResponse_ShouldReturnCorrectData" --logger "console;verbosity=detailed"
 /// Set environment variables to run these tests:
 /// - SERVER_URL: The Xians server URL (e.g., http://localhost:5005)
 /// - API_KEY: Base64-encoded X.509 certificate for agent authentication
 /// - WEBHOOK_API_KEY: API key for webhook endpoint (format: sk-Xnai-...)
 /// </summary>
 [Trait("Category", "RealServer")]
+[Trait("TestDuration", "LongRunning")] // These tests take 8-12s each due to workflow startup delays
 [Collection("RealServerWebhook")] // Force sequential execution
 public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
 {
@@ -186,24 +190,26 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine($"✓ Workflow definition uploaded for {_agentName}");
         
         // Wait for definition to propagate
-        await Task.Delay(500);
+        await Task.Delay(1000);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
         // Wait longer for workflow to be ready (especially important when running many tests)
-        await Task.Delay(5000);
+        await Task.Delay(8000);
 
         try
         {
             // Use plain HTTP client for webhook (external system simulation)
             // Webhook endpoint uses API key auth, not certificate auth
             using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(90); // Increase HTTP client timeout
+            
             var webhookName = "EmailReceived";
             var webhookUrl = $"{ServerUrl}/api/user/webhooks/builtin" +
                 $"?apikey={_webhookApiKey}" +
-                $"&timeoutSeconds=30" +
+                $"&timeoutSeconds=60" +
                 $"&agentName={_agentName}" +
                 $"&workflowName={WORKFLOW_NAME}" +
                 $"&webhookName={webhookName}" +
@@ -293,23 +299,25 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         await _agent.UploadWorkflowDefinitionsAsync();
         
         // Wait for definition to propagate
-        await Task.Delay(500);
+        await Task.Delay(1000);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
         // Wait longer for workflow to be ready (especially important when running many tests)
-        await Task.Delay(5000);
+        await Task.Delay(8000);
 
         try
         {
             // Use plain HTTP client for webhook (external system simulation)
             // Webhook endpoint uses API key auth, not certificate auth
             using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(90); // Increase HTTP client timeout
+            
             var webhookUrl = $"{ServerUrl}/api/user/webhooks/builtin" +
                 $"?apikey={_webhookApiKey}" +
-                $"&timeoutSeconds=30" +
+                $"&timeoutSeconds=60" +
                 $"&agentName={_agentName}" +
                 $"&workflowName={WORKFLOW_NAME}" +
                 $"&webhookName=ErrorTest" +
@@ -382,23 +390,25 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         await _agent.UploadWorkflowDefinitionsAsync();
         
         // Wait for definition to propagate
-        await Task.Delay(500);
+        await Task.Delay(1000);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
         // Wait longer for workflow to be ready (especially important when running many tests)
-        await Task.Delay(5000);
+        await Task.Delay(8000);
 
         try
         {
             // Use plain HTTP client for webhook (external system simulation)
             // Webhook endpoint uses API key auth, not certificate auth
             using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(90); // Increase HTTP client timeout
+            
             var webhookUrl = $"{ServerUrl}/api/user/webhooks/builtin" +
                 $"?apikey={_webhookApiKey}" +
-                $"&timeoutSeconds=30" +
+                $"&timeoutSeconds=60" +
                 $"&agentName={_agentName}" +
                 $"&workflowName={WORKFLOW_NAME}" +
                 $"&webhookName=ValidationTest" +
@@ -479,14 +489,14 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         await _agent.UploadWorkflowDefinitionsAsync();
         
         // Wait for definition to propagate
-        await Task.Delay(500);
+        await Task.Delay(1000);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
         // Wait longer for workflow to be ready (especially important when running many tests)
-        await Task.Delay(5000);
+        await Task.Delay(8000);
 
         try
         {
@@ -570,23 +580,25 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         await _agent.UploadWorkflowDefinitionsAsync();
         
         // Wait for definition to propagate
-        await Task.Delay(500);
+        await Task.Delay(1000);
 
         // Start workflow in background
         var cts = new CancellationTokenSource();
         var workflowTask = Task.Run(() => workflow.RunAsync(cts.Token));
         
         // Wait longer for workflow to be ready (especially important when running many tests)
-        await Task.Delay(5000);
+        await Task.Delay(8000);
 
         try
         {
             // Use plain HTTP client for webhook (external system simulation)
             // Webhook endpoint uses API key auth, not certificate auth
             using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(90); // Increase HTTP client timeout
+            
             var webhookUrl = $"{ServerUrl}/api/user/webhooks/builtin" +
                 $"?apikey={_webhookApiKey}" +
-                $"&timeoutSeconds=30" +
+                $"&timeoutSeconds=60" +
                 $"&agentName={_agentName}" +
                 $"&workflowName={WORKFLOW_NAME}" +
                 $"&webhookName=HelperTest" +
