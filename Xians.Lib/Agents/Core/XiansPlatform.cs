@@ -82,6 +82,9 @@ public class XiansPlatform
         
         var platform = new XiansPlatform(options, httpService, temporalService);
         
+        // Display initialization banner
+        platform.DisplayInitializationBanner();
+        
         return platform;
     }
 
@@ -94,5 +97,91 @@ public class XiansPlatform
     public static XiansPlatform Initialize(XiansOptions options)
     {
         return InitializeAsync(options).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Displays a formatted initialization banner with platform connection details.
+    /// </summary>
+    private void DisplayInitializationBanner()
+    {
+        var certInfo = _options.CertificateInfo;
+        var serverUrl = _options.ServerUrl;
+        
+        // ASCII Art Banner
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine(@"
+╔═════════════════════════════════════════════════════════════════════╗
+║             ██╗  ██╗██╗ █████╗ ███╗   ██╗███████╗                   ║
+║             ╚██╗██╔╝██║██╔══██╗████╗  ██║██╔════╝                   ║
+║              ╚███╔╝ ██║███████║██╔██╗ ██║███████╗                   ║
+║              ██╔██╗ ██║██╔══██║██║╚██╗██║╚════██║                   ║
+║             ██╔╝ ██╗██║██║  ██║██║ ╚████║███████║                   ║
+║             ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝                   ║
+╚═════════════════════════════════════════════════════════════════════╝
+");
+        Console.ResetColor();
+        
+        // Connection Details
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("✓ Platform Initialized Successfully");
+        Console.ResetColor();
+        Console.WriteLine();
+        
+        // Server Information
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("┌───────────────────────────────────────────────────────────────┐");
+        Console.WriteLine("│ CONNECTION DETAILS                                            │");
+        Console.WriteLine("├───────────────────────────────────────────────────────────────┤");
+        Console.ResetColor();
+        
+        Console.Write("│ ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Server URL      : ");
+        Console.ResetColor();
+        Console.WriteLine($"{serverUrl,-44}│");
+        
+        Console.Write("│ ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Tenant ID       : ");
+        Console.ResetColor();
+        Console.WriteLine($"{certInfo.TenantId,-44}│");
+        
+        Console.Write("│ ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("User ID         : ");
+        Console.ResetColor();
+        Console.WriteLine($"{certInfo.UserId,-44}│");
+        
+        Console.Write("│ ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Subject         : ");
+        Console.ResetColor();
+        var subject = certInfo.Subject.Length > 44 ? certInfo.Subject.Substring(0, 41) + "..." : certInfo.Subject;
+        Console.WriteLine($"{subject,-44}│");
+        
+        Console.Write("│ ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Certificate     : ");
+        Console.ResetColor();
+        var thumbprint = certInfo.Thumbprint.Substring(0, Math.Min(16, certInfo.Thumbprint.Length)) + "...";
+        Console.WriteLine($"{thumbprint,-44}│");
+        
+        Console.Write("│ ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Expires         : ");
+        Console.ResetColor();
+        var expiryColor = (certInfo.ExpiresAt - DateTime.UtcNow).TotalDays < 30 ? ConsoleColor.Red : ConsoleColor.Green;
+        var originalColor = Console.ForegroundColor;
+        Console.ForegroundColor = expiryColor;
+        var expiryText = certInfo.ExpiresAt.ToString("yyyy-MM-dd HH:mm:ss UTC");
+        Console.Write(expiryText);
+        Console.ForegroundColor = originalColor;
+        Console.WriteLine($"{new string(' ', 44 - expiryText.Length)}│");
+        
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("└───────────────────────────────────────────────────────────────┘");
+        Console.ResetColor();
+        Console.WriteLine();
     }
 }

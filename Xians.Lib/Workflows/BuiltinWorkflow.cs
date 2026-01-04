@@ -116,6 +116,34 @@ public class BuiltinWorkflow
     }
 
     /// <summary>
+    /// Registers a webhook handler for a specific workflow type with tenant isolation metadata.
+    /// </summary>
+    /// <param name="workflowType">The unique workflow type identifier.</param>
+    /// <param name="handler">The handler function to register.</param>
+    /// <param name="agentName">The agent name for validation.</param>
+    /// <param name="tenantId">The tenant ID (null for system-scoped agents).</param>
+    /// <param name="systemScoped">Whether this is a system-scoped agent.</param>
+    public static void RegisterWebhookHandler(
+        string workflowType, 
+        Func<WebhookContext, Task> handler,
+        string agentName,
+        string? tenantId,
+        bool systemScoped)
+    {
+        var metadata = _handlersByWorkflowType.GetOrAdd(workflowType, _ => new WorkflowHandlerMetadata
+        {
+            AgentName = agentName.Trim(),
+            TenantId = tenantId,
+            SystemScoped = systemScoped
+        });
+        
+        metadata.WebhookHandler = handler;
+        metadata.AgentName = agentName.Trim();
+        metadata.TenantId = tenantId;
+        metadata.SystemScoped = systemScoped;
+    }
+
+    /// <summary>
     /// Registers a user message handler for both chat and data messages.
     /// Legacy method - prefer RegisterChatHandler and RegisterDataHandler for more granular control.
     /// </summary>

@@ -34,6 +34,7 @@ public class MessageActivities
     /// <summary>
     /// Processes a user message by invoking the registered handler and sending responses.
     /// This activity encapsulates the full process: agent API calls and sending responses.
+    /// Supports Chat, Data, and Webhook message types.
     /// </summary>
     [Activity]
     public async Task ProcessAndSendMessageAsync(ProcessMessageActivityRequest request)
@@ -47,9 +48,17 @@ public class MessageActivities
         try
         {
             var metadata = GetHandlerMetadata(request.WorkflowType);
+            var messageType = request.MessageType.ToLower();
 
-            // Get the appropriate handler based on message type
-            var handler = request.MessageType.ToLower() == "chat" 
+            // Handle webhook messages separately
+            if (messageType == "webhook")
+            {
+                await ProcessWebhookAsync(request, metadata);
+                return;
+            }
+
+            // Get the appropriate handler based on message type (chat or data)
+            var handler = messageType == "chat" 
                 ? metadata.ChatHandler 
                 : metadata.DataHandler;
 
@@ -94,6 +103,70 @@ public class MessageActivities
             // The workflow will send error response to user after all retries are exhausted
             throw;
         }
+    }
+
+    /// <summary>
+    /// Processes a webhook message by invoking the registered webhook handler.
+    /// Returns the WebhookResponse set by the handler.
+    /// If an error occurs, sends an error response back to the platform.
+    /// </summary>
+    private async Task ProcessWebhookAsync(ProcessMessageActivityRequest request, WorkflowHandlerMetadata metadata)
+    {
+        var webhookHandler = metadata.WebhookHandler;
+        if (webhookHandler == null)
+        {
+            throw new InvalidOperationException(
+                $"No webhook handler registered for workflow type '{request.WorkflowType}'. " +
+                $"Use OnWebhook() to register a handler.");
+        }
+
+        // Create a webhook context
+        var context = new ActivityWebhookContext(
+            _httpClient,
+            request.ParticipantId,
+            request.Scope,
+            request.MessageText,  // Name is transferred in Text field
+            request.Data,         // Payload is transferred in Data field
+            request.Authorization,
+            request.RequestId,
+            request.TenantId,
+            request.WorkflowId,
+            request.WorkflowType,
+            request.Metadata
+        );
+
+        try
+        {
+            // Invoke the registered webhook handler
+            await webhookHandler(context);
+
+            ActivityExecutionContext.Current.Logger.LogInformation(
+                "Webhook handler completed: RequestId={RequestId}, WebhookName={WebhookName}, StatusCode={StatusCode}",
+                request.RequestId,
+                request.MessageText,
+                context.Response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error in webhook handler: RequestId={RequestId}, WebhookName={WebhookName}, Error={Error}",
+                request.RequestId,
+                request.MessageText,
+                ex.Message);
+
+            // Set error response
+            context.Response = Xians.Lib.Agents.Messaging.WebhookResponse.InternalServerError(
+                $"Webhook handler error: {ex.Message}");
+        }
+
+        // Always send the webhook response back to the platform (success or error)
+        await context.SendWebhookResponseAsync();
+
+        ActivityExecutionContext.Current.Logger.LogInformation(
+            "Webhook processed and response sent: RequestId={RequestId}, WebhookName={WebhookName}, StatusCode={StatusCode}",
+            request.RequestId,
+            request.MessageText,
+            context.Response.StatusCode);
     }
 
     /// <summary>
@@ -446,6 +519,85 @@ public class ActivityUserMessageContext : UserMessageContext
             Hint = _hint,
             Origin = null,
             Type = "chat"
+        };
+        await _messageService.SendAsync(request);
+    }
+}
+
+/// <summary>
+/// Activity-safe version of WebhookContext that sends responses via HTTP
+/// instead of executing workflow activities.
+/// </summary>
+public class ActivityWebhookContext : WebhookContext
+{
+    private readonly Xians.Lib.Agents.Messaging.MessageService _messageService;
+    private readonly string _workflowId;
+    private readonly string _workflowType;
+    private readonly string _participantId;
+    private readonly string _requestId;
+    private readonly string? _scope;
+    private readonly string? _authorization;
+    private readonly string _tenantId;
+
+    public ActivityWebhookContext(
+        HttpClient httpClient,
+        string participantId,
+        string? scope,
+        string name,
+        object? payload,
+        string? authorization,
+        string requestId,
+        string tenantId,
+        string workflowId,
+        string workflowType,
+        Dictionary<string, string>? metadata = null)
+        : base(participantId, scope, name, payload, authorization, requestId, tenantId, metadata)
+    {
+        _participantId = participantId;
+        _scope = scope;
+        _authorization = authorization;
+        _requestId = requestId;
+        _tenantId = tenantId;
+        _workflowId = workflowId;
+        _workflowType = workflowType;
+        
+        // Create shared message service
+        var messageLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Messaging.MessageService>();
+        _messageService = new Xians.Lib.Agents.Messaging.MessageService(httpClient, messageLogger);
+    }
+
+    /// <summary>
+    /// Sends the webhook response back to the platform via HTTP.
+    /// The response is sent as a Webhook message type with the WebhookResponse in the Data field.
+    /// Called after the handler has finished executing.
+    /// </summary>
+    internal async Task SendWebhookResponseAsync()
+    {
+        // Build the response data object with HTTP-style response properties
+        // Ensure Headers is never null to avoid server-side deserialization issues
+        var responseData = new
+        {
+            StatusCode = (int)Response.StatusCode,
+            Content = Response.Content ?? string.Empty,
+            ContentType = Response.ContentType ?? "application/json",
+            Headers = Response.Headers ?? new Dictionary<string, string[]>()
+        };
+
+        var request = new SendMessageRequest
+        {
+            ParticipantId = _participantId,
+            WorkflowId = _workflowId,
+            WorkflowType = _workflowType,
+            RequestId = _requestId,
+            Scope = _scope,
+            Text = string.Empty,
+            Data = responseData,  // WebhookResponse goes in the Data field
+            TenantId = _tenantId,
+            Authorization = _authorization,
+            ThreadId = null,
+            Hint = null,
+            Origin = null,
+            Type = "Webhook"  // Use Webhook message type
         };
         await _messageService.SendAsync(request);
     }

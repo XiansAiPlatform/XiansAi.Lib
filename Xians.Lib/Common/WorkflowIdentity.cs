@@ -16,7 +16,7 @@ public static class WorkflowIdentity
     /// </summary>
     /// <param name="agentName">The name of the agent owning the workflow.</param>
     /// <param name="name">Optional name for the builtin workflow.</param>
-    /// <returns>A workflow type in the format "{AgentName}:BuiltIn Workflow" or "{AgentName}:BuiltIn Workflow - {name}"</returns>
+    /// <returns>A workflow type in the format "{AgentName}:BuiltIn Workflow" or "{AgentName}:BuiltIn Workflow-{name}"</returns>
     public static string BuildBuiltInWorkflowType(string agentName, string? name = null)
     {
         if (string.IsNullOrWhiteSpace(agentName))
@@ -24,7 +24,7 @@ public static class WorkflowIdentity
             throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
         }
 
-        return agentName + ":BuiltIn Workflow" + (name != null ? $" - {name}" : "");
+        return agentName + ":BuiltIn Workflow" + (name != null ? $"-{name}" : "");
     }
 
     /// <summary>
@@ -32,7 +32,7 @@ public static class WorkflowIdentity
     /// </summary>
     /// <param name="agentName">The name of the agent owning the workflow.</param>
     /// <param name="name">Optional name for the builtin workflow.</param>
-    /// <returns>A workflow ID in the format "{AgentName}:BuiltIn Workflow" or "{AgentName}:BuiltIn Workflow - {name}"</returns>
+    /// <returns>A workflow ID in the format "{AgentName}:BuiltIn Workflow" or "{AgentName}:BuiltIn Workflow-{name}"</returns>
     public static string BuildBuiltInWorkflowId(string agentName, string? name = null)
     {
         return XiansContext.TenantId + ":" + BuildBuiltInWorkflowType(agentName, name);

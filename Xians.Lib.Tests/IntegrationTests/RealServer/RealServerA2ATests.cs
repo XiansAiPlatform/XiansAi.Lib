@@ -387,7 +387,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
 
     #region Data Message Tests
 
-    [Fact(Skip = "Skipping real server data A2A test (edit by instruction)")]
+    [Fact]
     public async Task A2A_DataMessage_SendData_ReturnsProcessedData()
     {
         if (!RunRealServerTests) return;
@@ -532,7 +532,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("✓ Workflows completed naturally");
     }
 
-    [Fact(Skip = "This test fails when running with others")]
+    [Fact]
     public async Task A2A_BuiltInToCustomWorkflow_SignalQueryUpdate_WorksCorrectly()
     {
         if (!RunRealServerTests) return;
@@ -907,4 +907,12 @@ public class WorkflowState
     public int ProcessedCount { get; set; }
     public int QueueSize { get; set; }
     public int ResultsCount { get; set; }
+}
+
+/// <summary>
+/// Collection definition to disable parallelization for A2A tests.
+/// </summary>
+[CollectionDefinition("RealServerA2A", DisableParallelization = true)]
+public class RealServerA2ACollection
+{
 }

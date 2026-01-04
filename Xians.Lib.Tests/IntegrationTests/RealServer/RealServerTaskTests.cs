@@ -594,3 +594,11 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     }
 }
 
+/// <summary>
+/// Collection definition to disable parallelization for Task tests.
+/// </summary>
+[CollectionDefinition("RealServerTask", DisableParallelization = true)]
+public class RealServerTaskCollection
+{
+}
+

@@ -441,3 +441,11 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         public bool SkipResponseUsed { get; set; }
     }
 }
+
+/// <summary>
+/// Collection definition to disable parallelization for Reply tests.
+/// </summary>
+[CollectionDefinition("RealServerReply", DisableParallelization = true)]
+public class RealServerReplyCollection
+{
+}
