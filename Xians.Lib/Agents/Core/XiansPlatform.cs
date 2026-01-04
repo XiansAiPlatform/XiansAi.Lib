@@ -102,15 +102,16 @@ public class XiansPlatform
     /// <summary>
     /// Displays a formatted initialization banner with platform connection details.
     /// </summary>
-    private void DisplayInitializationBanner()
+    private void DisplayInitializationBanner(bool showLogo = false)
     {
         var certInfo = _options.CertificateInfo;
         var serverUrl = _options.ServerUrl;
         
-        // ASCII Art Banner
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine(@"
+        if (showLogo) {
+            // ASCII Art Banner
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(@"
 ╔═════════════════════════════════════════════════════════════════════╗
 ║             ██╗  ██╗██╗ █████╗ ███╗   ██╗███████╗                   ║
 ║             ╚██╗██╔╝██║██╔══██╗████╗  ██║██╔════╝                   ║
@@ -119,8 +120,10 @@ public class XiansPlatform
 ║             ██╔╝ ██╗██║██║  ██║██║ ╚████║███████║                   ║
 ║             ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝                   ║
 ╚═════════════════════════════════════════════════════════════════════╝
-");
-        Console.ResetColor();
+    ");
+            Console.ResetColor();
+        }
+        
         
         // Connection Details
         Console.ForegroundColor = ConsoleColor.Green;
