@@ -11,12 +11,13 @@ using Xians.Lib.Workflows.Messaging.Models;
 namespace Xians.Lib.Workflows.Messaging;
 
 /// <summary>
-/// Handles the processing of incoming chat messages in Temporal workflows.
+/// Handles the processing of incoming messages (chat, data, webhook) in Temporal workflows.
 /// </summary>
 internal static class MessageProcessor
 {
     /// <summary>
     /// Processes a single incoming message with full validation and error handling.
+    /// Supports Chat, Data, and Webhook message types.
     /// </summary>
     public static async Task ProcessMessageAsync(
         InboundMessage message,
@@ -25,18 +26,22 @@ internal static class MessageProcessor
         string workflowId,
         ILogger logger)
     {
+        var textPreview = string.IsNullOrEmpty(message.Payload.Text) 
+            ? "(empty)" 
+            : (message.Payload.Text.Length > 50
+                ? $"{message.Payload.Text[..50]}..."
+                : message.Payload.Text);
+
         logger.LogDebug(
             "ProcessMessageAsync: Type={Type}, Text={TextPreview}",
             message.Payload.Type,
-            message.Payload.Text.Length > 50
-                ? $"{message.Payload.Text[..50]}..."
-                : message.Payload.Text);
+            textPreview);
 
         // Normalize message type for comparison
         var messageType = message.Payload.Type.ToLower();
         
-        // Only process Chat and Data type messages (skip Handoff and others for now)
-        if (messageType != "chat" && messageType != "data")
+        // Only process Chat, Data, and Webhook type messages (skip Handoff and others for now)
+        if (messageType != "chat" && messageType != "data" && messageType != "webhook")
         {
             logger.LogWarning(
                 "Skipping unsupported message type: Type={Type}, RequestId={RequestId}",
@@ -89,9 +94,24 @@ internal static class MessageProcessor
         }
 
         // Check if appropriate handler exists for this message type
-        var handler = messageType == "chat" ? metadata.ChatHandler : metadata.DataHandler;
-        if (handler == null)
+        bool hasHandler = messageType switch
         {
+            "chat" => metadata.ChatHandler != null,
+            "data" => metadata.DataHandler != null,
+            "webhook" => metadata.WebhookHandler != null,
+            _ => false
+        };
+
+        if (!hasHandler)
+        {
+            var handlerRegistrationMethod = messageType switch
+            {
+                "chat" => "OnUserChatMessage()",
+                "data" => "OnUserDataMessage()",
+                "webhook" => "OnWebhook()",
+                _ => "the appropriate handler method"
+            };
+
             logger.LogWarning(
                 "No {MessageType} handler registered for WorkflowType={WorkflowType}, RequestId={RequestId}",
                 messageType,
@@ -100,8 +120,8 @@ internal static class MessageProcessor
 
             await MessageResponseHelper.SendSimpleMessageAsync(
                 message.Payload.ParticipantId,
-                $"No {messageType} message handler registered for workflow type '{workflowType}'. " +
-                $"Use OnUser{char.ToUpper(messageType[0]) + messageType.Substring(1)}Message() to register a handler.",
+                $"No {messageType} handler registered for workflow type '{workflowType}'. " +
+                $"Use {handlerRegistrationMethod} to register a handler.",
                 message.Payload.RequestId,
                 message.Payload.Scope,
                 message.Payload.ThreadId,
@@ -149,7 +169,8 @@ internal static class MessageProcessor
 
         // All validations passed - process message and send responses via activity
         logger.LogInformation(
-            "Processing message via activity: WorkflowType={WorkflowType}, Agent={Agent}, Tenant={Tenant}, SystemScoped={SystemScoped}",
+            "Processing {MessageType} via activity: WorkflowType={WorkflowType}, Agent={Agent}, Tenant={Tenant}, SystemScoped={SystemScoped}",
+            messageType,
             workflowType,
             metadata.AgentName,
             workflowTenantId,
@@ -177,7 +198,8 @@ internal static class MessageProcessor
             MessageActivityOptions.GetStandardOptions());
 
         logger.LogInformation(
-            "Message processed and responses sent: RequestId={RequestId}",
+            "{MessageType} processed and responses sent: RequestId={RequestId}",
+            messageType,
             message.Payload.RequestId);
     }
 

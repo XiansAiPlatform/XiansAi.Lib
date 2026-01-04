@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Xians.Agent.Sample", "Xians
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimpleAgent", "Xians.Examples\SimpleAgent\SimpleAgent.csproj", "{C8A3B7D9-4E6F-4A2C-9B1D-7F8E3C2A5D6B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebhookTest", "Xians.Examples\WebhookTest\WebhookTest.csproj", "{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,18 @@ Global
 		{C8A3B7D9-4E6F-4A2C-9B1D-7F8E3C2A5D6B}.Release|x64.Build.0 = Release|Any CPU
 		{C8A3B7D9-4E6F-4A2C-9B1D-7F8E3C2A5D6B}.Release|x86.ActiveCfg = Release|Any CPU
 		{C8A3B7D9-4E6F-4A2C-9B1D-7F8E3C2A5D6B}.Release|x86.Build.0 = Release|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Debug|x64.Build.0 = Debug|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Debug|x86.Build.0 = Debug|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Release|x64.ActiveCfg = Release|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Release|x64.Build.0 = Release|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Release|x86.ActiveCfg = Release|Any CPU
+		{E9F2A1B3-5C6D-4E7F-8A9B-0C1D2E3F4A5B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

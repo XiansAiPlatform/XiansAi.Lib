@@ -198,6 +198,36 @@ public class XiansWorkflow
             tenantId ?? "(system)");
     }
 
+    /// <summary>
+    /// Registers a handler for webhook messages.
+    /// </summary>
+    /// <param name="handler">The async handler to process webhook messages.</param>
+    public void OnWebhook(Func<WebhookContext, Task> handler)
+    {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnWebhook is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
+        var tenantId = GetTenantIdOrNull();
+
+        BuiltinWorkflow.RegisterWebhookHandler(
+            workflowType: WorkflowType,
+            handler: handler,
+            agentName: _agent.Name,
+            tenantId: tenantId,
+            systemScoped: _agent.SystemScoped
+        );
+        
+        _logger.LogDebug(
+            "Webhook handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            WorkflowType,
+            _agent.Name,
+            _agent.SystemScoped,
+            tenantId ?? "(system)");
+    }
+
 
     /// <summary>
     /// Runs the workflow asynchronously.

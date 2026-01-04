@@ -5,6 +5,7 @@ using Xians.Lib.Common;
 using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Workflows.Messaging.Models;
 using Xians.Lib.Common.Infrastructure;
+using Xians.Lib.Common.Models;
 
 namespace Xians.Lib.Agents.Messaging;
 
@@ -127,15 +128,15 @@ internal class MessageService
         ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         ValidationHelper.ValidateRequired(request.Type, nameof(request.Type));
         
-        // Validate message type
-        var allowedTypes = new[] { "chat", "data" };
-        var type = request.Type.ToLower();
-        if (!allowedTypes.Contains(type))
+        // Validate message type using enum
+        if (!MessageTypeExtensions.IsValidMessageType(request.Type))
         {
-            var error = $"Invalid message type: {request.Type}. Allowed types: {string.Join(", ", allowedTypes)}";
+            var error = $"Invalid message type: {request.Type}. Allowed types: {string.Join(", ", MessageTypeExtensions.GetAllowedTypes())}";
             _logger.LogError(error);
             throw new ArgumentException(error, nameof(request.Type));
         }
+        
+        var type = request.Type.ToLower();
 
         // Retry logic with exponential backoff for rate limiting
         const int maxRetries = 3;

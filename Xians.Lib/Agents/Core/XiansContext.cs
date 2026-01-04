@@ -266,7 +266,7 @@ public static class XiansContext
         }
 
         // Use WorkflowIdentity to construct the built-in workflow type
-        // Format: "{AgentName}:BuiltIn Workflow - {name}"
+        // Format: "{AgentName}:BuiltIn Workflow-{name}"
         var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
 
         if (_workflows.TryGetValue(workflowType, out var workflow))
