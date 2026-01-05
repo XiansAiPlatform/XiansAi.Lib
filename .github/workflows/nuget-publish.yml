@@ -9,6 +9,7 @@ on:
 env:
   PACKAGE_NAME: XiansAi.Lib
   NUGET_SOURCE: https://api.nuget.org/v3/index.json
+  WORK_DIR: ./XiansAi.Lib
 
 jobs:
   build-and-publish:
@@ -43,15 +44,15 @@ jobs:
         
     - name: Restore dependencies
       run: dotnet restore
-      working-directory: ./XiansAi.Lib.Src
+      working-directory: ${{ env.WORK_DIR }}
       
     - name: Clean solution
       run: dotnet clean
-      working-directory: ./XiansAi.Lib.Src
+      working-directory: ${{ env.WORK_DIR }}
       
     - name: Build solution
       run: dotnet build -c Release --no-restore
-      working-directory: ./XiansAi.Lib.Src
+      working-directory: ${{ env.WORK_DIR }}
       
     - name: Run tests
       run: dotnet test -c Release --no-build --verbosity normal
@@ -61,7 +62,7 @@ jobs:
       run: |
         mkdir -p nupkg
         dotnet pack -c Release -o ./nupkg /p:Version=${{ steps.version.outputs.version }} --no-build
-      working-directory: ./XiansAi.Lib.Src
+      working-directory: ${{ env.WORK_DIR }}
       
     - name: Publish to NuGet
       run: |
@@ -69,7 +70,7 @@ jobs:
           -s ${{ env.NUGET_SOURCE }} \
           -k ${{ secrets.NUGET_API_KEY }} \
           --skip-duplicate
-      working-directory: ./XiansAi.Lib.Src
+      working-directory: ${{ env.WORK_DIR }}
       
     - name: Generate build summary
       run: |
