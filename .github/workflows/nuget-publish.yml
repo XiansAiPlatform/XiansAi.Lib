@@ -9,7 +9,7 @@ on:
 env:
   PACKAGE_NAME: XiansAi.Lib
   NUGET_SOURCE: https://api.nuget.org/v3/index.json
-  WORK_DIR: ./XiansAi.Lib
+  WORK_DIR: ./Xians.Lib
 
 jobs:
   build-and-publish:
