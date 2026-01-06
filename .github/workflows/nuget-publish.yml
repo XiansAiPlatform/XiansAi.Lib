@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 env:
-  PACKAGE_NAME: XiansAi.Lib
+  PACKAGE_NAME: Xians.Lib
   NUGET_SOURCE: https://api.nuget.org/v3/index.json
   WORK_DIR: ./Xians.Lib
 
@@ -56,7 +56,7 @@ jobs:
       
     - name: Run tests
       run: dotnet test -c Release --no-build --verbosity normal
-      working-directory: ./XiansAi.Lib.Tests
+      working-directory: ./Xians.Lib.Tests
       
     - name: Pack NuGet packages
       run: |
