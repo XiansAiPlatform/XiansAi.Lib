@@ -32,21 +32,23 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
         _agentName = $"DocumentTestAgent-{Guid.NewGuid().ToString()[..8]}";
     }
 
-    public void Dispose()
+    protected override void Dispose(bool disposing)
     {
-        // Cleanup created documents
-        if (_platform != null && _agent != null && RunRealServerTests)
+        if (disposing)
         {
-            try
+            // Cleanup created documents
+            if (_platform != null && _agent != null && RunRealServerTests)
             {
-                foreach (var id in _createdDocumentIds)
+                try
                 {
-                    try
+                    foreach (var id in _createdDocumentIds)
                     {
-                        _agent.Documents.DeleteAsync(id).GetAwaiter().GetResult();
-                    }
-                    catch
-                    {
+                        try
+                        {
+                            _agent.Documents.DeleteAsync(id).GetAwaiter().GetResult();
+                        }
+                        catch
+                        {
                         // Ignore cleanup errors
                     }
                 }
@@ -57,15 +59,10 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             }
         }
 
-        // Clear the context to allow other tests to register agents
-        try
-        {
-            XiansContext.Clear();
         }
-        catch
-        {
-            // Ignore cleanup errors
-        }
+        
+        // Call base to ensure static state cleanup
+        base.Dispose(disposing);
     }
 
     private async Task InitializePlatformAsync()

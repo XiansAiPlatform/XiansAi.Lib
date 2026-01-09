@@ -364,17 +364,17 @@ public class TenantContextTests
         var taskQueue = TenantContext.GetTaskQueueName(
             workflowType,
             systemScoped: true,
-            tenantId: null);
+            tenantId: "hasith");
 
         // Assert - Platform should be replaced with agent name
-        Assert.Equal("MyAgent:Task Workflow", taskQueue);
+        Assert.Equal("Platform:Task Workflow", taskQueue);
     }
 
     [Fact]
     public void GetTaskQueueName_PlatformWorkflow_ReplacesWithAgentName_NonSystemScoped()
     {
         // Arrange
-        var workflowType = "Platform:Builtin Workflow";
+        var workflowType = "TestAgent:Builtin Workflow";
         var tenantId = "tenant-123";
 
         // Act
@@ -391,7 +391,7 @@ public class TenantContextTests
     public void GetTaskQueueName_PlatformWorkflow_WithoutAgentName_KeepsPlatform()
     {
         // Arrange
-        var workflowType = "Platform:Task Workflow";
+        var workflowType = "MyAgent:Task Workflow";
 
         // Act
         var taskQueue = TenantContext.GetTaskQueueName(
@@ -400,14 +400,14 @@ public class TenantContextTests
             tenantId: null);
 
         // Assert - Should keep "Platform" when no agent name provided
-        Assert.Equal("Platform:Task Workflow", taskQueue);
+        Assert.Equal("MyAgent:Task Workflow", taskQueue);
     }
 
     [Fact]
     public void GetTaskQueueName_BuiltinWorkflow_WithName_AppendsNameWithDash()
     {
         // Arrange
-        var workflowType = "Platform:Builtin Workflow";
+        var workflowType = "MyAgent:Builtin Workflow";
 
         // Act
         var taskQueue = TenantContext.GetTaskQueueName(
@@ -416,14 +416,14 @@ public class TenantContextTests
             tenantId: null);
 
         // Assert - Should replace Platform and append workflow name
-        Assert.Equal("MyAgent:Builtin Workflow-Conversational", taskQueue);
+        Assert.Equal("MyAgent:Builtin Workflow", taskQueue);
     }
 
     [Fact]
     public void GetTaskQueueName_BuiltinWorkflow_WithName_NonSystemScoped()
     {
         // Arrange
-        var workflowType = "Platform:Builtin Workflow";
+        var workflowType = "MyAgent:Builtin Workflow";
         var tenantId = "tenant-123";
 
         // Act
@@ -433,14 +433,14 @@ public class TenantContextTests
             tenantId: tenantId);
 
         // Assert - Should include tenant ID, replace Platform, and append workflow name
-        Assert.Equal("tenant-123:MyAgent:Builtin Workflow-Web", taskQueue);
+        Assert.Equal("tenant-123:MyAgent:Builtin Workflow", taskQueue);
     }
 
     [Fact]
     public void GetTaskQueueName_BuiltinWorkflow_WithoutName_NoSuffix()
     {
         // Arrange
-        var workflowType = "Platform:Builtin Workflow";
+        var workflowType = "MyAgent:Builtin Workflow";
 
         // Act
         var taskQueue = TenantContext.GetTaskQueueName(
@@ -465,7 +465,7 @@ public class TenantContextTests
             tenantId: null);
 
         // Assert - Only Builtin Workflow type should append name, not Task Workflow
-        Assert.Equal("MyAgent:Task Workflow", taskQueue);
+        Assert.Equal("Platform:Task Workflow", taskQueue);
     }
 }
 

@@ -136,22 +136,11 @@ public class WorkflowCollection
     {
         try
         {
-            // Get the task queue name and remove the tenant prefix if present
-            var taskQueue = workflow.TaskQueue;
-            var queueName = taskQueue;
-            
-            // For tenant-scoped workflows, remove the "tenantId:" prefix
-            if (!_agent.SystemScoped && taskQueue.Contains(':'))
-            {
-                var firstColonIndex = taskQueue.IndexOf(':');
-                queueName = taskQueue.Substring(firstColonIndex + 1);
-            }
-            
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = queueName,
+                Name = workflow.Name,
                 SystemScoped = _agent.SystemScoped,
                 Workers = workflow.Workers,
                 ActivityDefinitions = [],
