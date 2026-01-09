@@ -14,6 +14,8 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// - Executing child workflows (wait for result) via XiansContext.Workflows.ExecuteAsync
 /// - Error handling and validation
 /// 
+/// dotnet test --filter "FullyQualifiedName~RealServerXiansContextWorkflowsTests"
+/// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>
 [Trait("Category", "RealServer")]
@@ -60,9 +62,11 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
         };
 
         _platform = await XiansPlatform.InitializeAsync(options);
+        // Register agent (system-scoped to avoid tenant isolation issues in tests)
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
-            Name = _agentName 
+            Name = _agentName,
+            SystemScoped = true
         });
 
         DefineTestWorkflows();
@@ -275,7 +279,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                PARENT_WORKFLOW_NAME);
+                PARENT_WORKFLOW_NAME,
+                systemScoped: true);
 
             // Send message to trigger parent workflow
             var message = TemporalTestUtils.CreateChatMessage(
@@ -314,7 +319,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                PARENT_WORKFLOW_NAME);
+                PARENT_WORKFLOW_NAME,
+                systemScoped: true);
 
             var message = TemporalTestUtils.CreateChatMessage(
                 _agentName,
@@ -355,7 +361,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                PARENT_WORKFLOW_NAME);
+                PARENT_WORKFLOW_NAME,
+                systemScoped: true);
 
             var message = TemporalTestUtils.CreateChatMessage(
                 _agentName,
@@ -451,7 +458,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                "GetClientTestWorkflow");
+                "GetClientTestWorkflow",
+                systemScoped: true);
 
             var message = TemporalTestUtils.CreateChatMessage(
                 _agentName,
@@ -546,7 +554,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             var targetHandle = await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                TARGET_WORKFLOW_NAME);
+                TARGET_WORKFLOW_NAME,
+                systemScoped: true);
 
             // Now get a handle using GetWorkflowHandleAsync
             // Note: We need to create a workflow class for this test
@@ -583,7 +592,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                TARGET_WORKFLOW_NAME);
+                TARGET_WORKFLOW_NAME,
+                systemScoped: true);
 
             // Send a signal using the handle
             var message = TemporalTestUtils.CreateChatMessage(
@@ -622,7 +632,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             await TemporalTestUtils.StartOrGetWorkflowAsync(
                 temporalClient,
                 _agentName,
-                TARGET_WORKFLOW_NAME);
+                TARGET_WORKFLOW_NAME,
+                systemScoped: true);
 
             // Note: We can't directly test GetWorkflowHandleUntypedAsync without a proper workflow class
             // This is marked as a placeholder for when workflow classes are properly set up

@@ -10,6 +10,9 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// <summary>
 /// Tests for Schedule functionality against a real server.
 /// These tests verify end-to-end scheduling operations with the Xians platform.
+/// 
+/// dotnet test --filter "FullyQualifiedName~RealServerScheduleTests"
+/// 
 /// </summary>
 [Trait("Category", "RealServer")]
 public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
@@ -49,7 +52,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         });
 
         // Define a workflow for scheduling
-        _workflow = _agent.Workflows.DefineBuiltIn(workers: 1, name: TEST_WORKFLOW_NAME);
+        _workflow = _agent.Workflows.DefineBuiltIn(name: TEST_WORKFLOW_NAME);
         
         // Upload workflow definitions
         await _agent.UploadWorkflowDefinitionsAsync();

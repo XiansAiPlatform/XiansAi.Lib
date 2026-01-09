@@ -14,6 +14,8 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// - Message sending (chat and data)
 /// - Message history retrieval
 /// 
+/// dotnet test --filter "FullyQualifiedName~RealServerMessagingTests"
+/// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>
 [Trait("Category", "RealServer")]

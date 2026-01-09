@@ -37,7 +37,7 @@ public static class TemporalTestUtils
     public static string GetTaskQueue(string agentName, string workflowName, bool systemScoped = false, string? tenantId = null)
     {
         var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, workflowName);
-        return TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId ?? DefaultTestTenantId, agentName);
+        return TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId ?? DefaultTestTenantId);
     }
 
     /// <summary>

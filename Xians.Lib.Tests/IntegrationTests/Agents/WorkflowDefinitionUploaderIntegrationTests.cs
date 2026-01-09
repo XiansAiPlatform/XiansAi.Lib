@@ -63,7 +63,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -87,7 +87,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -104,7 +104,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var uploadedDefinition = JsonSerializer.Deserialize<WorkflowDefinition>(capturedBody);
         Assert.NotNull(uploadedDefinition);
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
-        Assert.Equal($"{uniqueAgentName}:BuiltIn Workflow-Conversational", uploadedDefinition.WorkflowType);
+        Assert.Equal($"{uniqueAgentName}:Conversational", uploadedDefinition.WorkflowType);
         Assert.Equal("Conversational", uploadedDefinition.Name);
         Assert.False(uploadedDefinition.SystemScoped);
         Assert.Equal(1, uploadedDefinition.Workers);
@@ -122,7 +122,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 2, name: "SystemWorkflow");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -136,7 +136,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var uploadedDefinition = JsonSerializer.Deserialize<WorkflowDefinition>(postRequest.RequestMessage.Body!);
         Assert.NotNull(uploadedDefinition);
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
-        Assert.Equal($"{uniqueAgentName}:BuiltIn Workflow-SystemWorkflow", uploadedDefinition.WorkflowType);
+        Assert.Equal($"{uniqueAgentName}:SystemWorkflow", uploadedDefinition.WorkflowType);
         Assert.True(uploadedDefinition.SystemScoped);
         Assert.Equal(2, uploadedDefinition.Workers);
     }

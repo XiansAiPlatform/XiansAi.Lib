@@ -3,6 +3,7 @@ using Temporalio.Client;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows;
 using Xians.Lib.Temporal.Workflows.Tasks;
@@ -16,19 +17,57 @@ namespace Xians.Lib.Agents.Tasks;
 public static class TaskWorkflowService
 {
     private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskWorkflowServiceLogger>();
-    private const string TaskWorkflowType = "Platform:Task Workflow";
 
     // Dummy class for logger typing
     private class TaskWorkflowServiceLogger { }
+
+    #region Private Helper Methods
+
+    /// <summary>
+    /// Gets the agent-specific task workflow type name from the current workflow context.
+    /// </summary>
+    private static string GetTaskWorkflowType()
+    {
+        var agentName = XiansContext.CurrentAgent?.Name 
+            ?? throw new InvalidOperationException("Agent name not available in workflow context");
+        return WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(agentName);
+    }
+
+    /// <summary>
+    /// Ensures the request has a TaskId, generating one if needed.
+    /// </summary>
+    private static TaskWorkflowRequest EnsureTaskId(TaskWorkflowRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.TaskId))
+        {
+            return request;
+        }
+
+        return request with { TaskId = Guid.NewGuid().ToString() };
+    }
+
+    /// <summary>
+    /// Creates task workflow options from a request.
+    /// </summary>
+    private static TaskWorkflowOptions CreateWorkflowOptions(TaskWorkflowRequest request)
+    {
+        return new TaskWorkflowOptions(
+            taskId: request.TaskId!,
+            title: request.Title,
+            description: request.Description,
+            participantId: request.ParticipantId);
+    }
+
+    #endregion
+
+    #region Workflow-Context Methods (Within Workflow)
 
     /// <summary>
     /// Creates a task child workflow and waits for its completion.
     /// </summary>
     /// <param name="request">The task workflow request.</param>
-    /// <param name="participantId">User ID of the task participant (for search attributes).</param>
     /// <returns>The task workflow result.</returns>
-    public static async Task<TaskWorkflowResult> CreateAndWaitAsync(
-        TaskWorkflowRequest request)
+    public static async Task<TaskWorkflowResult> CreateAndWaitAsync(TaskWorkflowRequest request)
     {
         if (!Workflow.InWorkflow)
         {
@@ -36,30 +75,19 @@ public static class TaskWorkflowService
                 "CreateAndWaitAsync can only be called from within a workflow context.");
         }
 
-        // Generate TaskId if not provided
-        var taskId = string.IsNullOrWhiteSpace(request.TaskId) 
-            ? Guid.NewGuid().ToString() 
-            : request.TaskId;
-
-        // Update request with generated/provided TaskId
-        var requestWithTaskId = request with { TaskId = taskId };
+        var requestWithTaskId = EnsureTaskId(request);
+        var options = CreateWorkflowOptions(requestWithTaskId);
 
         _logger.LogInformation(
             "Creating task workflow: TaskId={TaskId}, Title={Title}, ParticipantId={ParticipantId}",
-            taskId,
-            request.Title,
-            request.ParticipantId);
-
-        var options = new TaskWorkflowOptions(
-            taskId: taskId,
-            title: request.Title,
-            description: request.Description,
-            participantId: request.ParticipantId);
+            requestWithTaskId.TaskId,
+            requestWithTaskId.Title,
+            requestWithTaskId.ParticipantId);
 
         var result = await Workflow.ExecuteChildWorkflowAsync<TaskWorkflowResult>(
-            TaskWorkflowType,
+            GetTaskWorkflowType(),
             new[] { requestWithTaskId },
-            options);   
+            options);
 
         _logger.LogInformation(
             "Task workflow completed: TaskId={TaskId}, Success={Success}",
@@ -75,8 +103,7 @@ public static class TaskWorkflowService
     /// </summary>
     /// <param name="request">The task workflow request.</param>
     /// <returns>A child workflow handle that can be used to get the result.</returns>
-    public static async Task<ChildWorkflowHandle<TaskWorkflow, TaskWorkflowResult>> StartTaskAsync(
-        TaskWorkflowRequest request)
+    public static async Task<ChildWorkflowHandle> StartTaskAsync(TaskWorkflowRequest request)
     {
         if (!Workflow.InWorkflow)
         {
@@ -84,33 +111,23 @@ public static class TaskWorkflowService
                 "StartTaskAsync can only be called from within a workflow context.");
         }
 
-        // Generate TaskId if not provided
-        var taskId = string.IsNullOrWhiteSpace(request.TaskId) 
-            ? Guid.NewGuid().ToString() 
-            : request.TaskId;
-
-        // Update request with generated/provided TaskId
-        var requestWithTaskId = request with { TaskId = taskId };
+        var requestWithTaskId = EnsureTaskId(request);
+        var options = CreateWorkflowOptions(requestWithTaskId);
 
         _logger.LogInformation(
             "Starting task workflow: TaskId={TaskId}, Title={Title}, ParticipantId={ParticipantId}",
-            taskId,
-            request.Title,
-            request.ParticipantId);
-
-        var options = new TaskWorkflowOptions(
-            taskId: taskId,
-            title: request.Title,
-            description: request.Description,
-            participantId: request.ParticipantId);
+            requestWithTaskId.TaskId,
+            requestWithTaskId.Title,
+            requestWithTaskId.ParticipantId);
 
         var handle = await Workflow.StartChildWorkflowAsync(
-            (TaskWorkflow wf) => wf.RunAsync(requestWithTaskId),
+            GetTaskWorkflowType(),
+            new[] { requestWithTaskId },
             options);
 
         _logger.LogInformation(
             "Task workflow started: TaskId={TaskId}",
-            taskId);
+            requestWithTaskId.TaskId);
 
         return handle;
     }
@@ -121,7 +138,7 @@ public static class TaskWorkflowService
     /// <param name="handle">The child workflow handle returned from StartTaskAsync.</param>
     /// <returns>The task workflow result.</returns>
     public static async Task<TaskWorkflowResult> GetResultAsync(
-        ChildWorkflowHandle<TaskWorkflow, TaskWorkflowResult> handle)
+        ChildWorkflowHandle handle)
     {
         if (!Workflow.InWorkflow)
         {
@@ -129,7 +146,7 @@ public static class TaskWorkflowService
                 "GetResultAsync can only be called from within a workflow context.");
         }
 
-        var result = await handle.GetResultAsync();
+        var result = await handle.GetResultAsync<TaskWorkflowResult>();
 
         _logger.LogInformation(
             "Task workflow completed: TaskId={TaskId}, Success={Success}",
@@ -143,10 +160,8 @@ public static class TaskWorkflowService
     /// Creates a task child workflow without waiting for completion (fire and forget).
     /// </summary>
     /// <param name="request">The task workflow request.</param>
-    /// <param name="participantId">User ID of the task participant (for search attributes).</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async Task CreateAsync(
-        TaskWorkflowRequest request)
+    public static async Task CreateAsync(TaskWorkflowRequest request)
     {
         if (!Workflow.InWorkflow)
         {
@@ -154,34 +169,23 @@ public static class TaskWorkflowService
                 "CreateAsync can only be called from within a workflow context.");
         }
 
-        // Generate TaskId if not provided
-        var taskId = string.IsNullOrWhiteSpace(request.TaskId) 
-            ? Guid.NewGuid().ToString() 
-            : request.TaskId;
-
-        // Update request with generated/provided TaskId
-        var requestWithTaskId = request with { TaskId = taskId };
+        var requestWithTaskId = EnsureTaskId(request);
+        var options = CreateWorkflowOptions(requestWithTaskId);
 
         _logger.LogInformation(
             "Starting task workflow (fire and forget): TaskId={TaskId}, Title={Title}, ParticipantId={ParticipantId}",
-            taskId,
-            request.Title,
-            request.ParticipantId);
-
-        var options = new TaskWorkflowOptions(
-            taskId: taskId,
-            title: request.Title,
-            description: request.Description,
-            participantId: request.ParticipantId);
+            requestWithTaskId.TaskId,
+            requestWithTaskId.Title,
+            requestWithTaskId.ParticipantId);
 
         await Workflow.StartChildWorkflowAsync(
-            TaskWorkflowType,
+            GetTaskWorkflowType(),
             new[] { requestWithTaskId },
             options);
 
         _logger.LogInformation(
             "Task workflow started: TaskId={TaskId}",
-            taskId);
+            requestWithTaskId.TaskId);
     }
 
     /// <summary>
@@ -191,7 +195,6 @@ public static class TaskWorkflowService
     /// <param name="title">Task title.</param>
     /// <param name="description">Task description.</param>
     /// <param name="participantId">User ID of the task participant.</param>
-    /// <param name="assignedTo">User ID to assign the task to.</param>
     /// <param name="draftWork">Initial draft work content.</param>
     /// <param name="metadata">Additional metadata for the task.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
@@ -222,8 +225,7 @@ public static class TaskWorkflowService
     /// <param name="taskId">Unique identifier for the task. If null, a GUID will be auto-generated.</param>
     /// <param name="title">Task title.</param>
     /// <param name="description">Task description.</param>
-    /// <param name="reportingTo">User ID that the task reports to.</param>
-    /// <param name="assignedTo">User ID to assign the task to.</param>
+    /// <param name="participantId">User ID of the task participant.</param>
     /// <param name="draftWork">Initial draft work content.</param>
     /// <param name="metadata">Additional metadata for the task.</param>
     /// <returns>The task workflow result.</returns>
@@ -248,6 +250,10 @@ public static class TaskWorkflowService
         return await CreateAndWaitAsync(request);
     }
 
+    #endregion
+
+    #region Dual-Context Signal Methods
+
     /// <summary>
     /// Gets the workflow handle for an existing task workflow.
     /// Can be used to send signals to the task.
@@ -264,7 +270,7 @@ public static class TaskWorkflowService
 
         // Build the workflow ID following the same pattern as TaskWorkflowOptions
         var tenantId = XiansContext.TenantId;
-        var workflowId = $"{tenantId}:{TaskWorkflowType}:{taskId}";
+        var workflowId = $"{tenantId}:{GetTaskWorkflowType()}:{taskId}";
 
         return Workflow.GetExternalWorkflowHandle(workflowId);
     }
@@ -297,7 +303,7 @@ public static class TaskWorkflowService
             
             var agent = GetAgentFromTaskId();
             var client = await agent.TemporalService!.GetClientAsync();
-            await SignalUpdateDraftAsync(client, tenantId, taskId, updatedDraft);
+            await SignalUpdateDraftAsync(client, agent.Name, tenantId, taskId, updatedDraft);
         }
     }
 
@@ -328,7 +334,7 @@ public static class TaskWorkflowService
             
             var agent = GetAgentFromTaskId();
             var client = await agent.TemporalService!.GetClientAsync();
-            await SignalCompleteTaskAsync(client, tenantId, taskId);
+            await SignalCompleteTaskAsync(client, agent.Name, tenantId, taskId);
         }
     }
 
@@ -360,7 +366,7 @@ public static class TaskWorkflowService
             
             var agent = GetAgentFromTaskId();
             var client = await agent.TemporalService!.GetClientAsync();
-            await SignalRejectTaskAsync(client, tenantId, taskId, rejectionMessage);
+            await SignalRejectTaskAsync(client, agent.Name, tenantId, taskId, rejectionMessage);
         }
     }
 
@@ -386,23 +392,28 @@ public static class TaskWorkflowService
         return agent;
     }
 
-    // Client-side operations (for use outside of workflows)
+    #endregion
+
+    #region Client-Side Operations (Outside Workflow Context)
 
     /// <summary>
     /// Gets a typed workflow handle for querying a task from outside a workflow context.
     /// Use this when you need to query task status from a UI, API, or activity.
     /// </summary>
     /// <param name="client">The Temporal client.</param>
+    /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID.</param>
     /// <param name="taskId">The task ID.</param>
     /// <returns>A typed workflow handle for the task.</returns>
-    public static WorkflowHandle<TaskWorkflow> GetTaskHandleForClient(
+    public static WorkflowHandle GetTaskHandleForClient(
         ITemporalClient client,
+        string agentName,
         string tenantId,
         string taskId)
     {
-        var workflowId = TenantContext.BuildWorkflowId(TaskWorkflowType, tenantId, taskId);
-        return client.GetWorkflowHandle<TaskWorkflow>(workflowId);
+        var taskWorkflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(agentName);
+        var workflowId = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, taskId);
+        return client.GetWorkflowHandle(workflowId);
     }
 
     /// <summary>
@@ -410,77 +421,83 @@ public static class TaskWorkflowService
     /// Use this from UIs, APIs, or activities to get task information.
     /// </summary>
     /// <param name="client">The Temporal client.</param>
+    /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID.</param>
     /// <param name="taskId">The task ID.</param>
     /// <returns>The current task information.</returns>
     public static async Task<TaskInfo> QueryTaskInfoAsync(
         ITemporalClient client,
+        string agentName,
         string tenantId,
         string taskId)
     {
-        var handle = GetTaskHandleForClient(client, tenantId, taskId);
-        return await handle.QueryAsync(wf => wf.GetTaskInfo());
+        var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
+        return await handle.QueryAsync<TaskInfo>("GetTaskInfo", Array.Empty<object>());
     }
 
     /// <summary>
     /// Sends a signal to update the draft work from outside a workflow context.
-    /// Uses typed lambda expression for type-safe signaling.
     /// </summary>
     /// <param name="client">The Temporal client.</param>
+    /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID.</param>
     /// <param name="taskId">The task ID.</param>
     /// <param name="updatedDraft">The updated draft content.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async Task SignalUpdateDraftAsync(
         ITemporalClient client,
+        string agentName,
         string tenantId,
         string taskId,
         string updatedDraft)
     {
-        var handle = GetTaskHandleForClient(client, tenantId, taskId);
-        await handle.SignalAsync(wf => wf.UpdateDraft(updatedDraft));
+        var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
+        await handle.SignalAsync("UpdateDraft", new object[] { updatedDraft });
         
         _logger.LogInformation("Draft updated for task via client: TaskId={TaskId}", taskId);
     }
 
     /// <summary>
     /// Sends a signal to complete the task from outside a workflow context.
-    /// Uses typed lambda expression for type-safe signaling.
     /// </summary>
     /// <param name="client">The Temporal client.</param>
+    /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID.</param>
     /// <param name="taskId">The task ID.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async Task SignalCompleteTaskAsync(
         ITemporalClient client,
+        string agentName,
         string tenantId,
         string taskId)
     {
-        var handle = GetTaskHandleForClient(client, tenantId, taskId);
-        await handle.SignalAsync(wf => wf.CompleteTask());
+        var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
+        await handle.SignalAsync("CompleteTask", Array.Empty<object>());
         
         _logger.LogInformation("Task marked as complete via client: TaskId={TaskId}", taskId);
     }
 
     /// <summary>
     /// Sends a signal to reject the task from outside a workflow context.
-    /// Uses typed lambda expression for type-safe signaling.
     /// </summary>
     /// <param name="client">The Temporal client.</param>
+    /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID.</param>
     /// <param name="taskId">The task ID.</param>
     /// <param name="rejectionMessage">The reason for rejection.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async Task SignalRejectTaskAsync(
         ITemporalClient client,
+        string agentName,
         string tenantId,
         string taskId,
         string rejectionMessage)
     {
-        var handle = GetTaskHandleForClient(client, tenantId, taskId);
-        await handle.SignalAsync(wf => wf.RejectTask(rejectionMessage));
+        var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
+        await handle.SignalAsync("RejectTask", new object[] { rejectionMessage });
         
         _logger.LogWarning("Task rejected via client: TaskId={TaskId}, Reason={Reason}", taskId, rejectionMessage);
     }
-}
 
+    #endregion
+}

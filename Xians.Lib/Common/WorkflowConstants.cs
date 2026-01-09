@@ -21,9 +21,27 @@ public static class WorkflowConstants
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";
 
-        // Builtin workflow specific keys
-        public const string BuiltinWorkflowType = "Platform:Builtin Workflow";
-        public const string TaskWorkflowType = "Platform:Task Workflow";
+    }
+
+    /// <summary>
+    /// Helper methods for generating workflow type names
+    /// </summary>
+    public static class WorkflowTypes
+    {
+        /// <summary>
+        /// Generates the task workflow type name for a specific agent.
+        /// Format: {AgentName}:Task Workflow
+        /// </summary>
+        /// <param name="agentName">The agent name</param>
+        /// <returns>The task workflow type name</returns>
+        public static string GetTaskWorkflowType(string agentName)
+        {
+            if (string.IsNullOrWhiteSpace(agentName))
+            {
+                throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
+            }
+            return $"{agentName}:Task Workflow";
+        }
     }
 
     /// <summary>

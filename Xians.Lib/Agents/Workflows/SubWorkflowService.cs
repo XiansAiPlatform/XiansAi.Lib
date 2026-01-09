@@ -148,7 +148,7 @@ public static class SubWorkflowService
 
         // Build workflow ID manually (can't use TenantContext.BuildWorkflowId because it requires CurrentAgent)
         var workflowId = BuildWorkflowIdManually(agentName, workflowType, tenantId, idPostfix);
-        var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId, agentName);
+        var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
         {
@@ -175,7 +175,7 @@ public static class SubWorkflowService
 
         // Build workflow ID manually (can't use TenantContext.BuildWorkflowId because it requires CurrentAgent)
         var workflowId = BuildWorkflowIdManually(agentName, workflowType, tenantId, idPostfix);
-        var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId, agentName);
+        var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
         {

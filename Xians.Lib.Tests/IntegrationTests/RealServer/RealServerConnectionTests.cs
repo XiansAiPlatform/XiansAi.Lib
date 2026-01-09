@@ -7,6 +7,9 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// <summary>
 /// Tests for basic server connectivity, HTTP client, and settings retrieval.
 /// These tests verify that the server is reachable and responding correctly.
+/// 
+/// dotnet test --filter "FullyQualifiedName~RealServerConnectionTests"
+/// 
 /// </summary>
 [Trait("Category", "RealServer")]
 public class RealServerConnectionTests : RealServerTestBase

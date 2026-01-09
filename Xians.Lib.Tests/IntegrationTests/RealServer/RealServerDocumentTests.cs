@@ -13,7 +13,7 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// - Key-based retrieval
 /// - Bulk operations
 /// 
-/// dotnet test --filter "FullyQualifiedName~Document_WorksFromWithinWorkflow_ContextAwareExecution" 
+/// dotnet test --filter "FullyQualifiedName~RealServerDocumentTests"
 /// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>
@@ -1251,8 +1251,7 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
             var taskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                 workflowType,
                 systemScoped: false,
-                _platform!.Options.CertificateTenantId,
-                AGENT_NAME);
+                _platform!.Options.CertificateTenantId);
             
             Console.WriteLine($"Starting Temporal workflow:");
             Console.WriteLine($"  Workflow ID: {workflowId}");

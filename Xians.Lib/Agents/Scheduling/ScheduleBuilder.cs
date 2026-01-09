@@ -247,7 +247,7 @@ public class ScheduleBuilder
             // System-scoped: uses tenant from workflow context (must be in workflow/activity)
             // Tenant-scoped: uses agent's registered tenant
             var tenantId = GetEffectiveTenantId();
-            var taskQueue = TenantContext.GetTaskQueueName(_workflowType, _agent.SystemScoped, tenantId, _agent.Name);
+            var taskQueue = TenantContext.GetTaskQueueName(_workflowType, _agent.SystemScoped, tenantId);
 
             // Generate workflow ID prefix for scheduled executions - always includes tenant
             // Temporal will automatically append a unique suffix for each scheduled execution

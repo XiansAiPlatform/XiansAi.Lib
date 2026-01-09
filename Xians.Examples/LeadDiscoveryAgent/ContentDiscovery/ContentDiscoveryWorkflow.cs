@@ -34,7 +34,8 @@ public class ContentDiscoveryWorkflow
         await EnsureScheduleExists();
 
         // Fetch content URLs from the content site
-        var contentURLs = await FetchContentUrlsAsync(_contentSiteURL);
+        //var contentURLs = await FetchContentUrlsAsync(_contentSiteURL);
+        var contentURLs = TestData.ContentURLs.Split(',').ToList();
 
         var newContentURLs = new List<string>();
 

@@ -15,6 +15,8 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// 
 /// Tests run actual Temporal workers and workflows to provide proper Temporal context.
 /// 
+/// dotnet test --filter "FullyQualifiedName~RealServerA2ATests"
+/// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>
 [Trait("Category", "RealServer")]
@@ -69,11 +71,11 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
-        // Register agent
+        // Register agent (system-scoped to avoid tenant isolation issues in tests)
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = false
+            SystemScoped = true
         });
 
         // Define CHAT TARGET workflow - responds to chat messages
@@ -342,7 +344,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
         var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
-            temporalClient, _agentName, SENDER_WORKFLOW);
+            temporalClient, _agentName, SENDER_WORKFLOW, systemScoped: true);
 
         Console.WriteLine($"✓ Sender workflow: {handle.Id}");
 
@@ -396,7 +398,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
         var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
-            temporalClient, _agentName, SENDER_WORKFLOW);
+            temporalClient, _agentName, SENDER_WORKFLOW, systemScoped: true);
 
         Console.WriteLine($"✓ Sender workflow: {handle.Id}");
 
@@ -468,9 +470,8 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 Id = targetWorkflowId,
                 TaskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                     targetWorkflowType,
-                    systemScoped: false,
-                    _agent!.Options!.CertificateTenantId,
-                    _agentName),
+                    systemScoped: true,
+                    _agent!.Options!.CertificateTenantId),
                 ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
             });
         
@@ -494,9 +495,8 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 Id = senderWorkflowId,
                 TaskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                     senderWorkflowType,
-                    systemScoped: false,
-                    _agent!.Options!.CertificateTenantId,
-                    _agentName),
+                    systemScoped: true,
+                    _agent!.Options!.CertificateTenantId),
                 ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
             });
         
@@ -556,9 +556,8 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 Id = targetWorkflowId,
                 TaskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                     targetWorkflowType,
-                    systemScoped: false,
-                    _agent!.Options!.CertificateTenantId,
-                    _agentName),
+                    systemScoped: true,
+                    _agent!.Options!.CertificateTenantId),
                 ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
             });
         
@@ -570,7 +569,7 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
 
         // Get or start the built-in workflow that will send A2A to custom
         var builtInHandle = await TemporalTestUtils.StartOrGetWorkflowAsync(
-            temporalClient, _agentName, BUILTIN_TO_CUSTOM_WORKFLOW);
+            temporalClient, _agentName, BUILTIN_TO_CUSTOM_WORKFLOW, systemScoped: true);
 
         Console.WriteLine($"✓ Built-in workflow: {builtInHandle.Id}");
 

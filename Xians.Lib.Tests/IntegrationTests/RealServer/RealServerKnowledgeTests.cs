@@ -741,8 +741,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
             var taskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                 workflowType,
                 systemScoped: false,
-                _platform!.Options.CertificateTenantId,
-                AGENT_NAME);
+                _platform!.Options.CertificateTenantId);
             
             Console.WriteLine($"Starting Temporal workflow:");
             Console.WriteLine($"  Workflow ID: {workflowId}");

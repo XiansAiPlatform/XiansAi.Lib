@@ -69,6 +69,9 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             SystemScoped = true
         });
 
+        // Enable task workflow support
+        _platformAgent.Workflows.WithTasks();
+
         // Upload workflow definitions (Platform agent has the Task Workflow)
         await _platformAgent.UploadWorkflowDefinitionsAsync();
 

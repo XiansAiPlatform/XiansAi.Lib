@@ -206,6 +206,132 @@ internal static class DynamicWorkflowTypeBuilder
     }
 
     /// <summary>
+    /// Creates or retrieves a cached dynamic type that extends TaskWorkflow with a runtime-specified [Workflow] attribute.
+    /// </summary>
+    /// <param name="workflowTypeName">The workflow type name in the format "AgentName:Task Workflow"</param>
+    /// <returns>A dynamically created type that extends TaskWorkflow</returns>
+    /// <exception cref="InvalidOperationException">Thrown when type creation fails</exception>
+    public static Type GetOrCreateTaskWorkflowType(string workflowTypeName)
+    {
+        lock (_cacheLock)
+        {
+            if (_typeCache.TryGetValue(workflowTypeName, out var cachedType))
+            {
+                return cachedType;
+            }
+
+            var createdType = CreateTaskWorkflowType(workflowTypeName);
+            _typeCache[workflowTypeName] = createdType;
+            return createdType;
+        }
+    }
+
+    /// <summary>
+    /// Creates a new dynamic type that extends TaskWorkflow.
+    /// </summary>
+    private static Type CreateTaskWorkflowType(string workflowTypeName)
+    {
+        var assemblyBuilder = CreateAssembly();
+        var moduleBuilder = assemblyBuilder.DefineDynamicModule("DynamicTaskWorkflowModule");
+        var typeBuilder = DefineTaskWorkflowType(moduleBuilder, workflowTypeName);
+
+        ApplyWorkflowAttribute(typeBuilder, workflowTypeName);
+        DefineTaskWorkflowConstructor(typeBuilder);
+        DefineTaskWorkflowRunAsyncMethod(typeBuilder);
+
+        var createdType = typeBuilder.CreateType();
+        if (createdType == null)
+        {
+            throw new InvalidOperationException($"Failed to create dynamic task workflow type for '{workflowTypeName}'");
+        }
+
+        return createdType;
+    }
+
+    /// <summary>
+    /// Defines the type that extends TaskWorkflow.
+    /// </summary>
+    private static TypeBuilder DefineTaskWorkflowType(ModuleBuilder moduleBuilder, string workflowTypeName)
+    {
+        var sanitizedName = SanitizeTypeName(workflowTypeName);
+        var typeName = $"DynamicTaskWorkflow_{sanitizedName}_{Guid.NewGuid():N}";
+
+        return moduleBuilder.DefineType(
+            typeName,
+            TypeAttributes.Public | TypeAttributes.Class,
+            typeof(Temporal.Workflows.TaskWorkflow));
+    }
+
+    /// <summary>
+    /// Defines a parameterless constructor that calls the base constructor for TaskWorkflow.
+    /// </summary>
+    private static void DefineTaskWorkflowConstructor(TypeBuilder typeBuilder)
+    {
+        var constructorBuilder = typeBuilder.DefineConstructor(
+            MethodAttributes.Public,
+            CallingConventions.Standard,
+            Type.EmptyTypes);
+
+        var baseConstructor = typeof(Temporal.Workflows.TaskWorkflow).GetConstructor(Type.EmptyTypes);
+        if (baseConstructor == null)
+        {
+            throw new InvalidOperationException("TaskWorkflow parameterless constructor not found");
+        }
+
+        var il = constructorBuilder.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);                  // Load 'this'
+        il.Emit(OpCodes.Call, baseConstructor);    // Call base constructor
+        il.Emit(OpCodes.Ret);                      // Return
+    }
+
+    /// <summary>
+    /// Defines the RunAsync method override with [WorkflowRun] attribute for TaskWorkflow.
+    /// </summary>
+    private static void DefineTaskWorkflowRunAsyncMethod(TypeBuilder typeBuilder)
+    {
+        var requestType = typeof(Temporal.Workflows.TaskWorkflow).Assembly
+            .GetType("Xians.Lib.Agents.Tasks.Models.TaskWorkflowRequest");
+        var resultType = typeof(Temporal.Workflows.TaskWorkflow).Assembly
+            .GetType("Xians.Lib.Agents.Tasks.Models.TaskWorkflowResult");
+
+        if (requestType == null || resultType == null)
+        {
+            throw new InvalidOperationException("TaskWorkflowRequest or TaskWorkflowResult type not found");
+        }
+
+        var baseRunAsyncMethod = typeof(Temporal.Workflows.TaskWorkflow).GetMethod(
+            "RunAsync",
+            BindingFlags.Public | BindingFlags.Instance,
+            null,
+            new[] { requestType },
+            null);
+
+        if (baseRunAsyncMethod == null)
+        {
+            throw new InvalidOperationException("RunAsync method not found on TaskWorkflow");
+        }
+
+        var methodBuilder = typeBuilder.DefineMethod(
+            "RunAsync",
+            MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.HideBySig | MethodAttributes.ReuseSlot,
+            typeof(Task<>).MakeGenericType(resultType),
+            new[] { requestType });
+
+        // Define parameter
+        methodBuilder.DefineParameter(1, ParameterAttributes.None, "request");
+
+        // Apply [WorkflowRun] attribute to the method
+        ApplyWorkflowRunAttribute(methodBuilder);
+
+        // Emit IL code to call base.RunAsync(request)
+        var il = methodBuilder.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);                      // Load 'this'
+        il.Emit(OpCodes.Ldarg_1);                      // Load 'request' parameter
+        il.Emit(OpCodes.Call, baseRunAsyncMethod);     // Call base.RunAsync(request)
+        il.Emit(OpCodes.Ret);                          // Return the Task<TaskWorkflowResult>
+    }
+
+    /// <summary>
     /// Clears the type cache. Intended for testing purposes only.
     /// </summary>
     internal static void ClearCacheForTests()

@@ -6,7 +6,6 @@ using Xians.Lib.Agents.Tasks.Models;
 
 namespace Xians.Lib.Temporal.Workflows;
 
-[Workflow(WorkflowConstants.Keys.TaskWorkflowType)]
 public class TaskWorkflow
 {
     private readonly ILogger<TaskWorkflow> _logger;
@@ -22,7 +21,7 @@ public class TaskWorkflow
     }
 
     [WorkflowRun]
-    public async Task<TaskWorkflowResult> RunAsync(TaskWorkflowRequest request)
+    public virtual async Task<TaskWorkflowResult> RunAsync(TaskWorkflowRequest request)
     {
         _request = request;
         

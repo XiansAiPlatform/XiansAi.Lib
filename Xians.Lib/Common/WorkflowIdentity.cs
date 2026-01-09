@@ -15,38 +15,34 @@ public static class WorkflowIdentity
     /// Constructs a builtin workflow type identifier.
     /// </summary>
     /// <param name="agentName">The name of the agent owning the workflow.</param>
-    /// <param name="name">Optional name for the builtin workflow.</param>
-    /// <returns>A workflow type in the format "{AgentName}:BuiltIn Workflow" or "{AgentName}:BuiltIn Workflow-{name}"</returns>
-    public static string BuildBuiltInWorkflowType(string agentName, string? name = null)
+    /// <param name="name">The name for the builtin workflow.</param>
+    /// <returns>A workflow type in the format "{AgentName}:{name}"</returns>
+    public static string BuildBuiltInWorkflowType(string agentName, string name)
     {
         if (string.IsNullOrWhiteSpace(agentName))
         {
             throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
         }
 
-        return agentName + ":BuiltIn Workflow" + (name != null ? $"-{name}" : "");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Name cannot be null or empty.", nameof(name));
+        }
+
+        return agentName + ":" + name;
     }
 
     /// <summary>
     /// Constructs a builtin workflow ID.
     /// </summary>
     /// <param name="agentName">The name of the agent owning the workflow.</param>
-    /// <param name="name">Optional name for the builtin workflow.</param>
-    /// <returns>A workflow ID in the format "{AgentName}:BuiltIn Workflow" or "{AgentName}:BuiltIn Workflow-{name}"</returns>
-    public static string BuildBuiltInWorkflowId(string agentName, string? name = null)
+    /// <param name="name">The name for the builtin workflow.</param>
+    /// <returns>A workflow ID in the format "{AgentName}:{name}"</returns>
+    public static string BuildBuiltInWorkflowId(string agentName, string name)
     {
         return XiansContext.TenantId + ":" + BuildBuiltInWorkflowType(agentName, name);
     }
 
-    /// <summary>
-    /// Checks if a workflow type is a builtin workflow.
-    /// </summary>
-    /// <param name="workflowType">The workflow type to check.</param>
-    /// <returns>True if the workflow type contains "BuiltIn Workflow", false otherwise.</returns>
-    public static bool IsBuiltInWorkflow(string workflowType)
-    {
-        return workflowType?.Contains("BuiltIn Workflow") ?? false;
-    }
 
     /// <summary>
     /// Gets the workflow type string from a workflow class Type.

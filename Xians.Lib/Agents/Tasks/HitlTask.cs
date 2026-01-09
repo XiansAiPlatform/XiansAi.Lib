@@ -16,6 +16,7 @@ public class HitlTask
     
     private readonly string _taskId;
     private readonly string _tenantId;
+    private readonly string _agentName;
     private readonly ITemporalClient _client;
 
     /// <summary>
@@ -29,15 +30,22 @@ public class HitlTask
     public string TenantId => _tenantId;
 
     /// <summary>
+    /// Gets the agent name.
+    /// </summary>
+    public string AgentName => _agentName;
+
+    /// <summary>
     /// Initializes a new instance of the HitlTask class.
     /// </summary>
     /// <param name="taskId">The task ID.</param>
     /// <param name="tenantId">The tenant ID.</param>
+    /// <param name="agentName">The agent name.</param>
     /// <param name="client">The Temporal client instance.</param>
-    public HitlTask(string taskId, string tenantId, ITemporalClient client)
+    public HitlTask(string taskId, string tenantId, string agentName, ITemporalClient client)
     {
         _taskId = taskId ?? throw new ArgumentNullException(nameof(taskId));
         _tenantId = tenantId ?? throw new ArgumentNullException(nameof(tenantId));
+        _agentName = agentName ?? throw new ArgumentNullException(nameof(agentName));
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
@@ -101,7 +109,7 @@ public class HitlTask
 
         // Get the Temporal client and create HitlTask instance
         var client = await agent.TemporalService.GetClientAsync();
-        return new HitlTask(taskId, tenantId, client);
+        return new HitlTask(taskId, tenantId, agentName, client);
     }
 
     /// <summary>
@@ -111,7 +119,7 @@ public class HitlTask
     public async Task<TaskInfo> GetInfoAsync()
     {
         _logger.LogDebug("Getting info for task: TaskId={TaskId}", _taskId);
-        return await TaskWorkflowService.QueryTaskInfoAsync(_client, _tenantId, _taskId);
+        return await TaskWorkflowService.QueryTaskInfoAsync(_client, _agentName, _tenantId, _taskId);
     }
 
     /// <summary>
@@ -121,7 +129,7 @@ public class HitlTask
     public async Task UpdateDraftAsync(string updatedDraft)
     {
         _logger.LogInformation("Updating draft for task: TaskId={TaskId}", _taskId);
-        await TaskWorkflowService.SignalUpdateDraftAsync(_client, _tenantId, _taskId, updatedDraft);
+        await TaskWorkflowService.SignalUpdateDraftAsync(_client, _agentName, _tenantId, _taskId, updatedDraft);
     }
 
     /// <summary>
@@ -130,7 +138,7 @@ public class HitlTask
     public async Task ApproveAsync()
     {
         _logger.LogInformation("Approving task: TaskId={TaskId}", _taskId);
-        await TaskWorkflowService.SignalCompleteTaskAsync(_client, _tenantId, _taskId);
+        await TaskWorkflowService.SignalCompleteTaskAsync(_client, _agentName, _tenantId, _taskId);
     }
 
     /// <summary>
@@ -148,7 +156,7 @@ public class HitlTask
     public async Task RejectAsync(string rejectionMessage)
     {
         _logger.LogInformation("Rejecting task: TaskId={TaskId}, Reason={Reason}", _taskId, rejectionMessage);
-        await TaskWorkflowService.SignalRejectTaskAsync(_client, _tenantId, _taskId, rejectionMessage);
+        await TaskWorkflowService.SignalRejectTaskAsync(_client, _agentName, _tenantId, _taskId, rejectionMessage);
     }
 
     /// <summary>
@@ -245,9 +253,9 @@ public class HitlTask
     /// Gets the typed workflow handle for advanced operations.
     /// </summary>
     /// <returns>A typed workflow handle for the task.</returns>
-    public WorkflowHandle<TaskWorkflow> GetWorkflowHandle()
+    public WorkflowHandle GetWorkflowHandle()
     {
-        return TaskWorkflowService.GetTaskHandleForClient(_client, _tenantId, _taskId);
+        return TaskWorkflowService.GetTaskHandleForClient(_client, _agentName, _tenantId, _taskId);
     }
 
     /// <summary>
@@ -276,7 +284,7 @@ public class HitlTask
     /// </summary>
     public override string ToString()
     {
-        return $"HitlTask(TaskId={_taskId}, TenantId={_tenantId})";
+        return $"HitlTask(TaskId={_taskId}, TenantId={_tenantId}, AgentName={_agentName})";
     }
 }
 

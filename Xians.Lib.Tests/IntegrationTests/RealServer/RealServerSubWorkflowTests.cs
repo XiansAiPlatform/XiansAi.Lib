@@ -38,11 +38,11 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
     private const string RESULT_WORKFLOW = "SubWorkflowResult";
     private const string EXECUTOR_WORKFLOW = "SubWorkflowExecutor";
     
-    // Full workflow type names (includes "BuiltIn Workflow-" prefix)
-    private string ParentWorkflowType => $"{_agentName}:BuiltIn Workflow-{PARENT_WORKFLOW}";
-    private string ChildWorkflowType => $"{_agentName}:BuiltIn Workflow-{CHILD_TARGET_WORKFLOW}";
-    private string ResultWorkflowType => $"{_agentName}:BuiltIn Workflow-{RESULT_WORKFLOW}";
-    private string ExecutorWorkflowType => $"{_agentName}:BuiltIn Workflow-{EXECUTOR_WORKFLOW}";
+    // Full workflow type names
+    private string ParentWorkflowType => $"{_agentName}:{PARENT_WORKFLOW}";
+    private string ChildWorkflowType => $"{_agentName}:{CHILD_TARGET_WORKFLOW}";
+    private string ResultWorkflowType => $"{_agentName}:{RESULT_WORKFLOW}";
+    private string ExecutorWorkflowType => $"{_agentName}:{EXECUTOR_WORKFLOW}";
 
     // Static result storage for cross-context verification
     private static readonly ConcurrentDictionary<string, SubWorkflowTestResult> _testResults = new();
@@ -376,7 +376,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         // Build the workflow ID that SubWorkflowService created
         // Format: {tenantId}:{agentName}:{fullWorkflowName}:{postfix}
         var tenantId = _agent!.Options!.CertificateTenantId;
-        var workflowName = $"BuiltIn Workflow-{CHILD_TARGET_WORKFLOW}";
+        var workflowName = $"{CHILD_TARGET_WORKFLOW}";
         var childWorkflowId = $"{tenantId}:{_agentName}:{workflowName}:{testId}";
         _customWorkflowIds.Add(childWorkflowId);
         
@@ -441,7 +441,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         // Build the workflow ID that SubWorkflowService will create
         // Format: {tenantId}:{agentName}:{fullWorkflowName}:{postfix}
         var tenantId = _agent!.Options!.CertificateTenantId;
-        var workflowName = $"BuiltIn Workflow-{RESULT_WORKFLOW}";
+        var workflowName = $"{RESULT_WORKFLOW}";
         var resultWorkflowId = $"{tenantId}:{_agentName}:{workflowName}:{testId}";
         _customWorkflowIds.Add(resultWorkflowId);
         
@@ -590,7 +590,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         // Build expected workflow ID that SubWorkflowService creates
         // Format: {tenantId}:{agentName}:{fullWorkflowName}:{postfix}
         var tenantId = _agent!.Options!.CertificateTenantId;
-        var workflowName = $"BuiltIn Workflow-{CHILD_TARGET_WORKFLOW}";
+        var workflowName = $"{CHILD_TARGET_WORKFLOW}";
         var expectedWorkflowId = $"{tenantId}:{_agentName}:{workflowName}:{testId}";
         _customWorkflowIds.Add(expectedWorkflowId);
         

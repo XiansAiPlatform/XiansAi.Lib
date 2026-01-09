@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Client;
+using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks;
 using Xians.Lib.Agents.Tasks.Models;
 
@@ -34,7 +35,9 @@ public class TaskActivities
         try
         {
             var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-            var taskService = new TaskService(_client, tenantId, logger);
+            var agentName = XiansContext.CurrentAgent?.Name 
+                ?? throw new InvalidOperationException("Agent name not available in activity context");
+            var taskService = new TaskService(_client, agentName, tenantId, logger);
             
             var taskInfo = await taskService.QueryTaskInfoAsync(taskId);
 
@@ -67,7 +70,9 @@ public class TaskActivities
         try
         {
             var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-            var taskService = new TaskService(_client, tenantId, logger);
+            var agentName = XiansContext.CurrentAgent?.Name 
+                ?? throw new InvalidOperationException("Agent name not available in activity context");
+            var taskService = new TaskService(_client, agentName, tenantId, logger);
             
             await taskService.UpdateDraftAsync(taskId, updatedDraft);
 
@@ -98,7 +103,9 @@ public class TaskActivities
         try
         {
             var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-            var taskService = new TaskService(_client, tenantId, logger);
+            var agentName = XiansContext.CurrentAgent?.Name 
+                ?? throw new InvalidOperationException("Agent name not available in activity context");
+            var taskService = new TaskService(_client, agentName, tenantId, logger);
             
             await taskService.CompleteTaskAsync(taskId);
 
@@ -129,7 +136,9 @@ public class TaskActivities
         try
         {
             var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-            var taskService = new TaskService(_client, tenantId, logger);
+            var agentName = XiansContext.CurrentAgent?.Name 
+                ?? throw new InvalidOperationException("Agent name not available in activity context");
+            var taskService = new TaskService(_client, agentName, tenantId, logger);
             
             await taskService.RejectTaskAsync(taskId, rejectionMessage);
 

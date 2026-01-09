@@ -8,6 +8,9 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// <summary>
 /// Tests for workflow and agent functionality against a real server.
 /// These tests verify end-to-end integration with the Xians platform.
+/// 
+/// dotnet test --filter "FullyQualifiedName~RealServerWorkflowTests"
+/// 
 /// </summary>
 [Trait("Category", "RealServer")]
 public class RealServerWorkflowTests : RealServerTestBase
@@ -86,8 +89,8 @@ public class RealServerWorkflowTests : RealServerTestBase
         Console.WriteLine($"✓ Step 1: Registered agent '{AGENT_NAME}'");
 
         // Define workflows
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
-        var workflow2 = agent.Workflows.DefineBuiltIn(workers: 1, name: "Webhooks");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
+        var workflow2 = agent.Workflows.DefineBuiltIn(name: "Webhooks");
         
         // Upload all workflow definitions to server
         await agent.UploadWorkflowDefinitionsAsync();
@@ -96,13 +99,12 @@ public class RealServerWorkflowTests : RealServerTestBase
         
         // Assert
         Assert.NotNull(workflow);
-        Assert.Equal($"{AGENT_NAME}:BuiltIn Workflow-Conversational", workflow.WorkflowType);
+        Assert.Equal($"{AGENT_NAME}:Conversational", workflow.WorkflowType);
         Assert.Equal("Conversational", workflow.Name);
-        Assert.Equal(1, workflow.Workers);
         Assert.NotNull(workflow2);
-        Assert.Equal($"{AGENT_NAME}:BuiltIn Workflow-Webhooks", workflow2.WorkflowType);
+        Assert.Equal($"{AGENT_NAME}:Webhooks", workflow2.WorkflowType);
         Assert.Equal("Webhooks", workflow2.Name);
-        Assert.Equal(1, workflow2.Workers);
+        Assert.Equal(100, workflow2.Workers);
     }
 }
 
