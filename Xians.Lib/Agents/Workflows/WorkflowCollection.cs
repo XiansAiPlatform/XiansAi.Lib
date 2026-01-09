@@ -1,6 +1,8 @@
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
+using Xians.Lib.Common.MultiTenancy;
+using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.Workflows;
 
@@ -24,30 +26,37 @@ public class WorkflowCollection
 
     /// <summary>
     /// Defines a built-in workflow for the agent using the platform-provided workflow implementation.
+    /// Creates a dynamic class that extends BuiltinWorkflow with a [Workflow] attribute in the format: {AgentName}:{WorkflowName}
     /// </summary>
-    /// <param name="name">Optional name for the workflow.</param>
+    /// <param name="name">The name for the workflow (e.g., "Conversational", "Web").</param>
     /// <param name="workers">Number of workers for the workflow. Default is 1.</param>
     /// <returns>A new built-in XiansWorkflow instance.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists or when attempting to register multiple unnamed workflows.</exception>
-    public XiansWorkflow DefineBuiltIn(string? name = null, int workers = 1)
+    /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists.</exception>
+    public XiansWorkflow DefineBuiltIn(string name, int workers = 1)
     {
         // Check if workflow with same name already exists
-        if (name != null && _workflows.Any(w => w.Name == name))
+        if (_workflows.Any(w => w.Name == name))
         {
             throw new InvalidOperationException($"A workflow with the name '{name}' has already been registered.");
         }
         
-        // Check if an unnamed workflow already exists
-        if (name == null && _workflows.Any(w => w.Name == null))
-        {
-            throw new InvalidOperationException("An unnamed workflow has already been registered. Only one unnamed workflow is allowed.");
-        }
+        // Create the workflow type name in the format: {AgentName}:{WorkflowName}
+        var workflowType = $"{_agent.Name}:{name}";
         
-        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(_agent.Name, name);
-        var workflow = new XiansWorkflow(_agent, workflowType, name, workers, isBuiltIn: true);
+        // Dynamically create a class that extends BuiltinWorkflow with the [Workflow] attribute
+        var dynamicWorkflowClassType = DynamicWorkflowTypeBuilder.GetOrCreateType(workflowType);
+        
+        // Create the XiansWorkflow instance with the dynamic type
+        var workflow = new XiansWorkflow(
+            _agent, 
+            workflowType, 
+            name, 
+            workers, 
+            isBuiltIn: true, 
+            workflowClassType: dynamicWorkflowClassType,
+            isPlatformWorkflow: false);
+        
         _workflows.Add(workflow);
-        
-        // Note: Workflow definition will be uploaded when RunAllAsync() is called
         
         return workflow;
     }
@@ -70,20 +79,8 @@ public class WorkflowCollection
     private XiansWorkflow DefineCustomInternal<T>(int workers, bool validateAgentPrefix, bool isPlatformWorkflow = false) where T : class
     {
         // Get workflow type from [Workflow] attribute if present, otherwise use class name
-        var workflowType = GetWorkflowTypeFromAttribute<T>() ?? typeof(T).Name;
-        
-        // Validate that workflow type follows the naming convention (unless it's a platform workflow)
-        if (validateAgentPrefix)
-        {
-            var expectedPrefix = _agent.Name + ":";
-            if (!workflowType.StartsWith(expectedPrefix))
-            {
-                throw new InvalidOperationException(
-                    $"Custom workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
-                    $"Add [Workflow(\"{expectedPrefix}{workflowType}\")] attribute to your workflow class, " +
-                    $"or rename the class to start with the agent name.");
-            }
-        }
+        var workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix) ?? typeof(T).Name;
+
         
         // Check if workflow with same type already exists
         if (_workflows.Any(w => w.WorkflowType == workflowType))
@@ -110,6 +107,7 @@ public class WorkflowCollection
         DefineCustomInternal<TaskWorkflow>(workers: 1, validateAgentPrefix: false, isPlatformWorkflow: true);
     }
 
+
     /// <summary>
     /// Uploads a workflow definition to the server.
     /// </summary>
@@ -117,11 +115,22 @@ public class WorkflowCollection
     {
         try
         {
+            // Get the task queue name and remove the tenant prefix if present
+            var taskQueue = workflow.TaskQueue;
+            var queueName = taskQueue;
+            
+            // For tenant-scoped workflows, remove the "tenantId:" prefix
+            if (!_agent.SystemScoped && taskQueue.Contains(':'))
+            {
+                var firstColonIndex = taskQueue.IndexOf(':');
+                queueName = taskQueue.Substring(firstColonIndex + 1);
+            }
+            
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = workflow.Name,
+                Name = queueName,
                 SystemScoped = _agent.SystemScoped,
                 Workers = workflow.Workers,
                 ActivityDefinitions = [],
@@ -148,8 +157,15 @@ public class WorkflowCollection
             return [];
         }
 
+        // Check if this is a built-in workflow (extends BuiltinWorkflow)
+        if (workflowType.IsSubclassOf(typeof(BuiltinWorkflow)) || workflowType == typeof(BuiltinWorkflow))
+        {
+            // Built-in workflows (including dynamic ones) don't have custom parameters
+            return [];
+        }
+
         var workflowRunMethod = workflowType.GetMethods()
-            .FirstOrDefault(m => m.GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowRunAttribute), false).Any());
+            .FirstOrDefault(m => m.GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowRunAttribute), true).Any());
 
         if (workflowRunMethod == null)
         {
@@ -201,12 +217,33 @@ public class WorkflowCollection
     /// <summary>
     /// Gets the workflow type name from the [Workflow] attribute if present.
     /// </summary>
-    private static string? GetWorkflowTypeFromAttribute<T>() where T : class
+    private string? GetWorkflowTypeFromAttribute<T>(bool validateAgentPrefix) where T : class
     {
         var workflowAttribute = typeof(T).GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
             .FirstOrDefault() as Temporalio.Workflows.WorkflowAttribute;
+
+        var workflowType = workflowAttribute?.Name ?? throw new InvalidOperationException($"Workflow type not found for workflow class {typeof(T).Name}");
         
-        return workflowAttribute?.Name;
+        // Validate that workflow type follows the naming convention (unless it's a platform workflow)
+        if (validateAgentPrefix)
+        {
+            var expectedPrefix = _agent.Name + ":";
+            if (!workflowType.StartsWith(expectedPrefix))
+            {
+                throw new InvalidOperationException(
+                    $"Custom workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                    $"Add [Workflow(\"{expectedPrefix}{workflowType}\")] attribute to your workflow class, " +
+                    $"or rename the class to start with the agent name.");
+            }
+        }
+
+        // must have exactly one ":"
+        if (workflowType.Count(c => c == ':') != 1)
+        {
+            throw new InvalidOperationException($"Workflow type '{workflowType}' must have exactly one ':' in the format of 'AgentName:WorkflowName'");
+        }
+
+        return workflowType;
     }
 
     /// <summary>
@@ -239,8 +276,86 @@ public class WorkflowCollection
         // This ensures atomicity - either all workflows are uploaded or none are
         await UploadAllDefinitionsAsync();
 
-        // Run all workflows concurrently
-        var tasks = _workflows.Select(w => w.RunAsync(cancellationToken));
+        // Display workflow registration summary
+        DisplayWorkflowSummary();
+
+        // Run all workflows concurrently with individual error handling
+        var tasks = _workflows.Select(async w =>
+        {
+            try
+            {
+                await w.RunAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"ERROR: Failed to start workflow '{w.WorkflowType}': {ex.Message}");
+                Console.WriteLine($"Exception: {ex}");
+                Console.ResetColor();
+                throw; // Re-throw to fail the overall operation
+            }
+        });
         await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Displays a formatted summary of all registered workflows with their queue names.
+    /// </summary>
+    private void DisplayWorkflowSummary()
+    {
+        if (_workflows.Count == 0)
+        {
+            return;
+        }
+
+        // Fixed box width for better console compatibility
+        const int boxWidth = 63;
+        
+        // Display header
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"┌{new string('─', boxWidth)}┐");
+        var header = $"│ REGISTERED WORKFLOWS ({_workflows.Count})";
+        Console.Write(header);
+        Console.WriteLine($"{new string(' ', boxWidth - header.Length + 1)}│");
+        Console.WriteLine($"└{new string('─', boxWidth)}┘");
+        Console.ResetColor();
+        Console.WriteLine();
+
+        // Display each workflow (3 rows per workflow)
+        for (int i = 0; i < _workflows.Count; i++)
+        {
+            var workflow = _workflows[i];
+            
+            // Workflow Type row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Workflow: ");
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(workflow.WorkflowType);
+            
+            // Task Queue row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Queue:    ");
+            Console.ResetColor();
+            Console.WriteLine(workflow.TaskQueue);
+            
+            // Workers row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Workers:  ");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(workflow.Workers);
+            Console.ResetColor();
+            
+            // Add spacing between workflows (except after the last one)
+            if (i < _workflows.Count - 1)
+            {
+                Console.WriteLine();
+            }
+        }
+        
+        Console.ResetColor();
+        Console.WriteLine();
     }
 }

@@ -3,8 +3,8 @@ using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Documents.Models;
-using Xians.Lib.Workflows.Documents;
-using Xians.Lib.Workflows.Documents.Models;
+using Xians.Lib.Temporal.Workflows.Documents;
+using Xians.Lib.Temporal.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Documents;
 

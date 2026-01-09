@@ -1,10 +1,8 @@
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Knowledge;
-using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Agents.Documents;
 using Xians.Lib.Agents.Tasks;
-using Xians.Lib.Common.Caching;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -65,6 +63,17 @@ public class XiansAgent
         XiansOptions? options, Xians.Lib.Common.Caching.CacheService? cacheService)
     {
         Name = name.Trim(); // Trim to handle whitespace variations
+        
+        if (Name.Equals("Platform", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Agent name cannot be 'Platform' as it is reserved for internal use.", nameof(name));
+        }
+        
+        if (Name.Contains(':'))
+        {
+            throw new ArgumentException("Agent name cannot contain ':' character as it is used as a delimiter in workflow identifiers.", nameof(name));
+        }
+        
         SystemScoped = systemScoped;
         TemporalService = temporalService;
         HttpService = httpService;

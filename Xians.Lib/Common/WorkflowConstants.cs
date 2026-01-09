@@ -20,6 +20,10 @@ public static class WorkflowConstants
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";
+
+        // Builtin workflow specific keys
+        public const string BuiltinWorkflowType = "Platform:Builtin Workflow";
+        public const string TaskWorkflowType = "Platform:Task Workflow";
     }
 
     /// <summary>

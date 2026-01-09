@@ -151,7 +151,8 @@ public static class XiansContext
     private static readonly MessagingHelper _messagingHelper = new();
 
     /// <summary>
-    /// Gets workflow execution operations for starting and executing child workflows.
+    /// Gets workflow operations for starting, executing, signaling, and querying workflows.
+    /// Also provides access to the Temporal client for advanced operations.
     /// </summary>
     public static WorkflowHelper Workflows => _workflowHelper;
 
@@ -333,18 +334,6 @@ public static class XiansContext
         return _workflows.Values;
     }
 
-
-    /// <summary>
-    /// Extracts workflow type from [Workflow] attribute on a class.
-    /// </summary>
-    private static string? GetWorkflowTypeFromAttribute<T>() where T : class
-    {
-        var workflowAttr = typeof(T).GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
-            .FirstOrDefault() as Temporalio.Workflows.WorkflowAttribute;
-        
-        return workflowAttr?.Name;
-    }
-
     #endregion
 
     #region A2A Operations
@@ -427,9 +416,9 @@ public static class XiansContext
         _agents.Clear();
         _workflows.Clear();
         // Clear workflow handlers to prevent test contamination
-        Xians.Lib.Workflows.BuiltinWorkflow.ClearHandlersForTests();
+        Xians.Lib.Temporal.Workflows.BuiltinWorkflow.ClearHandlersForTests();
         // Clear static services in activities to prevent cross-test contamination
-        Xians.Lib.Workflows.Knowledge.KnowledgeActivities.ClearStaticServicesForTests();
+        Xians.Lib.Temporal.Workflows.Knowledge.KnowledgeActivities.ClearStaticServicesForTests();
         // Clear cached server settings to prevent cross-test contamination
         Xians.Lib.Common.Infrastructure.SettingsService.ResetCache();
         // Clear certificate cache to prevent stale certificates

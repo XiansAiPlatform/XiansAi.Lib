@@ -469,7 +469,8 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 TaskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                     targetWorkflowType,
                     systemScoped: false,
-                    _agent!.Options!.CertificateTenantId),
+                    _agent!.Options!.CertificateTenantId,
+                    _agentName),
                 ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
             });
         
@@ -494,7 +495,8 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 TaskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                     senderWorkflowType,
                     systemScoped: false,
-                    _agent!.Options!.CertificateTenantId),
+                    _agent!.Options!.CertificateTenantId,
+                    _agentName),
                 ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
             });
         
@@ -555,7 +557,8 @@ public class RealServerA2ATests : RealServerTestBase, IAsyncLifetime
                 TaskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                     targetWorkflowType,
                     systemScoped: false,
-                    _agent!.Options!.CertificateTenantId),
+                    _agent!.Options!.CertificateTenantId,
+                    _agentName),
                 ExecutionTimeout = TemporalTestUtils.DefaultWorkflowExecutionTimeout
             });
         

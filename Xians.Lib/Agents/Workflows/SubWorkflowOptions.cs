@@ -37,7 +37,9 @@ public class SubWorkflowOptions : ChildWorkflowOptions
         var tenantId = XiansContext.TenantId;
 
         // Generate task queue using centralized utility
-        TaskQueue = TenantContext.GetTaskQueueName(workflowType, isSystemScoped, tenantId);
+        // For platform workflows starting with "Platform:", pass the agent name to replace "Platform"
+        var agentName = XiansContext.CurrentAgent?.Name;
+        TaskQueue = TenantContext.GetTaskQueueName(workflowType, isSystemScoped, tenantId, agentName);
 
         // Generate workflow ID
         Id = TenantContext.BuildWorkflowId(workflowType, tenantId, idPostfix);

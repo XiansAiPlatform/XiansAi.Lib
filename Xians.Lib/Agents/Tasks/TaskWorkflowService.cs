@@ -4,7 +4,8 @@ using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
 

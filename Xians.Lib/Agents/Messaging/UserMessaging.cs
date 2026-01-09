@@ -4,8 +4,8 @@ using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Messaging;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Agents.Messaging;
 
@@ -142,7 +142,7 @@ internal static class UserMessaging
             // Execute via Temporal activity for proper determinism and retry handling
             return await Workflow.ExecuteActivityAsync(
                 (MessageActivities act) => act.GetLastHintAsync(request),
-                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
+                Xians.Lib.Temporal.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
         {
@@ -288,7 +288,7 @@ internal static class UserMessaging
             // Execute via Temporal activity for proper determinism and retry handling
             await Workflow.ExecuteActivityAsync(
                 (MessageActivities act) => act.SendMessageAsync(request),
-                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
+                Xians.Lib.Temporal.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
         {

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
-using Xians.Lib.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
 

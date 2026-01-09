@@ -2,8 +2,8 @@ using System.Net.Http.Json;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Workflows.Models;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;

@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Common;
 using Xians.Lib.Common.Exceptions;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.Models;
 

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common.Infrastructure;
-using Xians.Lib.Workflows;
+using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.A2A;
 
@@ -160,7 +160,7 @@ public class A2AClient
         }
 
         // Create A2A request
-        var activityRequest = new Xians.Lib.Workflows.Messaging.Models.ProcessMessageActivityRequest
+        var activityRequest = new Xians.Lib.Temporal.Workflows.Messaging.Models.ProcessMessageActivityRequest
         {
             MessageText = message.Text,
             ParticipantId = string.IsNullOrEmpty(message.ParticipantId) ? sourceWorkflowId : message.ParticipantId,

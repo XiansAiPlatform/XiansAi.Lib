@@ -4,7 +4,7 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Tests.TestUtilities;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 

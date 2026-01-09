@@ -71,15 +71,31 @@ public static class TenantContext
     /// <param name="workflowType">The workflow type identifier.</param>
     /// <param name="systemScoped">Whether the workflow is system-scoped.</param>
     /// <param name="tenantId">The tenant ID (required for non-system-scoped workflows).</param>
+    /// <param name="agentName">The agent name (required when workflowType starts with "Platform:").</param>
+    /// <param name="workflowName">The workflow name (for builtin workflows like "Conversational", "Web").</param>
     /// <returns>The generated task queue name.</returns>
     /// <exception cref="TenantIsolationException">Thrown when tenantId is required but not provided.</exception>
-    public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId = null)
+    public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId = null, string? agentName = null, string? workflowName = null)
     {
+        // Replace "Platform" with agent name for platform workflows
+        var effectiveWorkflowType = workflowType;
+        if (workflowType.StartsWith("Platform:") && !string.IsNullOrWhiteSpace(agentName))
+        {
+            effectiveWorkflowType = workflowType.Replace("Platform:", $"{agentName}:");
+            
+            // For builtin workflows with a name, append it with a dash
+            // e.g., "MyAgent:Builtin Workflow-Conversational"
+            if (workflowType == WorkflowConstants.Keys.BuiltinWorkflowType && !string.IsNullOrWhiteSpace(workflowName))
+            {
+                effectiveWorkflowType = $"{effectiveWorkflowType}-{workflowName}";
+            }
+        }
+
         if (systemScoped)
         {
             // System-scoped agents use workflow type as task queue
             // This allows a single worker pool to handle requests from multiple tenants
-            return workflowType;
+            return effectiveWorkflowType;
         }
 
         // Non-system-scoped agents use TenantId:WorkflowType format
@@ -91,7 +107,7 @@ public static class TenantContext
                 tenantId,
                 null);
         }
-        return $"{tenantId}:{workflowType}";
+        return $"{tenantId}:{effectiveWorkflowType}";
     }
 
     /// <summary>

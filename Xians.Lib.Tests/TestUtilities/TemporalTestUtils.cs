@@ -2,7 +2,7 @@ using Temporalio.Client;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Tests.TestUtilities;
 
@@ -37,7 +37,7 @@ public static class TemporalTestUtils
     public static string GetTaskQueue(string agentName, string workflowName, bool systemScoped = false, string? tenantId = null)
     {
         var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, workflowName);
-        return TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId ?? DefaultTestTenantId);
+        return TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId ?? DefaultTestTenantId, agentName);
     }
 
     /// <summary>

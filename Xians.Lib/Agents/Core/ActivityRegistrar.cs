@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
-using Xians.Lib.Workflows.Scheduling;
-using Xians.Lib.Workflows.Messaging;
-using Xians.Lib.Workflows.Knowledge;
-using Xians.Lib.Workflows.Documents;
-using Xians.Lib.Workflows.A2A;
-using Xians.Lib.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows.Scheduling;
+using Xians.Lib.Temporal.Workflows.Messaging;
+using Xians.Lib.Temporal.Workflows.Knowledge;
+using Xians.Lib.Temporal.Workflows.Documents;
+using Xians.Lib.Temporal.Workflows.A2A;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -89,10 +89,6 @@ internal class ActivityRegistrar
                 "HTTP service not available for workflow '{WorkflowType}' - Message, Knowledge, and Document activities will not be registered",
                 workflowType);
         }
-
-        _logger.LogInformation(
-            "Registered {Count} system activities for workflow '{WorkflowType}'",
-            registeredCount, workflowType);
 
         return registeredCount;
     }

@@ -1,6 +1,6 @@
 using Microsoft.Agents.AI;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;

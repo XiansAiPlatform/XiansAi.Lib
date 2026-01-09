@@ -30,7 +30,7 @@ var agentName = Constants.AgentName;
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
-    SystemScoped = true
+    SystemScoped = false
 });
 
 // Define a content processing workflow to handle content processing

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Agents.A2A;
