@@ -31,3 +31,11 @@ public class RealServerA2ATenantScopedOnlyTests : RealServerA2ATestsBase
         await RunDataMessageTest();
     }
 }
+
+/// <summary>
+/// Test collection to force sequential execution.
+/// </summary>
+[CollectionDefinition("RealServerA2ATenantScopedOnly", DisableParallelization = true)]
+public class RealServerA2ATenantScopedOnlyCollection
+{
+}

@@ -212,3 +212,11 @@ public class A2ATestResult
     public string? ReceivedAuthorization { get; set; }
     public Dictionary<string, string>? ReceivedMetadata { get; set; }
 }
+
+/// <summary>
+/// Test collection to force sequential execution.
+/// </summary>
+[CollectionDefinition("RealServerA2ATenantScoped", DisableParallelization = true)]
+public class RealServerA2ATenantScopedCollection
+{
+}

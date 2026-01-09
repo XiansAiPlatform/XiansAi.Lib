@@ -1,4 +1,4 @@
-﻿using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Core;
 using DotNetEnv;
 
 Env.Load();
@@ -38,6 +38,16 @@ conversationalWorkflow.OnUserChatMessage(async (context) =>
     var response = await mafAgent.RunAsync(context);
     await context.ReplyAsync(response);
 });
+
+
+var webhookWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Webhook Workflow");
+webhookWorkflow.OnWebhook((context) =>
+{
+    // Your webhook processing logic here
+    Console.WriteLine($"Received: {context.Webhook.Name}");
+    context.Respond(new { status = "success" });
+});
+
 
 // Start the agent and all workflows
 await xiansAgent.RunAllAsync();

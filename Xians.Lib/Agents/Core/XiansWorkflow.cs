@@ -249,6 +249,20 @@ public class XiansWorkflow
             tenantId ?? "(system)");
     }
 
+    /// <summary>
+    /// Registers a synchronous handler for webhook messages.
+    /// </summary>
+    /// <param name="handler">The synchronous handler to process webhook messages.</param>
+    public void OnWebhook(Action<WebhookContext> handler)
+    {
+        // Wrap the synchronous handler in an async lambda
+        OnWebhook(context =>
+        {
+            handler(context);
+            return Task.CompletedTask;
+        });
+    }
+
 
     /// <summary>
     /// Runs the workflow asynchronously.

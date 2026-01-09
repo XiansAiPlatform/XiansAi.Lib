@@ -29,3 +29,11 @@ public class RealServerA2ASystemScopedTests : RealServerA2ATestsBase
         await RunDataMessageTest();
     }
 }
+
+/// <summary>
+/// Test collection to force sequential execution.
+/// </summary>
+[CollectionDefinition("RealServerA2ASystemScoped", DisableParallelization = true)]
+public class RealServerA2ASystemScopedCollection
+{
+}
