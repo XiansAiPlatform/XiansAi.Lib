@@ -100,7 +100,7 @@ public class WorkflowCollection
     /// <param name="maxConcurrent">Maximum concurrent task workflow executions. Default is 100 (Temporal's default).</param>
     /// <returns>The WorkflowCollection instance for method chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown when task workflow has already been enabled.</exception>
-    public WorkflowCollection WithTasks(int maxConcurrent = 100)
+    public async Task<WorkflowCollection> WithTasks(int maxConcurrent = 100)
     {
         // Create the workflow type name using centralized helper
         var workflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(_agent.Name);
@@ -124,6 +124,9 @@ public class WorkflowCollection
             isPlatformWorkflow: false);
         
         _workflows.Add(workflow);
+        
+        // Upload the workflow definition to the server immediately
+        await UploadWorkflowDefinitionAsync(workflow);
         
         return this;
     }

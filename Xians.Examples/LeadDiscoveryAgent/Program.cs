@@ -30,7 +30,7 @@ var agentName = Constants.AgentName;
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
-    SystemScoped = false
+    SystemScoped = true
 });
 
 // Define a content processing workflow to handle content processing
@@ -70,7 +70,7 @@ webWorkflow.OnUserChatMessage(async (context) =>
 });
 
 // Optional: Enable human-in-the-loop (HITL) tasks
-agent.Workflows.WithTasks();  // Uses default max concurrent (100)
+await agent.Workflows.WithTasks();  // Uses default max concurrent (100)
 
 // Run all workflows
 try

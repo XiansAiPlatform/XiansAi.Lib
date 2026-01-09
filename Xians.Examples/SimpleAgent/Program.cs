@@ -22,8 +22,8 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 // Register a new agent with Xians
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
-    Name = "My Simple Agent",
-    SystemScoped = false  // See important notes below
+    Name = "My Simple System Agent",
+    SystemScoped = true  // See important notes below
 });
 
 // Define a built-in conversational workflow
