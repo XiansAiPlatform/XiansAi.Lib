@@ -2,8 +2,8 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Workflows.Scheduling;
-using Xians.Lib.Workflows.Scheduling.Models;
+using Xians.Lib.Temporal.Workflows.Scheduling;
+using Xians.Lib.Temporal.Workflows.Scheduling.Models;
 
 namespace Xians.Lib.Agents.Scheduling;
 

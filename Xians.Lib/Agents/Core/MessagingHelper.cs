@@ -55,7 +55,7 @@ public class MessagingHelper
     /// Sends a message while impersonating a different workflow.
     /// Useful for sending messages from background workflows as if they came from the main chat workflow.
     /// </summary>
-    /// <param name="workflowName">The workflow name to impersonate (not the full workflow type).</param>
+    /// <param name="workflowName">The builtinWorkflow name to impersonate (not the full workflow type).</param>
     /// <param name="participantId">The participant (user) ID to send the message to.</param>
     /// <param name="text">The message text to send.</param>
     /// <param name="data">Optional data object to send with the message.</param>
@@ -64,14 +64,14 @@ public class MessagingHelper
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
     public async Task SendChatAsWorkflowAsync(
-        string workflowName,
+        string builtinWorkflowName,
         string participantId, 
         string text, 
         object? data = null, 
         string? scope = null, 
         string? hint = null)
     {
-        await UserMessaging.SendChatAsWorkflowAsync(workflowName, participantId, text, data, scope, hint);
+        await UserMessaging.SendChatAsWorkflowAsync(builtinWorkflowName, participantId, text, data, scope, hint);
     }
 }
 

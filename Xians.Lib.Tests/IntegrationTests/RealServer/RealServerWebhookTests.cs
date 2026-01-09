@@ -632,3 +632,10 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
     }
 }
 
+/// <summary>
+/// Test collection to force sequential execution.
+/// </summary>
+[CollectionDefinition("RealServerWebhook", DisableParallelization = true)]
+public class RealServerWebhookCollection
+{
+}

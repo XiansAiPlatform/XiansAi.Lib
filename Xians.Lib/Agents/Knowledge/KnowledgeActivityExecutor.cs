@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Workflows.Knowledge;
-using Xians.Lib.Workflows.Knowledge.Models;
+using Xians.Lib.Temporal.Workflows.Knowledge;
+using Xians.Lib.Temporal.Workflows.Knowledge.Models;
 
 namespace Xians.Lib.Agents.Knowledge;
 

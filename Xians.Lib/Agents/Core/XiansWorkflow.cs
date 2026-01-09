@@ -2,16 +2,16 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Common;
-using Xians.Lib.Workflows;
+using Xians.Lib.Temporal.Workflows;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Knowledge;
-using Xians.Lib.Workflows.Messaging;
-using Xians.Lib.Workflows.Documents;
+using Xians.Lib.Temporal.Workflows.Knowledge;
+using Xians.Lib.Temporal.Workflows.Messaging;
+using Xians.Lib.Temporal.Workflows.Documents;
 using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Workflows.Scheduling;
+using Xians.Lib.Temporal.Workflows.Scheduling;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -26,8 +26,9 @@ public class XiansWorkflow
     private readonly List<object> _activityInstances = new();
     private readonly List<Type> _activityTypes = new();
     private readonly Type? _workflowClassType;
+    private string? _taskQueue;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
@@ -74,7 +75,7 @@ public class XiansWorkflow
     /// <summary>
     /// Gets the optional workflow name.
     /// </summary>
-    public string? Name { get; }
+    public string Name { get; private set; }
 
     /// <summary>
     /// Gets the number of workers for this workflow.
@@ -85,6 +86,26 @@ public class XiansWorkflow
     /// Gets the schedule collection for managing scheduled executions of this workflow.
     /// </summary>
     public ScheduleCollection? Schedules { get; }
+
+    /// <summary>
+    /// Gets the task queue name for this workflow.
+    /// Calculated lazily based on workflow type, agent settings, and tenant context.
+    /// </summary>
+    public string TaskQueue
+    {
+        get
+        {
+            if (_taskQueue == null)
+            {
+                var tenantId = GetTenantIdOrNull();
+                _taskQueue = TenantContext.GetTaskQueueName(
+                    WorkflowType,
+                    _agent.SystemScoped,
+                    tenantId);
+            }
+            return _taskQueue;
+        }
+    }
 
     /// <summary>
     /// Gets the workflow class type for custom workflows, or null for built-in workflows.
@@ -228,6 +249,20 @@ public class XiansWorkflow
             tenantId ?? "(system)");
     }
 
+    /// <summary>
+    /// Registers a synchronous handler for webhook messages.
+    /// </summary>
+    /// <param name="handler">The synchronous handler to process webhook messages.</param>
+    public void OnWebhook(Action<WebhookContext> handler)
+    {
+        // Wrap the synchronous handler in an async lambda
+        OnWebhook(context =>
+        {
+            handler(context);
+            return Task.CompletedTask;
+        });
+    }
+
 
     /// <summary>
     /// Runs the workflow asynchronously.
@@ -241,28 +276,17 @@ public class XiansWorkflow
             throw new InvalidOperationException("Temporal service is not configured. Cannot run workflows.");
         }
 
-        _logger.LogInformation("Starting workflow '{WorkflowType}' for agent '{AgentName}' with {Workers} worker(s)", 
-            WorkflowType, _agent.Name, Workers);
-
         // Get Temporal client
         var client = await _agent.TemporalService.GetClientAsync();
 
-        // Determine task queue name using centralized utility
-        var tenantId = GetTenantIdOrNull();
-        var taskQueue = TenantContext.GetTaskQueueName(
-            WorkflowType, 
-            _agent.SystemScoped, 
-            tenantId);
-
-        _logger.LogInformation(
-            "Task queue for workflow '{WorkflowType}': {TaskQueue}, SystemScoped={SystemScoped}", 
-            WorkflowType, 
-            taskQueue,
-            _agent.SystemScoped);
+        // Get task queue name (calculated lazily via property)
+        var taskQueue = TaskQueue;
 
         // Create worker options
+        // MaxConcurrentWorkflowTasks defaults to 100 (Temporal's default) but can be customized
         var workerOptions = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
+            MaxConcurrentWorkflowTasks = Workers,
             LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
                 builder
                     .AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ")
@@ -278,7 +302,7 @@ public class XiansWorkflow
         
         if (_isBuiltIn)
         {
-            workflowRegistrar.RegisterBuiltInWorkflow(workerOptions, WorkflowType);
+            workflowRegistrar.RegisterBuiltInWorkflow(workerOptions, WorkflowType, _workflowClassType!);
             totalActivityCount = activityRegistrar.RegisterSystemActivities(workerOptions, WorkflowType);
         }
         else
@@ -293,71 +317,42 @@ public class XiansWorkflow
             
             // Then register system activities (always available)
             totalActivityCount += activityRegistrar.RegisterSystemActivities(workerOptions, WorkflowType);
-            
-            _logger.LogInformation(
-                "Custom workflow '{WorkflowType}' registered with {ActivityCount} activities",
-                WorkflowType, totalActivityCount);
         }
 
-        // Create and start workers
-        var workers = new List<TemporalWorker>();
-        var workerTasks = new List<Task>();
+        // Create a single worker with configured concurrency
+        // Using MaxConcurrentWorkflowTasks instead of multiple worker instances
+        // This is the recommended Temporal pattern and avoids worker registry warnings
+        var worker = new TemporalWorker(client, workerOptions);
 
         try
         {
-            for (int i = 0; i < Workers; i++)
-            {
-                var worker = new TemporalWorker(client, workerOptions);
-                workers.Add(worker);
-                
-                var workerIndex = i + 1;
-                _logger.LogInformation("Worker {WorkerIndex}/{TotalWorkers} for '{WorkflowType}' on queue '{TaskQueue}' created and ready to run", 
-                    workerIndex, Workers, WorkflowType, taskQueue);
+            _logger.LogInformation("✓ Worker listening on queue '{TaskQueue}' (max concurrent: {MaxConcurrent})", 
+                taskQueue, Workers);
 
-                // Create task for this worker
-                var workerTask = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await worker.ExecuteAsync(cancellationToken);
-                        _logger.LogInformation("Worker {WorkerIndex} execution completed on queue '{TaskQueue}'", 
-                            workerIndex, taskQueue);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        _logger.LogInformation("Worker {WorkerIndex} execution cancelled", workerIndex);
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Worker {WorkerIndex} encountered an error", workerIndex);
-                        throw;
-                    }
-                }, cancellationToken);
-
-                workerTasks.Add(workerTask);
-            }
-
-            // Wait for all workers to complete
-            await Task.WhenAll(workerTasks);
+            // Run the worker until cancellation
+            await worker.ExecuteAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Graceful shutdown - no need to log
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Worker for '{WorkflowType}' encountered an error", WorkflowType);
+            throw;
         }
         finally
         {
-            // Dispose all workers
-            foreach (var worker in workers)
+            // Dispose worker
+            try
             {
-                try
-                {
-                    worker?.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error disposing worker");
-                }
+                worker?.Dispose();
             }
-
-            _logger.LogInformation("All workers for '{WorkflowType}' on queue '{TaskQueue}' have been shut down", 
-                WorkflowType, taskQueue);
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disposing worker for '{WorkflowType}'", WorkflowType);
+            }
         }
     }
 

@@ -13,7 +13,7 @@ namespace Xians.Lib.Common.MultiTenancy;
 /// 
 /// Workflow ID Format: {TenantId}:{WorkflowType}:{OptionalSuffix}
 /// Examples:
-///   - "acme-corp:CustomerService:BuiltIn Workflow:uuid-123"
+///   - "acme-corp:CustomerService:uuid-123"
 ///   - "contoso:GlobalNotifications:Alerts:uuid-456"
 /// </summary>
 public static class TenantContext
@@ -73,8 +73,9 @@ public static class TenantContext
     /// <param name="tenantId">The tenant ID (required for non-system-scoped workflows).</param>
     /// <returns>The generated task queue name.</returns>
     /// <exception cref="TenantIsolationException">Thrown when tenantId is required but not provided.</exception>
-    public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId = null)
+    public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId)
     {
+
         if (systemScoped)
         {
             // System-scoped agents use workflow type as task queue

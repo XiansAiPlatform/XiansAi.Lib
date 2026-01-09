@@ -1,13 +1,16 @@
-﻿using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Core;
+using DotNetEnv;
+
+Env.Load();
 
 // Get OpenAI API key from environment variable
 var openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
     ?? throw new InvalidOperationException("OPENAI_API_KEY environment variable is not set");
-var serverUrl = "http://localhost:5005";
-var xiansApiKey = "MIIEVTCCAj2gAwIBAgIRAMbYslK11FlDh0lgDveDzEAwDQYJKoZIhvcNAQELBQAwaDELMAkGA1UEBhMCVVMxDjAMBgNVBAgMBVN0YXRlMQ0wCwYDVQQHDARDaXR5MRAwDgYDVQQKDAdkZWZhdWx0MQ4wDAYDVQQLDAVhZG1pbjEYMBYGA1UEAwwPWGlhbnNBaSBSb290IENBMB4XDTI2MDEwMTE5NTIxMloXDTMxMDEwMTIwMDIxMlowMzEPMA0GA1UEChMGaGFzaXRoMQ4wDAYDVQQLEwVhZG1pbjEQMA4GA1UEAxMHWGlhbnNBaTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKSl6S95DZyed2+OTBhSG1G12FVbs83oARr4wOUBvXAAWePM9pcC4d3m4qY1yJXt7l2AJ93lI+Oi1FGSi6VK+dmsAP1bkaAazeWX0YkYP2GpRTunfE0vm4piyWemSgHojdkCJnFBocADviMPhw123AnCmJK8S8eZxxT0s3jSe3kDc8NBNneeZPHfqXUDJk0y0tgzFEovSsv/4A/SOCOhW27eGXhle3XDdQBA/f+B9vWZx/bSHY+WNTad80mPQNY5f+OVpqV+2HtcngLPqv9utNBCeYexpGcNSXr3Ekz9q/yBfBmlKjpE6KEiNmdI7wHNTR9bfNfis+PntCD4tRf291kCAwEAAaMvMC0wEwYDVR0lBAwwCgYIKwYBBQUHAwIwCQYDVR0TBAIwADALBgNVHQ8EBAMCBaAwDQYJKoZIhvcNAQELBQADggIBAGtKDvx1o1qX9TDdHc8bos9Fgk846hhXsWzKy5ZAV4KFaZWxdhY0cBOzlSdEAoftUi6Jef5Hy3prMESZt+G2piu32mfBD3Y+NWkitox5edDpKK7qL63inM1wXOUVuXOibUTDynhjsbKxfEl1pLn+Ln4h0iE+5ppqMsd/pbdLpS1hQ7KmpoQ1YQ1B+hVgv+vXOrmwFZ/NieefUWrSsEA32gh+gOl4bhXLISQSAwBmY5AvXpFHGFW8ZuQ0sS8mtvggyPbOayqoDCIw+hOLE0XoITsUukguiwxlEGnz0Q4j/W2F3jBXB2705eF3es+immjPpFoyNLdLFvo8cy7gki/xdQHHlLYhfm5xCX/p0FzX4KFp9Anq0XOV7p+Y03lHVte/NnAwyXQzIjqIHs5R7VZ8EjFo37O5TfqVgyQoWF6JGhC06ctkoxcBPvFZ8gyshzRz+s2sGbZHgbJeHdeQ6TcmbV5xCI54b9UZdHDsOEVUuGIOkFvAild4FR4IygYfdymI5h/6cYZadxVbnLFF3yKLfp+r/udLtx8hJEwrX8/WTfDw9S/9mB642SVvmALBhgRBn5rH45SePMsrbtt6aXdwZIKNE145UGxUCOD4hVvJih+Pus1G/Ohoiu0kzT0QI6LIY5GAl5+U3WdCygAeRUqmnPMiih7mjen4P2RCzGx3bdIE";
 
-// var serverUrl = "https://api.agentri.ai";
-// var xiansApiKey = "MIIESTCCAjGgAwIBAgIRAO/hGFnuUvlNn81jXuY51tMwDQYJKoZIhvcNAQELBQAwXTEOMAwGA1UECAwFU3RhdGUxDTALBgNVBAcMBENpdHkxFTATBgNVBAoMDE9yZ2FuaXphdGlvbjELMAkGA1UECwwCSVQxGDAWBgNVBAMMD0FnZW50cmkgUm9vdCBDQTAeFw0yNjAxMDIwMjU5MjlaFw0zMTAxMDIwMzA5MjlaMDIxDDAKBgNVBAoTAzk5eDEQMA4GA1UECxMHMTg5Mjk2MTEQMA4GA1UEAxMHWGlhbnNBaTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJJ2OrlfrRgbnpD53e6zCUWjjHPdDC3rHx0NP1Bws19THT8rIuBVtS4XZXsxMiJzyUKb4zYmnOz2P1UXu3jLNd5I5XwK/EStocpIk2xGyCuZBbyrIIx6BO0rYc+/5ltzDJ12A0VCNqvVbJPV5Zr4l2UwFmz95NngU3C2hllg6UT/EaWRUOFspu9Cm+ns0St9kuuKCFIB+zfieJ1pfMVEQANGyUvKqw/QilU68eHEsggq+2PF5bshW1qDhm6dg+jFQuMTxQx9xCbhYP07fU9uTSv0w8tMNRrWJAUsH4hz2ndVOv3gTPIe1UiopTGTtrXPRHVAF/gFeh4QMwOd140HiSECAwEAAaMvMC0wEwYDVR0lBAwwCgYIKwYBBQUHAwIwCQYDVR0TBAIwADALBgNVHQ8EBAMCBaAwDQYJKoZIhvcNAQELBQADggIBAFTH0HxwQGNFTa/CG5PYv+MRNwm9soR3iaP/ge4U8sgiIWcHIH5PyWmR/Wzzrlt70w2L1r7M8I78pHcbeN92nmwcq0Pz5vKUqZfqR9m6vJeEBr6EpGm2XhRNkV5MkZ1pPEfl/03lyMCClk1swox4lXwc05ZBWx8Jp5FGe6PO3qtpT4AwS9mWuXKiaJqRblY6YzzXNeNOO+7hlTLxNfpFQxzdSkGRR36GdCMT8LnKddY229CLHmtfQYIsa0b1QWmQbqfpPTzY6RvswJ+k0InwQ4D3mXnr8H0/snLcOSKg4wcqiYj9nOsDHExIIWfYBLwjUFzRm7zGJ+0Mi21Q7yDFtUWkMMIpWDIZ+6K1sAElNasmVhBbzcCxqG8yEkIBLdlhqAzq8sqRhsoDIJqDu3fIP9d+wbBhUvfZB6hQZ0oJjzF45HrWLiF6VTSCQY8mE18RQw3zibLHP+/ZzdWAZdCTH5awjrFPfceqondgDunhnTGcZlXDng9LFpo9QT613TRZF3Ff6d+pw7Rwkhios5IazxvJizVEdzuH+RFJDOscw2JI0L4zOiCNXZp1MmUxsZLzT/Y+ZBFWzvnRJHQmRkUYXMA3XL50c9xRi6IRM9Vvdtq5z5a5f6+PWnwx++VbOjqyt5Sr6cj6XIVW74MYDljCEM4i0E0rVXFS9ZecX4UKq92m";
+var serverUrl = Environment.GetEnvironmentVariable("XIANS_SERVER_URL") 
+    ?? throw new InvalidOperationException("XIANS_SERVER_URL environment variable is not set"); 
+var xiansApiKey = Environment.GetEnvironmentVariable("XIANS_API_KEY") 
+    ?? throw new InvalidOperationException("XIANS_API_KEY environment variable is not set");
 
 // Initialize Xians Platform
 var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
@@ -19,12 +22,12 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 // Register a new agent with Xians
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
-    Name = "My Conversational Agent",
+    Name = "My Simple Agent",
     SystemScoped = false  // See important notes below
 });
 
 // Define a built-in conversational workflow
-var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Conversational");
+var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Conversing Workflow");
 
 // Create your MAF agent instance
 var mafAgent = new MafSubAgent(openAiApiKey);
@@ -35,6 +38,16 @@ conversationalWorkflow.OnUserChatMessage(async (context) =>
     var response = await mafAgent.RunAsync(context);
     await context.ReplyAsync(response);
 });
+
+
+var webhookWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Webhook Workflow");
+webhookWorkflow.OnWebhook((context) =>
+{
+    // Your webhook processing logic here
+    Console.WriteLine($"Received: {context.Webhook.Name}");
+    context.Respond(new { status = "success" });
+});
+
 
 // Start the agent and all workflows
 await xiansAgent.RunAllAsync();

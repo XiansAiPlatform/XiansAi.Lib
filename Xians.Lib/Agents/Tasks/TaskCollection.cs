@@ -2,7 +2,8 @@ using Temporalio.Client;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
-using Xians.Lib.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
 
@@ -74,16 +75,20 @@ public class TaskCollection
     /// </summary>
     /// <param name="request">The task workflow request.</param>
     /// <returns>A child workflow handle that can be used to get the result.</returns>
-    public Task<ChildWorkflowHandle<TaskWorkflow, TaskWorkflowResult>> StartTaskAsync(TaskWorkflowRequest request)
-        => TaskWorkflowService.StartTaskAsync(request);
+    public async Task<ChildWorkflowHandle> StartTaskAsync(TaskWorkflowRequest request)
+    {
+        return await TaskWorkflowService.StartTaskAsync(request);
+    }
 
     /// <summary>
     /// Awaits the result of a task workflow using its handle.
     /// </summary>
     /// <param name="handle">The child workflow handle returned from StartTaskAsync.</param>
     /// <returns>The task workflow result.</returns>
-    public Task<TaskWorkflowResult> GetResultAsync(ChildWorkflowHandle<TaskWorkflow, TaskWorkflowResult> handle)
-        => TaskWorkflowService.GetResultAsync(handle);
+    public async Task<TaskWorkflowResult> GetResultAsync(ChildWorkflowHandle handle)
+    {
+        return await TaskWorkflowService.GetResultAsync(handle);
+    }
 
     /// <summary>
     /// Creates a task child workflow without waiting for completion (fire and forget).
@@ -150,14 +155,12 @@ public class TaskCollection
     /// <param name="tenantId">The tenant ID.</param>
     /// <param name="taskId">The task ID.</param>
     /// <returns>A typed workflow handle for the task.</returns>
-    public WorkflowHandle<TaskWorkflow> GetTaskHandleForClient(
+    public WorkflowHandle GetTaskHandleForClient(
         ITemporalClient client,
         string tenantId,
         string taskId)
     {
-        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        var taskService = new TaskService(client, tenantId, logger);
-        return taskService.GetTaskHandle(taskId);
+        return TaskWorkflowService.GetTaskHandleForClient(client, _agent.Name, tenantId, taskId);
     }
 
     /// <summary>
@@ -174,7 +177,7 @@ public class TaskCollection
         string taskId)
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        var taskService = new TaskService(client, tenantId, logger);
+        var taskService = new TaskService(client, _agent.Name, tenantId, logger);
         return await taskService.QueryTaskInfoAsync(taskId);
     }
 
@@ -188,7 +191,7 @@ public class TaskCollection
         string updatedDraft)
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        var taskService = new TaskService(client, tenantId, logger);
+        var taskService = new TaskService(client, _agent.Name, tenantId, logger);
         await taskService.UpdateDraftAsync(taskId, updatedDraft);
     }
 
@@ -201,7 +204,7 @@ public class TaskCollection
         string taskId)
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        var taskService = new TaskService(client, tenantId, logger);
+        var taskService = new TaskService(client, _agent.Name, tenantId, logger);
         await taskService.CompleteTaskAsync(taskId);
     }
 
@@ -215,7 +218,7 @@ public class TaskCollection
         string rejectionMessage)
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        var taskService = new TaskService(client, tenantId, logger);
+        var taskService = new TaskService(client, _agent.Name, tenantId, logger);
         await taskService.RejectTaskAsync(taskId, rejectionMessage);
     }
 }

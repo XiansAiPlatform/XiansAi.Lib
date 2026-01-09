@@ -16,7 +16,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
     private WireMockServer? _mockServer;
     private XiansPlatform? _platform;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         // Setup mock HTTP server
         _mockServer = WireMockServer.Start();
@@ -38,7 +38,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
                 .WithBody("{\"success\": true}"));
         
         // Initialize platform with mock server
-        _platform = XiansPlatform.Initialize(new XiansOptions
+        _platform = await XiansPlatform.InitializeAsync(new XiansOptions
         {
             ServerUrl = _mockServer.Url!,
             ApiKey = TestCertificateGenerator.GetTestCertificate(),
@@ -48,8 +48,6 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
                 Namespace = "default"
             }
         });
-        
-        return Task.CompletedTask;
     }
 
     [Fact]
@@ -63,7 +61,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -87,7 +85,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 1, name: "Conversational");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", maxConcurrent: 1);
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -104,7 +102,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var uploadedDefinition = JsonSerializer.Deserialize<WorkflowDefinition>(capturedBody);
         Assert.NotNull(uploadedDefinition);
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
-        Assert.Equal($"{uniqueAgentName}:BuiltIn Workflow-Conversational", uploadedDefinition.WorkflowType);
+        Assert.Equal($"{uniqueAgentName}:Conversational", uploadedDefinition.WorkflowType);
         Assert.Equal("Conversational", uploadedDefinition.Name);
         Assert.False(uploadedDefinition.SystemScoped);
         Assert.Equal(1, uploadedDefinition.Workers);
@@ -122,7 +120,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(workers: 2, name: "SystemWorkflow");
+        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow", maxConcurrent: 2);
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -136,7 +134,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var uploadedDefinition = JsonSerializer.Deserialize<WorkflowDefinition>(postRequest.RequestMessage.Body!);
         Assert.NotNull(uploadedDefinition);
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
-        Assert.Equal($"{uniqueAgentName}:BuiltIn Workflow-SystemWorkflow", uploadedDefinition.WorkflowType);
+        Assert.Equal($"{uniqueAgentName}:SystemWorkflow", uploadedDefinition.WorkflowType);
         Assert.True(uploadedDefinition.SystemScoped);
         Assert.Equal(2, uploadedDefinition.Workers);
     }

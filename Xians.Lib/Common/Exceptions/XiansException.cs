@@ -10,7 +10,7 @@ public class XiansException : Exception
 
     public XiansException(string message) : base(message) { }
 
-    public XiansException(string message, Exception innerException) 
-        : base(message, innerException) { }
+    public XiansException(string message, Exception? innerException) 
+        : base(message, innerException!) { }
 }
 

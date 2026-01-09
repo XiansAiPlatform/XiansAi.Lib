@@ -1,4 +1,4 @@
-﻿using DotNetEnv;
+using DotNetEnv;
 using Xians.Lib.Agents.Core;
 using Xians.Agent.Sample;
 using Xians.Agent.Sample.WebAgent;
@@ -30,7 +30,7 @@ var agentName = Constants.AgentName;
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
-    SystemScoped = true
+    SystemScoped = false
 });
 
 // Define a content processing workflow to handle content processing
@@ -44,17 +44,33 @@ var conversationalWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.Conve
 var conversationalAgent = new ConversationalAgent(openAiApiKey);
 conversationalWorkflow.OnUserChatMessage(async (context) =>
 {
-    var response = await conversationalAgent.ProcessMessageAsync(context);
-    await context.ReplyAsync(response);
+    try {
+        var response = await conversationalAgent.ProcessMessageAsync(context);
+        await context.ReplyAsync(response);
+    } catch (Exception ex) {
+        Console.WriteLine($"Error processing conversational request: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await context.ReplyAsync($"Error processing conversational request: {ex.Message}");
+    }
 });
 
 // Register handler for web workflow
 var webWorkflow = agent.Workflows.DefineBuiltIn(name: Constants.WebWorkflowName);
 webWorkflow.OnUserChatMessage(async (context) =>
 {
-    var response = await WebAgent.ProcessMessageAsync(context, openAiApiKey);
-    await context.ReplyAsync(response);
+    try {
+        var response = await WebAgent.ProcessMessageAsync(context, openAiApiKey);
+        await context.ReplyAsync(response);
+    } catch (Exception ex) {
+        Console.WriteLine($"Error processing web request: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await context.ReplyAsync($"Error processing web request: {ex.Message}");
+    }
+
 });
+
+// Optional: Enable human-in-the-loop (HITL) tasks
+agent.Workflows.WithTasks();  // Uses default max concurrent (100)
 
 // Run all workflows
 try

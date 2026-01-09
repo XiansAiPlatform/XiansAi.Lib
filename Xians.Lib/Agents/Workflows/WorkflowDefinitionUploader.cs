@@ -55,8 +55,6 @@ internal class WorkflowDefinitionUploader
             {
                 _uploadedDefinitions.Add(workflowKey);
             }
-            
-            _logger?.LogInformation("Successfully uploaded workflow definition for {WorkflowType}", definition.WorkflowType);
         }
         catch (Exception ex)
         {

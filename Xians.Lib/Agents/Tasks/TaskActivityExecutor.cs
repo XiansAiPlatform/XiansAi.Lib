@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
-using Xians.Lib.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
 
@@ -26,7 +26,9 @@ internal class TaskActivityExecutor : ContextAwareActivityExecutor<TaskActivitie
     protected override TaskService CreateService()
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        return new TaskService(_client, _tenantId, logger);
+        var agentName = XiansContext.CurrentAgent?.Name 
+            ?? throw new InvalidOperationException("Agent name not available in workflow context");
+        return new TaskService(_client, agentName, _tenantId, logger);
     }
 
     /// <summary>

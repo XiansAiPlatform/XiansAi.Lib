@@ -5,7 +5,7 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.Tasks.Models;
 using Xians.Lib.Tests.TestUtilities;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -68,6 +68,9 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Name = "Platform",
             SystemScoped = true
         });
+
+        // Enable task workflow support
+        _platformAgent.Workflows.WithTasks();
 
         // Upload workflow definitions (Platform agent has the Task Workflow)
         await _platformAgent.UploadWorkflowDefinitionsAsync();

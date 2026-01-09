@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Documents.Models;
-using Xians.Lib.Workflows.Documents;
-using Xians.Lib.Workflows.Documents.Models;
+using Xians.Lib.Temporal.Workflows.Documents;
+using Xians.Lib.Temporal.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Documents;
 

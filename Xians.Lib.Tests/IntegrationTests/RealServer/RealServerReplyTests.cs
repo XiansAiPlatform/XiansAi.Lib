@@ -8,7 +8,8 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// Real server tests for Reply functionality as documented in replying.md.
 /// Tests use Temporal SDK patterns following RealServerA2ATests.
 /// 
-/// Run with: dotnet test --filter "FullyQualifiedName~RealServerReplyTests"
+/// dotnet test --filter "FullyQualifiedName~RealServerReplyTests"
+/// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>
 [Trait("Category", "RealServer")]
@@ -29,7 +30,7 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
 
     public RealServerReplyTests()
     {
-        _agentName = "ReplyTestAgent";
+        _agentName = "ReplyTestAgentTenantScoped";
     }
 
     public async Task InitializeAsync()
@@ -51,6 +52,8 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
             Name = _agentName,
             SystemScoped = false
         });
+
+        Console.WriteLine($"Agent registered with tenant ID: {_agent.Options!.CertificateTenantId}");
 
         var testWorkflow = _agent.Workflows.DefineBuiltIn(name: WORKFLOW_NAME);
         
@@ -168,7 +171,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: ReplyAsync Simple Text ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"simple-text-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "simple-text test", testId);
@@ -192,7 +200,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: ReplyAsync With Data ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"with-data-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "with-data test", testId);
@@ -216,7 +229,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: SendDataAsync ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"send-data-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "send-data test", testId);
@@ -244,7 +262,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: GetChatHistoryAsync ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"get-history-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "get-history test", testId);
@@ -267,7 +290,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: GetLastHintAsync ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"get-hint-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "get-hint test", testId);
@@ -290,7 +318,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: SkipResponse ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"skip-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "LOG: test event", testId);
@@ -317,7 +350,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: Scope Isolation ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var scope1 = "Order #12345 - Delivery Questions";
         
@@ -343,7 +381,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: Thread Management ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"thread-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "thread-test message", testId);
@@ -368,7 +411,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("=== Test: Message Properties Access ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
-        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(temporalClient, _agentName, WORKFLOW_NAME);
+        var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
+            temporalClient, 
+            _agentName, 
+            WORKFLOW_NAME,
+            systemScoped: false,
+            tenantId: _agent.Options!.CertificateTenantId);
 
         var testId = $"props-{Guid.NewGuid():N}";
         var message = TemporalTestUtils.CreateChatMessage(_agentName, "properties-test message", testId);
@@ -416,7 +464,11 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         try
         {
             var temporalClient = await _agent.TemporalService.GetClientAsync();
-            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(temporalClient, _agentName, new[] { WORKFLOW_NAME });
+            await TemporalTestUtils.TerminateBuiltInWorkflowsAsync(
+                temporalClient, 
+                _agentName, 
+                new[] { WORKFLOW_NAME },
+                tenantId: _agent.Options!.CertificateTenantId);
             Console.WriteLine("✓ Workflows terminated");
         }
         catch (Exception ex)

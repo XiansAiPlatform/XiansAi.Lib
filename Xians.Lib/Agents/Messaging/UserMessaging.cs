@@ -4,8 +4,8 @@ using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Messaging;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Agents.Messaging;
 
@@ -25,8 +25,7 @@ namespace Xians.Lib.Agents.Messaging;
 /// // Send with custom scope
 /// await UserMessaging.SendChatAsync("user-123", "Hello!", scope: "notifications");
 /// 
-/// // Send as an impersonated builtin workflow
-/// var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType("MyAgent", "ContentDiscovery");
+/// // Send as an impersonated 
 /// await UserMessaging.SendChatAsWorkflowAsync(workflowType, "user-123", "Content discovered!");
 /// 
 /// // Send as an impersonated platform workflow
@@ -59,7 +58,7 @@ internal static class UserMessaging
     /// Sends a chat message to a participant while impersonating a workflow.
     /// Use <see cref="WorkflowIdentity"/> to construct builtin or platform workflow types.
     /// </summary>
-    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:BuiltIn Workflow", "Platform:Task Workflow").</param>
+    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:WorkflowName").</param>
     /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
     /// <param name="text">The chat message content.</param>
     /// <param name="data">Optional data object to include with the message.</param>
@@ -68,8 +67,8 @@ internal static class UserMessaging
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     /// <example>
-    /// // Impersonate a builtin workflow
-    /// var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType("MyAgent", "ContentDiscovery");
+    /// // Impersonate a workflow
+    /// var workflowType = "MyAgent:ContentDiscovery";
     /// await UserMessaging.SendChatAsWorkflowAsync(workflowType, "user-123", "Content discovered!");
     /// 
     /// // Impersonate a platform workflow
@@ -142,7 +141,7 @@ internal static class UserMessaging
             // Execute via Temporal activity for proper determinism and retry handling
             return await Workflow.ExecuteActivityAsync(
                 (MessageActivities act) => act.GetLastHintAsync(request),
-                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
+                Xians.Lib.Temporal.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
         {
@@ -171,7 +170,7 @@ internal static class UserMessaging
     /// Data messages are typically used for structured data that may be processed differently than chat messages.
     /// Use <see cref="WorkflowIdentity"/> to construct builtin or platform workflow types.
     /// </summary>
-    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:BuiltIn Workflow", "Platform:Task Workflow").</param>
+    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:WorkflowName").</param>
     /// <param name="participantId">The ID of the participant (user) to send the data to.</param>
     /// <param name="text">The message content/description.</param>
     /// <param name="data">The data object to send.</param>
@@ -288,7 +287,7 @@ internal static class UserMessaging
             // Execute via Temporal activity for proper determinism and retry handling
             await Workflow.ExecuteActivityAsync(
                 (MessageActivities act) => act.SendMessageAsync(request),
-                Xians.Lib.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
+                Xians.Lib.Temporal.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
         {

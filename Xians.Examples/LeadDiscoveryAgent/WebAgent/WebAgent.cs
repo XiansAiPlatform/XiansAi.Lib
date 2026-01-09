@@ -1,6 +1,6 @@
 using Microsoft.Agents.AI;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
@@ -27,12 +27,11 @@ internal static class WebAgent
         string openAiApiKey,
         string modelName = "gpt-4o-mini")
     {
-        var instructions = await XiansContext.CurrentAgent.Knowledge.GetAsync("Web Agent Instructions");
-
-        if (instructions == null)
-        {
-            throw new Exception("'Web Agent Instructions' knowledge not found. Please set the instructions on the Xians portal.");
-        }
+        var instructions = """
+            You are a web research agent. Your job is to search the web, scrape websites, and extract relevant information.
+            Use the available tools to find and gather information as requested by the user.
+            Be thorough in your research and provide accurate, well-organized responses.
+            """;
 
         // Create AI agent with custom Xians chat message store and tools
         AIAgent mafAgent = new OpenAIClient(openAiApiKey)
@@ -41,7 +40,7 @@ internal static class WebAgent
             {
                 ChatOptions = new ChatOptions
                 {
-                    Instructions = instructions.Content,
+                    Instructions = instructions,
                     Tools =
                     [
                         AIFunctionFactory.Create(GoogleSearchCapability.WebSearch),

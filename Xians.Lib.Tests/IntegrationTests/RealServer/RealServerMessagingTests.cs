@@ -2,8 +2,8 @@ using System.Net.Http.Json;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Workflows.Models;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
@@ -13,6 +13,8 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// These tests run against an actual Xians server to verify:
 /// - Message sending (chat and data)
 /// - Message history retrieval
+/// 
+/// dotnet test --filter "FullyQualifiedName~RealServerMessagingTests"
 /// 
 /// Set SERVER_URL and API_KEY environment variables to run these tests.
 /// </summary>

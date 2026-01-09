@@ -6,7 +6,7 @@ using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Common;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
-using Xians.Lib.Workflows.Knowledge;
+using Xians.Lib.Temporal.Workflows.Knowledge;
 
 namespace Xians.Lib.Agents.Knowledge;
 

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
-using Xians.Lib.Workflows;
+using Xians.Lib.Common.Exceptions;
+using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -20,10 +21,40 @@ internal class WorkflowRegistrar
     /// <summary>
     /// Registers a built-in workflow.
     /// </summary>
-    public void RegisterBuiltInWorkflow(TemporalWorkerOptions workerOptions, string workflowType)
+    public void RegisterBuiltInWorkflow(TemporalWorkerOptions workerOptions, string workflowType, Type workflowClassType)
     {
-        workerOptions.AddWorkflow<BuiltinWorkflow>();
-        _logger.LogDebug("Registered built-in workflow '{WorkflowType}'", workflowType);
+        if (workflowClassType == null)
+        {
+            throw new InvalidOperationException(
+                $"Workflow class type not provided for built-in workflow '{workflowType}'");
+        }
+
+        try
+        {
+            // Use AddWorkflow via reflection (Temporal SDK requires generic method)
+            var addWorkflowMethod = typeof(TemporalWorkerOptions)
+                .GetMethod("AddWorkflow", Type.EmptyTypes);
+            
+            if (addWorkflowMethod == null)
+            {
+                throw new InvalidOperationException(
+                    "Could not find AddWorkflow method on TemporalWorkerOptions");
+            }
+
+            var genericMethod = addWorkflowMethod.MakeGenericMethod(workflowClassType);
+            genericMethod.Invoke(workerOptions, null);
+
+            _logger.LogDebug(
+                "Registered built-in workflow '{WorkflowType}' with type '{WorkflowClass}'",
+                workflowType, workflowClassType.Name);
+        }
+        catch (Exception ex)
+        {
+            throw new WorkflowRegistrationException(
+                $"Failed to register built-in workflow '{workflowType}' with type '{workflowClassType.Name}'",
+                workflowType: workflowType,
+                innerException: ex);
+        }
     }
 
     /// <summary>
@@ -61,9 +92,10 @@ internal class WorkflowRegistrar
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException(
+            throw new WorkflowRegistrationException(
                 $"Failed to register custom workflow '{workflowType}' with type '{workflowClassType.Name}'",
-                ex);
+                workflowType: workflowType,
+                innerException: ex);
         }
     }
 }

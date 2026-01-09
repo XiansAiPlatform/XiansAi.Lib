@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Documents.Models;
 using Xians.Lib.Common;
 using Xians.Lib.Common.Infrastructure;
-using Xians.Lib.Workflows.Documents.Models;
+using Xians.Lib.Temporal.Workflows.Documents.Models;
 
 namespace Xians.Lib.Agents.Documents;
 

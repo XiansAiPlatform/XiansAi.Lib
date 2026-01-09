@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Xians.Lib.Agents.Tasks.Models;
+using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
 
@@ -16,11 +18,12 @@ internal class TaskService
     private readonly ITemporalClient _client;
     private readonly ILogger _logger;
     private readonly string _tenantId;
-    private const string TaskWorkflowType = "Platform:Task Workflow";
+    private readonly string _agentName;
 
-    public TaskService(ITemporalClient client, string tenantId, ILogger logger)
+    public TaskService(ITemporalClient client, string agentName, string tenantId, ILogger logger)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _agentName = agentName ?? throw new ArgumentNullException(nameof(agentName));
         _tenantId = tenantId ?? throw new ArgumentNullException(nameof(tenantId));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -30,7 +33,9 @@ internal class TaskService
     /// </summary>
     public WorkflowHandle<TaskWorkflow> GetTaskHandle(string taskId)
     {
-        var workflowId = $"{_tenantId}:{TaskWorkflowType}:{taskId}";
+        // Build workflow ID manually to avoid requiring workflow context
+        // Format: {tenantId}:{agentName}:Task Workflow:{taskId}
+        var workflowId = $"{_tenantId}:{_agentName}:Task Workflow:{taskId}";
         return _client.GetWorkflowHandle<TaskWorkflow>(workflowId);
     }
 

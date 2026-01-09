@@ -2,7 +2,7 @@ using Temporalio.Client;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Tests.TestUtilities;
 

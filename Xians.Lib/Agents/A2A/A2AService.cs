@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Workflows;
-using Xians.Lib.Workflows.Messaging.Models;
-using Xians.Lib.Workflows.Models;
+using Xians.Lib.Temporal.Workflows;
+using Xians.Lib.Temporal.Workflows.Messaging.Models;
+using Xians.Lib.Temporal.Workflows.Models;
 
 namespace Xians.Lib.Agents.A2A;
 

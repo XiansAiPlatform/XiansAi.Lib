@@ -7,7 +7,7 @@ using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Workflows.Scheduling.Models;
+using Xians.Lib.Temporal.Workflows.Scheduling.Models;
 
 namespace Xians.Lib.Agents.Scheduling;
 
@@ -413,8 +413,8 @@ public class ScheduleBuilder
                     };
 
                     created = await Workflow.ExecuteActivityAsync(
-                        (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.CreateScheduleIfNotExists(request),
-                        Xians.Lib.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
+                        (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.CreateScheduleIfNotExists(request),
+                        Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
                 }
                 else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
                 {
@@ -430,8 +430,8 @@ public class ScheduleBuilder
                     };
 
                     created = await Workflow.ExecuteActivityAsync(
-                        (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.CreateIntervalScheduleIfNotExists(request),
-                        Xians.Lib.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
+                        (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.CreateIntervalScheduleIfNotExists(request),
+                        Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
                 }
                 else
                 {
@@ -506,8 +506,8 @@ public class ScheduleBuilder
             {
                 var request = new ScheduleExistsRequest { ScheduleId = _scheduleId };
                 scheduleExists = await Workflow.ExecuteActivityAsync(
-                    (Xians.Lib.Workflows.Scheduling.ScheduleActivities act) => act.ScheduleExists(request),
-                    Xians.Lib.Workflows.Scheduling.ScheduleActivityOptions.GetQuickCheckOptions());
+                    (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.ScheduleExists(request),
+                    Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetQuickCheckOptions());
             }
             else
             {

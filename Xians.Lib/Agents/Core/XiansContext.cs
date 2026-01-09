@@ -8,6 +8,7 @@ using Xians.Lib.Agents.Documents;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.A2A;
+using Xians.Lib.Agents.Core.Registry;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -15,14 +16,16 @@ namespace Xians.Lib.Agents.Core;
 /// Central context hub for accessing all Xians SDK functionality.
 /// Provides unified access to agents, workflows, messaging, knowledge, documents, and schedules.
 /// </summary>
+/// <remarks>
+/// This class acts as a facade over separate registries for better separation of concerns.
+/// The underlying registries can be accessed via dependency injection for testability.
+/// </remarks>
 public static class XiansContext
 {
-    // Thread-safe registry for agents (workflows are accessible via agents)
-    private static readonly ConcurrentDictionary<string, XiansAgent> _agents = new();
-    
-    // Thread-safe registry for workflows by workflow type
-    // Used for quick lookup in workflow/activity context
-    private static readonly ConcurrentDictionary<string, XiansWorkflow> _workflows = new();
+    // Extracted registries for better separation of concerns
+    // Made internal static for backward compatibility, but accessible for DI scenarios
+    internal static readonly IAgentRegistry _agentRegistry = new AgentRegistry();
+    internal static readonly IWorkflowRegistry _workflowRegistry = new WorkflowRegistry();
 
     #region Workflow/Activity Context
 
@@ -105,9 +108,9 @@ public static class XiansContext
         get
         {
             var agentName = AgentName;
-            if (_agents.TryGetValue(agentName, out var agent))
+            if (_agentRegistry.TryGet(agentName, out var agent))
             {
-                return agent;
+                return agent!;
             }
 
             throw new InvalidOperationException(
@@ -132,9 +135,9 @@ public static class XiansContext
 
             var workflowType = WorkflowType;
             
-            if (_workflows.TryGetValue(workflowType, out var workflow))
+            if (_workflowRegistry.TryGet(workflowType, out var workflow))
             {
-                return workflow;
+                return workflow!;
             }
 
             throw new InvalidOperationException(
@@ -151,7 +154,8 @@ public static class XiansContext
     private static readonly MessagingHelper _messagingHelper = new();
 
     /// <summary>
-    /// Gets workflow execution operations for starting and executing child workflows.
+    /// Gets workflow operations for starting, executing, signaling, and querying workflows.
+    /// Also provides access to the Temporal client for advanced operations.
     /// </summary>
     public static WorkflowHelper Workflows => _workflowHelper;
 
@@ -173,18 +177,7 @@ public static class XiansContext
     /// <exception cref="KeyNotFoundException">Thrown when the agent is not found.</exception>
     public static XiansAgent GetAgent(string agentName)
     {
-        if (string.IsNullOrWhiteSpace(agentName))
-        {
-            throw new ArgumentNullException(nameof(agentName), "Agent name cannot be null or empty.");
-        }
-
-        if (_agents.TryGetValue(agentName, out var agent))
-        {
-            return agent;
-        }
-
-        throw new KeyNotFoundException(
-            $"Agent '{agentName}' not found. Available agents: {string.Join(", ", _agents.Keys)}");
+        return _agentRegistry.Get(agentName);
     }
 
     /// <summary>
@@ -195,13 +188,7 @@ public static class XiansContext
     /// <returns>True if the agent was found, false otherwise.</returns>
     public static bool TryGetAgent(string agentName, out XiansAgent? agent)
     {
-        if (string.IsNullOrWhiteSpace(agentName))
-        {
-            agent = null;
-            return false;
-        }
-
-        return _agents.TryGetValue(agentName, out agent);
+        return _agentRegistry.TryGet(agentName, out agent);
     }
 
     /// <summary>
@@ -210,7 +197,7 @@ public static class XiansContext
     /// <returns>Enumerable of all registered agent instances.</returns>
     public static IEnumerable<XiansAgent> GetAllAgents()
     {
-        return _agents.Values;
+        return _agentRegistry.GetAll();
     }
 
     #endregion
@@ -226,18 +213,7 @@ public static class XiansContext
     /// <exception cref="KeyNotFoundException">Thrown when the workflow is not found.</exception>
     public static XiansWorkflow GetWorkflow(string workflowType)
     {
-        if (string.IsNullOrWhiteSpace(workflowType))
-        {
-            throw new ArgumentNullException(nameof(workflowType), "Workflow type cannot be null or empty.");
-        }
-
-        if (_workflows.TryGetValue(workflowType, out var workflow))
-        {
-            return workflow;
-        }
-
-        throw new KeyNotFoundException(
-            $"Workflow '{workflowType}' not found. Available workflows: {string.Join(", ", _workflows.Keys)}");
+        return _workflowRegistry.Get(workflowType);
     }
 
     /// <summary>
@@ -269,15 +245,15 @@ public static class XiansContext
         // Format: "{AgentName}:BuiltIn Workflow-{name}"
         var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
 
-        if (_workflows.TryGetValue(workflowType, out var workflow))
+        if (_workflowRegistry.TryGet(workflowType, out var workflow))
         {
-            return workflow;
+            return workflow!;
         }
 
         throw new KeyNotFoundException(
             $"Built-in workflow '{workflowName}' not found for agent '{agent.Name}'. " +
             $"Expected workflow type: '{workflowType}'. " +
-            $"Available workflows: {string.Join(", ", _workflows.Keys)}");
+            $"Available workflows: {string.Join(", ", _workflowRegistry.GetAll().Select(w => w.WorkflowType))}");
     }
 
     /// <summary>
@@ -304,7 +280,7 @@ public static class XiansContext
 
         // Use WorkflowIdentity to construct the built-in workflow type
         var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
-        return _workflows.TryGetValue(workflowType, out workflow);
+        return _workflowRegistry.TryGet(workflowType, out workflow);
     }
 
     /// <summary>
@@ -315,13 +291,7 @@ public static class XiansContext
     /// <returns>True if the workflow was found, false otherwise.</returns>
     public static bool TryGetWorkflow(string workflowType, out XiansWorkflow? workflow)
     {
-        if (string.IsNullOrWhiteSpace(workflowType))
-        {
-            workflow = null;
-            return false;
-        }
-
-        return _workflows.TryGetValue(workflowType, out workflow);
+        return _workflowRegistry.TryGet(workflowType, out workflow);
     }
 
     /// <summary>
@@ -330,19 +300,7 @@ public static class XiansContext
     /// <returns>Enumerable of all registered workflow instances.</returns>
     public static IEnumerable<XiansWorkflow> GetAllWorkflows()
     {
-        return _workflows.Values;
-    }
-
-
-    /// <summary>
-    /// Extracts workflow type from [Workflow] attribute on a class.
-    /// </summary>
-    private static string? GetWorkflowTypeFromAttribute<T>() where T : class
-    {
-        var workflowAttr = typeof(T).GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
-            .FirstOrDefault() as Temporalio.Workflows.WorkflowAttribute;
-        
-        return workflowAttr?.Name;
+        return _workflowRegistry.GetAll();
     }
 
     #endregion
@@ -382,16 +340,7 @@ public static class XiansContext
     /// <exception cref="InvalidOperationException">Thrown when an agent with the same name is already registered.</exception>
     internal static void RegisterAgent(XiansAgent agent)
     {
-        if (agent == null)
-        {
-            throw new ArgumentNullException(nameof(agent));
-        }
-
-        if (!_agents.TryAdd(agent.Name, agent))
-        {
-            throw new InvalidOperationException(
-                $"Agent '{agent.Name}' is already registered. Each agent must have a unique name.");
-        }
+        _agentRegistry.Register(agent);
     }
 
     /// <summary>
@@ -402,21 +351,7 @@ public static class XiansContext
     /// <param name="workflow">The workflow instance to register.</param>
     internal static void RegisterWorkflow(string workflowType, XiansWorkflow workflow)
     {
-        if (string.IsNullOrWhiteSpace(workflowType))
-        {
-            throw new ArgumentNullException(nameof(workflowType));
-        }
-
-        if (workflow == null)
-        {
-            throw new ArgumentNullException(nameof(workflow));
-        }
-
-        if (!_workflows.TryAdd(workflowType, workflow))
-        {
-            // Workflow already registered - this is OK (might be restarting)
-            _workflows[workflowType] = workflow;
-        }
+        _workflowRegistry.Register(workflowType, workflow);
     }
 
     /// <summary>
@@ -424,12 +359,12 @@ public static class XiansContext
     /// </summary>
     internal static void CleanupForTests()
     {
-        _agents.Clear();
-        _workflows.Clear();
+        _agentRegistry.Clear();
+        _workflowRegistry.Clear();
         // Clear workflow handlers to prevent test contamination
-        Xians.Lib.Workflows.BuiltinWorkflow.ClearHandlersForTests();
+        Xians.Lib.Temporal.Workflows.BuiltinWorkflow.ClearHandlersForTests();
         // Clear static services in activities to prevent cross-test contamination
-        Xians.Lib.Workflows.Knowledge.KnowledgeActivities.ClearStaticServicesForTests();
+        Xians.Lib.Temporal.Workflows.Knowledge.KnowledgeActivities.ClearStaticServicesForTests();
         // Clear cached server settings to prevent cross-test contamination
         Xians.Lib.Common.Infrastructure.SettingsService.ResetCache();
         // Clear certificate cache to prevent stale certificates
@@ -442,8 +377,8 @@ public static class XiansContext
     /// </summary>
     internal static void Clear()
     {
-        _agents.Clear();
-        _workflows.Clear();
+        _agentRegistry.Clear();
+        _workflowRegistry.Clear();
     }
 
     #endregion
