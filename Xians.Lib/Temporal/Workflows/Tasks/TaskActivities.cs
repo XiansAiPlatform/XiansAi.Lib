@@ -4,6 +4,7 @@ using Temporalio.Client;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks;
 using Xians.Lib.Agents.Tasks.Models;
+using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Temporal.Workflows.Tasks;
 
@@ -52,7 +53,11 @@ public class TaskActivities
             ActivityExecutionContext.Current.Logger.LogError(ex,
                 "Error querying task info: TaskId={TaskId}",
                 taskId);
-            throw;
+            throw new ActivityExecutionException(
+                $"Failed to query task info for TaskId='{taskId}'",
+                activityName: nameof(QueryTaskInfoAsync),
+                tenantId: tenantId,
+                innerException: ex);
         }
     }
 
@@ -85,7 +90,11 @@ public class TaskActivities
             ActivityExecutionContext.Current.Logger.LogError(ex,
                 "Error updating draft: TaskId={TaskId}",
                 taskId);
-            throw;
+            throw new ActivityExecutionException(
+                $"Failed to update draft for TaskId='{taskId}'",
+                activityName: nameof(UpdateDraftAsync),
+                tenantId: tenantId,
+                innerException: ex);
         }
     }
 
@@ -118,7 +127,11 @@ public class TaskActivities
             ActivityExecutionContext.Current.Logger.LogError(ex,
                 "Error completing task: TaskId={TaskId}",
                 taskId);
-            throw;
+            throw new ActivityExecutionException(
+                $"Failed to complete TaskId='{taskId}'",
+                activityName: nameof(CompleteTaskAsync),
+                tenantId: tenantId,
+                innerException: ex);
         }
     }
 
@@ -151,7 +164,11 @@ public class TaskActivities
             ActivityExecutionContext.Current.Logger.LogError(ex,
                 "Error rejecting task: TaskId={TaskId}",
                 taskId);
-            throw;
+            throw new ActivityExecutionException(
+                $"Failed to reject TaskId='{taskId}'",
+                activityName: nameof(RejectTaskAsync),
+                tenantId: tenantId,
+                innerException: ex);
         }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
+using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.Core;
@@ -49,9 +50,10 @@ internal class WorkflowRegistrar
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException(
+            throw new WorkflowRegistrationException(
                 $"Failed to register built-in workflow '{workflowType}' with type '{workflowClassType.Name}'",
-                ex);
+                workflowType: workflowType,
+                innerException: ex);
         }
     }
 
@@ -90,9 +92,10 @@ internal class WorkflowRegistrar
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException(
+            throw new WorkflowRegistrationException(
                 $"Failed to register custom workflow '{workflowType}' with type '{workflowClassType.Name}'",
-                ex);
+                workflowType: workflowType,
+                innerException: ex);
         }
     }
 }

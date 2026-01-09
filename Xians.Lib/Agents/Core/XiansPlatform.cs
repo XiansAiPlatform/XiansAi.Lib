@@ -89,17 +89,6 @@ public class XiansPlatform
     }
 
     /// <summary>
-    /// Initializes the Xians platform with the specified options synchronously.
-    /// Note: This is a synchronous wrapper. Use InitializeAsync when possible.
-    /// </summary>
-    /// <param name="options">Configuration options for the platform.</param>
-    /// <returns>An initialized XiansPlatform instance.</returns>
-    public static XiansPlatform Initialize(XiansOptions options)
-    {
-        return InitializeAsync(options).GetAwaiter().GetResult();
-    }
-
-    /// <summary>
     /// Displays a formatted initialization banner with platform connection details.
     /// </summary>
     private void DisplayInitializationBanner(bool showLogo = false)

@@ -38,7 +38,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine($"Initializing Schedule tests against REAL server: {ServerUrl}");
         
         // Initialize platform
-        _platform = XiansPlatform.Initialize(new XiansOptions
+        _platform = await XiansPlatform.InitializeAsync(new XiansOptions
         {
             ServerUrl = ServerUrl!,
             ApiKey = ApiKey!

@@ -16,7 +16,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
     private WireMockServer? _mockServer;
     private XiansPlatform? _platform;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         // Setup mock HTTP server
         _mockServer = WireMockServer.Start();
@@ -38,7 +38,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
                 .WithBody("{\"success\": true}"));
         
         // Initialize platform with mock server
-        _platform = XiansPlatform.Initialize(new XiansOptions
+        _platform = await XiansPlatform.InitializeAsync(new XiansOptions
         {
             ServerUrl = _mockServer.Url!,
             ApiKey = TestCertificateGenerator.GetTestCertificate(),
@@ -48,8 +48,6 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
                 Namespace = "default"
             }
         });
-        
-        return Task.CompletedTask;
     }
 
     [Fact]

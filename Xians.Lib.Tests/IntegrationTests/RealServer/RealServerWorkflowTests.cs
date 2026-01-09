@@ -73,7 +73,7 @@ public class RealServerWorkflowTests : RealServerTestBase
         Console.WriteLine($"Testing workflow definition upload to REAL server: {ServerUrl}");
         
         // Arrange - Initialize XiansPlatform with real server credentials
-        var platform = XiansPlatform.Initialize(new XiansOptions
+        var platform = await XiansPlatform.InitializeAsync(new XiansOptions
         {
             ServerUrl = ServerUrl!,
             ApiKey = ApiKey!
