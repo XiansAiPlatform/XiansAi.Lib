@@ -53,7 +53,40 @@ public class KnowledgeCollection
             _agent.Name);
 
         // Context-aware execution via executor
-        return await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+        var knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+
+        // If the server returned system-scoped knowledge for a tenant-scoped
+        // agent (e.g., template deployed previously but tenant copy missing),
+        // create a tenant-scoped replica on the fly to keep scoping correct.
+        if (knowledge != null && !_agent.SystemScoped && knowledge.SystemScoped)
+        {
+            await UpdateAsync(
+                knowledgeName,
+                knowledge.Content ?? string.Empty,
+                knowledge.Type,
+                systemScoped: false,
+                cancellationToken);
+
+            knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+        }
+
+        return knowledge;
+    }
+
+    /// <summary>
+    /// Retrieves system-scoped knowledge by name.
+    /// Always uses SystemScoped=true and no tenant ID.
+    /// </summary>
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemAsync(string knowledgeName, CancellationToken cancellationToken = default)
+    {
+        ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
+
+        _logger.LogDebug(
+            "Getting system knowledge '{Name}' for agent '{AgentName}'",
+            knowledgeName,
+            _agent.Name);
+
+        return await _executor.GetSystemAsync(knowledgeName, _agent.Name, cancellationToken);
     }
 
     /// <summary>
@@ -63,11 +96,12 @@ public class KnowledgeCollection
     /// <param name="knowledgeName">The name of the knowledge.</param>
     /// <param name="content">The knowledge content.</param>
     /// <param name="type">Optional knowledge type (e.g., "instruction", "document", "json", "markdown").</param>
+    /// <param name="systemScoped">Whether this knowledge is system-scoped. If null, uses the agent's SystemScoped setting.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the operation succeeds.</returns>
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     /// <exception cref="HttpRequestException">Thrown when the HTTP request fails.</exception>
-    public async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null, bool? systemScoped = null, CancellationToken cancellationToken = default)
     {
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
@@ -75,14 +109,18 @@ public class KnowledgeCollection
 
         var tenantId = GetTenantId();
         
+        // If systemScoped is not explicitly set, use the agent's SystemScoped setting
+        var isSystemScoped = systemScoped ?? _agent.SystemScoped;
+        
         _logger.LogInformation(
-            "Updating knowledge '{Name}' for agent '{AgentName}', type '{Type}'",
+            "Updating knowledge '{Name}' for agent '{AgentName}', type '{Type}', systemScoped '{SystemScoped}'",
             knowledgeName,
             _agent.Name,
-            type);
+            type,
+            isSystemScoped);
 
         // Context-aware execution via executor
-        return await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, cancellationToken);
+        return await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, cancellationToken);
     }
 
     /// <summary>
@@ -129,14 +167,105 @@ public class KnowledgeCollection
     }
 
     /// <summary>
+    /// Displays a formatted summary of all uploaded knowledge items.
+    /// </summary>
+    public async Task DisplayKnowledgeSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var knowledgeList = await ListAsync(cancellationToken);
+        
+        if (knowledgeList.Count == 0)
+        {
+            return;
+        }
+
+        // Fixed box width for better console compatibility
+        const int boxWidth = 63;
+        
+        // Display header
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"┌{new string('─', boxWidth)}┐");
+        var header = $"│ UPLOADED KNOWLEDGE ({knowledgeList.Count})";
+        Console.Write(header);
+        Console.WriteLine($"{new string(' ', boxWidth - header.Length + 1)}│");
+        Console.WriteLine($"├{new string('─', boxWidth)}┤");
+        Console.ResetColor();
+        Console.WriteLine();
+
+        // Display each knowledge item
+        for (int i = 0; i < knowledgeList.Count; i++)
+        {
+            var knowledge = knowledgeList[i];
+            
+            // Agent Name row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Agent:       ");
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(_agent.Name);
+            
+            // Knowledge Name row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Name:        ");
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(knowledge.Name);
+            
+            // Type row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Type:        ");
+            Console.ResetColor();
+            Console.WriteLine(knowledge.Type ?? "text");
+            
+            // Scope row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Scope:       ");
+            Console.ForegroundColor = knowledge.SystemScoped ? ConsoleColor.Magenta : ConsoleColor.Blue;
+            Console.WriteLine(knowledge.SystemScoped ? "System" : "Tenant");
+            
+            // Content Length row
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Size:        ");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"{knowledge.Content?.Length ?? 0} chars");
+            
+            // Version row (if available)
+            if (!string.IsNullOrEmpty(knowledge.Version))
+            {
+                Console.Write("  ");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write("Version:     ");
+                Console.ForegroundColor = ConsoleColor.Gray;
+                Console.WriteLine(knowledge.Version);
+            }
+            
+            Console.ResetColor();
+            
+            // Add spacing between knowledge items (except after the last one)
+            if (i < knowledgeList.Count - 1)
+            {
+                Console.WriteLine();
+            }
+        }
+        
+        // Footer line
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"└{new string('─', boxWidth)}┘");
+        Console.ResetColor();
+        Console.WriteLine();
+        Console.WriteLine();
+    }
+
+    /// <summary>
     /// Gets the tenant ID for cache and HTTP operations.
     /// For non-system-scoped agents, uses the agent's certificate tenant ID.
-    /// For system-scoped agents, extracts tenant from workflow context at runtime.
+    /// For system-scoped agents, tries workflow context first, then falls back to certificate tenant ID.
     /// </summary>
-    private string GetTenantId()
+    private string? GetTenantId()
     {
         // For non-system-scoped agents, use the agent's certificate tenant ID
-        // For system-scoped agents, the tenant ID must come from workflow context
         if (!_agent.SystemScoped)
         {
             return _agent.Options?.CertificateTenantId 
@@ -144,17 +273,8 @@ public class KnowledgeCollection
                     "Tenant ID cannot be determined. XiansOptions must be properly configured with an API key.");
         }
 
-        // System-scoped agent - must be called from workflow/activity context
-        try
-        {
-            return XiansContext.TenantId;
-        }
-        catch (InvalidOperationException)
-        {
-            throw new InvalidOperationException(
-                "Knowledge API for system-scoped agents can only be used within a workflow or activity context. " +
-                "The tenant ID is extracted from the workflow ID at runtime.");
-        }
+        // System-scoped agent - no tenant ID needed
+        return null;
     }
 }
 

@@ -1,4 +1,5 @@
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
@@ -710,10 +711,269 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
             // Cleanup
             await agent1.Knowledge.DeleteAsync(knowledgeName);
             await agent2.Knowledge.DeleteAsync(knowledgeName);
+            await agent1.DeleteAsync();
+            await agent2.DeleteAsync();
         }
         catch (Exception ex)
         {
             throw new Exception($"Cross-agent isolation test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_SystemScoped_AutomaticallyCreatedWithSystemScopedAgent()
+    {
+        if (!RunRealServerTests) return;
+
+        // Create a system-scoped agent
+        XiansContext.CleanupForTests();
+        var systemOptions = new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!
+        };
+        var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
+        var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration 
+        { 
+            Name = "SystemScopedKnowledgeAgent",
+            SystemScoped = true  // System-scoped agent
+        });
+        var workflow = systemAgent.Workflows.DefineBuiltIn("sys-knowledge-test");
+        await systemAgent.UploadWorkflowDefinitionsAsync();
+        
+        // Deploy the system-scoped agent to the tenant before use
+        await systemAgent.DeployAsync();
+
+        try
+        {
+            // Arrange
+            var knowledgeName = $"{_testKnowledgePrefix}-system-scoped";
+            
+            // Act - Create knowledge with system-scoped agent (should auto-inherit SystemScoped = true)
+            await systemAgent.Knowledge.UpdateAsync(
+                knowledgeName, 
+                "System-wide default knowledge",
+                "text");
+
+            // Retrieve and verify
+            var retrieved = await systemAgent.Knowledge.GetAsync(knowledgeName);
+            
+            // Assert
+            Assert.NotNull(retrieved);
+            Assert.Equal(knowledgeName, retrieved.Name);
+            Assert.True(retrieved.SystemScoped, "Knowledge should be system-scoped when created by system-scoped agent");
+            Assert.Equal("System-wide default knowledge", retrieved.Content);
+            
+            Console.WriteLine("✓ System-scoped agent automatically creates system-scoped knowledge");
+
+            // Cleanup
+            await systemAgent.Knowledge.DeleteAsync(knowledgeName);
+            await systemAgent.DeleteAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"System-scoped knowledge test failed: {ex.Message}", ex);
+        }
+    }
+
+    [Fact]
+    public async Task Knowledge_TenantScoped_CreatedWithTenantScopedAgent()
+    {
+        if (!RunRealServerTests) return;
+
+        await InitializePlatformAsync();
+
+        try
+        {
+            // Arrange - _agent is tenant-scoped (SystemScoped = false by default)
+            var knowledgeName = $"{_testKnowledgePrefix}-tenant-scoped";
+            
+            // Act - Create knowledge with tenant-scoped agent
+            await _agent!.Knowledge.UpdateAsync(
+                knowledgeName, 
+                "Tenant-specific knowledge",
+                "text");
+
+            // Retrieve and verify
+            var retrieved = await _agent!.Knowledge.GetAsync(knowledgeName);
+            
+            // Assert
+            Assert.NotNull(retrieved);
+            Assert.Equal(knowledgeName, retrieved.Name);
+            Assert.False(retrieved.SystemScoped, "Knowledge should be tenant-scoped when created by tenant-scoped agent");
+            Assert.Equal("Tenant-specific knowledge", retrieved.Content);
+            Assert.NotNull(retrieved.TenantId);
+            
+            Console.WriteLine("✓ Tenant-scoped agent creates tenant-scoped knowledge");
+
+            // Cleanup
+            await _agent!.Knowledge.DeleteAsync(knowledgeName);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Tenant-scoped knowledge test failed: {ex.Message}", ex);
+        }
+    }
+
+
+    [Fact]
+    public async Task Knowledge_Scoping_TenantOverridesSystemKnowledge()
+    {
+        if (!RunRealServerTests) return;
+
+        // Create a system-scoped template agent with knowledge
+        XiansContext.CleanupForTests();
+        var systemOptions = new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!
+        };
+        var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
+        var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+        {
+            Name = "TemplateAgent",
+            SystemScoped = true
+        });
+        systemAgent.Workflows.DefineBuiltIn("template-workflow");
+
+        var knowledgeName = $"{_testKnowledgePrefix}-template-knowledge";
+
+        // Upload the system-scoped knowledge using the text helper
+        await systemAgent.Knowledge.UploadTextResourceAsync(
+            knowledgeName,
+            "Original system template greeting",
+            "text");
+        await systemAgent.UploadWorkflowDefinitionsAsync();
+
+        var systemKnowledgeBefore = await systemAgent.Knowledge.GetSystemAsync(knowledgeName);
+        Assert.NotNull(systemKnowledgeBefore);
+        Assert.True(systemKnowledgeBefore.SystemScoped);
+        Assert.Equal("Original system template greeting", systemKnowledgeBefore.Content);
+
+        // Deploy the system agent to create the tenant-scoped replica
+        await systemAgent.DeployAsync();
+        Console.WriteLine("✓ Deployed system-scoped agent to tenant");
+
+        // Access the deployed (tenant-scoped) replica and change its knowledge
+        var deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+        {
+            Name = "TemplateAgent",
+            SystemScoped = false
+        });
+
+        var deployedKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
+        Assert.NotNull(deployedKnowledge);
+        Assert.False(deployedKnowledge.SystemScoped);
+        Assert.Equal("Original system template greeting", deployedKnowledge.Content);
+
+        await deployedAgent.Knowledge.UpdateAsync(
+            knowledgeName,
+            "Modified tenant greeting",
+            "text",
+            systemScoped: false);
+
+        var modifiedTenantKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
+        Assert.NotNull(modifiedTenantKnowledge);
+        Assert.False(modifiedTenantKnowledge.SystemScoped);
+        Assert.Equal("Modified tenant greeting", modifiedTenantKnowledge.Content);
+
+        // Verify the original system-scoped knowledge is unchanged
+        var systemKnowledgeAfter = await systemAgent.Knowledge.GetSystemAsync(knowledgeName);
+        Assert.NotNull(systemKnowledgeAfter);
+        Assert.True(systemKnowledgeAfter.SystemScoped);
+        Assert.Equal("Original system template greeting", systemKnowledgeAfter.Content);
+
+        // Cleanup
+        await systemAgent.Knowledge.DeleteAsync(knowledgeName);
+        await deployedAgent.Knowledge.DeleteAsync(knowledgeName);
+        await deployedAgent.DeleteAsync();
+        await systemAgent.DeleteAsync();
+    }
+
+    [Fact]
+    public async Task Knowledge_List_ReturnsAgentsKnowledgeOnly()
+    {
+        if (!RunRealServerTests) return;
+
+        // Create two system-scoped agent templates, each with unique knowledge
+        XiansContext.CleanupForTests();
+        var systemOptions = new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!
+        };
+
+        var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
+
+        var templateAgentAName = $"ListTemplateAgentA-{_testKnowledgePrefix}";
+        var templateAgentBName = $"ListTemplateAgentB-{_testKnowledgePrefix}";
+
+        var templateAgentA = systemPlatform.Agents.Register(new XiansAgentRegistration
+        {
+            Name = templateAgentAName,
+            SystemScoped = true
+        });
+        templateAgentA.Workflows.DefineBuiltIn("list-template-a");
+
+        var templateAgentB = systemPlatform.Agents.Register(new XiansAgentRegistration
+        {
+            Name = templateAgentBName,
+            SystemScoped = true
+        });
+        templateAgentB.Workflows.DefineBuiltIn("list-template-b");
+
+        await templateAgentA.UploadWorkflowDefinitionsAsync();
+        await templateAgentB.UploadWorkflowDefinitionsAsync();
+
+        var knowledgeAName = $"{_testKnowledgePrefix}-template-a";
+        var knowledgeBName = $"{_testKnowledgePrefix}-template-b";
+
+        XiansAgent? deployedAgent = null;
+
+        try
+        {
+            // Attach distinct knowledge to each template
+            await templateAgentA.Knowledge.UpdateAsync(
+                knowledgeAName,
+                "Template A only knowledge",
+                "text",
+                systemScoped: true);
+
+            await templateAgentB.Knowledge.UpdateAsync(
+                knowledgeBName,
+                "Template B only knowledge",
+                "text",
+                systemScoped: true);
+
+            // Deploy only template A to create a tenant-scoped instance
+            await templateAgentA.DeployAsync();
+            deployedAgent = templateAgentA;
+
+            // Listing knowledge on the deployed agent should not include template B's knowledge
+            var deployedKnowledgeList = await deployedAgent.Knowledge.ListAsync();
+
+            Assert.NotNull(deployedKnowledgeList);
+            Assert.Contains(deployedKnowledgeList, k => k.Name == knowledgeAName);
+            Assert.DoesNotContain(deployedKnowledgeList, k => k.Name == knowledgeBName);
+
+            Console.WriteLine($"✓ Deployed agent knowledge list contains its own knowledge only (count: {deployedKnowledgeList.Count})");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Knowledge list scoping across templates failed: {ex.Message}", ex);
+        }
+        finally
+        {
+            // Cleanup knowledge and agents
+            try { await templateAgentA.Knowledge.DeleteAsync(knowledgeAName); } catch { /* ignore cleanup errors */ }
+            try { await templateAgentB.Knowledge.DeleteAsync(knowledgeBName); } catch { /* ignore cleanup errors */ }
+            if (deployedAgent != null)
+            {
+                try { await deployedAgent.Knowledge.DeleteAsync(knowledgeAName); } catch { /* ignore cleanup errors */ }
+                try { await deployedAgent.DeleteAsync(); } catch { /* ignore cleanup errors */ }
+            }
+            try { await templateAgentA.DeleteAsync(); } catch { /* ignore cleanup errors */ }
+            try { await templateAgentB.DeleteAsync(); } catch { /* ignore cleanup errors */ }
         }
     }
 

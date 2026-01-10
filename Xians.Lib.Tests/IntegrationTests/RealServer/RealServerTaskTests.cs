@@ -70,7 +70,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
         });
 
         // Enable task workflow support
-        _platformAgent.Workflows.WithTasks();
+        await _platformAgent.Workflows.WithTasks();
 
         // Upload workflow definitions (Platform agent has the Task Workflow)
         await _platformAgent.UploadWorkflowDefinitionsAsync();
@@ -122,6 +122,19 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 {
                     var workflowId = $"test:Platform:Task Workflow:{taskId}";
                     await TemporalTestUtils.TerminateWorkflowIfRunningAsync(client, workflowId, "Test cleanup");
+                }
+            }
+
+            // Delete agent
+            if (_platformAgent != null)
+            {
+                try
+                {
+                    await _platformAgent.DeleteAsync();
+                }
+                catch
+                {
+                    // Ignore cleanup errors
                 }
             }
 

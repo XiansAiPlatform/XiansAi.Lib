@@ -46,5 +46,11 @@ public class Knowledge
     /// Gets or sets the tenant ID this knowledge belongs to.
     /// </summary>
     public string? TenantId { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this knowledge is system-scoped.
+    /// System-scoped knowledge is shared across all tenants.
+    /// </summary>
+    public bool SystemScoped { get; set; }
 }
 

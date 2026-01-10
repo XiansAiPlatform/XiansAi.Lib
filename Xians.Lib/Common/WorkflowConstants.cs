@@ -63,6 +63,7 @@ public static class WorkflowConstants
         public const string Documents = "api/agent/documents";
         public const string Knowledge = "api/agent/knowledge";
         public const string KnowledgeLatest = "api/agent/knowledge/latest";
+        public const string KnowledgeLatestSystem = "api/agent/knowledge/latest/system";
         public const string KnowledgeList = "api/agent/knowledge/list";
         public const string ConversationHistory = "api/agent/conversation/history";
         public const string ConversationOutbound = "api/agent/conversation/outbound";

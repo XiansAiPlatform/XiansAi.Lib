@@ -103,6 +103,34 @@ public class KnowledgeActivities
     }
     
     /// <summary>
+    /// Retrieves system-scoped knowledge by name from the server.
+    /// Delegates to shared KnowledgeService.
+    /// </summary>
+    [Activity]
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemKnowledgeAsync(GetKnowledgeRequest request)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "GetSystemKnowledge activity started: Name={Name}, Agent={Agent}",
+            request.KnowledgeName,
+            request.AgentName);
+
+        try
+        {
+            var service = CreateKnowledgeService();
+            return await service.GetSystemAsync(
+                request.KnowledgeName,
+                request.AgentName);
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error fetching system knowledge: Name={Name}",
+                request.KnowledgeName);
+            throw;
+        }
+    }
+    
+    /// <summary>
     /// Creates a KnowledgeService instance using static dependencies.
     /// </summary>
     private Xians.Lib.Agents.Knowledge.KnowledgeService CreateKnowledgeService()
@@ -124,10 +152,11 @@ public class KnowledgeActivities
     public async Task<bool> UpdateKnowledgeAsync(UpdateKnowledgeRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "UpdateKnowledge activity started: Name={Name}, Agent={Agent}, Type={Type}, Tenant={Tenant}",
+            "UpdateKnowledge activity started: Name={Name}, Agent={Agent}, Type={Type}, SystemScoped={SystemScoped}, Tenant={Tenant}",
             request.KnowledgeName,
             request.AgentName,
             request.Type,
+            request.SystemScoped,
             request.TenantId);
 
         try
@@ -138,7 +167,8 @@ public class KnowledgeActivities
                 request.Content,
                 request.Type,
                 request.AgentName,
-                request.TenantId);
+                request.TenantId,
+                request.SystemScoped);
         }
         catch (Exception ex)
         {

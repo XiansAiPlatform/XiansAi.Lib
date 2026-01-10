@@ -1,3 +1,4 @@
+using System.Net;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Workflows;
@@ -48,6 +49,11 @@ public class XiansAgent
     public string? Description { get; private set; }
 
     /// <summary>
+    /// Gets the author of the agent.
+    /// </summary>
+    public string? Author { get; private set; }
+
+    /// <summary>
     /// Gets whether the agent is system-scoped.
     /// </summary>
     public bool SystemScoped { get; private set; }
@@ -58,9 +64,10 @@ public class XiansAgent
 
     internal Xians.Lib.Common.Caching.CacheService? CacheService { get; private set; }
 
-    internal XiansAgent(string name, bool systemScoped, WorkflowDefinitionUploader? uploader, 
-        ITemporalClientService? temporalService, Http.IHttpClientService? httpService, 
-        XiansOptions? options, Xians.Lib.Common.Caching.CacheService? cacheService)
+    internal XiansAgent(string name, bool systemScoped, string? description, string? version, string? author,
+        WorkflowDefinitionUploader? uploader, ITemporalClientService? temporalService, 
+        Http.IHttpClientService? httpService, XiansOptions? options, 
+        Xians.Lib.Common.Caching.CacheService? cacheService)
     {
         Name = name.Trim(); // Trim to handle whitespace variations
 
@@ -70,6 +77,9 @@ public class XiansAgent
         }
         
         SystemScoped = systemScoped;
+        Description = description;
+        Version = version;
+        Author = author;
         TemporalService = temporalService;
         HttpService = httpService;
         Options = options;
@@ -112,6 +122,79 @@ public class XiansAgent
     public async Task UploadWorkflowDefinitionsAsync()
     {
         await Workflows.UploadAllDefinitionsAsync();
+    }
+
+    /// <summary>
+    /// Deploys a system-scoped template agent to the current tenant.
+    /// Creates replicas of the agent, its flow definitions, and associated knowledge.
+    /// This method is primarily used in tests to deploy system-scoped agents before use.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when HTTP service is not available or deployment fails.</exception>
+    public async Task DeployAsync()
+    {
+        if (HttpService == null)
+        {
+            throw new InvalidOperationException("HTTP service is not available. Cannot deploy agent.");
+        }
+
+        var client = await HttpService.GetHealthyClientAsync();
+        var deployRequest = new { agentName = Name };
+        
+        var response = await client.PostAsync(
+            $"{Common.WorkflowConstants.ApiEndpoints.AgentDefinitions}/deploy-template",
+            System.Net.Http.Json.JsonContent.Create(deployRequest));
+
+        // Treat 409 Conflict as idempotent success to avoid redeploy failures
+        // when the template agent already exists in the tenant.
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"Failed to deploy agent '{Name}'. Status: {response.StatusCode}, Error: {errorMessage}");
+        }
+    }
+
+    /// <summary>
+    /// Deletes the agent and all associated resources (definitions, knowledge, schedules, documents, logs, etc.).
+    /// Requires tenant admin or system admin role.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when HTTP service is not available or deletion fails.</exception>
+    public async Task DeleteAsync()
+    {
+        if (HttpService == null)
+        {
+            throw new InvalidOperationException("HTTP service is not available. Cannot delete agent.");
+        }
+
+        var client = await HttpService.GetHealthyClientAsync();
+        var deleteUrl = $"{Common.WorkflowConstants.ApiEndpoints.AgentDefinitions}/agent?agentName={Uri.EscapeDataString(Name)}&systemScoped={SystemScoped}";
+        
+        var response = await client.DeleteAsync(deleteUrl);
+
+        // Treat not-found responses as idempotent success since the desired
+        // post-condition (agent absent) is already satisfied.
+        if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            if (body.Contains("Agent not found", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"Failed to delete agent '{Name}'. Status: {response.StatusCode}, Error: {errorMessage}");
+        }
     }
 
     /// <summary>

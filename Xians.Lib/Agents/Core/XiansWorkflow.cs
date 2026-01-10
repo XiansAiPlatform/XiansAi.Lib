@@ -28,7 +28,7 @@ public class XiansWorkflow
     private readonly Type? _workflowClassType;
     private string? _taskQueue;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
@@ -75,7 +75,7 @@ public class XiansWorkflow
     /// <summary>
     /// Gets the optional workflow name.
     /// </summary>
-    public string Name { get; private set; }
+    public string? Name { get; private set; }
 
     /// <summary>
     /// Gets the number of workers for this workflow.

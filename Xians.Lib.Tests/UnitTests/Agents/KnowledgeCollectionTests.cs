@@ -47,6 +47,9 @@ public class KnowledgeCollectionTests : IDisposable
         _agent = new XiansAgent(
             "test-agent",
             false,
+            null, // description
+            null, // version
+            null, // author
             null,
             null,
             _mockHttpService.Object,

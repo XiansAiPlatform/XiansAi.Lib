@@ -106,6 +106,19 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             }
         }
         
+        // Delete agent
+        if (_agent != null)
+        {
+            try
+            {
+                await _agent.DeleteAsync();
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+        
         Console.WriteLine("✓ Cleanup complete");
     }
 
