@@ -10,6 +10,12 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Agents;
 
+
+/// <summary>
+/// Tests for the WorkflowDefinitionUploader class.
+/// 
+/// dotnet test --filter "FullyQualifiedName~WorkflowDefinitionUploaderIntegrationTests"
+/// </summary>
 [Trait("Category", "Integration")]
 public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
 {
@@ -32,6 +38,14 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         _mockServer
             .Given(Request.Create()
                 .WithPath("/api/agent/definitions")
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(HttpStatusCode.Created)
+                .WithBody("{\"success\": true}"));
+
+        _mockServer
+            .Given(Request.Create()
+                .WithPath("/api/agent/definitions/agent")
                 .UsingPost())
             .RespondWith(Response.Create()
                 .WithStatusCode(HttpStatusCode.Created)

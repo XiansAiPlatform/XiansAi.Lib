@@ -19,6 +19,7 @@ internal class WorkflowDefinitionUploader
     private readonly IHttpClientService _httpService;
     private readonly ILogger<WorkflowDefinitionUploader>? _logger;
     private static readonly HashSet<string> _uploadedDefinitions = new();
+    private static readonly HashSet<string> _uploadedAgents = new();
     private static readonly object _uploadLock = new();
 
     public WorkflowDefinitionUploader(IHttpClientService httpService, ILogger<WorkflowDefinitionUploader>? logger = null)
@@ -112,6 +113,70 @@ internal class WorkflowDefinitionUploader
     }
 
     /// <summary>
+    /// Uploads an agent to the server.
+    /// </summary>
+    public async Task UploadAgentAsync(string agentName, bool systemScoped, string? description = null, 
+        string? version = null, string? author = null)
+    {
+        var agentKey = $"{agentName}:{systemScoped}";
+        
+        // Check if already uploaded in this session
+        lock (_uploadLock)
+        {
+            if (_uploadedAgents.Contains(agentKey))
+            {
+                _logger?.LogDebug("Agent {AgentName} already uploaded in this session, skipping", agentName);
+                return;
+            }
+        }
+        
+        _logger?.LogDebug("Uploading agent {AgentName} to server...", agentName);
+        
+        try
+        {
+            await _httpService.ExecuteWithRetryAsync(async () =>
+            {
+                var client = await _httpService.GetHealthyClientAsync();
+                
+                var agentRequest = new
+                {
+                    agentName = agentName,
+                    systemScoped = systemScoped,
+                    description = description,
+                    version = version,
+                    author = author,
+                    onboardingJson = (string?)null
+                };
+                
+                var uploadResponse = await client.PostAsync(
+                    $"{WorkflowConstants.ApiEndpoints.AgentDefinitions}/agent", 
+                    JsonContent.Create(agentRequest));
+                
+                if (!uploadResponse.IsSuccessStatusCode)
+                {
+                    var errorMessage = await uploadResponse.Content.ReadAsStringAsync();
+                    _logger?.LogError("Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
+                    throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
+                }
+                
+                _logger?.LogInformation("Agent {AgentName} uploaded successfully", agentName);
+                return uploadResponse;
+            });
+            
+            // Mark as uploaded
+            lock (_uploadLock)
+            {
+                _uploadedAgents.Add(agentKey);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to upload agent {AgentName}", agentName);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Computes a SHA256 hash of the input string.
     /// </summary>
     private static string ComputeHash(string input)
@@ -129,6 +194,7 @@ internal class WorkflowDefinitionUploader
         lock (_uploadLock)
         {
             _uploadedDefinitions.Clear();
+            _uploadedAgents.Clear();
         }
     }
 }

@@ -270,6 +270,14 @@ public class WorkflowCollection
             return; // No uploader configured, skip
         }
 
+        // Upload agent first (once) before uploading all workflow definitions
+        await _uploader.UploadAgentAsync(
+            _agent.Name, 
+            _agent.SystemScoped, 
+            _agent.Description, 
+            _agent.Version, 
+            _agent.Author);
+
         // Upload all workflow definitions
         foreach (var workflow in _workflows)
         {
@@ -284,6 +292,13 @@ public class WorkflowCollection
     /// <returns>A task representing the asynchronous operation.</returns>
     internal async Task RunAllAsync(CancellationToken cancellationToken)
     {
+                
+        // Display agent details first
+        DisplayAgentDetails(63);
+        
+        // Display knowledge summary
+        await _agent.Knowledge.DisplayKnowledgeSummaryAsync(cancellationToken);
+        
         // Upload all workflow definitions to server before starting workers
         // This ensures atomicity - either all workflows are uploaded or none are
         await UploadAllDefinitionsAsync();
@@ -329,7 +344,7 @@ public class WorkflowCollection
         var header = $"│ REGISTERED WORKFLOWS ({_workflows.Count})";
         Console.Write(header);
         Console.WriteLine($"{new string(' ', boxWidth - header.Length + 1)}│");
-        Console.WriteLine($"└{new string('─', boxWidth)}┘");
+        Console.WriteLine($"├{new string('─', boxWidth)}┤");
         Console.ResetColor();
         Console.WriteLine();
 
@@ -381,7 +396,75 @@ public class WorkflowCollection
             }
         }
         
+        // Footer line
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"└{new string('─', boxWidth)}┘");
         Console.ResetColor();
+        Console.WriteLine();
+    }
+
+    /// <summary>
+    /// Displays formatted agent details.
+    /// </summary>
+    private void DisplayAgentDetails(int boxWidth)
+    {
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"┌{new string('─', boxWidth)}┐");
+        Console.WriteLine("│ AGENT DETAILS                                                 │");
+        Console.WriteLine($"├{new string('─', boxWidth)}┤");
+        Console.ResetColor();
+        Console.WriteLine();
+        
+        // Agent Name
+        Console.Write("  ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Name            : ");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine(_agent.Name);
+        
+        // System Scoped
+        Console.Write("  ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Scope           : ");
+        Console.ForegroundColor = _agent.SystemScoped ? ConsoleColor.Magenta : ConsoleColor.Blue;
+        Console.WriteLine(_agent.SystemScoped ? "System" : "Tenant");
+        
+        // Description (if available)
+        if (!string.IsNullOrEmpty(_agent.Description))
+        {
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Description     : ");
+            Console.ResetColor();
+            var description = _agent.Description.Length > 80 ? _agent.Description.Substring(0, 77) + "..." : _agent.Description;
+            Console.WriteLine(description);
+        }
+        
+        // Version (if available)
+        if (!string.IsNullOrEmpty(_agent.Version))
+        {
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Version         : ");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(_agent.Version);
+        }
+        
+        // Author (if available)
+        if (!string.IsNullOrEmpty(_agent.Author))
+        {
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Author          : ");
+            Console.ResetColor();
+            Console.WriteLine(_agent.Author);
+        }
+        
+        Console.ResetColor();
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"└{new string('─', boxWidth)}┘");
+        Console.ResetColor();
+        Console.WriteLine();
         Console.WriteLine();
     }
 }

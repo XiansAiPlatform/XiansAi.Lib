@@ -8,7 +8,7 @@ public class GetKnowledgeRequest
 {
     public required string KnowledgeName { get; set; }
     public required string AgentName { get; set; }
-    public required string TenantId { get; set; }
+    public string? TenantId { get; set; }
 }
 
 /// <summary>
@@ -20,7 +20,8 @@ public class UpdateKnowledgeRequest
     public required string Content { get; set; }
     public string? Type { get; set; }
     public required string AgentName { get; set; }
-    public required string TenantId { get; set; }
+    public string? TenantId { get; set; }
+    public bool SystemScoped { get; set; }
 }
 
 /// <summary>
@@ -30,7 +31,7 @@ public class DeleteKnowledgeRequest
 {
     public required string KnowledgeName { get; set; }
     public required string AgentName { get; set; }
-    public required string TenantId { get; set; }
+    public string? TenantId { get; set; }
 }
 
 /// <summary>
@@ -39,6 +40,6 @@ public class DeleteKnowledgeRequest
 public class ListKnowledgeRequest
 {
     public required string AgentName { get; set; }
-    public required string TenantId { get; set; }
+    public string? TenantId { get; set; }
 }
 

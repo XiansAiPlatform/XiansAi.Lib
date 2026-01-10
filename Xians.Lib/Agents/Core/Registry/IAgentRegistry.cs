@@ -11,7 +11,6 @@ public interface IAgentRegistry
     /// </summary>
     /// <param name="agent">The agent to register.</param>
     /// <exception cref="ArgumentNullException">Thrown when agent is null.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when an agent with the same name already exists.</exception>
     void Register(XiansAgent agent);
 
     /// <summary>

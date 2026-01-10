@@ -15,5 +15,20 @@ public class XiansAgentRegistration
     /// System-scoped agents are shared across all users.
     /// </summary>
     public bool SystemScoped { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the description of the agent.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets the version of the agent.
+    /// </summary>
+    public string? Version { get; set; }
+
+    /// <summary>
+    /// Gets or sets the author of the agent.
+    /// </summary>
+    public string? Author { get; set; }
 }
 

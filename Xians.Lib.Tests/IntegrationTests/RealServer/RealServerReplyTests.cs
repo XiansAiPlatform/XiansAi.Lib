@@ -454,6 +454,16 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
             catch (OperationCanceledException) { }
         }
 
+        // Delete agent
+        if (_agent != null && RunRealServerTests)
+        {
+            try
+            {
+                await _agent.DeleteAsync();
+            }
+            catch { }
+        }
+
         try { XiansContext.Clear(); } catch { }
     }
 

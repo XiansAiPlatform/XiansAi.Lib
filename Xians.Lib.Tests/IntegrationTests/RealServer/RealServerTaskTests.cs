@@ -125,6 +125,19 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 }
             }
 
+            // Delete agent
+            if (_platformAgent != null)
+            {
+                try
+                {
+                    await _platformAgent.DeleteAsync();
+                }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
+            }
+
             // Clear context
             try
             {

@@ -120,59 +120,60 @@ public class XiansPlatform
         Console.ResetColor();
         Console.WriteLine();
         
+        // Fixed box width for better console compatibility
+        const int boxWidth = 63;
+        
         // Server Information
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("┌───────────────────────────────────────────────────────────────┐");
+        Console.WriteLine($"┌{new string('─', boxWidth)}┐");
         Console.WriteLine("│ CONNECTION DETAILS                                            │");
-        Console.WriteLine("├───────────────────────────────────────────────────────────────┤");
+        Console.WriteLine($"├{new string('─', boxWidth)}┤");
         Console.ResetColor();
+        Console.WriteLine();
         
-        Console.Write("│ ");
+        Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Server URL      : ");
         Console.ResetColor();
-        Console.WriteLine($"{serverUrl,-44}│");
+        Console.WriteLine(serverUrl);
         
-        Console.Write("│ ");
+        Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Tenant ID       : ");
         Console.ResetColor();
-        Console.WriteLine($"{certInfo.TenantId,-44}│");
+        Console.WriteLine(certInfo.TenantId);
         
-        Console.Write("│ ");
+        Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("User ID         : ");
         Console.ResetColor();
-        Console.WriteLine($"{certInfo.UserId,-44}│");
+        Console.WriteLine(certInfo.UserId);
         
-        Console.Write("│ ");
+        Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Subject         : ");
         Console.ResetColor();
-        var subject = certInfo.Subject.Length > 44 ? certInfo.Subject.Substring(0, 41) + "..." : certInfo.Subject;
-        Console.WriteLine($"{subject,-44}│");
+        Console.WriteLine(certInfo.Subject);
         
-        Console.Write("│ ");
+        Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Certificate     : ");
         Console.ResetColor();
         var thumbprint = certInfo.Thumbprint.Substring(0, Math.Min(16, certInfo.Thumbprint.Length)) + "...";
-        Console.WriteLine($"{thumbprint,-44}│");
+        Console.WriteLine(thumbprint);
         
-        Console.Write("│ ");
+        Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Expires         : ");
         Console.ResetColor();
         var expiryColor = (certInfo.ExpiresAt - DateTime.UtcNow).TotalDays < 30 ? ConsoleColor.Red : ConsoleColor.Green;
-        var originalColor = Console.ForegroundColor;
         Console.ForegroundColor = expiryColor;
         var expiryText = certInfo.ExpiresAt.ToString("yyyy-MM-dd HH:mm:ss UTC");
-        Console.Write(expiryText);
-        Console.ForegroundColor = originalColor;
-        Console.WriteLine($"{new string(' ', 44 - expiryText.Length)}│");
+        Console.WriteLine(expiryText);
+        Console.ResetColor();
         
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine("└───────────────────────────────────────────────────────────────┘");
+        Console.WriteLine($"└{new string('─', boxWidth)}┘");
         Console.ResetColor();
         Console.WriteLine();
     }
