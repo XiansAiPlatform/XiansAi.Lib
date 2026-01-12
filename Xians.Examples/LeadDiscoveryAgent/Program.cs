@@ -32,6 +32,7 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
     Description= "A lead discovery agent that can discover leads from a given company. It uses the content processing and content discovery workflows to discover leads.",
+    Summary= "Discovers leads from companies using content processing workflows",
     Version= "1.0.0",
     Author= "99x",
     SystemScoped = true

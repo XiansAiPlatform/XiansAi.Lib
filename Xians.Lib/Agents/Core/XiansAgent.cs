@@ -49,6 +49,11 @@ public class XiansAgent
     public string? Description { get; private set; }
 
     /// <summary>
+    /// Gets the summary of the agent.
+    /// </summary>
+    public string? Summary { get; private set; }
+
+    /// <summary>
     /// Gets the author of the agent.
     /// </summary>
     public string? Author { get; private set; }
@@ -64,7 +69,7 @@ public class XiansAgent
 
     internal Xians.Lib.Common.Caching.CacheService? CacheService { get; private set; }
 
-    internal XiansAgent(string name, bool systemScoped, string? description, string? version, string? author,
+    internal XiansAgent(string name, bool systemScoped, string? description, string? summary, string? version, string? author,
         WorkflowDefinitionUploader? uploader, ITemporalClientService? temporalService, 
         Http.IHttpClientService? httpService, XiansOptions? options, 
         Xians.Lib.Common.Caching.CacheService? cacheService)
@@ -78,6 +83,7 @@ public class XiansAgent
         
         SystemScoped = systemScoped;
         Description = description;
+        Summary = summary;
         Version = version;
         Author = author;
         TemporalService = temporalService;

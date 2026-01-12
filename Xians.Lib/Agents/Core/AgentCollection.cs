@@ -57,6 +57,7 @@ public class AgentCollection
             registration.Name, 
             registration.SystemScoped,
             registration.Description,
+            registration.Summary,
             registration.Version,
             registration.Author,
             _uploader,
