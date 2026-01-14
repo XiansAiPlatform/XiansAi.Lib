@@ -36,11 +36,12 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
     {
         if (disposing)
         {
-            // Cleanup created documents
+            // Cleanup created documents and agent
             if (_platform != null && _agent != null && RunRealServerTests)
             {
                 try
                 {
+                    // Clean up documents
                     foreach (var id in _createdDocumentIds)
                     {
                         try
@@ -49,16 +50,25 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
                         }
                         catch
                         {
+                            // Ignore cleanup errors
+                        }
+                    }
+                    
+                    // Clean up agent
+                    try
+                    {
+                        _agent.DeleteAsync().GetAwaiter().GetResult();
+                    }
+                    catch
+                    {
                         // Ignore cleanup errors
                     }
                 }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
             }
-            catch
-            {
-                // Ignore cleanup errors
-            }
-        }
-
         }
         
         // Call base to ensure static state cleanup
@@ -851,6 +861,9 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             _createdDocumentIds.Remove(saved.Id!);
             
             Console.WriteLine("  ✓ Agent 1 can access and delete its own document");
+            
+            // Cleanup agent2
+            await agent2.DeleteAsync();
         }
         catch (Exception ex)
         {
@@ -961,8 +974,9 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             
             Console.WriteLine("  ✓ Agent 2's document was not deleted");
 
-            // Cleanup Agent 2's document
+            // Cleanup Agent 2's document and agent
             await agent2.Documents.DeleteAsync(agent2Doc.Id!);
+            await agent2.DeleteAsync();
         }
         catch (Exception ex)
         {
@@ -1037,8 +1051,9 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             
             Console.WriteLine($"  ✓ Agent 2 query returned {agent2Results.Count} document (own documents only)");
 
-            // Cleanup Agent 2's document
+            // Cleanup Agent 2's document and agent
             await agent2.Documents.DeleteAsync(agent2Doc.Id!);
+            await agent2.DeleteAsync();
         }
         catch (Exception ex)
         {
@@ -1084,6 +1099,9 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             });
 
             Console.WriteLine("  ✓ System-scoped agent correctly requires workflow context");
+            
+            // Cleanup
+            await systemAgent.DeleteAsync();
         }
         finally
         {
@@ -1171,11 +1189,12 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
             Console.WriteLine("✓ Workers stopped");
         }
 
-        // Cleanup created documents
+        // Cleanup created documents and agent
         if (_platform != null && _agent != null && RunRealServerTests)
         {
             try
             {
+                // Clean up documents
                 foreach (var id in _createdDocumentIds)
                 {
                     try
@@ -1186,6 +1205,16 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
                     {
                         // Ignore cleanup errors
                     }
+                }
+                
+                // Clean up agent
+                try
+                {
+                    await _agent.DeleteAsync();
+                }
+                catch
+                {
+                    // Ignore cleanup errors
                 }
             }
             catch

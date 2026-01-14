@@ -38,12 +38,12 @@ internal class KnowledgeService
     /// <param name="tenantId">The tenant ID for isolation.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The knowledge object, or null if not found.</returns>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string agentName, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string agentName, string? tenantId, CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
         ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        // tenantId is optional for system-scoped agents
 
         // Check cache first
         var cacheKey = GetCacheKey(tenantId, agentName, knowledgeName);
@@ -118,6 +118,78 @@ internal class KnowledgeService
     }
 
     /// <summary>
+    /// Retrieves system-scoped knowledge (no tenant) from server with caching.
+    /// </summary>
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemAsync(string knowledgeName, string agentName, CancellationToken cancellationToken = default)
+    {
+        ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
+        ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
+
+        var cacheKey = GetCacheKey(null, agentName, knowledgeName);
+        var cached = _cacheService?.GetKnowledge<Models.Knowledge>(cacheKey);
+        if (cached != null)
+        {
+            _logger.LogDebug(
+                "Cache hit for system knowledge: Name={Name}, Agent={Agent}",
+                knowledgeName,
+                agentName);
+            return cached;
+        }
+
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeLatestSystem}?" +
+                      $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
+                      $"&agent={UrlEncoder.Default.Encode(agentName)}";
+
+        _logger.LogDebug(
+            "Fetching system knowledge from server: Name={Name}, Agent={Agent}",
+            knowledgeName,
+            agentName);
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+        var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogInformation(
+                "System knowledge not found: Name={Name}, Agent={Agent}",
+                knowledgeName,
+                agentName);
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Failed to fetch system knowledge: StatusCode={StatusCode}, Error={Error}",
+                response.StatusCode,
+                error);
+            throw new HttpRequestException(
+                $"Failed to fetch system knowledge '{knowledgeName}'. Status: {response.StatusCode}");
+        }
+
+        var knowledge = await response.Content.ReadFromJsonAsync<Models.Knowledge>(cancellationToken);
+
+        if (knowledge == null)
+        {
+            _logger.LogWarning(
+                "System knowledge response deserialization returned null: Name={Name}, Agent={Agent}",
+                knowledgeName,
+                agentName);
+            return null;
+        }
+
+        _cacheService?.SetKnowledge(cacheKey, knowledge);
+
+        _logger.LogInformation(
+            "System knowledge fetched successfully: Name={Name}",
+            knowledgeName);
+
+        return knowledge;
+    }
+
+    /// <summary>
     /// Updates or creates knowledge on the server.
     /// </summary>
     /// <param name="knowledgeName">The name of the knowledge.</param>
@@ -125,6 +197,7 @@ internal class KnowledgeService
     /// <param name="type">Optional knowledge type (e.g., "instruction", "document").</param>
     /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="systemScoped">Whether this knowledge is system-scoped (shared across tenants).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the operation succeeds.</returns>
     /// <exception cref="ArgumentException">Thrown when validation fails.</exception>
@@ -134,14 +207,18 @@ internal class KnowledgeService
         string content, 
         string? type, 
         string agentName, 
-        string tenantId,
+        string? tenantId,
+        bool systemScoped = false,
         CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
         ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
         ValidationHelper.ValidateRequired(content, nameof(content));
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        if (!systemScoped)
+        {
+            ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        }
 
         // Build knowledge object
         var knowledge = new Models.Knowledge
@@ -150,16 +227,16 @@ internal class KnowledgeService
             Content = content,
             Type = type,
             Agent = agentName,
-            TenantId = tenantId
+            SystemScoped = systemScoped
         };
 
         _logger.LogDebug(
-            "Updating knowledge: Name={Name}, Agent={Agent}, Type={Type}, ContentLength={Length}, Tenant={Tenant}",
+            "Updating knowledge: Name={Name}, Agent={Agent}, Type={Type}, SystemScoped={SystemScoped}, ContentLength={Length}",
             knowledgeName,
             agentName,
             type,
-            content.Length,
-            tenantId);
+            systemScoped,
+            content.Length);
 
         // POST to api/agent/knowledge
         var endpoint = WorkflowConstants.ApiEndpoints.Knowledge;
@@ -200,12 +277,12 @@ internal class KnowledgeService
     /// <param name="tenantId">The tenant ID for isolation.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if deleted, false if not found.</returns>
-    public async Task<bool> DeleteAsync(string knowledgeName, string agentName, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(string knowledgeName, string agentName, string? tenantId, CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
         ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        // tenantId is optional for system-scoped agents
 
         // Build URL
         var endpoint = $"{WorkflowConstants.ApiEndpoints.Knowledge}?" +
@@ -262,11 +339,11 @@ internal class KnowledgeService
     /// <param name="tenantId">The tenant ID for isolation.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of knowledge items.</returns>
-    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(string agentName, string tenantId, CancellationToken cancellationToken = default)
+    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(string agentName, string? tenantId, CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
-        ValidationHelper.ValidateRequired(tenantId, nameof(tenantId));
+        // tenantId is optional for system-scoped agents
 
         // Build URL
         var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeList}?" +
@@ -314,7 +391,7 @@ internal class KnowledgeService
     /// Generates a cache key for knowledge items.
     /// Format: "knowledge:{tenantId}:{agentName}:{knowledgeName}"
     /// </summary>
-    private string GetCacheKey(string tenantId, string agentName, string knowledgeName)
+    private string GetCacheKey(string? tenantId, string agentName, string knowledgeName)
     {
         return $"knowledge:{tenantId}:{agentName}:{knowledgeName}";
     }

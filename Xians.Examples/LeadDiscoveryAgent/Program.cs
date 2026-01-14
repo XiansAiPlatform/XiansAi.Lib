@@ -1,5 +1,6 @@
 using DotNetEnv;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Knowledge;
 using Xians.Agent.Sample;
 using Xians.Agent.Sample.WebAgent;
 
@@ -30,8 +31,19 @@ var agentName = Constants.AgentName;
 var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
 {
     Name = agentName,
-    SystemScoped = false
+    Description= "A lead discovery agent that can discover leads from a given company. It uses the content processing and content discovery workflows to discover leads.",
+    Summary= "Discovers leads from companies using content processing workflows",
+    Version= "1.0.0",
+    Author= "99x",
+    SystemScoped = true
 });
+
+// Upload embedded knowledge resources to the server
+await agent.Knowledge.UploadEmbeddedResourceAsync(
+    resourcePath: "WebAgent/web-agent-prompt.md",
+    knowledgeName: "web-agent-prompt",
+    knowledgeType: "markdown"
+);
 
 // Define a content processing workflow to handle content processing
 var contentProcessingWorkflow = agent.Workflows.DefineCustom<ContentProcessingWorkflow>();
@@ -70,7 +82,7 @@ webWorkflow.OnUserChatMessage(async (context) =>
 });
 
 // Optional: Enable human-in-the-loop (HITL) tasks
-agent.Workflows.WithTasks();  // Uses default max concurrent (100)
+await agent.Workflows.WithTasks();  // Uses default max concurrent (100)
 
 // Run all workflows
 try

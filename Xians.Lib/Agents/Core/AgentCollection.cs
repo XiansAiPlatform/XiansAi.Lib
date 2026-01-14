@@ -56,6 +56,10 @@ public class AgentCollection
         return new XiansAgent(
             registration.Name, 
             registration.SystemScoped,
+            registration.Description,
+            registration.Summary,
+            registration.Version,
+            registration.Author,
             _uploader,
             _temporalService,
             _httpService,

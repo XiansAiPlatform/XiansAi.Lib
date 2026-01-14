@@ -50,6 +50,19 @@ public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
         // Terminate workflows
         await TerminateWorkflowsAsync();
 
+        // Delete agent
+        if (_agent != null && RunRealServerTests)
+        {
+            try
+            {
+                await _agent.DeleteAsync();
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+
         // Clear the context to allow other tests to register agents
         try
         {

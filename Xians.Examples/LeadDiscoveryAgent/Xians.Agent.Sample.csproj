@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\..\Xians.Lib\Xians.Lib.csproj" />
@@ -22,5 +22,10 @@
     <Nullable>enable</Nullable>
     <NoWarn>NU1608</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embed all .md files in the WebAgent folder -->
+    <EmbeddedResource Include="WebAgent\**\*.md" />
+  </ItemGroup>
 
 </Project>
