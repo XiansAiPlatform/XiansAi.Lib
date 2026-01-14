@@ -67,7 +67,9 @@ public class Logger<T>
             var workflowRunId = XiansContext.SafeWorkflowRunId;
             var workflowType = XiansContext.SafeWorkflowType;
             var agentName = XiansContext.SafeAgentName;
-            var participantId = XiansContext.SafeParticipantId;
+            
+            // TODO: Add participant ID extraction once we have an accurate method
+            string? participantId = null;
 
             if (workflowId != null) contextData["WorkflowId"] = workflowId;
             if (workflowRunId != null) contextData["WorkflowRunId"] = workflowRunId;

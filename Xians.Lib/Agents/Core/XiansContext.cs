@@ -122,13 +122,6 @@ public static class XiansContext
     /// </summary>
     public static string? SafeAgentName => WorkflowContextHelper.TryGetAgentName();
 
-    /// <summary>
-    /// Safely gets the current participant ID without throwing exceptions.
-    /// Returns null if not in workflow or activity context, or if workflow ID doesn't contain participant ID.
-    /// Use this in logging and other scenarios where exceptions are not desired.
-    /// </summary>
-    public static string? SafeParticipantId => WorkflowContextHelper.TryGetParticipantId();
-
     #endregion
 
     #region Current Agent Access

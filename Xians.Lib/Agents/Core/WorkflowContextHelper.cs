@@ -119,31 +119,6 @@ public static class WorkflowContextHelper
     }
 
     /// <summary>
-    /// Extracts the participant ID from the current workflow ID.
-    /// Expected format: {TenantId}:{AgentName}:{WorkflowName}:{ParticipantId}:{OptionalSuffixes}
-    /// Example: "acme-corp:MyAgent:Chat:user-123:notifications"
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <returns>The participant ID if found, otherwise null.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string? GetParticipantId()
-    {
-        var workflowId = GetWorkflowId();
-        
-        // Split workflow ID by colon
-        // Format: [0]=tenantId, [1]=agentName, [2]=workflowName, [3]=participantId (if exists)
-        var parts = workflowId.Split(':');
-        
-        // Participant ID is the 4th part (index 3) if it exists
-        if (parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]))
-        {
-            return parts[3];
-        }
-        
-        return null;
-    }
-
-    /// <summary>
     /// Tries to get the current workflow ID without throwing an exception.
     /// </summary>
     /// <returns>The workflow ID if in workflow/activity context, otherwise null.</returns>
@@ -200,22 +175,6 @@ public static class WorkflowContextHelper
         try
         {
             return InWorkflowOrActivity ? GetAgentName() : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Tries to get the current participant ID without throwing an exception.
-    /// </summary>
-    /// <returns>The participant ID if found in workflow/activity context, otherwise null.</returns>
-    public static string? TryGetParticipantId()
-    {
-        try
-        {
-            return InWorkflowOrActivity ? GetParticipantId() : null;
         }
         catch
         {

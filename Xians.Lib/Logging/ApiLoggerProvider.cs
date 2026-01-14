@@ -130,7 +130,9 @@ public class ApiLogger : ILogger
         var workflowRunId = XiansContext.SafeWorkflowRunId ?? "No RunId Available";
         var workflowType = XiansContext.SafeWorkflowType ?? "No Workflow Type Available";
         var agent = XiansContext.SafeAgentName ?? "No Agent Available";
-        var participantId = XiansContext.SafeParticipantId ?? "No Participant Id Available";
+        
+        // TODO: Extract participant ID once we have an accurate method
+        var participantId = "No Participant Id Available";
 
         var log = new Log
         {
