@@ -22,6 +22,11 @@ public class XiansAgentRegistration
     public string? Description { get; set; }
 
     /// <summary>
+    /// Gets or sets the summary of the agent.
+    /// </summary>
+    public string? Summary { get; set; }
+
+    /// <summary>
     /// Gets or sets the version of the agent.
     /// </summary>
     public string? Version { get; set; }
