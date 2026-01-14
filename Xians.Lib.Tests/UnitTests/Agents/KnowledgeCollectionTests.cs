@@ -52,6 +52,7 @@ public class KnowledgeCollectionTests : IDisposable
             null, // author
             null,
             null,
+            null,
             _mockHttpService.Object,
             options,
             null); // No cache for unit tests
