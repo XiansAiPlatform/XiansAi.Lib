@@ -94,6 +94,34 @@ public static class XiansContext
     /// </summary>
     public static bool InActivity => WorkflowContextHelper.InActivity;
 
+    /// <summary>
+    /// Safely gets the current workflow ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowId => WorkflowContextHelper.TryGetWorkflowId();
+
+    /// <summary>
+    /// Safely gets the current workflow run ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowRunId => WorkflowContextHelper.TryGetWorkflowRunId();
+
+    /// <summary>
+    /// Safely gets the current workflow type without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowType => WorkflowContextHelper.TryGetWorkflowType();
+
+    /// <summary>
+    /// Safely gets the current agent name without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeAgentName => WorkflowContextHelper.TryGetAgentName();
+
     #endregion
 
     #region Current Agent Access
