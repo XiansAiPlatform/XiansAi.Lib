@@ -99,7 +99,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", maxConcurrent: 1);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", options: new WorkflowOptions { MaxConcurrent = 1 });
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -134,7 +134,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow", maxConcurrent: 2);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow", options: new WorkflowOptions { MaxConcurrent = 2 });
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -155,8 +155,19 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
 
     public Task DisposeAsync()
     {
+        // Clean up mock server
         _mockServer?.Stop();
         _mockServer?.Dispose();
+        
+        // Clean up static state to prevent test contamination
+        // This clears:
+        // - Agent and workflow registries
+        // - BuiltinWorkflow handlers
+        // - Knowledge activities services
+        // - Settings cache
+        // - Certificate cache
+        XiansContext.CleanupForTests();
+        
         return Task.CompletedTask;
     }
 }

@@ -12,6 +12,10 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Logging;
 
+/// <summary>
+/// dotnet test --filter "FullyQualifiedName~LoggingServicesTests"
+/// </summary>
+
 [Trait("Category", "Integration")]
 public class LoggingServicesTests : IAsyncLifetime
 {
@@ -249,8 +253,9 @@ public class LoggingServicesTests : IAsyncLifetime
                 .WithStatusCode(200)
                 .WithBody("{\"success\": true}"));
 
-        LoggingServices.Initialize(_httpService!);
+        // Configure batch settings BEFORE initializing to avoid 60-second default interval
         LoggingServices.ConfigureBatchSettings(2, 1000);
+        LoggingServices.Initialize(_httpService!);
 
         var log = CreateTestLog(LogLevel.Error, "Test error");
         LoggingServices.EnqueueLog(log);

@@ -280,6 +280,12 @@ public static class LoggingServices
             Thread.Sleep(100);
         }
         
+        // Reset initialization flag to allow re-initialization
+        lock (_initLock)
+        {
+            _isInitialized = false;
+        }
+        
         Console.WriteLine("Log flushing completed");
     }
     
