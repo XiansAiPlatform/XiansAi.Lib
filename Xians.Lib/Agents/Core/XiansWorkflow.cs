@@ -12,6 +12,7 @@ using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Temporal.Workflows.Documents;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Temporal.Workflows.Scheduling;
+using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -28,7 +29,7 @@ public class XiansWorkflow
     private readonly Type? _workflowClassType;
     private string? _taskQueue;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, WorkflowOptions options, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
@@ -52,10 +53,17 @@ public class XiansWorkflow
         _agent = agent;
         WorkflowType = workflowType;
         Name = name;
-        Workers = workers;
+        Options = options.Clone();
+        Workers = Options.MaxConcurrent;
         _isBuiltIn = isBuiltIn;
         _workflowClassType = workflowClassType;
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
+
+        // Register workflow options for built-in workflows
+        if (_isBuiltIn)
+        {
+            BuiltinWorkflow.RegisterWorkflowOptions(workflowType, Options);
+        }
 
         // Initialize schedule collection if temporal service is available
         if (agent.TemporalService != null)
@@ -78,7 +86,12 @@ public class XiansWorkflow
     public string? Name { get; private set; }
 
     /// <summary>
-    /// Gets the number of workers for this workflow.
+    /// Gets the workflow options.
+    /// </summary>
+    public WorkflowOptions Options { get; }
+
+    /// <summary>
+    /// Gets the number of workers for this workflow (same as Options.MaxConcurrent).
     /// </summary>
     public int Workers { get; }
 

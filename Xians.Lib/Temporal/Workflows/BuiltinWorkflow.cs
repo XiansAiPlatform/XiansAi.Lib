@@ -8,6 +8,7 @@ using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Temporal.Workflows.Models;
 using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Common;
+using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Temporal.Workflows;
 
@@ -23,6 +24,9 @@ public class BuiltinWorkflow
     // Made internal static to allow activities and A2AClient to access it
     // Using ConcurrentDictionary to eliminate lock contention during message processing
     internal static readonly ConcurrentDictionary<string, WorkflowHandlerMetadata> _handlersByWorkflowType = new();
+    
+    // Workflow options indexed by workflow type
+    private static readonly ConcurrentDictionary<string, WorkflowOptions> _workflowOptions = new();
 
     /// <summary>
     /// Main workflow execution method
@@ -164,11 +168,60 @@ public class BuiltinWorkflow
     }
 
     /// <summary>
+    /// Registers workflow options for a specific workflow type.
+    /// </summary>
+    /// <param name="workflowType">The workflow type identifier.</param>
+    /// <param name="options">The workflow options to register.</param>
+    internal static void RegisterWorkflowOptions(string workflowType, WorkflowOptions options)
+    {
+        _workflowOptions[workflowType] = options.Clone();
+    }
+
+    /// <summary>
+    /// Gets the configured max history length for the current workflow.
+    /// </summary>
+    private int GetMaxHistoryLength()
+    {
+        var workflowType = Workflow.Info.WorkflowType;
+        if (_workflowOptions.TryGetValue(workflowType, out var options))
+        {
+            return options.MaxHistoryLength;
+        }
+        // Default fallback if options not registered
+        return 1000;
+    }
+
+    /// <summary>
     /// Clears all registered handlers. Intended for testing purposes only.
     /// </summary>
     internal static void ClearHandlersForTests()
     {
         _handlersByWorkflowType.Clear();
+        _workflowOptions.Clear();
+    }
+
+    /// <summary>
+    /// Determines if the workflow should continue as new to avoid unbounded history growth.
+    /// </summary>
+    private bool ShouldContinueAsNew =>
+        // Don't continue as new while handlers are running
+        Workflow.AllHandlersFinished &&
+        // Continue if suggested by Temporal or max history length reached
+        (Workflow.ContinueAsNewSuggested || Workflow.CurrentHistoryLength > GetMaxHistoryLength());
+
+    /// <summary>
+    /// Triggers ContinueAsNew if conditions are met.
+    /// </summary>
+    private void ContinueAsNewIfNeeded()
+    {
+        if (ShouldContinueAsNew)
+        {
+            Workflow.Logger.LogInformation(
+                "Continuing as new: HistoryLength={HistoryLength}, Suggested={Suggested}",
+                Workflow.CurrentHistoryLength,
+                Workflow.ContinueAsNewSuggested);
+            throw Workflow.CreateContinueAsNewException(Workflow.Info.WorkflowType, Array.Empty<object>());
+        }
     }
 
     /// <summary>
@@ -181,9 +234,12 @@ public class BuiltinWorkflow
         
         while (true)
         {
-            // Wait for a message to arrive in the queue
+            // Wait for a message to arrive in the queue or ContinueAsNew condition
             Workflow.Logger.LogDebug("Waiting for messages... QueueDepth={QueueDepth}", _messageQueue.Count);
-            await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0);
+            await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0 || ShouldContinueAsNew);
+
+            // Check if we should continue as new to avoid unbounded history growth
+            ContinueAsNewIfNeeded();
 
             // Dequeue and process the message
             if (_messageQueue.TryDequeue(out var message))
