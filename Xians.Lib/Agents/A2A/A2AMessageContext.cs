@@ -84,6 +84,18 @@ public class A2AMessageContext : UserMessageContext
     public string CorrelationId => _request.CorrelationId;
 
     /// <summary>
+    /// Gets the target workflow ID where this A2A message is being processed.
+    /// This is the workflow that is handling the A2A request, not the source workflow.
+    /// </summary>
+    public string TargetWorkflowId => _targetWorkflowId;
+
+    /// <summary>
+    /// Gets the target workflow type where this A2A message is being processed.
+    /// This is the workflow that is handling the A2A request, not the source workflow.
+    /// </summary>
+    public string TargetWorkflowType => _targetWorkflowType;
+
+    /// <summary>
     /// Sends a reply back to the calling agent.
     /// Captures the response instead of sending to a user.
     /// </summary>
