@@ -2,26 +2,16 @@
 
 A robust .NET library for establishing HTTP and Temporal server connections with built-in resilience, retry logic, and health monitoring.
 
-## Features
+## Releases
 
-### HTTP Client Service
-- ✅ Certificate-based and API key authentication
-- ✅ Automatic retry with exponential backoff
-- ✅ Health checking and auto-reconnection
-- ✅ Connection pooling and lifecycle management
-- ✅ TLS 1.2/1.3 enforcement
-- ✅ Tenant header support
-- ✅ Extension methods for common HTTP operations
+```bash
+# Define the version
+export VERSION=1.3.7 # or 1.3.7-beta for pre-release
 
-### Temporal Client Service
-- ✅ Lazy connection initialization
-- ✅ Automatic retry on connection failures
-- ✅ mTLS support
-- ✅ Health monitoring
-- ✅ Connection state management
-- ✅ Graceful disconnection
-- ✅ Sub-workflow (child workflow) support
-- ✅ Workflow orchestration and composition
+# Create and push a version tag
+git tag -a v$VERSION -m "Release v$VERSION"
+git push origin v$VERSION
+```
 
 ## Installation
 

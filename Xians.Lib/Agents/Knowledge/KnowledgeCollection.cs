@@ -21,6 +21,7 @@ public class KnowledgeCollection
     private readonly XiansAgent _agent;
     private readonly KnowledgeActivityExecutor _executor;
     private readonly ILogger<KnowledgeCollection> _logger;
+    private readonly List<Xians.Lib.Agents.Knowledge.Models.Knowledge> _localKnowledge = new();
 
     internal KnowledgeCollection(XiansAgent agent, IHttpClientService? httpService, Xians.Lib.Common.Caching.CacheService? cacheService)
     {
@@ -120,7 +121,35 @@ public class KnowledgeCollection
             isSystemScoped);
 
         // Context-aware execution via executor
-        return await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, cancellationToken);
+        var result = await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, cancellationToken);
+        
+        // Track locally
+        if (result)
+        {
+            var existingKnowledge = _localKnowledge.FirstOrDefault(k => k.Name == knowledgeName);
+            if (existingKnowledge != null)
+            {
+                // Update existing
+                existingKnowledge.Content = content;
+                existingKnowledge.Type = type;
+                existingKnowledge.SystemScoped = isSystemScoped;
+            }
+            else
+            {
+                // Add new
+                _localKnowledge.Add(new Xians.Lib.Agents.Knowledge.Models.Knowledge
+                {
+                    Name = knowledgeName,
+                    Content = content,
+                    Type = type,
+                    SystemScoped = isSystemScoped,
+                    Agent = _agent.Name,
+                    TenantId = tenantId
+                });
+            }
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -144,7 +173,19 @@ public class KnowledgeCollection
             _agent.Name);
 
         // Context-aware execution via executor
-        return await _executor.DeleteAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+        var result = await _executor.DeleteAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+        
+        // Remove from local tracking if deletion succeeded
+        if (result)
+        {
+            var existingKnowledge = _localKnowledge.FirstOrDefault(k => k.Name == knowledgeName);
+            if (existingKnowledge != null)
+            {
+                _localKnowledge.Remove(existingKnowledge);
+            }
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -167,16 +208,16 @@ public class KnowledgeCollection
     }
 
     /// <summary>
-    /// Displays a formatted summary of all uploaded knowledge items.
+    /// Displays a formatted summary of all locally tracked knowledge items.
     /// </summary>
-    public async Task DisplayKnowledgeSummaryAsync(CancellationToken cancellationToken = default)
+    public Task DisplayKnowledgeSummaryAsync(CancellationToken cancellationToken = default)
     {
-        var knowledgeList = await ListAsync(cancellationToken);
-        
-        if (knowledgeList.Count == 0)
+        if (_localKnowledge.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
+        
+        var knowledgeList = _localKnowledge;
 
         // Fixed box width for better console compatibility
         const int boxWidth = 63;
@@ -256,6 +297,8 @@ public class KnowledgeCollection
         Console.ResetColor();
         Console.WriteLine();
         Console.WriteLine();
+        
+        return Task.CompletedTask;
     }
 
     /// <summary>
