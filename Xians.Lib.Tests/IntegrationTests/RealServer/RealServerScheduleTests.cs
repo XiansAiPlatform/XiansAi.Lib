@@ -68,9 +68,9 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             return;
         }
 
-        Console.WriteLine($"Cleaning up {_scheduleIdsToCleanup.Count} test schedules...");
+        Console.WriteLine($"Cleaning up {_scheduleIdsToCleanup.Count} tracked schedules...");
         
-        // Step 1: Pause all schedules first to prevent new workflow triggers
+        // Step 1: Pause all tracked schedules first to prevent new workflow triggers
         foreach (var scheduleId in _scheduleIdsToCleanup)
         {
             try
@@ -87,10 +87,13 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             }
         }
         
-        // Step 2: Terminate any running workflows BEFORE deleting schedules
+        // Step 2: Find and pause any orphaned schedules (not in cleanup list)
+        await CleanupOrphanedSchedulesAsync();
+        
+        // Step 3: Terminate any running workflows BEFORE deleting schedules
         await TerminateWorkflowsAsync();
         
-        // Step 3: Now delete the schedules
+        // Step 4: Now delete all the schedules (tracked + orphaned)
         foreach (var scheduleId in _scheduleIdsToCleanup)
         {
             try
@@ -121,6 +124,68 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         }
         
         Console.WriteLine("✓ Cleanup complete");
+    }
+
+    private async Task CleanupOrphanedSchedulesAsync()
+    {
+        try
+        {
+            Console.WriteLine("  Checking for orphaned schedules...");
+            
+            if (_agent?.TemporalService == null)
+            {
+                return;
+            }
+
+            var temporalClient = await _agent.TemporalService.GetClientAsync();
+            var scheduleListStream = temporalClient.ListSchedulesAsync();
+            
+            var orphanedCount = 0;
+            await foreach (var scheduleListEntry in scheduleListStream)
+            {
+                var scheduleId = scheduleListEntry.Id;
+                
+                // Check if this is a test schedule that wasn't tracked
+                if (scheduleId.StartsWith("test-") && !_scheduleIdsToCleanup.Contains(scheduleId))
+                {
+                    try
+                    {
+                        // Get the schedule to check if it belongs to this workflow
+                        var schedule = await _workflow!.Schedules!.GetAsync(scheduleId);
+                        var description = await schedule.DescribeAsync();
+                        
+                        // Check if this schedule is for our test workflow
+                        var action = description.Schedule.Action as Temporalio.Client.Schedules.ScheduleActionStartWorkflow;
+                        if (action != null && action.Workflow.Contains(TEST_WORKFLOW_NAME))
+                        {
+                            Console.WriteLine($"  ⚠ Found orphaned schedule: {scheduleId}");
+                            _scheduleIdsToCleanup.Add(scheduleId);
+                            
+                            // Pause it immediately
+                            await _workflow.Schedules.PauseAsync(scheduleId, "Orphaned schedule cleanup");
+                            orphanedCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  ⚠ Error checking schedule {scheduleId}: {ex.Message}");
+                    }
+                }
+            }
+            
+            if (orphanedCount > 0)
+            {
+                Console.WriteLine($"  ⚠ Found and paused {orphanedCount} orphaned schedule(s)");
+            }
+            else
+            {
+                Console.WriteLine($"  ✓ No orphaned schedules found");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠ Error during orphaned schedule cleanup: {ex.Message}");
+        }
     }
 
     private async Task TerminateWorkflowsAsync()

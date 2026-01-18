@@ -31,12 +31,16 @@ public class ScheduleBuilder
     private SchedulePolicy? _schedulePolicy;
     private ScheduleState? _scheduleState;
 
+    private readonly string _idPostfix;
+
     internal ScheduleBuilder(
         string scheduleId,
         string workflowType,
         XiansAgent agent,
+        string idPostfix,
         ITemporalClientService temporalService)
     {
+        _idPostfix = idPostfix ?? throw new ArgumentNullException(nameof(idPostfix));
         _scheduleId = scheduleId ?? throw new ArgumentNullException(nameof(scheduleId));
         _workflowType = workflowType ?? throw new ArgumentNullException(nameof(workflowType));
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
@@ -285,10 +289,7 @@ public class ScheduleBuilder
         try
         {
             var client = await _temporalService.GetClientAsync();
-            var tenantId = GetEffectiveTenantId();
-            var agentName = _agent.Name;
-            var idPostfix = Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name;
-            var fullScheduleId = $"{tenantId}:{agentName}:{idPostfix}:{_scheduleId}";
+            var fullScheduleId = BuildFullScheduleId();
             
             var handle = client.GetScheduleHandle(fullScheduleId);
             await handle.DeleteAsync();
@@ -333,6 +334,7 @@ public class ScheduleBuilder
                     CronExpression = _scheduleSpec.CronExpressions.First(),
                     WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
                     Timezone = _scheduleSpec.TimeZoneName,
+                    IdPostfix = _idPostfix,
                     SearchAttributes = searchAttrs
                 };
 
@@ -347,6 +349,7 @@ public class ScheduleBuilder
                     ScheduleId = _scheduleId,
                     Interval = _scheduleSpec.Intervals.First().Every,
                     WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
+                    IdPostfix = _idPostfix,
                     SearchAttributes = searchAttrs
                 };
 
@@ -366,10 +369,7 @@ public class ScheduleBuilder
                 _scheduleId);
 
             // Return schedule handle with full tenant:agent:idPostfix:scheduleId pattern
-            var tenantId = GetEffectiveTenantId();
-            var agentName = _agent.Name;
-            var idPostfix = Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name;
-            var fullScheduleId = $"{tenantId}:{agentName}:{idPostfix}:{_scheduleId}";
+            var fullScheduleId = BuildFullScheduleId();
             
             return new XiansSchedule(new ScheduleHandle(
                 await _temporalService.GetClientAsync(),
@@ -449,6 +449,18 @@ public class ScheduleBuilder
     }
 
     /// <summary>
+    /// Builds the full schedule ID using the pattern: tenantId:agentName:idPostfix:scheduleId
+    /// Uses instance variables and effective tenant ID to construct the full schedule identifier.
+    /// </summary>
+    /// <returns>The fully qualified schedule ID.</returns>
+    private string BuildFullScheduleId()
+    {
+        var tenantId = GetEffectiveTenantId();
+        var agentName = _agent.Name;
+        return ScheduleIdHelper.BuildFullScheduleId(tenantId, agentName, _idPostfix, _scheduleId);
+    }
+
+    /// <summary>
     /// Gets memo for scheduled workflow executions.
     /// Merges system-required metadata (TenantId, AgentName, UserId, SystemScoped) with custom memo.
     /// Values are extracted from search attributes when available for consistency.
@@ -465,8 +477,7 @@ public class ScheduleBuilder
         var userId = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.UserId) 
             ?? _agent.Options?.CertificateInfo?.UserId 
             ?? "system";
-        var idPostfix = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.idPostfix) 
-            ?? (Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name);
+
 
         // Start with system-required metadata
         var memo = new Dictionary<string, object>
@@ -474,7 +485,7 @@ public class ScheduleBuilder
             { WorkflowConstants.Keys.TenantId, tenantId },
             { WorkflowConstants.Keys.Agent, agentName },
             { WorkflowConstants.Keys.UserId, userId },
-            { WorkflowConstants.Keys.idPostfix, idPostfix },
+            { WorkflowConstants.Keys.idPostfix, _idPostfix },
             { WorkflowConstants.Keys.SystemScoped, _agent.SystemScoped }
         };
 
@@ -524,15 +535,9 @@ public class ScheduleBuilder
             // Get Temporal client
             var client = await _temporalService.GetClientAsync();
 
-            // Determine tenant context - ALL schedules must have a tenant ID
-            // System-scoped: uses tenant from workflow context (must be in workflow/activity)
-            // Tenant-scoped: uses agent's registered tenant
-            var tenantId = GetEffectiveTenantId();
-            
             // Generate full schedule ID: tenantId:agent:idPostfix:scheduleId
-            var agentName = _agent.Name;
-            var idPostfix = Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name;
-            var fullScheduleId = $"{tenantId}:{agentName}:{idPostfix}:{_scheduleId}";
+            var fullScheduleId = BuildFullScheduleId();
+            var tenantId = GetEffectiveTenantId();
 
             // Check if schedule already exists (only if checkExists is true)
             if (checkExists)
