@@ -54,9 +54,9 @@ public class XiansWorkflow
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
 
         // Initialize schedule collection if temporal service is available
-        if (agent.TemporalService != null)
+        if (agent.TemporalService == null)
         {
-            Schedules = new ScheduleCollection(agent, workflowType, agent.TemporalService);
+            throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules.");
         }
 
         // Register this workflow in XiansContext so it can be accessed via CurrentWorkflow
@@ -86,7 +86,21 @@ public class XiansWorkflow
     /// <summary>
     /// Gets the schedule collection for managing scheduled executions of this workflow.
     /// </summary>
-    public ScheduleCollection? Schedules { get; }
+    public ScheduleCollection Schedules { 
+        
+        get {
+            string idPostfix;
+            try {
+                idPostfix = WorkflowContextHelper.GetIdPostfix();
+            }
+            catch (InvalidOperationException)
+            {
+                // not in workflow context, so use agent name as idPostfix
+                idPostfix = _agent.Name;
+            }
+            return new ScheduleCollection(_agent, WorkflowType, idPostfix, _agent.TemporalService ?? throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules."));
+        }
+    }
 
     /// <summary>
     /// Gets the task queue name for this workflow.

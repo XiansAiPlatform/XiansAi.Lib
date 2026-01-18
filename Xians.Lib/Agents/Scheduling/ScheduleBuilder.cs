@@ -25,6 +25,7 @@ public class ScheduleBuilder
     private ScheduleSpec? _scheduleSpec;
     private object[]? _workflowArgs;
     private Dictionary<string, object>? _workflowMemo;
+    private SearchAttributeCollection? _typedSearchAttributes;
     private Temporalio.Common.RetryPolicy? _retryPolicy;
     private TimeSpan? _timeout;
     private SchedulePolicy? _schedulePolicy;
@@ -157,6 +158,17 @@ public class ScheduleBuilder
     }
 
     /// <summary>
+    /// Sets typed search attributes for the scheduled workflow executions.
+    /// Allows the schedule to inherit search attributes from parent workflow.
+    /// </summary>
+    /// <param name="searchAttributes">Typed search attributes collection.</param>
+    public ScheduleBuilder WithTypedSearchAttributes(SearchAttributeCollection? searchAttributes)
+    {
+        _typedSearchAttributes = searchAttributes;
+        return this;
+    }
+
+    /// <summary>
     /// Sets a retry policy for the scheduled workflow executions.
     /// </summary>
     /// <param name="retryPolicy">Retry policy configuration.</param>
@@ -220,11 +232,12 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Creates and starts the schedule.
-    /// Automatically detects workflow context and uses activities when needed for determinism.
+    /// Creates a new schedule. Fails if a schedule with the same ID already exists.
+    /// Use this when you want to ensure a brand new schedule is created.
     /// </summary>
     /// <returns>A XiansSchedule instance representing the created schedule.</returns>
-    public async Task<XiansSchedule> StartAsync()
+    /// <exception cref="ScheduleAlreadyExistsException">Thrown if schedule already exists.</exception>
+    public async Task<XiansSchedule> CreateAsync()
     {
         if (_scheduleSpec == null)
         {
@@ -232,80 +245,183 @@ public class ScheduleBuilder
                 "Schedule specification is required. Use WithCronSchedule, WithIntervalSchedule, or WithScheduleSpec.");
         }
 
-        // Auto-detect workflow context and delegate to activity if needed
-        if (Workflow.InWorkflow)
+        return Workflow.InWorkflow 
+            ? await CreateViaActivitiesAsync(checkExists: false) 
+            : await CreateViaTemporalClientAsync(checkExists: false);
+    }
+
+    /// <summary>
+    /// Creates a schedule if it doesn't already exist. Returns existing schedule if found.
+    /// This is idempotent - safe to call multiple times.
+    /// </summary>
+    /// <returns>A XiansSchedule instance representing the schedule (new or existing).</returns>
+    public async Task<XiansSchedule> CreateIfNotExistsAsync()
+    {
+        if (_scheduleSpec == null)
         {
-            return await ExecuteViaSystemActivityAsync();
+            throw new InvalidScheduleSpecException(
+                "Schedule specification is required. Use WithCronSchedule, WithIntervalSchedule, or WithScheduleSpec.");
         }
 
+        return Workflow.InWorkflow 
+            ? await CreateViaActivitiesAsync(checkExists: true) 
+            : await CreateViaTemporalClientAsync(checkExists: true);
+    }
+
+    /// <summary>
+    /// Recreates the schedule by deleting it if it exists and creating a new one.
+    /// Use this when you need to update an existing schedule's configuration.
+    /// </summary>
+    /// <returns>A XiansSchedule instance representing the newly created schedule.</returns>
+    public async Task<XiansSchedule> RecreateAsync()
+    {
+        if (_scheduleSpec == null)
+        {
+            throw new InvalidScheduleSpecException(
+                "Schedule specification is required. Use WithCronSchedule, WithIntervalSchedule, or WithScheduleSpec.");
+        }
+
+        // Delete existing schedule if it exists
         try
         {
-            // Get Temporal client
             var client = await _temporalService.GetClientAsync();
-
-            // Determine tenant context - ALL schedules must have a tenant ID
-            // System-scoped: uses tenant from workflow context (must be in workflow/activity)
-            // Tenant-scoped: uses agent's registered tenant
             var tenantId = GetEffectiveTenantId();
-            var taskQueue = TenantContext.GetTaskQueueName(_workflowType, _agent.SystemScoped, tenantId);
-
-            // Generate workflow ID prefix for scheduled executions - always includes tenant
-            // Temporal will automatically append a unique suffix for each scheduled execution
-            var workflowId = $"{tenantId}:{_workflowType}:{_scheduleId}";
-
-            // Create schedule action using Temporal SDK pattern with search attributes and memo for workflow executions
-            var scheduleAction = ScheduleActionStartWorkflow.Create(
-                _workflowType,
-                _workflowArgs ?? Array.Empty<object>(),
-                new(id: workflowId, taskQueue: taskQueue)
-                {
-                    RetryPolicy = _retryPolicy,
-                    RunTimeout = _timeout,
-                    TypedSearchAttributes = GetSearchAttributes(tenantId),
-                    Memo = GetMemo(tenantId)
-                });
-
-            // Generate schedule ID with tenant prefix - always includes tenant
-            var fullScheduleId = $"{tenantId}:{_scheduleId}";
-
-            // Create the schedule with all properties in initializer (init-only properties)
-            var schedule = new Schedule(
-                Action: scheduleAction,
-                Spec: _scheduleSpec ?? new ScheduleSpec())
-            {
-                Policy = _schedulePolicy ?? new SchedulePolicy(),
-                State = _scheduleState ?? new ScheduleState()
-            };
-
-            _logger.LogInformation(
-                "Creating schedule '{ScheduleId}' for workflow '{WorkflowType}' on task queue '{TaskQueue}'",
-                fullScheduleId, _workflowType, taskQueue);
-
-            var handle = await client.CreateScheduleAsync(fullScheduleId, schedule);
-
-            // Update schedule with search attributes (must be done after creation)
-            await handle.UpdateAsync(scheduleUpdate =>
-            {
-                return new ScheduleUpdate(
-                    scheduleUpdate.Description.Schedule,
-                    TypedSearchAttributes: GetSearchAttributes(tenantId));
-            });
-
-            _logger.LogInformation(
-                "Schedule '{ScheduleId}' created successfully with search attributes. Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
-                fullScheduleId, _agent.Name, _agent.SystemScoped, tenantId ?? "(none)");
-
-            return new XiansSchedule(handle);
+            var agentName = _agent.Name;
+            var idPostfix = Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name;
+            var fullScheduleId = $"{tenantId}:{agentName}:{idPostfix}:{_scheduleId}";
+            
+            var handle = client.GetScheduleHandle(fullScheduleId);
+            await handle.DeleteAsync();
+            
+            var logger = Workflow.InWorkflow ? Workflow.Logger : _logger;
+            logger.LogInformation("🗑️ Deleted existing schedule '{ScheduleId}' for recreation", _scheduleId);
         }
-        catch (Temporalio.Exceptions.ScheduleAlreadyRunningException ex)
+        catch (Temporalio.Exceptions.RpcException ex) when (
+            ex.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
         {
-            _logger.LogError(ex, "Schedule '{ScheduleId}' already exists", _scheduleId);
-            throw new ScheduleAlreadyExistsException(_scheduleId, ex);
+            // Schedule doesn't exist, that's fine
+        }
+
+        // Create new schedule
+        return await CreateAsync();
+    }
+
+    /// <summary>
+    /// Creates schedule via activities (workflow context only).
+    /// Activities maintain workflow determinism by isolating I/O operations.
+    /// Search attributes are converted to serializable format and passed through activities.
+    /// </summary>
+    /// <param name="checkExists">If true, returns existing schedule instead of failing. If false, fails if schedule exists.</param>
+    private async Task<XiansSchedule> CreateViaActivitiesAsync(bool checkExists)
+    {
+        try
+        {
+            // Extract search attributes to serializable format
+            var searchAttrs = ExtractSearchAttributesForSerialization();
+
+            // Determine schedule type
+            var isCronSchedule = _scheduleSpec?.CronExpressions?.Any() == true;
+            var isIntervalSchedule = _scheduleSpec?.Intervals?.Any() == true;
+
+            bool created;
+
+            if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
+            {
+                var request = new CreateCronScheduleRequest
+                {
+                    ScheduleId = _scheduleId,
+                    CronExpression = _scheduleSpec.CronExpressions.First(),
+                    WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
+                    Timezone = _scheduleSpec.TimeZoneName,
+                    SearchAttributes = searchAttrs
+                };
+
+                created = await Workflow.ExecuteActivityAsync(
+                    (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.CreateScheduleIfNotExists(request),
+                    Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
+            }
+            else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
+            {
+                var request = new CreateIntervalScheduleRequest
+                {
+                    ScheduleId = _scheduleId,
+                    Interval = _scheduleSpec.Intervals.First().Every,
+                    WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
+                    SearchAttributes = searchAttrs
+                };
+
+                created = await Workflow.ExecuteActivityAsync(
+                    (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.CreateIntervalScheduleIfNotExists(request),
+                    Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
+            }
+            else
+            {
+                throw new InvalidScheduleSpecException(
+                    "Complex schedule specifications not yet supported in workflow context. " +
+                    "Use cron or interval schedules, or create the schedule outside the workflow.");
+            }
+
+            Workflow.Logger.LogInformation(
+                created ? "✅ Schedule '{ScheduleId}' created successfully" : "ℹ️ Schedule '{ScheduleId}' already exists",
+                _scheduleId);
+
+            // Return schedule handle with full tenant:agent:idPostfix:scheduleId pattern
+            var tenantId = GetEffectiveTenantId();
+            var agentName = _agent.Name;
+            var idPostfix = Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name;
+            var fullScheduleId = $"{tenantId}:{agentName}:{idPostfix}:{_scheduleId}";
+            
+            return new XiansSchedule(new ScheduleHandle(
+                await _temporalService.GetClientAsync(),
+                fullScheduleId));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create schedule '{ScheduleId}'", _scheduleId);
+            Workflow.Logger.LogError(ex, "Failed to create schedule '{ScheduleId}' via activities", _scheduleId);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Extracts search attributes to a serializable dictionary format.
+    /// Prioritizes explicitly set attributes, falls back to workflow search attributes.
+    /// Extracts common workflow search attributes: TenantId, Agent, UserId, idPostfix.
+    /// </summary>
+    private Dictionary<string, object>? ExtractSearchAttributesForSerialization()
+    {
+        var searchAttributes = _typedSearchAttributes ?? Workflow.TypedSearchAttributes;
+        if (searchAttributes == null)
+            return null;
+
+        // Extract known search attributes to serializable format
+        var result = new Dictionary<string, object>();
+        
+        // Extract common workflow search attributes
+        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.TenantId, result);
+        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.Agent, result);
+        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.UserId, result);
+        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.idPostfix, result);
+        
+        return result.Count > 0 ? result : null;
+    }
+
+    /// <summary>
+    /// Helper to extract a single search attribute if it exists.
+    /// </summary>
+    private void ExtractSearchAttribute(SearchAttributeCollection searchAttrs, string keyName, Dictionary<string, object> result)
+    {
+        try
+        {
+            var key = SearchAttributeKey.CreateKeyword(keyName);
+            var value = searchAttrs.Get(key);
+            if (value != null)
+            {
+                result[keyName] = value;
+            }
+        }
+        catch
+        {
+            // Attribute doesn't exist or wrong type, skip it
         }
     }
 
@@ -333,32 +449,24 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Gets search attributes for both the schedule and scheduled workflow executions.
-    /// Includes TenantId, AgentName, WorkflowType, and UserId for schedule and workflow tracking and filtering.
-    /// </summary>
-    private SearchAttributeCollection GetSearchAttributes(string tenantId)
-    {
-        var agentName = _agent.Name;
-        var userId = _agent.Options?.CertificateInfo?.UserId ?? "system";
-        var idPostfix = WorkflowContextHelper.GetIdPostfix();
-
-        var searchAttributesBuilder = new SearchAttributeCollection.Builder()
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userId)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), idPostfix);
-
-        return searchAttributesBuilder.ToSearchAttributeCollection();
-    }
-
-    /// <summary>
     /// Gets memo for scheduled workflow executions.
     /// Merges system-required metadata (TenantId, AgentName, UserId, SystemScoped) with custom memo.
+    /// Values are extracted from search attributes when available for consistency.
     /// </summary>
     private Dictionary<string, object> GetMemo(string tenantId)
     {
-        var agentName = _agent.Name;
-        var userId = _agent.Options?.CertificateInfo?.UserId ?? "system";
+        // Get search attributes (explicit or from workflow context)
+        var searchAttributes = _typedSearchAttributes 
+            ?? (Workflow.InWorkflow ? Workflow.TypedSearchAttributes : null);
+
+        // Extract values from search attributes when available, otherwise use defaults
+        var agentName = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.Agent) 
+            ?? _agent.Name;
+        var userId = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.UserId) 
+            ?? _agent.Options?.CertificateInfo?.UserId 
+            ?? "system";
+        var idPostfix = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.idPostfix) 
+            ?? (Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name);
 
         // Start with system-required metadata
         var memo = new Dictionary<string, object>
@@ -366,7 +474,7 @@ public class ScheduleBuilder
             { WorkflowConstants.Keys.TenantId, tenantId },
             { WorkflowConstants.Keys.Agent, agentName },
             { WorkflowConstants.Keys.UserId, userId },
-            { WorkflowConstants.Keys.idPostfix, WorkflowContextHelper.GetIdPostfix() },
+            { WorkflowConstants.Keys.idPostfix, idPostfix },
             { WorkflowConstants.Keys.SystemScoped, _agent.SystemScoped }
         };
 
@@ -383,157 +491,131 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Executes schedule creation via the system ScheduleActivities when called from a workflow.
-    /// This maintains workflow determinism by delegating I/O operations to activities.
+    /// Helper to safely get a search attribute value as string.
     /// </summary>
-    private async Task<XiansSchedule> ExecuteViaSystemActivityAsync()
+    private string? GetSearchAttributeValue(SearchAttributeCollection? searchAttrs, string keyName)
     {
-        _logger.LogDebug("Detected workflow context - executing schedule creation via ScheduleActivities");
+        if (searchAttrs == null)
+            return null;
 
         try
         {
-            // Determine if this is a cron or interval schedule
-            var isCronSchedule = _scheduleSpec?.CronExpressions?.Any() == true;
-            var isIntervalSchedule = _scheduleSpec?.Intervals?.Any() == true;
+            var key = SearchAttributeKey.CreateKeyword(keyName);
+            var value = searchAttrs.Get(key);
+            return value?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
-            bool created;
+    /// <summary>
+    /// Creates schedule directly using Temporal client.
+    /// Optionally checks for existence first to provide idempotent behavior.
+    /// </summary>
+    /// <param name="checkExists">If true, returns existing schedule instead of failing. If false, fails if schedule exists.</param>
+    private async Task<XiansSchedule> CreateViaTemporalClientAsync(bool checkExists)
+    {
+        var logger = Workflow.InWorkflow ? Workflow.Logger : _logger;
+        
+        try
+        {
+            // Get Temporal client
+            var client = await _temporalService.GetClientAsync();
 
-            if (Workflow.InWorkflow)
+            // Determine tenant context - ALL schedules must have a tenant ID
+            // System-scoped: uses tenant from workflow context (must be in workflow/activity)
+            // Tenant-scoped: uses agent's registered tenant
+            var tenantId = GetEffectiveTenantId();
+            
+            // Generate full schedule ID: tenantId:agent:idPostfix:scheduleId
+            var agentName = _agent.Name;
+            var idPostfix = Workflow.InWorkflow ? WorkflowContextHelper.GetIdPostfix() : _agent.Name;
+            var fullScheduleId = $"{tenantId}:{agentName}:{idPostfix}:{_scheduleId}";
+
+            // Check if schedule already exists (only if checkExists is true)
+            if (checkExists)
             {
-                // WORKFLOW CONTEXT: Execute via activity for determinism
-                if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
+                try
                 {
-                    // Cron-based schedule
-                    var cronExpression = _scheduleSpec.CronExpressions.First();
-                    var timezone = _scheduleSpec.TimeZoneName;
-
-                    var request = new CreateCronScheduleRequest
-                    {
-                        ScheduleId = _scheduleId,
-                        CronExpression = cronExpression,
-                        WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
-                        Timezone = timezone
-                    };
-
-                    created = await Workflow.ExecuteActivityAsync(
-                        (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.CreateScheduleIfNotExists(request),
-                        Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
-                }
-                else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
-                {
-                    // Interval-based schedule
-                    var intervalSpec = _scheduleSpec.Intervals.First();
-                    var interval = intervalSpec.Every;
-
-                    var request = new CreateIntervalScheduleRequest
-                    {
-                        ScheduleId = _scheduleId,
-                        Interval = interval,
-                        WorkflowInput = _workflowArgs ?? Array.Empty<object>()
-                    };
-
-                    created = await Workflow.ExecuteActivityAsync(
-                        (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.CreateIntervalScheduleIfNotExists(request),
-                        Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetStandardOptions());
-                }
-                else
-                {
-                    throw new InvalidScheduleSpecException(
-                        "Complex schedule specifications with calendars or custom specs are not yet supported in workflow context. " +
-                        "Create the schedule outside the workflow using the direct SDK.");
-                }
-            }
-            else
-            {
-                // ACTIVITY CONTEXT: Call Schedule SDK directly
-                var workflow = XiansContext.CurrentWorkflow;
-                
-                if (await workflow.Schedules!.ExistsAsync(_scheduleId))
-                {
-                    created = false;
-                }
-                else if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
-                {
-                    // Cron-based schedule
-                    var cronExpression = _scheduleSpec.CronExpressions.First();
-                    var timezone = _scheduleSpec.TimeZoneName;
-
-                    await workflow.Schedules!
-                        .Create(_scheduleId)
-                        .WithCronSchedule(cronExpression, timezone)
-                        .WithInput(_workflowArgs ?? Array.Empty<object>())
-                        .StartAsync();
+                    var existingHandle = client.GetScheduleHandle(fullScheduleId);
+                    await existingHandle.DescribeAsync();
                     
-                    created = true;
+                    // Schedule exists, return it
+                    logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists, returning existing schedule", _scheduleId);
+                    return new XiansSchedule(existingHandle);
                 }
-                else if (isIntervalSchedule && _scheduleSpec?.Intervals?.FirstOrDefault() != null)
+                catch (Temporalio.Exceptions.RpcException ex) when (
+                    ex.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    // Interval-based schedule
-                    var intervalSpec = _scheduleSpec.Intervals.First();
-                    var interval = intervalSpec.Every;
-
-                    await workflow.Schedules!
-                        .Create(_scheduleId)
-                        .WithIntervalSchedule(interval)
-                        .WithInput(_workflowArgs ?? Array.Empty<object>())
-                        .StartAsync();
-                    
-                    created = true;
+                    // Schedule doesn't exist, continue with creation
                 }
-                else
+            }
+
+            // Create the schedule
+            var taskQueue = TenantContext.GetTaskQueueName(_workflowType, _agent.SystemScoped, tenantId);
+
+            // Generate workflow ID prefix for scheduled executions - always includes tenant
+            // Temporal will automatically append a unique suffix for each scheduled execution
+            var workflowId = $"{tenantId}:{_workflowType}:{_scheduleId}";
+
+            // Create schedule action using Temporal SDK pattern with search attributes and memo for workflow executions
+            // Note: Workflow.TypedSearchAttributes only accessible in workflow context, not in activities
+            var searchAttributes = _typedSearchAttributes 
+                ?? (Workflow.InWorkflow ? Workflow.TypedSearchAttributes : null);
+            
+            var scheduleAction = ScheduleActionStartWorkflow.Create(
+                _workflowType,
+                _workflowArgs ?? Array.Empty<object>(),
+                new(id: workflowId, taskQueue: taskQueue)
                 {
-                    throw new InvalidScheduleSpecException(
-                        "Complex schedule specifications with calendars or custom specs are not yet supported. " +
-                        "Use the direct Schedule SDK for advanced scenarios.");
-                }
-            }
+                    RetryPolicy = _retryPolicy,
+                    RunTimeout = _timeout,
+                    TypedSearchAttributes = searchAttributes,
+                    Memo = GetMemo(tenantId)
+                });
 
-            if (created)
+            // Create the schedule with all properties in initializer (init-only properties)
+            var schedule = new Schedule(
+                Action: scheduleAction,
+                Spec: _scheduleSpec ?? new ScheduleSpec())
             {
-                if (Workflow.InWorkflow)
-                    Workflow.Logger.LogInformation("✅ Schedule '{ScheduleId}' created successfully", _scheduleId);
-                else
-                    _logger.LogInformation("✅ Schedule '{ScheduleId}' created successfully", _scheduleId);
-            }
-            else
-            {
-                if (Workflow.InWorkflow)
-                    Workflow.Logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists", _scheduleId);
-                else
-                    _logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists", _scheduleId);
-            }
+                Policy = _schedulePolicy ?? new SchedulePolicy(),
+                State = _scheduleState ?? new ScheduleState()
+            };
 
-            // Verify schedule exists (context-aware)
-            bool scheduleExists;
-            if (Workflow.InWorkflow)
-            {
-                var request = new ScheduleExistsRequest { ScheduleId = _scheduleId };
-                scheduleExists = await Workflow.ExecuteActivityAsync(
-                    (Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivities act) => act.ScheduleExists(request),
-                    Xians.Lib.Temporal.Workflows.Scheduling.ScheduleActivityOptions.GetQuickCheckOptions());
-            }
-            else
-            {
-                var workflow = XiansContext.CurrentWorkflow;
-                scheduleExists = await workflow.Schedules!.ExistsAsync(_scheduleId);
-            }
+            logger.LogInformation(
+                "Creating schedule '{ScheduleId}' for workflow '{WorkflowType}' on task queue '{TaskQueue}'",
+                fullScheduleId, _workflowType, taskQueue);
 
-            if (!scheduleExists)
-            {
-                throw new InvalidOperationException($"Schedule '{_scheduleId}' was not created successfully");
-            }
+            var handle = await client.CreateScheduleAsync(fullScheduleId, schedule);
 
-            // Create a placeholder schedule handle
-            // Note: The actual handle operations will also need to be workflow-aware
-            return new XiansSchedule(new ScheduleHandle(
-                await _temporalService.GetClientAsync(),
-                _scheduleId));
+            // Update schedule with search attributes (must be done after creation)
+            await handle.UpdateAsync(scheduleUpdate =>
+            {
+                return new ScheduleUpdate(
+                    scheduleUpdate.Description.Schedule,
+                    TypedSearchAttributes: searchAttributes);
+            });
+
+            logger.LogInformation(
+                "✅ Schedule '{ScheduleId}' created successfully. Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+                fullScheduleId, _agent.Name, _agent.SystemScoped, tenantId);
+
+            return new XiansSchedule(handle);
+        }
+        catch (Temporalio.Exceptions.ScheduleAlreadyRunningException ex)
+        {
+            logger.LogError(ex, "Schedule '{ScheduleId}' already exists", _scheduleId);
+            throw new ScheduleAlreadyExistsException(_scheduleId, ex);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create schedule '{ScheduleId}' via activity", _scheduleId);
+            logger.LogError(ex, "Failed to create schedule '{ScheduleId}'", _scheduleId);
             throw;
         }
     }
+
 }
 

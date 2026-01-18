@@ -20,7 +20,7 @@ public static class SchedulingDemo
             .Create("daily-company-research")
             .Daily(hour: 9, minute: 0, timezone: "America/New_York")
             .WithInput("ACME Corp")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
 
         Console.WriteLine($"✅ Schedule created: {schedule.Id}");
         
@@ -45,7 +45,7 @@ public static class SchedulingDemo
                 .Create(scheduleName)
                 .Weekdays(hour: 8, minute: 0)
                 .WithInput(company)
-                .StartAsync();
+                .CreateIfNotExistsAsync();
 
             Console.WriteLine($"✅ Created schedule for {company}: {schedule.Id}");
         }
@@ -68,7 +68,7 @@ public static class SchedulingDemo
                 MaximumInterval = TimeSpan.FromMinutes(10)
             })
             .WithTimeout(TimeSpan.FromHours(1))
-            .StartAsync();
+            .CreateIfNotExistsAsync();
 
         Console.WriteLine($"✅ Created resilient schedule: {schedule.Id}");
     }

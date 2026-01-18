@@ -28,7 +28,10 @@ var xiansAgent = xiansPlatform.Agents.Register(new ()
 });
 
 // Define a custom workflow
-var orderWorkflow = xiansAgent.Workflows.DefineCustom<OrderWorkflow>(new (){ Activable = false });
+var orderWorkflow = xiansAgent.Workflows.DefineCustom<OrderWorkflow>(new (){ Activable = true });
+
+// Define a custom workflow
+var scheduleWorkflow = xiansAgent.Workflows.DefineCustom<ScheduleWorkflow>(new (){ Activable = true });
 
 // Define a built-in workflow
 var builtInWorkflow = xiansAgent.Workflows.DefineBuiltIn("Conversational Workflow");

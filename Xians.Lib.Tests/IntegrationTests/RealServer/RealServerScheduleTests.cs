@@ -1,5 +1,6 @@
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling;
+using Xians.Lib.Agents.Scheduling.Models;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Tests.TestUtilities;
@@ -219,7 +220,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")  // Daily at midnight
             .WithInput("test-input")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
 
         // Assert
         Assert.NotNull(schedule);
@@ -249,7 +250,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             .Create(scheduleId)
             .WithIntervalSchedule(TimeSpan.FromMinutes(5))
             .WithInput("test-input")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
 
         // Assert
         Assert.NotNull(schedule);
@@ -279,7 +280,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")
             .StartPaused(true, "Test schedule - starting paused")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
 
         // Assert
         Assert.NotNull(schedule);
@@ -305,7 +306,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         await _workflow!.Schedules!
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
         Console.WriteLine($"  ✓ Created schedule");
 
         // Act - Retrieve the schedule
@@ -335,7 +336,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         await _workflow!.Schedules!
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
 
         // Act - Use synchronous Get method
         var retrievedSchedule = _workflow!.Schedules!.Get(scheduleId);
@@ -363,7 +364,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         await _workflow!.Schedules!
             .Create(existingScheduleId)
             .WithCronSchedule("0 0 * * *")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
         Console.WriteLine($"  ✓ Created schedule: {existingScheduleId}");
 
         // Act & Assert - Check existing schedule
@@ -394,7 +395,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         var schedule = await _workflow!.Schedules!
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
         Console.WriteLine($"  ✓ Created active schedule");
 
         // Act - Pause the schedule
@@ -434,7 +435,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")  // Won't run on its own
             .StartPaused(true)
-            .StartAsync();
+            .CreateIfNotExistsAsync();
         Console.WriteLine($"  ✓ Created paused schedule");
 
         // Act - Trigger immediate execution
@@ -443,68 +444,6 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
 
         // Note: We can't easily verify the workflow ran without more infrastructure,
         // but if TriggerAsync completes without error, the trigger was successful
-    }
-
-    [Fact]
-    public async Task Schedule_ListAsync_ShouldReturnSchedules()
-    {
-        if (!RunRealServerTests)
-        {
-            return;
-        }
-
-        var scheduleId1 = $"test-list-1-{Guid.NewGuid():N}";
-        var scheduleId2 = $"test-list-2-{Guid.NewGuid():N}";
-        _scheduleIdsToCleanup.Add(scheduleId1);
-        _scheduleIdsToCleanup.Add(scheduleId2);
-
-        Console.WriteLine($"Testing ListAsync operation");
-
-        // Arrange - Create two schedules
-        await _workflow!.Schedules!
-            .Create(scheduleId1)
-            .WithCronSchedule("0 0 * * *")
-            .StartAsync();
-        Console.WriteLine($"  ✓ Created schedule 1: {scheduleId1}");
-
-        await _workflow!.Schedules
-            .Create(scheduleId2)
-            .WithIntervalSchedule(TimeSpan.FromHours(1))
-            .StartAsync();
-        Console.WriteLine($"  ✓ Created schedule 2: {scheduleId2}");
-
-        // Small delay to allow Temporal to index the schedules
-        await Task.Delay(100);
-
-        // Act - List all schedules
-        var schedules = await _workflow!.Schedules!.ListAsync();
-        var scheduleList = new List<ScheduleListDescription>();
-        
-        await foreach (var schedule in schedules)
-        {
-            scheduleList.Add(schedule);
-        }
-
-        // Assert - Verify we can enumerate schedules
-        // Note: Temporal's schedule listing has eventual consistency, so newly created
-        // schedules might not appear immediately. We just verify ListAsync works.
-        Console.WriteLine($"✓ ListAsync completed successfully, found {scheduleList.Count} schedule(s)");
-        
-        // Informational: Check if our schedules are in the list
-        var foundSchedule1 = scheduleList.Any(s => s.Id.Contains(scheduleId1));
-        var foundSchedule2 = scheduleList.Any(s => s.Id.Contains(scheduleId2));
-        
-        if (foundSchedule1 && foundSchedule2)
-        {
-            Console.WriteLine($"✓ Both test schedules found in list (bonus!)");
-        }
-        else
-        {
-            Console.WriteLine($"⚠ Note: Newly created schedules not yet in list (eventual consistency)");
-        }
-        
-        // Verify we can at least call the method without error - this is the main test
-        Assert.NotNull(schedules);
     }
 
     [Fact]
@@ -524,7 +463,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         await _workflow!.Schedules!
             .Create(scheduleId)
             .WithCronSchedule("0 0 * * *")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
         Console.WriteLine($"  ✓ Created schedule");
 
         // Verify it exists
@@ -561,7 +500,7 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             .Create(scheduleId)
             .WithCronSchedule("0 */6 * * *")  // Every 6 hours
             .WithInput("lifecycle-test")
-            .StartAsync();
+            .CreateIfNotExistsAsync();
         Assert.NotNull(schedule);
         Console.WriteLine("  ✓ Created");
 
@@ -601,31 +540,70 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         
         // Small delay to ensure schedule is indexed
         await Task.Delay(100);
-        
-        var schedules = await _workflow.Schedules.ListAsync();
-        Assert.NotNull(schedules);
-        
-        // Try to find our schedule (may not be there due to eventual consistency)
-        var found = false;
-        await foreach (var s in schedules)
-        {
-            if (s.Id.Contains(scheduleId))
-            {
-                found = true;
-                break;
-            }
-        }
-        
-        if (found)
-        {
-            Console.WriteLine("  ✓ Schedule found in list");
-        }
-        else
-        {
-            Console.WriteLine("  ⚠ Schedule not in list yet (eventual consistency)");
-        }
 
         Console.WriteLine("✓ Full lifecycle test PASSED");
+    }
+
+    [Fact]
+    public async Task Schedule_CreateAsync_ShouldFailIfExists()
+    {
+        if (!RunRealServerTests) return;
+        var scheduleId = $"test-strict-{Guid.NewGuid():N}";
+        _scheduleIdsToCleanup.Add(scheduleId);
+        await _workflow!.Schedules!.Create(scheduleId).WithCronSchedule("0 0 * * *").CreateIfNotExistsAsync();
+        await Assert.ThrowsAsync<ScheduleAlreadyExistsException>(async () =>
+            await _workflow!.Schedules!.Create(scheduleId).WithCronSchedule("0 0 * * *").CreateAsync());
+        Console.WriteLine($"✓ CreateAsync correctly threw exception");
+    }
+
+    [Fact]
+    public async Task Schedule_CreateIfNotExistsAsync_ShouldBeIdempotent()
+    {
+        if (!RunRealServerTests) return;
+        var scheduleId = $"test-idempotent-{Guid.NewGuid():N}";
+        _scheduleIdsToCleanup.Add(scheduleId);
+        var s1 = await _workflow!.Schedules!.Create(scheduleId).WithCronSchedule("0 0 * * *").CreateIfNotExistsAsync();
+        var s2 = await _workflow!.Schedules!.Create(scheduleId).WithCronSchedule("0 1 * * *").CreateIfNotExistsAsync();
+        Assert.NotNull(s1);
+        Assert.NotNull(s2);
+        Console.WriteLine($"✓ CreateIfNotExistsAsync is idempotent");
+    }
+
+    [Fact]
+    public async Task Schedule_RecreateAsync_ShouldDeleteAndRecreate()
+    {
+        if (!RunRealServerTests) return;
+        var scheduleId = $"test-recreate-{Guid.NewGuid():N}";
+        _scheduleIdsToCleanup.Add(scheduleId);
+        await _workflow!.Schedules!.Create(scheduleId).WithIntervalSchedule(TimeSpan.FromHours(1)).CreateAsync();
+        await Task.Delay(100);
+        var schedule = await _workflow!.Schedules!.Create(scheduleId).WithIntervalSchedule(TimeSpan.FromMinutes(30)).RecreateAsync();
+        Assert.NotNull(schedule);
+        Console.WriteLine($"✓ RecreateAsync works");
+    }
+
+    [Fact]
+    public async Task Schedule_MemoShouldContainRequiredMetadata()
+    {
+        if (!RunRealServerTests) return;
+        var scheduleId = $"test-memo-{Guid.NewGuid():N}";
+        _scheduleIdsToCleanup.Add(scheduleId);
+        var schedule = await _workflow!.Schedules!.Create(scheduleId).WithCronSchedule("0 0 * * *").CreateIfNotExistsAsync();
+        var description = await schedule.DescribeAsync();
+        
+        // Memo is on the schedule action (for scheduled workflows), not the schedule itself
+        var action = description.Schedule.Action as Temporalio.Client.Schedules.ScheduleActionStartWorkflow;
+        Assert.NotNull(action);
+        
+        var memo = action.Options.Memo;
+        Assert.NotNull(memo);
+        Assert.True(memo.ContainsKey("tenantId"));
+        Assert.True(memo.ContainsKey("agent"));
+        Assert.True(memo.ContainsKey("userId"));
+        Assert.True(memo.ContainsKey("idPostfix"));
+        Assert.True(memo.ContainsKey("systemScoped"));
+        
+        Console.WriteLine($"✓ All required memo fields present");
     }
 }
 

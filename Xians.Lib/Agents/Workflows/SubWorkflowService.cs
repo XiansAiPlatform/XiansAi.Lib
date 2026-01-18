@@ -141,6 +141,7 @@ public static class SubWorkflowService
     /// <summary>
     /// Starts a workflow via the Temporal client (out-of-workflow scenario).
     /// Requires access to the agent to get the Temporal client.
+    /// If called from an activity, propagates parent workflow metadata.
     /// </summary>
     private static async Task StartViaClientAsync(string workflowType, string? idPostfix, object[] args)
     {
@@ -157,6 +158,13 @@ public static class SubWorkflowService
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
         };
 
+        // If called from activity context, propagate parent workflow metadata
+        if (WorkflowContextHelper.InActivity)
+        {
+            options.Memo = BuildMemoFromActivity(tenantId, agentName, systemScoped);
+            options.TypedSearchAttributes = BuildSearchAttributesFromActivity(tenantId, agentName);
+        }
+
         await client.StartWorkflowAsync(workflowType, args, options);
 
         _logger.LogInformation(
@@ -168,6 +176,7 @@ public static class SubWorkflowService
     /// <summary>
     /// Executes a workflow via the Temporal client (out-of-workflow scenario).
     /// Requires access to the agent to get the Temporal client.
+    /// If called from an activity, propagates parent workflow metadata.
     /// </summary>
     private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string? idPostfix, object[] args)
     {
@@ -183,6 +192,13 @@ public static class SubWorkflowService
             TaskQueue = taskQueue,
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
         };
+
+        // If called from activity context, propagate parent workflow metadata
+        if (WorkflowContextHelper.InActivity)
+        {
+            options.Memo = BuildMemoFromActivity(tenantId, agentName, systemScoped);
+            options.TypedSearchAttributes = BuildSearchAttributesFromActivity(tenantId, agentName);
+        }
 
         var result = await client.ExecuteWorkflowAsync<TResult>(workflowType, args, options);
 
@@ -259,6 +275,43 @@ public static class SubWorkflowService
         }
 
         return workflowId;
+    }
+
+    /// <summary>
+    /// Builds memo dictionary when called from activity context.
+    /// Inherits metadata from parent workflow where the activity belongs.
+    /// </summary>
+    private static Dictionary<string, object> BuildMemoFromActivity(string tenantId, string agentName, bool systemScoped)
+    {
+        var memo = new Dictionary<string, object>
+        {
+            { Common.WorkflowConstants.Keys.TenantId, tenantId },
+            { Common.WorkflowConstants.Keys.Agent, agentName },
+            { Common.WorkflowConstants.Keys.SystemScoped, systemScoped },
+            { Common.WorkflowConstants.Keys.idPostfix, WorkflowContextHelper.GetIdPostfix() }
+        };
+
+        // Note: UserId cannot be inherited from activity context as it's not accessible
+        // The child workflow may set it during initialization if needed
+        
+        return memo;
+    }
+
+    /// <summary>
+    /// Builds search attributes when called from activity context.
+    /// Inherits searchable metadata from parent workflow where the activity belongs.
+    /// </summary>
+    private static Temporalio.Common.SearchAttributeCollection BuildSearchAttributesFromActivity(string tenantId, string agentName)
+    {
+        var builder = new Temporalio.Common.SearchAttributeCollection.Builder()
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.TenantId), tenantId)
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.Agent), agentName)
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix());
+
+        // Note: UserId cannot be inherited from activity context as it's not accessible
+        // The child workflow may set it during initialization if needed
+
+        return builder.ToSearchAttributeCollection();
     }
 }
 

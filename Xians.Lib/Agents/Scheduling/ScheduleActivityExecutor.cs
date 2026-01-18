@@ -55,7 +55,7 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
                 await svc.Create(scheduleId)
                     .WithCronSchedule(cronExpression, timezone)
                     .WithInput(workflowInput)
-                    .StartAsync();
+                    .CreateIfNotExistsAsync();
                 return true;
             },
             operationName: "CreateScheduleIfNotExists");
@@ -86,7 +86,7 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
                 await svc.Create(scheduleId)
                     .WithIntervalSchedule(interval)
                     .WithInput(workflowInput)
-                    .StartAsync();
+                    .CreateIfNotExistsAsync();
                 return true;
             },
             operationName: "CreateIntervalScheduleIfNotExists");

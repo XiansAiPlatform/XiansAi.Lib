@@ -9,6 +9,10 @@ public class CreateCronScheduleRequest
     public required string CronExpression { get; set; }
     public required object[] WorkflowInput { get; set; }
     public string? Timezone { get; set; }
+    /// <summary>
+    /// Search attributes as serializable dictionary. Will be converted to SearchAttributeCollection in activity.
+    /// </summary>
+    public Dictionary<string, object>? SearchAttributes { get; set; }
 }
 
 /// <summary>
@@ -19,6 +23,10 @@ public class CreateIntervalScheduleRequest
     public required string ScheduleId { get; set; }
     public required TimeSpan Interval { get; set; }
     public required object[] WorkflowInput { get; set; }
+    /// <summary>
+    /// Search attributes as serializable dictionary. Will be converted to SearchAttributeCollection in activity.
+    /// </summary>
+    public Dictionary<string, object>? SearchAttributes { get; set; }
 }
 
 /// <summary>

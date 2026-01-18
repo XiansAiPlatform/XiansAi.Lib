@@ -99,7 +99,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", maxConcurrent: 1);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -119,7 +119,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         Assert.Equal($"{uniqueAgentName}:Conversational", uploadedDefinition.WorkflowType);
         Assert.Equal("Conversational", uploadedDefinition.Name);
         Assert.False(uploadedDefinition.SystemScoped);
-        Assert.Equal(1, uploadedDefinition.Workers);
+        Assert.Equal(100, uploadedDefinition.Workers); // Default is 100 (Temporal's default)
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow", maxConcurrent: 2);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -150,7 +150,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
         Assert.Equal($"{uniqueAgentName}:SystemWorkflow", uploadedDefinition.WorkflowType);
         Assert.True(uploadedDefinition.SystemScoped);
-        Assert.Equal(2, uploadedDefinition.Workers);
+        Assert.Equal(100, uploadedDefinition.Workers); // Default is 100 (Temporal's default)
     }
 
     public Task DisposeAsync()

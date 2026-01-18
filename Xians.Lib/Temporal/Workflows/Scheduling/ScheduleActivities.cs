@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
+using Temporalio.Common;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Common.Infrastructure;
@@ -49,11 +50,20 @@ public class ScheduleActivities
 
             _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
 
-            await workflow.Schedules!
+            // Reconstruct search attributes from serializable format
+            var builder = workflow.Schedules!
                 .Create(request.ScheduleId)
                 .WithCronSchedule(request.CronExpression, request.Timezone)
-                .WithInput(request.WorkflowInput)
-                .StartAsync();
+                .WithInput(request.WorkflowInput);
+
+            // Add search attributes if provided
+            if (request.SearchAttributes != null)
+            {
+                var searchAttrs = ReconstructSearchAttributes(request.SearchAttributes);
+                builder = builder.WithTypedSearchAttributes(searchAttrs);
+            }
+
+            await builder.CreateIfNotExistsAsync();
 
             _logger.LogInformation(
                 "✅ Successfully created schedule '{ScheduleId}' with cron '{CronExpression}'",
@@ -88,11 +98,20 @@ public class ScheduleActivities
 
             _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
 
-            await workflow.Schedules!
+            // Reconstruct search attributes from serializable format
+            var builder = workflow.Schedules!
                 .Create(request.ScheduleId)
                 .WithIntervalSchedule(request.Interval)
-                .WithInput(request.WorkflowInput)
-                .StartAsync();
+                .WithInput(request.WorkflowInput);
+
+            // Add search attributes if provided
+            if (request.SearchAttributes != null)
+            {
+                var searchAttrs = ReconstructSearchAttributes(request.SearchAttributes);
+                builder = builder.WithTypedSearchAttributes(searchAttrs);
+            }
+
+            await builder.CreateIfNotExistsAsync();
 
             _logger.LogInformation(
                 "✅ Successfully created interval schedule '{ScheduleId}' with interval '{Interval}'",
@@ -208,6 +227,25 @@ public class ScheduleActivities
             _logger.LogError(ex, "Failed to trigger schedule '{ScheduleId}'", request.ScheduleId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Reconstructs SearchAttributeCollection from serializable dictionary format.
+    /// </summary>
+    private SearchAttributeCollection? ReconstructSearchAttributes(Dictionary<string, object>? searchAttrs)
+    {
+        if (searchAttrs == null || !searchAttrs.Any())
+            return null;
+
+        var builder = new SearchAttributeCollection.Builder();
+        foreach (var kvp in searchAttrs)
+        {
+            // Create search attribute key and add to collection
+            // Note: We assume keyword type for simplicity. Could be enhanced to support other types.
+            var key = SearchAttributeKey.CreateKeyword(kvp.Key);
+            builder.Set(key, kvp.Value?.ToString() ?? string.Empty);
+        }
+        return builder.ToSearchAttributeCollection();
     }
 }
 

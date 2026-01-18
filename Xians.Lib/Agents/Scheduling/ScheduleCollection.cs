@@ -18,14 +18,17 @@ public class ScheduleCollection
 {
     private readonly XiansAgent _agent;
     private readonly string _workflowType;
+    private readonly string _idPostfix;
     private readonly ITemporalClientService _temporalService;
     private readonly ILogger<ScheduleCollection> _logger;
 
     internal ScheduleCollection(
         XiansAgent agent,
         string workflowType,
+        string idPostfix,
         ITemporalClientService temporalService)
     {
+        _idPostfix = idPostfix ?? throw new ArgumentNullException(nameof(idPostfix));
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _workflowType = workflowType ?? throw new ArgumentNullException(nameof(workflowType));
         _temporalService = temporalService ?? throw new ArgumentNullException(nameof(temporalService));
@@ -67,8 +70,8 @@ public class ScheduleCollection
                     ?? throw new InvalidOperationException(
                         "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
             
-            // All schedules have tenant prefix
-            var fullScheduleId = $"{tenantId}:{scheduleId}";
+            // Full schedule ID pattern: tenantId:agentName:idPostfix:scheduleId
+            var fullScheduleId = $"{tenantId}:{_agent.Name}:{_idPostfix}:{scheduleId}";
 
             var handle = client.GetScheduleHandle(fullScheduleId);
             
@@ -100,34 +103,6 @@ public class ScheduleCollection
         return GetAsync(scheduleId).GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// Lists all schedules for this workflow.
-    /// For tenant-scoped workflows, only lists schedules for the current tenant.
-    /// </summary>
-    /// <returns>Async enumerable of schedule list descriptions.</returns>
-    public async Task<IAsyncEnumerable<ScheduleListDescription>> ListAsync()
-    {
-        try
-        {
-            var client = await _temporalService.GetClientAsync();
-            var allSchedules = client.ListSchedulesAsync();
-
-            // Determine tenant ID - ALL schedule operations require tenant context
-            string tenantId = _agent.SystemScoped 
-                ? XiansContext.TenantId  // Will throw if not in workflow/activity context
-                : _agent.Options?.CertificateTenantId 
-                    ?? throw new InvalidOperationException(
-                        "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
-            
-            // Filter schedules to this tenant only
-            return FilterByTenant(allSchedules, tenantId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to list schedules for workflow '{WorkflowType}'", _workflowType);
-            throw;
-        }
-    }
 
     /// <summary>
     /// Deletes a schedule by ID.
@@ -208,21 +183,5 @@ public class ScheduleCollection
         await schedule.TriggerAsync();
     }
 
-    /// <summary>
-    /// Filters schedules to only include those belonging to a specific tenant.
-    /// </summary>
-    private async IAsyncEnumerable<ScheduleListDescription> FilterByTenant(
-        IAsyncEnumerable<ScheduleListDescription> schedules,
-        string tenantId)
-    {
-        await foreach (var schedule in schedules)
-        {
-            // Check if schedule ID starts with tenant prefix
-            if (schedule.Id.StartsWith($"{tenantId}:", StringComparison.Ordinal))
-            {
-                yield return schedule;
-            }
-        }
-    }
 }
 
