@@ -96,7 +96,8 @@ public class SubWorkflowOptions : ChildWorkflowOptions
         {
             { WorkflowConstants.Keys.TenantId, tenantId },
             { WorkflowConstants.Keys.Agent, agentName },
-            { WorkflowConstants.Keys.SystemScoped, systemScoped }
+            { WorkflowConstants.Keys.SystemScoped, systemScoped },
+            { WorkflowConstants.Keys.idPostfix, WorkflowContextHelper.GetIdPostfix() }
         };
 
         // Try to propagate UserId from parent if available
@@ -124,6 +125,7 @@ public class SubWorkflowOptions : ChildWorkflowOptions
 
         var builder = new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName);
 
         // Try to propagate UserId from parent if available

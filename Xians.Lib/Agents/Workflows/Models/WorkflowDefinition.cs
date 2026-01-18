@@ -16,6 +16,9 @@ public class WorkflowDefinition
     [JsonPropertyName("name")]
     public string? Name { get; set; }
     
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+    
     [JsonPropertyName("source")]
     public string? Source { get; set; } = string.Empty;
     
@@ -30,6 +33,9 @@ public class WorkflowDefinition
     
     [JsonPropertyName("workers")]
     public int Workers { get; set; } = 1;
+    
+    [JsonPropertyName("activable")]
+    public bool Activable { get; set; } = true;
 }
 
 public class ParameterDefinition
@@ -39,6 +45,12 @@ public class ParameterDefinition
     
     [JsonPropertyName("type")]
     public string? Type { get; set; }
+    
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+    
+    [JsonPropertyName("optional")]
+    public bool Optional { get; set; }
 }
 
 public class ActivityDefinition

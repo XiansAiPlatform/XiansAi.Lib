@@ -27,18 +27,15 @@ public class XiansWorkflow
     private readonly List<Type> _activityTypes = new();
     private readonly Type? _workflowClassType;
     private string? _taskQueue;
+    private readonly bool _activable;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool activable = true)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
         
         if (string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentNullException(nameof(workflowType));
-
-        // Enforce that workflow type starts with agent name prefix (unless it's a platform workflow)
-        if (!isPlatformWorkflow)
-        {
             var expectedPrefix = agent.Name + ":";
             if (!workflowType.StartsWith(expectedPrefix))
             {
@@ -47,14 +44,13 @@ public class XiansWorkflow
                     $"Expected format: '{expectedPrefix}WorkflowName'",
                     nameof(workflowType));
             }
-        }
-
         _agent = agent;
         WorkflowType = workflowType;
         Name = name;
         Workers = workers;
         _isBuiltIn = isBuiltIn;
         _workflowClassType = workflowClassType;
+        _activable = activable;
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
 
         // Initialize schedule collection if temporal service is available
@@ -81,6 +77,11 @@ public class XiansWorkflow
     /// Gets the number of workers for this workflow.
     /// </summary>
     public int Workers { get; }
+
+    /// <summary>
+    /// Gets whether this workflow is activable.
+    /// </summary>
+    public bool Activable => _activable;
 
     /// <summary>
     /// Gets the schedule collection for managing scheduled executions of this workflow.

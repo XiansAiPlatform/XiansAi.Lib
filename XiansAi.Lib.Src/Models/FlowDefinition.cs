@@ -1,5 +1,4 @@
 
-using System.Reflection;
 using System.Text.Json.Serialization;
 
 namespace XiansAi.Models;
@@ -10,6 +9,9 @@ public class FlowDefinition
     public required string Agent { get; set; }
     [JsonPropertyName("workflowType")]
     public required string WorkflowType { get; set; }
+    
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
     
     [JsonPropertyName("source")]
     public string? Source { get; set; } = string.Empty;
@@ -27,4 +29,6 @@ public class ParameterDefinition
 {
     public required string? Name { get; set; }  
     public required string? Type { get; set; }
+    public string? Description { get; set; }
+    public bool Optional { get; set; }
 }

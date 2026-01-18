@@ -340,11 +340,13 @@ public class ScheduleBuilder
     {
         var agentName = _agent.Name;
         var userId = _agent.Options?.CertificateInfo?.UserId ?? "system";
+        var idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         var searchAttributesBuilder = new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userId);
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userId)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), idPostfix);
 
         return searchAttributesBuilder.ToSearchAttributeCollection();
     }
@@ -364,6 +366,7 @@ public class ScheduleBuilder
             { WorkflowConstants.Keys.TenantId, tenantId },
             { WorkflowConstants.Keys.Agent, agentName },
             { WorkflowConstants.Keys.UserId, userId },
+            { WorkflowConstants.Keys.idPostfix, WorkflowContextHelper.GetIdPostfix() },
             { WorkflowConstants.Keys.SystemScoped, _agent.SystemScoped }
         };
 

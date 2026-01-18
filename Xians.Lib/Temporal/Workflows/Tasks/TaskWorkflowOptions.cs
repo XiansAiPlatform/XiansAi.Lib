@@ -111,6 +111,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
             { WorkflowConstants.Keys.TenantId, tenantId },
             { WorkflowConstants.Keys.Agent, agentName },
             { WorkflowConstants.Keys.UserId, participantId },
+            { WorkflowConstants.Keys.idPostfix, WorkflowContextHelper.GetIdPostfix() },
             { WorkflowConstants.Keys.SystemScoped, systemScoped },
             { WorkflowConstants.Keys.TaskTitle, title },
             { WorkflowConstants.Keys.TaskDescription, description }
@@ -131,6 +132,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         var builder = new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), participantId);
 
         return builder.ToSearchAttributeCollection();

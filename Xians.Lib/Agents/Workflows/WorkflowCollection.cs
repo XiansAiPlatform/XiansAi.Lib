@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
@@ -24,13 +25,16 @@ public class WorkflowCollection
     /// <summary>
     /// Defines a built-in workflow for the agent using the platform-provided workflow implementation.
     /// Creates a dynamic class that extends BuiltinWorkflow with a [Workflow] attribute in the format: {AgentName}:{WorkflowName}
+    /// Built-in workflows are always activable.
     /// </summary>
     /// <param name="name">The name for the workflow (e.g., "Conversational", "Web").</param>
-    /// <param name="maxConcurrent">Maximum concurrent workflow task executions. Default is 100 (Temporal's default).</param>
+    /// <param name="options">Optional workflow configuration. If not provided, uses default settings. Note: Activable property is ignored for built-in workflows (always true).</param>
     /// <returns>A new built-in XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists.</exception>
-    public XiansWorkflow DefineBuiltIn(string name, int maxConcurrent = 100)
+    public XiansWorkflow DefineBuiltIn(string name, WorkflowDefinitionOptions? options = null)
     {
+        options ??= new WorkflowDefinitionOptions();
+        
         // Check if workflow with same name already exists
         if (_workflows.Any(w => w.Name == name))
         {
@@ -44,14 +48,15 @@ public class WorkflowCollection
         var dynamicWorkflowClassType = DynamicWorkflowTypeBuilder.GetOrCreateType(workflowType);
         
         // Create the XiansWorkflow instance with the dynamic type
+        // Built-in workflows are always activable (ignore options.Activable)
         var workflow = new XiansWorkflow(
             _agent, 
             workflowType, 
             name, 
-            maxConcurrent, 
+            options.MaxConcurrent, 
             isBuiltIn: true, 
             workflowClassType: dynamicWorkflowClassType,
-            isPlatformWorkflow: false);
+            activable: true);
         
         _workflows.Add(workflow);
         
@@ -62,18 +67,19 @@ public class WorkflowCollection
     /// Defines a custom workflow for the agent.
     /// </summary>
     /// <typeparam name="T">The custom workflow type.</typeparam>
-    /// <param name="maxConcurrent">Maximum concurrent workflow task executions. Default is 100 (Temporal's default).</param>
+    /// <param name="options">Optional workflow configuration. If not provided, uses default settings.</param>
     /// <returns>A new custom XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow of the same type already exists.</exception>
-    public XiansWorkflow DefineCustom<T>(int maxConcurrent = 100) where T : class
+    public XiansWorkflow DefineCustom<T>(WorkflowDefinitionOptions? options = null) where T : class
     {
-        return DefineCustomInternal<T>(maxConcurrent, validateAgentPrefix: true);
+        options ??= new WorkflowDefinitionOptions();
+        return DefineCustomInternal<T>(options.MaxConcurrent, validateAgentPrefix: true, activable: options.Activable);
     }
 
     /// <summary>
     /// Internal method to define a custom workflow with optional agent prefix validation.
     /// </summary>
-    private XiansWorkflow DefineCustomInternal<T>(int maxConcurrent, bool validateAgentPrefix, bool isPlatformWorkflow = false) where T : class
+    private XiansWorkflow DefineCustomInternal<T>(int maxConcurrent, bool validateAgentPrefix, bool activable = true) where T : class
     {
         // Get workflow type from [Workflow] attribute if present, otherwise use class name
         var workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix) ?? typeof(T).Name;
@@ -85,7 +91,7 @@ public class WorkflowCollection
             throw new InvalidOperationException($"A workflow of type '{workflowType}' has already been registered.");
         }
         
-        var workflow = new XiansWorkflow(_agent, workflowType, null, maxConcurrent, isBuiltIn: false, workflowClassType: typeof(T), isPlatformWorkflow: isPlatformWorkflow);
+        var workflow = new XiansWorkflow(_agent, workflowType, null, maxConcurrent, isBuiltIn: false, workflowClassType: typeof(T), activable: activable);
         _workflows.Add(workflow);
         
         // Note: Workflow definition will be uploaded when RunAllAsync() is called
@@ -97,11 +103,13 @@ public class WorkflowCollection
     /// Enables human-in-the-loop (HITL) task support for this agent.
     /// Creates a worker that can handle task assignments requiring human interaction.
     /// </summary>
-    /// <param name="maxConcurrent">Maximum concurrent task workflow executions. Default is 100 (Temporal's default).</param>
+    /// <param name="options">Optional workflow configuration. If not provided, uses default settings. Note: Activable property is ignored for task workflows (always true).</param>
     /// <returns>The WorkflowCollection instance for method chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown when task workflow has already been enabled.</exception>
-    public async Task<WorkflowCollection> WithTasks(int maxConcurrent = 100)
+    public async Task<WorkflowCollection> WithTasks(WorkflowDefinitionOptions? options = null)
     {
+        options ??= new WorkflowDefinitionOptions();
+        
         // Create the workflow type name using centralized helper
         var workflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(_agent.Name);
         
@@ -118,10 +126,10 @@ public class WorkflowCollection
             _agent, 
             workflowType, 
             null, 
-            maxConcurrent, 
+            options.MaxConcurrent, 
             isBuiltIn: false, 
-            workflowClassType: dynamicTaskWorkflowType, 
-            isPlatformWorkflow: false);
+            workflowClassType: dynamicTaskWorkflowType,
+            activable: false);
         
         _workflows.Add(workflow);
         
@@ -144,8 +152,10 @@ public class WorkflowCollection
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
                 Name = workflow.Name,
+                Summary = ExtractWorkflowSummary(workflow),
                 SystemScoped = _agent.SystemScoped,
                 Workers = workflow.Workers,
+                Activable = workflow.Activable,
                 ActivityDefinitions = [],
                 ParameterDefinitions = ExtractWorkflowParameters(workflow)
             };
@@ -156,6 +166,21 @@ public class WorkflowCollection
         {
             throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Extracts the workflow summary from the [Description] attribute on the workflow class.
+    /// </summary>
+    private static string? ExtractWorkflowSummary(XiansWorkflow workflow)
+    {
+        var workflowType = workflow.GetWorkflowClassType();
+        if (workflowType == null)
+        {
+            return null;
+        }
+
+        var descAttr = workflowType.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>();
+        return descAttr?.Description;
     }
 
     /// <summary>
@@ -186,10 +211,16 @@ public class WorkflowCollection
         }
 
         return workflowRunMethod.GetParameters()
-            .Select(p => new ParameterDefinition
+            .Select(p =>
             {
-                Name = p.Name,
-                Type = p.ParameterType.Name
+                var descAttr = p.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>();
+                return new ParameterDefinition
+                {
+                    Name = p.Name,
+                    Type = p.ParameterType.Name,
+                    Description = descAttr?.Description,
+                    Optional = p.IsOptional
+                };
             })
             .ToList();
     }

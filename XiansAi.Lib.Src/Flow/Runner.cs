@@ -302,10 +302,16 @@ public class Runner<TClass> : IRunner where TClass : class
             var workflowRunMethod = workflowType.GetMethods()
             .FirstOrDefault(m => m.GetCustomAttribute<WorkflowRunAttribute>() != null);
 
-            return workflowRunMethod?.GetParameters().Select(p => new ParameterDefinition
+            return workflowRunMethod?.GetParameters().Select(p =>
             {
-                Name = p.Name,
-                Type = p.ParameterType.Name
+                var descAttr = p.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>();
+                return new ParameterDefinition
+                {
+                    Name = p.Name,
+                    Type = p.ParameterType.Name,
+                    Description = descAttr?.Description,
+                    Optional = p.IsOptional
+                };
             }).ToList() ?? [];
         }
     }

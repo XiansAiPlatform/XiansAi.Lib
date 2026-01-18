@@ -1,5 +1,6 @@
 using System;
 using Temporalio.Activities;
+using Temporalio.Converters;
 using Temporalio.Workflows;
 
 namespace Xians.Lib.Agents.Core;
@@ -10,6 +11,24 @@ namespace Xians.Lib.Agents.Core;
 /// </summary>
 public static class WorkflowContextHelper
 {
+
+    /// <summary>
+    /// Gets the idPostfix from the workflowId.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    public static string GetIdPostfix()
+    {
+        // Workflowid format {tenantId}:{agentName}:{workflowName}:{idPostfix}
+        // So we can get the idPostfix from the workflowId
+        var workflowId = GetWorkflowId();
+        var parts = workflowId.Split(':');
+        if (parts.Length < 4)
+        {
+            return string.Empty;
+        }
+        return parts[parts.Length - 1];
+    }
+    
     /// <summary>
     /// Gets the current workflow ID.
     /// Works in both workflow and activity contexts.
