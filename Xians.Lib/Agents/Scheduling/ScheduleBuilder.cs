@@ -250,7 +250,7 @@ public class ScheduleBuilder
         }
 
         return Workflow.InWorkflow 
-            ? await CreateViaActivitiesAsync(checkExists: false) 
+            ? await CreateViaActivitiesAsync() 
             : await CreateViaTemporalClientAsync(checkExists: false);
     }
 
@@ -268,7 +268,7 @@ public class ScheduleBuilder
         }
 
         return Workflow.InWorkflow 
-            ? await CreateViaActivitiesAsync(checkExists: true) 
+            ? await CreateViaActivitiesAsync() 
             : await CreateViaTemporalClientAsync(checkExists: true);
     }
 
@@ -312,8 +312,7 @@ public class ScheduleBuilder
     /// Activities maintain workflow determinism by isolating I/O operations.
     /// Search attributes are converted to serializable format and passed through activities.
     /// </summary>
-    /// <param name="checkExists">If true, returns existing schedule instead of failing. If false, fails if schedule exists.</param>
-    private async Task<XiansSchedule> CreateViaActivitiesAsync(bool checkExists)
+    private async Task<XiansSchedule> CreateViaActivitiesAsync()
     {
         try
         {

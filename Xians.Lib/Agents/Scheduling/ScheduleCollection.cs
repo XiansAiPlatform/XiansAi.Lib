@@ -54,15 +54,15 @@ public class ScheduleCollection
     /// Gets an existing schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public async Task<XiansSchedule> GetAsync(string scheduleId, string idPostfix)
+    public async Task<XiansSchedule> GetAsync(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
         
-        if (string.IsNullOrWhiteSpace(idPostfix))
-            throw new ArgumentException("idPostfix cannot be null or empty", nameof(idPostfix));
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         try
         {
@@ -101,9 +101,9 @@ public class ScheduleCollection
     /// Gets an existing schedule by ID (convenience method).
     /// </summary>
     /// <param name="scheduleId">The schedule identifier.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public XiansSchedule Get(string scheduleId, string idPostfix)
+    public XiansSchedule Get(string scheduleId, string? idPostfix = null)
     {
         return GetAsync(scheduleId, idPostfix).GetAwaiter().GetResult();
     }
@@ -113,11 +113,14 @@ public class ScheduleCollection
     /// Deletes a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to delete.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
-    public async Task DeleteAsync(string scheduleId, string idPostfix)
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    public async Task DeleteAsync(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         try
         {
@@ -140,12 +143,15 @@ public class ScheduleCollection
     /// Checks if a schedule with the specified ID exists.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to check.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
-    public async Task<bool> ExistsAsync(string scheduleId, string idPostfix)
+    public async Task<bool> ExistsAsync(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         try
         {
@@ -162,10 +168,13 @@ public class ScheduleCollection
     /// Pauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to pause.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <param name="note">Optional note explaining why the schedule is paused.</param>
-    public async Task PauseAsync(string scheduleId, string idPostfix, string? note = null)
+    public async Task PauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
     {
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            
         var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.PauseAsync(note);
     }
@@ -174,10 +183,13 @@ public class ScheduleCollection
     /// Unpauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to unpause.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <param name="note">Optional note explaining why the schedule is unpaused.</param>
-    public async Task UnpauseAsync(string scheduleId, string idPostfix, string? note = null)
+    public async Task UnpauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
     {
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            
         var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.UnpauseAsync(note);
     }
@@ -186,9 +198,12 @@ public class ScheduleCollection
     /// Triggers an immediate execution of a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to trigger.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must match the idPostfix used when creating the schedule.</param>
-    public async Task TriggerAsync(string scheduleId, string idPostfix)
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    public async Task TriggerAsync(string scheduleId, string? idPostfix = null)
     {
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            
         var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.TriggerAsync();
     }

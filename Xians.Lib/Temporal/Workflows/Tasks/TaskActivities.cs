@@ -99,14 +99,15 @@ public class TaskActivities
     }
 
     /// <summary>
-    /// Sends a signal to complete the task.
+    /// Performs an action on a task with an optional comment.
     /// </summary>
     [Activity]
-    public async Task CompleteTaskAsync(string tenantId, string taskId)
+    public async Task PerformActionAsync(string tenantId, string taskId, string action, string? comment = null)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "CompleteTask activity started: TaskId={TaskId}, TenantId={TenantId}",
+            "PerformAction activity started: TaskId={TaskId}, Action={Action}, TenantId={TenantId}",
             taskId,
+            action,
             tenantId);
 
         try
@@ -116,60 +117,24 @@ public class TaskActivities
                 ?? throw new InvalidOperationException("Agent name not available in activity context");
             var taskService = new TaskService(_client, agentName, tenantId, logger);
             
-            await taskService.CompleteTaskAsync(taskId);
+            await taskService.PerformActionAsync(taskId, action, comment);
 
             ActivityExecutionContext.Current.Logger.LogInformation(
-                "Task completed successfully: TaskId={TaskId}",
-                taskId);
+                "Action performed successfully: TaskId={TaskId}, Action={Action}",
+                taskId,
+                action);
         }
         catch (Exception ex)
         {
             ActivityExecutionContext.Current.Logger.LogError(ex,
-                "Error completing task: TaskId={TaskId}",
-                taskId);
+                "Error performing action: TaskId={TaskId}, Action={Action}",
+                taskId,
+                action);
             throw new ActivityExecutionException(
-                $"Failed to complete TaskId='{taskId}'",
-                activityName: nameof(CompleteTaskAsync),
-                tenantId: tenantId,
-                innerException: ex);
-        }
-    }
-
-    /// <summary>
-    /// Sends a signal to reject the task.
-    /// </summary>
-    [Activity]
-    public async Task RejectTaskAsync(string tenantId, string taskId, string rejectionMessage)
-    {
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "RejectTask activity started: TaskId={TaskId}, TenantId={TenantId}",
-            taskId,
-            tenantId);
-
-        try
-        {
-            var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-            var agentName = XiansContext.CurrentAgent?.Name 
-                ?? throw new InvalidOperationException("Agent name not available in activity context");
-            var taskService = new TaskService(_client, agentName, tenantId, logger);
-            
-            await taskService.RejectTaskAsync(taskId, rejectionMessage);
-
-            ActivityExecutionContext.Current.Logger.LogInformation(
-                "Task rejected successfully: TaskId={TaskId}",
-                taskId);
-        }
-        catch (Exception ex)
-        {
-            ActivityExecutionContext.Current.Logger.LogError(ex,
-                "Error rejecting task: TaskId={TaskId}",
-                taskId);
-            throw new ActivityExecutionException(
-                $"Failed to reject TaskId='{taskId}'",
-                activityName: nameof(RejectTaskAsync),
+                $"Failed to perform action '{action}' for TaskId='{taskId}'",
+                activityName: nameof(PerformActionAsync),
                 tenantId: tenantId,
                 innerException: ex);
         }
     }
 }
-

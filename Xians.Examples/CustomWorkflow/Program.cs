@@ -52,5 +52,7 @@ conversationalWorkflow.OnUserChatMessage(async (context) =>
     await context.ReplyAsync(response);
 });
 
+// Enable HITL tasks
+await xiansAgent.Workflows.WithTasks();
 // Start the agent and all workflows
 await xiansAgent.RunAllAsync();

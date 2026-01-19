@@ -16,7 +16,6 @@ public class ContentProcessingWorkflow
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<ContentProcessingWorkflow>();
     }
 
-
     [WorkflowRun]
     public async Task<string?> RunAsync(string contentURL, string reportingUserID)
     {
@@ -41,6 +40,7 @@ public class ContentProcessingWorkflow
                 Description = "Approve the content before it is published",
                 ParticipantId = reportingUserID,
                 DraftWork = contentURL,
+                Actions = ["publish", "reject", "revise"]
             }
         );
 
@@ -50,17 +50,14 @@ public class ContentProcessingWorkflow
 
         var result = await TaskWorkflowService.GetResultAsync(taskHandle);
 
-        _logger.LogInformation("Content processed: {ContentURL}, Result: {Result}", contentURL, result);
+        _logger.LogInformation("Content processed: {ContentURL}, Action: {Action}", contentURL, result.PerformedAction);
 
-        if (result.Success)
+        return result.PerformedAction switch
         {
-            return "Published: " + result.FinalWork;
-        }
-        else
-        {
-            return "Rejected with reason: " + result.RejectionReason;
-        }
+            "publish" => $"Published: {result.FinalWork}",
+            "reject" => $"Rejected: {result.Comment}",
+            "revise" => $"Revision requested: {result.Comment}",
+            _ => $"Unknown action: {result.PerformedAction}"
+        };
     }
-
 }
-

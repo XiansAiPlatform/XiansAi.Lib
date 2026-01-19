@@ -32,7 +32,7 @@ public static class WorkflowContextHelper
             return fromMemo;
 
         // Fall back to parsing workflow ID (legacy support)
-        return GetFromWorkflowId();
+        return GetIdPostfixFromWorkflowId() ?? string.Empty;
     }
 
     /// <summary>
@@ -89,15 +89,22 @@ public static class WorkflowContextHelper
     /// Workflow ID format: {tenantId}:{agentName}:{workflowName}:{idPostfix}
     /// Works in both workflow and activity contexts.
     /// </summary>
-    private static string GetFromWorkflowId()
+    private static string? GetIdPostfixFromWorkflowId()
     {
-        var workflowId = GetWorkflowId();
-        var parts = workflowId.Split(':');
-        if (parts.Length < 4)
+        try{
+            var workflowId = GetWorkflowId();
+            var parts = workflowId.Split(':');
+            if (parts.Length < 4)
+            {
+                return null;
+            }
+            return parts[parts.Length - 1];
+        } 
+        catch
         {
-            return string.Empty;
+            // Workflow ID doesn't exist or can't be parsed, continue to next method
         }
-        return parts[parts.Length - 1];
+        return null;
     }
     
     /// <summary>

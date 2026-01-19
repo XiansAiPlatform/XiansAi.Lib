@@ -21,7 +21,7 @@ public class SubWorkflowOptions : ChildWorkflowOptions
     /// <param name="retryPolicy">Optional retry policy. Defaults to MaximumAttempts=1.</param>
     public SubWorkflowOptions(
         string workflowType, 
-        string? idPostfix = null, 
+        string? uniqueKey = null, 
         RetryPolicy? retryPolicy = null)
     {
         if (string.IsNullOrWhiteSpace(workflowType))
@@ -38,19 +38,22 @@ public class SubWorkflowOptions : ChildWorkflowOptions
 
         // Generate task queue using centralized utility
         // For platform workflows starting with "Platform:", pass the agent name to replace "Platform"
-        // var agentName = XiansContext.CurrentAgent?.Name;
         TaskQueue = TenantContext.GetTaskQueueName(workflowType, isSystemScoped, tenantId);
 
-        // Generate workflow ID
-        Id = TenantContext.BuildWorkflowId(workflowType, tenantId, idPostfix);
+        // Extract agent name for workflow ID construction
+        var agentName = workflowType.Contains(':') ? workflowType.Split(':')[0] : workflowType;
 
-        // Propagate parent workflow's memo and search attributes
-        Memo = BuildMemo(tenantId, workflowType, isSystemScoped);
-        TypedSearchAttributes = BuildSearchAttributes(tenantId, workflowType);
+        // Generate workflow ID using shared method (includes parent idPostfix + optional uniqueKey)
+        Id = SubWorkflowService.BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKey);
+
+        // Inherit all parent workflow's memo and search attributes using shared methods
+        // This ensures complete metadata propagation from parent to child
+        Memo = SubWorkflowService.BuildInheritedMemo(tenantId, agentName, isSystemScoped);
+        TypedSearchAttributes = SubWorkflowService.BuildInheritedSearchAttributes(tenantId, agentName);
 
         // Set workflow summary for debugging
         StaticSummary = $"Sub-workflow of '{XiansContext.WorkflowId}' with type '{workflowType}'" +
-                       (idPostfix != null ? $" and postfix '{idPostfix}'" : "");
+                       (uniqueKey != null ? $" and unique key '{uniqueKey}'" : "");
 
         // Default retry policy: single attempt (fail fast)
         RetryPolicy = retryPolicy ?? new RetryPolicy { MaximumAttempts = 1 };
@@ -62,13 +65,15 @@ public class SubWorkflowOptions : ChildWorkflowOptions
 
     /// <summary>
     /// Gets the system-scoped flag from the parent workflow's memo.
+    /// If not in workflow context, defaults to false (tenant-scoped).
     /// </summary>
     private static bool GetSystemScopedFromParent()
     {
         if (!Workflow.InWorkflow)
         {
-            throw new InvalidOperationException(
-                "Cannot determine system-scoped setting outside of workflow context.");
+            // Not in workflow context - default to false (tenant-scoped)
+            // This is a safe default as most workflows are tenant-scoped
+            return false;
         }
 
         // Try to get from memo
@@ -82,63 +87,4 @@ public class SubWorkflowOptions : ChildWorkflowOptions
         return false;
     }
 
-    /// <summary>
-    /// Builds the memo dictionary for the child workflow.
-    /// Propagates important metadata from parent workflow.
-    /// </summary>
-    private static Dictionary<string, object> BuildMemo(string tenantId, string workflowType, bool systemScoped)
-    {
-        var agentName = workflowType.Contains(':') 
-            ? workflowType.Split(':')[0] 
-            : workflowType;
-
-        var memo = new Dictionary<string, object>
-        {
-            { WorkflowConstants.Keys.TenantId, tenantId },
-            { WorkflowConstants.Keys.Agent, agentName },
-            { WorkflowConstants.Keys.SystemScoped, systemScoped },
-            { WorkflowConstants.Keys.idPostfix, WorkflowContextHelper.GetIdPostfix() }
-        };
-
-        // Try to propagate UserId from parent if available
-        if (Workflow.Memo.TryGetValue(WorkflowConstants.Keys.UserId, out var userId))
-        {
-            var userIdStr = userId.Payload.Data.ToStringUtf8();
-            if (!string.IsNullOrWhiteSpace(userIdStr))
-            {
-                memo[WorkflowConstants.Keys.UserId] = userIdStr;
-            }
-        }
-
-        return memo;
-    }
-
-    /// <summary>
-    /// Builds search attributes for the child workflow.
-    /// Propagates searchable metadata for workflow discovery and filtering.
-    /// </summary>
-    private static SearchAttributeCollection BuildSearchAttributes(string tenantId, string workflowType)
-    {
-        var agentName = workflowType.Contains(':') 
-            ? workflowType.Split(':')[0] 
-            : workflowType;
-
-        var builder = new SearchAttributeCollection.Builder()
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName);
-
-        // Try to propagate UserId from parent if available
-        if (Workflow.Memo.TryGetValue(WorkflowConstants.Keys.UserId, out var userId))
-        {
-            var userIdStr = userId.Payload.Data.ToStringUtf8();
-            if (!string.IsNullOrWhiteSpace(userIdStr))
-            {
-                builder.Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userIdStr);
-            }
-        }
-
-        return builder.ToSearchAttributeCollection();
-    }
 }
-

@@ -1,6 +1,7 @@
 using System.ComponentModel;
-using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
+using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Tasks.Models;
 
 namespace Xians.Examples.CustomWorkflow;
 
@@ -14,41 +15,62 @@ public class OrderWorkflow
 {
     [WorkflowRun]
     public async Task<OrderResult> RunAsync(
-        [Description("The unique identifier for the order")]
-        int orderId,
-        
         [Description("The customer ID associated with this order")]
         string customerId,
-        
-        [Description("The total amount for the order in USD")]
-        decimal amount,
-        
-        [Description("The status of the order")]
-        string status = "Pending")
-    {
-        Workflow.Logger.LogInformation(
-            "Processing order {OrderId} for customer {CustomerId} with amount {Amount}",
-            orderId, customerId, amount);
 
-        // Workflow logic here...
-        await Workflow.DelayAsync(TimeSpan.FromSeconds(1));
+        [Description("The total amount for the order in USD")]
+        decimal amount
+    )
+    {
+        var status = "Agent Approved";
+        var comment = "Automatically approved by agent based on the amount";
+
+        // call HITL task if amount is greater than 100
+        if (amount > 100)
+        {
+            var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
+                new TaskWorkflowRequest
+                {
+                    TaskId = $"order-approval-{Workflow.NewGuid()}",
+                    Title = "Approve Order",
+                    Description = $"Review and approve order for customer {customerId} with amount ${amount}",
+                    DraftWork = $"Order Details:\nCustomer: {customerId}\nAmount: ${amount}",
+                    Actions = ["approve", "reject", "hold"]
+                }
+            );
+
+            // Wait for human decision
+            var result = await XiansContext.CurrentAgent.Tasks.GetResultAsync(taskHandle);
+
+            comment = result.Comment ?? string.Empty;
+
+            status = result.PerformedAction switch
+            {
+                "approve" => "Human Approved",
+                "reject" => "Human Rejected",
+                "hold" => "On Hold",
+                _ => "Unknown"
+            };
+        }
 
         return new OrderResult
         {
-            OrderId = orderId,
-            Status = status,
+            OrderId = Guid.NewGuid(),
             CustomerId = customerId,
             Amount = amount,
-            ProcessedAt = DateTime.UtcNow
+            ProcessedAt = DateTime.UtcNow,
+            Status = status,
+            Comment = comment
         };
     }
 }
 
 public class OrderResult
 {
-    public int OrderId { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public string CustomerId { get; set; } = string.Empty;
+    public Guid OrderId { get; set; }
+    public string Status { get; set; } = "Pending";
+    public required string CustomerId { get; set;}
     public decimal Amount { get; set; }
     public DateTime ProcessedAt { get; set; }
+    public string? Comment { get; set; }
 }

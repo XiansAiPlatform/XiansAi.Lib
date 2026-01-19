@@ -15,8 +15,7 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// These tests verify TaskCollection functionality:
 /// - ✅ Task creation via client API
 /// - ✅ UpdateDraftAsync (from client)
-/// - ✅ CompleteTaskAsync (from client)
-/// - ✅ RejectTaskAsync (from client)
+/// - ✅ PerformActionAsync (approve/reject with comment)
 /// - ✅ QueryTaskInfoAsync (from client)
 /// - ✅ Full task lifecycle validation
 /// 
@@ -180,7 +179,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 Title = "Test Query Task",
                 Description = "Testing task query functionality",
                 ParticipantId = "test-reviewer",
-                DraftWork = "Initial draft for query test"
+                DraftWork = "Initial draft for query test",
+                Actions = ["approve", "reject", "hold"]
             };
 
             // Start the task workflow
@@ -208,19 +208,24 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Assert.Equal(taskId, taskInfo.TaskId);
             Assert.Equal("Test Query Task", taskInfo.Title);
             Assert.Equal("Testing task query functionality", taskInfo.Description);
-            Assert.Equal("Initial draft for query test", taskInfo.CurrentDraft);
+            Assert.Equal("Initial draft for query test", taskInfo.FinalWork);
             Assert.Equal("test-reviewer", taskInfo.ParticipantId);
             Assert.False(taskInfo.IsCompleted);
-            Assert.False(taskInfo.Success); // Should be false when not completed
+            Assert.Null(taskInfo.PerformedAction);
+            Assert.NotNull(taskInfo.AvailableActions);
+            Assert.Contains("approve", taskInfo.AvailableActions);
+            Assert.Contains("reject", taskInfo.AvailableActions);
+            Assert.Contains("hold", taskInfo.AvailableActions);
             
             Console.WriteLine($"✓ Task queried successfully");
             Console.WriteLine($"  Task ID: {taskInfo.TaskId}");
             Console.WriteLine($"  Title: {taskInfo.Title}");
-            Console.WriteLine($"  Draft: {taskInfo.CurrentDraft}");
+            Console.WriteLine($"  Draft: {taskInfo.FinalWork}");
+            Console.WriteLine($"  Available Actions: {string.Join(", ", taskInfo.AvailableActions)}");
             Console.WriteLine($"  Completed: {taskInfo.IsCompleted}");
 
             // Cleanup - complete the task
-            await _platformAgent.Tasks.SignalCompleteTaskAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, "approve");
             await Task.Delay(500);
         }
         catch (Exception ex)
@@ -272,8 +277,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Verify initial draft
             var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
-            Assert.Equal("Original draft content", taskInfo.CurrentDraft);
-            Console.WriteLine($"✓ Initial draft verified: {taskInfo.CurrentDraft}");
+            Assert.Equal("Original draft content", taskInfo.FinalWork);
+            Console.WriteLine($"✓ Initial draft verified: {taskInfo.FinalWork}");
 
             // Update draft multiple times
             await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
@@ -283,8 +288,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 
             taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
-            Assert.Equal("Draft version 1", taskInfo.CurrentDraft);
-            Console.WriteLine($"✓ Draft updated to: {taskInfo.CurrentDraft}");
+            Assert.Equal("Draft version 1", taskInfo.FinalWork);
+            Console.WriteLine($"✓ Draft updated to: {taskInfo.FinalWork}");
 
             // Update again
             await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
@@ -294,11 +299,11 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 
             taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
-            Assert.Equal("Draft version 2 - final", taskInfo.CurrentDraft);
-            Console.WriteLine($"✓ Draft updated to final version: {taskInfo.CurrentDraft}");
+            Assert.Equal("Draft version 2 - final", taskInfo.FinalWork);
+            Console.WriteLine($"✓ Draft updated to final version: {taskInfo.FinalWork}");
 
             // Cleanup
-            await _platformAgent.Tasks.SignalCompleteTaskAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, "approve");
             await Task.Delay(500);
         }
         catch (Exception ex)
@@ -309,17 +314,17 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     }
 
     [Fact]
-    public async Task CompleteTaskAsync_ShouldCompleteTask()
+    public async Task PerformActionAsync_Approve_ShouldCompleteTask()
     {
         if (!RunRealServerTests)
         {
             return;
         }
 
-        var taskId = $"task-complete-{Guid.NewGuid():N}";
+        var taskId = $"task-approve-{Guid.NewGuid():N}";
         _taskIds.Add(taskId);
         
-        Console.WriteLine($"\n▶ Test: CompleteTaskAsync (taskId: {taskId})");
+        Console.WriteLine($"\n▶ Test: PerformActionAsync - Approve (taskId: {taskId})");
 
         try
         {
@@ -329,10 +334,10 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             var request = new TaskWorkflowRequest
             {
                 TaskId = taskId,
-                Title = "Test Task Completion",
-                Description = "Testing task completion functionality",
+                Title = "Test Task Approval",
+                Description = "Testing task approval functionality",
                 ParticipantId = "test-reviewer",
-                DraftWork = "Draft for completion test"
+                DraftWork = "Draft for approval test"
             };
 
             await client.StartWorkflowAsync(
@@ -341,7 +346,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new WorkflowOptions
                 {
                     Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow", // System-scoped, no tenant prefix
+                    TaskQueue = "Platform:Task Workflow",
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
@@ -351,11 +356,12 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
             Assert.False(taskInfo.IsCompleted);
-            Assert.False(taskInfo.Success); // Should be false when not completed
+            Assert.Null(taskInfo.PerformedAction);
             Console.WriteLine($"✓ Task verified as not completed");
 
-            // Complete the task
-            await _platformAgent.Tasks.SignalCompleteTaskAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            // Approve the task with a comment
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+                "approve", "Looks good to me!");
 
             await Task.Delay(1000);
 
@@ -363,11 +369,12 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
             Assert.True(taskInfo.IsCompleted);
-            Assert.True(taskInfo.Success);
-            Assert.Null(taskInfo.RejectionReason);
-            Console.WriteLine($"✓ Task completed successfully");
+            Assert.Equal("approve", taskInfo.PerformedAction);
+            Assert.Equal("Looks good to me!", taskInfo.Comment);
+            Console.WriteLine($"✓ Task approved successfully");
             Console.WriteLine($"  Completed: {taskInfo.IsCompleted}");
-            Console.WriteLine($"  Success: {taskInfo.Success}");
+            Console.WriteLine($"  Action: {taskInfo.PerformedAction}");
+            Console.WriteLine($"  Comment: {taskInfo.Comment}");
         }
         catch (Exception ex)
         {
@@ -377,7 +384,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     }
 
     [Fact]
-    public async Task RejectTaskAsync_ShouldRejectTaskWithReason()
+    public async Task PerformActionAsync_Reject_ShouldCompleteTaskWithReason()
     {
         if (!RunRealServerTests)
         {
@@ -387,7 +394,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
         var taskId = $"task-reject-{Guid.NewGuid():N}";
         _taskIds.Add(taskId);
         
-        Console.WriteLine($"\n▶ Test: RejectTaskAsync (taskId: {taskId})");
+        Console.WriteLine($"\n▶ Test: PerformActionAsync - Reject (taskId: {taskId})");
 
         try
         {
@@ -409,7 +416,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new WorkflowOptions
                 {
                     Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow", // System-scoped, no tenant prefix
+                    TaskQueue = "Platform:Task Workflow",
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
@@ -423,7 +430,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 
             // Reject the task
             var rejectionReason = "Task rejected by automated test - invalid content";
-            await _platformAgent.Tasks.SignalRejectTaskAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, rejectionReason);
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+                "reject", rejectionReason);
 
             await Task.Delay(1000);
 
@@ -431,12 +439,83 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
             Assert.True(taskInfo.IsCompleted);
-            Assert.False(taskInfo.Success);
-            Assert.Equal(rejectionReason, taskInfo.RejectionReason);
+            Assert.Equal("reject", taskInfo.PerformedAction);
+            Assert.Equal(rejectionReason, taskInfo.Comment);
             Console.WriteLine($"✓ Task rejected successfully");
             Console.WriteLine($"  Completed: {taskInfo.IsCompleted}");
-            Console.WriteLine($"  Success: {taskInfo.Success}");
-            Console.WriteLine($"  Rejection Reason: {taskInfo.RejectionReason}");
+            Console.WriteLine($"  Action: {taskInfo.PerformedAction}");
+            Console.WriteLine($"  Comment: {taskInfo.Comment}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Test failed: {ex.Message}");
+            throw;
+        }
+    }
+
+    [Fact]
+    public async Task PerformActionAsync_CustomAction_ShouldCompleteWithCustomAction()
+    {
+        if (!RunRealServerTests)
+        {
+            return;
+        }
+
+        var taskId = $"task-custom-{Guid.NewGuid():N}";
+        _taskIds.Add(taskId);
+        
+        Console.WriteLine($"\n▶ Test: PerformActionAsync - Custom Action (taskId: {taskId})");
+
+        try
+        {
+            var client = await _platformAgent!.TemporalService!.GetClientAsync();
+            
+            // Start a task workflow with custom actions
+            var request = new TaskWorkflowRequest
+            {
+                TaskId = taskId,
+                Title = "Test Custom Actions",
+                Description = "Testing custom action functionality",
+                ParticipantId = "test-reviewer",
+                DraftWork = "Draft for custom action test",
+                Actions = ["ship", "hold", "cancel", "refund"]
+            };
+
+            await client.StartWorkflowAsync(
+                "Platform:Task Workflow",
+                new[] { request },
+                new WorkflowOptions
+                {
+                    Id = $"test:Platform:Task Workflow:{taskId}",
+                    TaskQueue = "Platform:Task Workflow",
+                    IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
+                });
+
+            await Task.Delay(2000);
+
+            // Verify available actions
+            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+
+            Assert.NotNull(taskInfo.AvailableActions);
+            Assert.Contains("ship", taskInfo.AvailableActions);
+            Assert.Contains("hold", taskInfo.AvailableActions);
+            Console.WriteLine($"✓ Custom actions verified: {string.Join(", ", taskInfo.AvailableActions)}");
+
+            // Perform custom action
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+                "hold", "Waiting for inventory restock");
+
+            await Task.Delay(1000);
+
+            // Verify task completed with custom action
+            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+
+            Assert.True(taskInfo.IsCompleted);
+            Assert.Equal("hold", taskInfo.PerformedAction);
+            Assert.Equal("Waiting for inventory restock", taskInfo.Comment);
+            Console.WriteLine($"✓ Custom action performed successfully");
+            Console.WriteLine($"  Action: {taskInfo.PerformedAction}");
+            Console.WriteLine($"  Comment: {taskInfo.Comment}");
         }
         catch (Exception ex)
         {
@@ -470,7 +549,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 Title = "Full Lifecycle Test",
                 Description = "Testing complete task lifecycle",
                 ParticipantId = "test-reviewer",
-                DraftWork = "Initial draft v0"
+                DraftWork = "Initial draft v0",
+                Actions = ["approve", "reject", "request-changes"]
             };
 
             await client.StartWorkflowAsync(
@@ -479,7 +559,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new WorkflowOptions
                 {
                     Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow", // System-scoped, no tenant prefix
+                    TaskQueue = "Platform:Task Workflow",
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
@@ -491,9 +571,11 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
             Assert.NotNull(taskInfo);
-            Assert.Equal("Initial draft v0", taskInfo.CurrentDraft);
+            Assert.Equal("Initial draft v0", taskInfo.FinalWork);
             Assert.False(taskInfo.IsCompleted);
-            Console.WriteLine($"✓ Step 2: Initial state verified - Draft: {taskInfo.CurrentDraft}");
+            Assert.NotNull(taskInfo.AvailableActions);
+            Console.WriteLine($"✓ Step 2: Initial state verified - Draft: {taskInfo.FinalWork}");
+            Console.WriteLine($"  Available Actions: {string.Join(", ", taskInfo.AvailableActions)}");
 
             // Step 3: Update draft multiple times
             Console.WriteLine($"Step 3: Updating draft...");
@@ -514,25 +596,28 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 
             taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
-            Assert.Equal("Draft version 3 - final", taskInfo.CurrentDraft);
-            Console.WriteLine($"✓ Step 3: Draft updated 3 times - Final draft: {taskInfo.CurrentDraft}");
+            Assert.Equal("Draft version 3 - final", taskInfo.FinalWork);
+            Console.WriteLine($"✓ Step 3: Draft updated 3 times - Final draft: {taskInfo.FinalWork}");
 
-            // Step 4: Complete the task
-            Console.WriteLine($"Step 4: Completing task...");
-            await _platformAgent.Tasks.SignalCompleteTaskAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            // Step 4: Complete the task with approve action
+            Console.WriteLine($"Step 4: Approving task...");
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+                "approve", "All revisions look great!");
 
             await Task.Delay(1000);
 
             taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
             Assert.True(taskInfo.IsCompleted);
-            Assert.True(taskInfo.Success);
-            Assert.Equal("Draft version 3 - final", taskInfo.CurrentDraft);
+            Assert.Equal("approve", taskInfo.PerformedAction);
+            Assert.Equal("All revisions look great!", taskInfo.Comment);
+            Assert.Equal("Draft version 3 - final", taskInfo.FinalWork);
             
-            Console.WriteLine($"✓ Step 4: Task completed successfully");
+            Console.WriteLine($"✓ Step 4: Task approved successfully");
             Console.WriteLine($"✓ Full lifecycle test passed!");
-            Console.WriteLine($"  Final State: Completed={taskInfo.IsCompleted}, Success={taskInfo.Success}");
-            Console.WriteLine($"  Final Draft: {taskInfo.CurrentDraft}");
+            Console.WriteLine($"  Final State: Completed={taskInfo.IsCompleted}, Action={taskInfo.PerformedAction}");
+            Console.WriteLine($"  Final Draft: {taskInfo.FinalWork}");
+            Console.WriteLine($"  Comment: {taskInfo.Comment}");
         }
         catch (Exception ex)
         {
@@ -574,7 +659,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new WorkflowOptions
                 {
                     Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow", // System-scoped, no tenant prefix
+                    TaskQueue = "Platform:Task Workflow",
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
@@ -599,7 +684,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Console.WriteLine($"  Title: {taskInfo.Title}");
 
             // Clean up
-            await _platformAgent.Tasks.SignalCompleteTaskAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, "approve");
             await Task.Delay(500);
         }
         catch (Exception ex)
@@ -617,4 +702,3 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 public class RealServerTaskCollection
 {
 }
-

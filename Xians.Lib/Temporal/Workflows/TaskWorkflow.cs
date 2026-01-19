@@ -1,19 +1,22 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Common;
 using Temporalio.Workflows;
-using Xians.Lib.Common;
 using Xians.Lib.Agents.Tasks.Models;
 
 namespace Xians.Lib.Temporal.Workflows;
 
 public class TaskWorkflow
 {
+    private static readonly string[] DefaultActions = ["approve", "reject"];
+    
     private readonly ILogger<TaskWorkflow> _logger;
-    private bool _isCompleted = false;
-    private string? _rejectionMessage;
-    private string? _currentDraft;
+    private bool _isCompleted;
+    private string? _initialWork;
+    private string? _finalWork;
     private TaskWorkflowRequest? _request;
     private string _taskId = string.Empty;
+    private string[]? _availableActions;
+    private string? _performedAction;
+    private string? _actionComment;
 
     public TaskWorkflow()
     {
@@ -24,33 +27,26 @@ public class TaskWorkflow
     public virtual async Task<TaskWorkflowResult> RunAsync(TaskWorkflowRequest request)
     {
         _request = request;
-        
-        // TaskId is now guaranteed to be set by TaskWorkflowService
         _taskId = request.TaskId ?? throw new ArgumentException("TaskId must be provided", nameof(request));
-        
-        // Override userId search attribute with ParticipantId to ensure it's not inherited from parent
-        var userIdKey = SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId);
-        Workflow.UpsertTypedSearchAttributes(userIdKey.ValueSet(request.ParticipantId));
-        
-        _logger.LogInformation("Human-in-the-loop task started: {TaskId} - {Title}", 
-            _taskId, request.Title);
+        _availableActions = request.Actions is { Length: > 0 } ? request.Actions : DefaultActions;
+        _initialWork = request.DraftWork;
+        _finalWork = request.DraftWork;
 
-        // Initialize with the provided draft work
-        _currentDraft = request.DraftWork;
+        _logger.LogInformation("Task started: {TaskId} - {Title}, Actions: [{Actions}]", 
+            _taskId, request.Title, string.Join(", ", _availableActions));
 
-        // Wait for human to complete or reject the task via signal
-        // This blocks the workflow until CompleteTask or RejectTask is called
         await Workflow.WaitConditionAsync(() => _isCompleted);
 
-        _logger.LogInformation("Human-in-the-loop task finished: {TaskId}, Rejected={IsRejected}", 
-            _taskId, _rejectionMessage != null);
+        _logger.LogInformation("Task completed: {TaskId}, Action={Action}", 
+            _taskId, _performedAction);
 
         return new TaskWorkflowResult
         {
             TaskId = _taskId,
-            Success = _rejectionMessage == null, // Success if not rejected
-            FinalWork = _currentDraft,
-            RejectionReason = _rejectionMessage,
+            InitialWork = _initialWork,
+            FinalWork = _finalWork,
+            PerformedAction = _performedAction,
+            Comment = _actionComment,
             CompletedAt = Workflow.UtcNow
         };
     }
@@ -58,25 +54,19 @@ public class TaskWorkflow
     [WorkflowSignal]
     public Task UpdateDraft(string updatedDraft)
     {
-        _logger.LogInformation("Draft updated");
-        _currentDraft = updatedDraft;
+        _logger.LogInformation("Draft updated for task: {TaskId}", _taskId);
+        _finalWork = updatedDraft;
         return Task.CompletedTask;
     }
 
     [WorkflowSignal]
-    public Task CompleteTask()
+    public Task PerformAction(TaskActionRequest actionRequest)
     {
-        _logger.LogInformation("Task completed successfully");
-        _isCompleted = true;
+        _logger.LogInformation("Action performed on task {TaskId}: {Action}, Comment: {Comment}", 
+            _taskId, actionRequest.Action, actionRequest.Comment ?? "(none)");
         
-        return Task.CompletedTask;
-    }
-
-    [WorkflowSignal]
-    public Task RejectTask(string rejectionMessage)
-    {
-        _logger.LogWarning("Task rejected: {RejectionMessage}", rejectionMessage);
-        _rejectionMessage = rejectionMessage;
+        _performedAction = actionRequest.Action;
+        _actionComment = actionRequest.Comment;
         _isCompleted = true;
         
         return Task.CompletedTask;
@@ -90,12 +80,14 @@ public class TaskWorkflow
             TaskId = _taskId,
             Title = _request?.Title ?? string.Empty,
             Description = _request?.Description ?? string.Empty,
-            CurrentDraft = _currentDraft,
-            Success = _isCompleted && _rejectionMessage == null, // Only true if completed without rejection
+            InitialWork = _initialWork,
+            FinalWork = _finalWork,
             IsCompleted = _isCompleted,
-            RejectionReason = _rejectionMessage,
             ParticipantId = _request?.ParticipantId ?? string.Empty,
-            Metadata = _request?.Metadata
+            Metadata = _request?.Metadata,
+            AvailableActions = _availableActions,
+            PerformedAction = _performedAction,
+            Comment = _actionComment
         };
     }
 }
