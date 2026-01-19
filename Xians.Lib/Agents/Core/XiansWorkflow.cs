@@ -30,7 +30,7 @@ public class XiansWorkflow
     private string? _taskQueue;
     private readonly bool _activable;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, WorkflowOptions options, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, WorkflowOptions options, bool isBuiltIn, Type? workflowClassType = null)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
@@ -52,7 +52,7 @@ public class XiansWorkflow
         Workers = Options.MaxConcurrent;
         _isBuiltIn = isBuiltIn;
         _workflowClassType = workflowClassType;
-        _activable = !isPlatformWorkflow;
+        _activable = options.Activable;
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
 
         // Register workflow options for built-in workflows

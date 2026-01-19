@@ -1,4 +1,5 @@
 ﻿using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Workflows.Models;
 using DotNetEnv;
 using Xians.Examples.CustomWorkflow;
 
@@ -31,13 +32,13 @@ var xiansAgent = xiansPlatform.Agents.Register(new ()
 });
 
 // Define a custom workflow
-var orderWorkflow = xiansAgent.Workflows.DefineCustom<OrderWorkflow>(new (){ Activable = true });
+var orderWorkflow = xiansAgent.Workflows.DefineCustom<OrderWorkflow>(new WorkflowOptions { Activable = true });
 
 // Define a custom workflow
-var scheduleWorkflow = xiansAgent.Workflows.DefineCustom<OrderExtractionWorkflow>(new (){ Activable = true });
+var scheduleWorkflow = xiansAgent.Workflows.DefineCustom<OrderExtractionWorkflow>(new WorkflowOptions { Activable = true });
 
 // A sub workflow that will be invoked by another. This will not be activated by default.
-var urlReaderWorkflow = xiansAgent.Workflows.DefineCustom<UrlReaderWorkflow>(new (){ Activable = false });
+var urlReaderWorkflow = xiansAgent.Workflows.DefineCustom<UrlReaderWorkflow>(new WorkflowOptions { Activable = false });
 
 // Define a built-in workflow
 var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn("Conversational Workflow");

@@ -35,6 +35,9 @@ public class WorkflowCollection
     {
         options ??= new WorkflowOptions();
         
+        // Built-in workflows are always activable
+        options.Activable = true;
+        
         // Check if workflow with same name already exists
         if (_workflows.Any(w => w.Name == name))
         {
@@ -48,15 +51,13 @@ public class WorkflowCollection
         var dynamicWorkflowClassType = DynamicWorkflowTypeBuilder.GetOrCreateType(workflowType);
         
         // Create the XiansWorkflow instance with the dynamic type
-        // Built-in workflows are always activable (ignore options.Activable)
         var workflow = new XiansWorkflow(
             _agent, 
             workflowType, 
             name, 
             options, 
             isBuiltIn: true, 
-            workflowClassType: dynamicWorkflowClassType,
-            isPlatformWorkflow: false);
+            workflowClassType: dynamicWorkflowClassType);
         
         _workflows.Add(workflow);
         
@@ -105,7 +106,7 @@ public class WorkflowCollection
     /// <summary>
     /// Internal method to define a custom workflow with optional agent prefix validation.
     /// </summary>
-    private XiansWorkflow DefineCustomInternal<T>(WorkflowOptions? options, bool validateAgentPrefix, bool isPlatformWorkflow = false) where T : class
+    private XiansWorkflow DefineCustomInternal<T>(WorkflowOptions? options, bool validateAgentPrefix) where T : class
     {
         options ??= new WorkflowOptions();
         
@@ -119,7 +120,7 @@ public class WorkflowCollection
             throw new InvalidOperationException($"A workflow of type '{workflowType}' has already been registered.");
         }
         
-        var workflow = new XiansWorkflow(_agent, workflowType, null, options, isBuiltIn: false, workflowClassType: typeof(T), isPlatformWorkflow: isPlatformWorkflow);
+        var workflow = new XiansWorkflow(_agent, workflowType, null, options, isBuiltIn: false, workflowClassType: typeof(T));
         _workflows.Add(workflow);
         
         // Note: Workflow definition will be uploaded when RunAllAsync() is called
@@ -137,6 +138,9 @@ public class WorkflowCollection
     public async Task<WorkflowCollection> WithTasks(WorkflowOptions? options = null)
     {
         options ??= new WorkflowOptions();
+        
+        // Task workflows are not activable (cannot be triggered directly)
+        options.Activable = false;
         
         // Create the workflow type name using centralized helper
         var workflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(_agent.Name);
@@ -156,8 +160,7 @@ public class WorkflowCollection
             null, 
             options, 
             isBuiltIn: false, 
-            workflowClassType: dynamicTaskWorkflowType,
-            isPlatformWorkflow: true);
+            workflowClassType: dynamicTaskWorkflowType);
         
         _workflows.Add(workflow);
         
