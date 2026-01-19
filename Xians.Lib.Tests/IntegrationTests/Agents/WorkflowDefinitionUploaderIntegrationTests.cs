@@ -119,7 +119,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         Assert.Equal($"{uniqueAgentName}:Conversational", uploadedDefinition.WorkflowType);
         Assert.Equal("Conversational", uploadedDefinition.Name);
         Assert.False(uploadedDefinition.SystemScoped);
-        Assert.Equal(1, uploadedDefinition.Workers);
+        Assert.Equal(100, uploadedDefinition.Workers); // Default is 100 (Temporal's default)
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
         Assert.Equal($"{uniqueAgentName}:SystemWorkflow", uploadedDefinition.WorkflowType);
         Assert.True(uploadedDefinition.SystemScoped);
-        Assert.Equal(2, uploadedDefinition.Workers);
+        Assert.Equal(100, uploadedDefinition.Workers); // Default is 100 (Temporal's default)
     }
 
     public Task DisposeAsync()

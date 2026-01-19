@@ -35,6 +35,7 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
         string scheduleId,
         string cronExpression,
         object[] workflowInput,
+        string idPostfix,
         string? timezone = null)
     {
         var request = new CreateCronScheduleRequest
@@ -42,6 +43,7 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
             ScheduleId = scheduleId,
             CronExpression = cronExpression,
             WorkflowInput = workflowInput,
+            IdPostfix = idPostfix,
             Timezone = timezone
         };
 
@@ -49,13 +51,13 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
             act => act.CreateScheduleIfNotExists(request),
             async svc =>
             {
-                if (await svc.ExistsAsync(scheduleId))
+                if (await svc.ExistsAsync(scheduleId, idPostfix))
                     return false;
 
-                await svc.Create(scheduleId)
+                await svc.Create(scheduleId, idPostfix)
                     .WithCronSchedule(cronExpression, timezone)
                     .WithInput(workflowInput)
-                    .StartAsync();
+                    .CreateIfNotExistsAsync();
                 return true;
             },
             operationName: "CreateScheduleIfNotExists");
@@ -67,26 +69,28 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
     public async Task<bool> CreateIntervalScheduleIfNotExistsAsync(
         string scheduleId,
         TimeSpan interval,
-        object[] workflowInput)
+        object[] workflowInput,
+        string idPostfix)
     {
         var request = new CreateIntervalScheduleRequest
         {
             ScheduleId = scheduleId,
             Interval = interval,
-            WorkflowInput = workflowInput
+            WorkflowInput = workflowInput,
+            IdPostfix = idPostfix
         };
 
         return await ExecuteAsync(
             act => act.CreateIntervalScheduleIfNotExists(request),
             async svc =>
             {
-                if (await svc.ExistsAsync(scheduleId))
+                if (await svc.ExistsAsync(scheduleId, idPostfix))
                     return false;
 
-                await svc.Create(scheduleId)
+                await svc.Create(scheduleId, idPostfix)
                     .WithIntervalSchedule(interval)
                     .WithInput(workflowInput)
-                    .StartAsync();
+                    .CreateIfNotExistsAsync();
                 return true;
             },
             operationName: "CreateIntervalScheduleIfNotExists");
@@ -95,16 +99,17 @@ internal class ScheduleActivityExecutor : ContextAwareActivityExecutor<ScheduleA
     /// <summary>
     /// Checks if a schedule exists using context-aware execution.
     /// </summary>
-    public async Task<bool> ScheduleExistsAsync(string scheduleId)
+    public async Task<bool> ScheduleExistsAsync(string scheduleId, string idPostfix)
     {
         var request = new ScheduleExistsRequest
         {
-            ScheduleId = scheduleId
+            ScheduleId = scheduleId,
+            IdPostfix = idPostfix
         };
 
         return await ExecuteAsync(
             act => act.ScheduleExists(request),
-            svc => svc.ExistsAsync(scheduleId),
+            svc => svc.ExistsAsync(scheduleId, idPostfix),
             operationName: "ScheduleExists");
     }
 }

@@ -37,24 +37,32 @@ public class ScheduleCollection
     /// Returns a builder for configuring the schedule.
     /// </summary>
     /// <param name="scheduleId">Unique identifier for the schedule.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule. Must be stable across workflow executions.</param>
     /// <returns>A ScheduleBuilder for configuring the schedule.</returns>
-    public ScheduleBuilder Create(string scheduleId)
+    public ScheduleBuilder Create(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();   
 
-        return new ScheduleBuilder(scheduleId, _workflowType, _agent, _temporalService);
+        return new ScheduleBuilder(scheduleId, _workflowType, _agent, idPostfix, _temporalService);
     }
 
     /// <summary>
     /// Gets an existing schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public async Task<XiansSchedule> GetAsync(string scheduleId)
+    public async Task<XiansSchedule> GetAsync(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         try
         {
@@ -67,9 +75,8 @@ public class ScheduleCollection
                     ?? throw new InvalidOperationException(
                         "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
             
-            // All schedules have tenant prefix
-            var fullScheduleId = $"{tenantId}:{scheduleId}";
-
+            // Full schedule ID pattern: tenantId:agentName:idPostfix:scheduleId
+            var fullScheduleId = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, idPostfix, scheduleId);
             var handle = client.GetScheduleHandle(fullScheduleId);
             
             // Verify the schedule exists by attempting to describe it
@@ -94,53 +101,30 @@ public class ScheduleCollection
     /// Gets an existing schedule by ID (convenience method).
     /// </summary>
     /// <param name="scheduleId">The schedule identifier.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public XiansSchedule Get(string scheduleId)
+    public XiansSchedule Get(string scheduleId, string? idPostfix = null)
     {
-        return GetAsync(scheduleId).GetAwaiter().GetResult();
+        return GetAsync(scheduleId, idPostfix).GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// Lists all schedules for this workflow.
-    /// For tenant-scoped workflows, only lists schedules for the current tenant.
-    /// </summary>
-    /// <returns>Async enumerable of schedule list descriptions.</returns>
-    public async Task<IAsyncEnumerable<ScheduleListDescription>> ListAsync()
-    {
-        try
-        {
-            var client = await _temporalService.GetClientAsync();
-            var allSchedules = client.ListSchedulesAsync();
-
-            // Determine tenant ID - ALL schedule operations require tenant context
-            string tenantId = _agent.SystemScoped 
-                ? XiansContext.TenantId  // Will throw if not in workflow/activity context
-                : _agent.Options?.CertificateTenantId 
-                    ?? throw new InvalidOperationException(
-                        "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
-            
-            // Filter schedules to this tenant only
-            return FilterByTenant(allSchedules, tenantId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to list schedules for workflow '{WorkflowType}'", _workflowType);
-            throw;
-        }
-    }
 
     /// <summary>
     /// Deletes a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to delete.</param>
-    public async Task DeleteAsync(string scheduleId)
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    public async Task DeleteAsync(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         try
         {
-            var schedule = await GetAsync(scheduleId);
+            var schedule = await GetAsync(scheduleId, idPostfix);
             await schedule.DeleteAsync();
         }
         catch (ScheduleNotFoundException)
@@ -159,15 +143,19 @@ public class ScheduleCollection
     /// Checks if a schedule with the specified ID exists.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to check.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
-    public async Task<bool> ExistsAsync(string scheduleId)
+    public async Task<bool> ExistsAsync(string scheduleId, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleId))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
 
         try
         {
-            await GetAsync(scheduleId);
+            await GetAsync(scheduleId, idPostfix);
             return true;
         }
         catch (ScheduleNotFoundException)
@@ -180,10 +168,14 @@ public class ScheduleCollection
     /// Pauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to pause.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <param name="note">Optional note explaining why the schedule is paused.</param>
-    public async Task PauseAsync(string scheduleId, string? note = null)
+    public async Task PauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
     {
-        var schedule = await GetAsync(scheduleId);
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            
+        var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.PauseAsync(note);
     }
 
@@ -191,10 +183,14 @@ public class ScheduleCollection
     /// Unpauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to unpause.</param>
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
     /// <param name="note">Optional note explaining why the schedule is unpaused.</param>
-    public async Task UnpauseAsync(string scheduleId, string? note = null)
+    public async Task UnpauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
     {
-        var schedule = await GetAsync(scheduleId);
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            
+        var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.UnpauseAsync(note);
     }
 
@@ -202,27 +198,15 @@ public class ScheduleCollection
     /// Triggers an immediate execution of a schedule by ID.
     /// </summary>
     /// <param name="scheduleId">The schedule identifier to trigger.</param>
-    public async Task TriggerAsync(string scheduleId)
+    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    public async Task TriggerAsync(string scheduleId, string? idPostfix = null)
     {
-        var schedule = await GetAsync(scheduleId);
+        if (idPostfix is null)
+            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            
+        var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.TriggerAsync();
     }
 
-    /// <summary>
-    /// Filters schedules to only include those belonging to a specific tenant.
-    /// </summary>
-    private async IAsyncEnumerable<ScheduleListDescription> FilterByTenant(
-        IAsyncEnumerable<ScheduleListDescription> schedules,
-        string tenantId)
-    {
-        await foreach (var schedule in schedules)
-        {
-            // Check if schedule ID starts with tenant prefix
-            if (schedule.Id.StartsWith($"{tenantId}:", StringComparison.Ordinal))
-            {
-                yield return schedule;
-            }
-        }
-    }
 }
 

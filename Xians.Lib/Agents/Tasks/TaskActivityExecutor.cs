@@ -54,25 +54,13 @@ internal class TaskActivityExecutor : ContextAwareActivityExecutor<TaskActivitie
     }
 
     /// <summary>
-    /// Sends a signal to complete the task using context-aware execution.
+    /// Performs an action on a task using context-aware execution.
     /// </summary>
-    public async Task CompleteTaskAsync(string taskId)
+    public async Task PerformActionAsync(string taskId, string action, string? comment = null)
     {
         await ExecuteAsync(
-            act => act.CompleteTaskAsync(_tenantId, taskId),
-            svc => svc.CompleteTaskAsync(taskId),
-            operationName: "CompleteTask");
-    }
-
-    /// <summary>
-    /// Sends a signal to reject the task using context-aware execution.
-    /// </summary>
-    public async Task RejectTaskAsync(string taskId, string rejectionMessage)
-    {
-        await ExecuteAsync(
-            act => act.RejectTaskAsync(_tenantId, taskId, rejectionMessage),
-            svc => svc.RejectTaskAsync(taskId, rejectionMessage),
-            operationName: "RejectTask");
+            act => act.PerformActionAsync(_tenantId, taskId, action, comment),
+            svc => svc.PerformActionAsync(taskId, action, comment),
+            operationName: "PerformAction");
     }
 }
-

@@ -153,7 +153,7 @@ internal class MessageService
                     request.Text ?? string.Empty, request.Data, request.TenantId, request.Authorization, request.ThreadId, request.Hint ?? string.Empty, request.Origin, 
                     type, cancellationToken);
                 
-                _logger.LogInformation("Message sent successfully: RequestId={RequestId}", request.RequestId);
+                _logger.LogInformation("Message sent successfully: RequestId={RequestId}, WorkflowId={WorkflowId}", request.RequestId,request.WorkflowId);
                 return;
             }
             catch (RateLimitException ex) when (attempt < maxRetries)

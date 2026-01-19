@@ -1,6 +1,7 @@
 using Temporalio.Common;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 
@@ -18,13 +19,15 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
     /// <param name="taskId">Unique identifier for the task (used as workflow ID postfix).</param>
     /// <param name="title">Task title (added to memo for display purposes).</param>
     /// <param name="description">Task description (added to memo for detailed information).</param>
-    /// <param name="participantId">User ID of the task participant (added to search attributes).</param>
+    /// <param name="participantId">User ID of the task participant. If null, inherits from parent workflow's UserId.</param>
+    /// <param name="actions">Available actions for this task. If null/empty, defaults to ["approve", "reject"].</param>
     /// <param name="retryPolicy">Optional retry policy. Defaults to MaximumAttempts=1.</param>
     public TaskWorkflowOptions(
         string taskId,
         string title,
         string description,
-        string participantId,
+        string? participantId,
+        string[]? actions = null,
         RetryPolicy? retryPolicy = null)
     {
         if (string.IsNullOrWhiteSpace(taskId))
@@ -47,6 +50,9 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         var agentName = XiansContext.CurrentAgent?.Name 
             ?? throw new InvalidOperationException("Agent name not available in workflow context");
         
+        // If participantId not provided, inherit from parent workflow's UserId
+        var effectiveParticipantId = participantId ?? GetUserIdFromParent();
+        
         var taskWorkflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(agentName);
 
         // Generate task queue using centralized utility
@@ -55,11 +61,12 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         // Generate workflow ID with task ID as postfix
         Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, taskId);
 
-        // Build memo with standard attributes plus task-specific attributes
-        Memo = BuildMemo(tenantId, isSystemScoped, title, description, participantId);
-
-        // Build search attributes with standard attributes plus task-specific attributes
-        TypedSearchAttributes = BuildSearchAttributes(tenantId, participantId);
+        // Default actions if not provided
+        var effectiveActions = actions is { Length: > 0 } ? actions : new[] { "approve", "reject" };
+        
+        // Inherit all parent workflow's memo and search attributes, then add task-specific attributes
+        Memo = BuildInheritedMemo(tenantId, agentName, isSystemScoped, title, description, effectiveParticipantId, effectiveActions);
+        TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName, effectiveParticipantId);
 
         // Set workflow summary for debugging
         StaticSummary = $"Task workflow '{title}' (ID: {taskId}) in '{XiansContext.WorkflowId}'";
@@ -94,46 +101,72 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
     }
 
     /// <summary>
-    /// Builds the memo dictionary for the task workflow.
-    /// Includes standard metadata plus task title and description.
+    /// Gets the UserId from the parent workflow's memo.
     /// </summary>
-    private static Dictionary<string, object> BuildMemo(
+    private static string GetUserIdFromParent()
+    {
+        if (!Workflow.InWorkflow)
+        {
+            throw new InvalidOperationException(
+                "TaskWorkflowOptions can only be created within a workflow context. ParticipantId cannot be inherited from parent workflow. Must be explicitly provided.");
+        }
+
+        // Try to get from memo
+        if (Workflow.Memo.TryGetValue(WorkflowConstants.Keys.UserId, out var value))
+        {
+            var stringValue = value.Payload.Data.ToStringUtf8();
+            // Remove quotes if present (JSON string serialization)
+            return stringValue.Trim('"');
+        }
+
+        throw new InvalidOperationException(
+            "Parent workflow does not have a UserId in memo. Cannot determine task participant id. Must be explicitly provided.");
+    }
+
+    /// <summary>
+    /// Builds the memo dictionary for the task workflow by inheriting all parent memo entries
+    /// and adding task-specific attributes (title, description, participantId, actions).
+    /// </summary>
+    private static Dictionary<string, object> BuildInheritedMemo(
         string tenantId, 
+        string agentName,
         bool systemScoped,
         string title,
         string description,
-        string participantId)
+        string participantId,
+        string[] actions)
     {
-        var agentName = XiansContext.CurrentAgent.Name;
-
-        var memo = new Dictionary<string, object>
-        {
-            { WorkflowConstants.Keys.TenantId, tenantId },
-            { WorkflowConstants.Keys.Agent, agentName },
-            { WorkflowConstants.Keys.UserId, participantId },
-            { WorkflowConstants.Keys.SystemScoped, systemScoped },
-            { WorkflowConstants.Keys.TaskTitle, title },
-            { WorkflowConstants.Keys.TaskDescription, description }
-        };
+        // Inherit all parent workflow's memo entries
+        var memo = SubWorkflowService.BuildInheritedMemo(tenantId, agentName, systemScoped);
+        
+        // Add task-specific attributes
+        memo[WorkflowConstants.Keys.UserId] = participantId;
+        memo[WorkflowConstants.Keys.TaskTitle] = title;
+        memo[WorkflowConstants.Keys.TaskDescription] = description;
+        memo[WorkflowConstants.Keys.TaskActions] = string.Join(",", actions);
+        
         return memo;
     }
 
     /// <summary>
-    /// Builds search attributes for the task workflow.
-    /// Includes standard attributes plus taskId and participantId.
+    /// Builds search attributes for the task workflow with standard fields plus participantId.
+    /// Unlike SubWorkflowService which inherits parent search attributes as-is, task workflows
+    /// always include the participantId as a searchable attribute for querying tasks by user.
     /// </summary>
-    private static SearchAttributeCollection BuildSearchAttributes(
+    private static SearchAttributeCollection BuildInheritedSearchAttributes(
         string tenantId, 
+        string agentName,
         string participantId)
     {
-        var agentName = XiansContext.CurrentAgent.Name;
-
-        var builder = new SearchAttributeCollection.Builder()
+        // Build search attributes with all standard fields plus participantId
+        // Note: We don't inherit custom search attributes from parent because we need to
+        // ensure participantId is always present for task querying capabilities
+        return new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), participantId);
-
-        return builder.ToSearchAttributeCollection();
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), participantId)
+            .ToSearchAttributeCollection();
     }
 }
 

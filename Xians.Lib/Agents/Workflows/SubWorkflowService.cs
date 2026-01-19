@@ -5,6 +5,7 @@ using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common.MultiTenancy;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Xians.Lib.Agents.Workflows;
 
@@ -28,10 +29,10 @@ public static class SubWorkflowService
     /// If called outside a workflow, starts a new workflow using the Temporal client.
     /// </summary>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="uniqueKey">Optional uniqueKey for workflow ID uniqueness.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async Task StartAsync(string workflowType, string? idPostfix = null, params object[] args)
+    public static async Task StartAsync(string workflowType, string? uniqueKey = null, params object[] args)
     {
         if (Workflow.InWorkflow)
         {
@@ -41,7 +42,7 @@ public static class SubWorkflowService
                 workflowType,
                 XiansContext.WorkflowId);
 
-            var options = new SubWorkflowOptions(workflowType, idPostfix);
+            var options = new SubWorkflowOptions(workflowType, uniqueKey);
             await Workflow.StartChildWorkflowAsync(workflowType, args, options);
         }
         else
@@ -51,7 +52,7 @@ public static class SubWorkflowService
                 "Starting workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
-            await StartViaClientAsync(workflowType, idPostfix, args);
+            await StartViaClientAsync(workflowType, uniqueKey, args);
         }
     }
     
@@ -96,10 +97,10 @@ public static class SubWorkflowService
     /// </summary>
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="uniqueKey">Optional uniqueKey for workflow ID uniqueness.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>The workflow result.</returns>
-    public static async Task<TResult> ExecuteAsync<TResult>(string workflowType, string? idPostfix = null, params object[] args)
+    public static async Task<TResult> ExecuteAsync<TResult>(string workflowType, string? uniqueKey = null, params object[] args)
     {
         if (Workflow.InWorkflow)
         {
@@ -109,7 +110,7 @@ public static class SubWorkflowService
                 workflowType,
                 XiansContext.WorkflowId);
 
-            var options = new SubWorkflowOptions(workflowType, idPostfix);
+            var options = new SubWorkflowOptions(workflowType, uniqueKey);
             return await Workflow.ExecuteChildWorkflowAsync<TResult>(workflowType, args, options);
         }
         else
@@ -119,7 +120,7 @@ public static class SubWorkflowService
                 "Executing workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
-            return await ExecuteViaClientAsync<TResult>(workflowType, idPostfix, args);
+            return await ExecuteViaClientAsync<TResult>(workflowType, uniqueKey, args);
         }
     }
 
@@ -141,20 +142,24 @@ public static class SubWorkflowService
     /// <summary>
     /// Starts a workflow via the Temporal client (out-of-workflow scenario).
     /// Requires access to the agent to get the Temporal client.
+    /// Propagates parent workflow metadata when available from context.
     /// </summary>
-    private static async Task StartViaClientAsync(string workflowType, string? idPostfix, object[] args)
+    private static async Task StartViaClientAsync(string workflowType, string? uniqueKey, object[] args)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
-        // Build workflow ID manually (can't use TenantContext.BuildWorkflowId because it requires CurrentAgent)
-        var workflowId = BuildWorkflowIdManually(agentName, workflowType, tenantId, idPostfix);
+        // Build workflow ID (includes parent idPostfix + optional uniqueKey)
+        var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKey);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
-            IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
+            IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
+            // Inherit parent workflow metadata (works in both workflow and activity contexts)
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped),
+            TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName)
         };
 
         await client.StartWorkflowAsync(workflowType, args, options);
@@ -168,20 +173,24 @@ public static class SubWorkflowService
     /// <summary>
     /// Executes a workflow via the Temporal client (out-of-workflow scenario).
     /// Requires access to the agent to get the Temporal client.
+    /// If called from an activity, propagates parent workflow metadata.
     /// </summary>
-    private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string? idPostfix, object[] args)
+    private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string? uniqueKey, object[] args)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
-        // Build workflow ID manually (can't use TenantContext.BuildWorkflowId because it requires CurrentAgent)
-        var workflowId = BuildWorkflowIdManually(agentName, workflowType, tenantId, idPostfix);
+        // Build workflow ID (includes parent idPostfix + optional uniqueKey)
+        var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKey);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
-            IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
+            IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
+            // Inherit parent workflow metadata (works in both workflow and activity contexts)
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped),
+            TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName)
         };
 
         var result = await client.ExecuteWorkflowAsync<TResult>(workflowType, args, options);
@@ -240,25 +249,109 @@ public static class SubWorkflowService
     }
 
     /// <summary>
-    /// Builds a workflow ID manually without relying on XiansContext.CurrentAgent.
-    /// This is needed for out-of-workflow scenarios where there is no current agent context.
+    /// Builds a workflow ID with support for multiple suffix parts, without relying on XiansContext.CurrentAgent.
+    /// Mirrors TenantContext.BuildWorkflowId() but takes agentName as parameter for use outside workflow context.
+    /// Includes parent's idPostfix when available (from workflow/activity context) plus optional uniqueKey.
+    /// Format: {tenantId}:{agentName}:{workflowName}[:{idPostfix}][:{uniqueKey}]
     /// </summary>
-    private static string BuildWorkflowIdManually(string agentName, string workflowType, string tenantId, string? idPostfix)
+    internal static string BuildSubWorkflowId(string agentName, string workflowType, string tenantId, string? uniqueKey = null)
     {
         // Extract workflow name from workflow type (format: "AgentName:WorkflowName")
         var workflowName = workflowType.Contains(':') 
             ? workflowType.Split(':')[1] 
             : workflowType;
 
-        // Build workflow ID: {tenantId}:{agentName}:{workflowName}[:{idPostfix}]
+        // Build base workflow ID
         var workflowId = $"{tenantId}:{agentName}:{workflowName}";
         
+        // Get idPostfix from parent workflow/activity context (if available)
+        var idPostfix = WorkflowContextHelper.GetIdPostfix();
+        
+        // Append non-null, non-empty suffix parts (idPostfix, then uniqueKey)
         if (!string.IsNullOrWhiteSpace(idPostfix))
         {
             workflowId += $":{idPostfix}";
         }
+        
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+        {
+            workflowId += $":{uniqueKey}";
+        }
 
         return workflowId;
+    }
+
+    /// <summary>
+    /// Builds memo for child/sub-workflow by inheriting all parent memo entries when in workflow context.
+    /// Works both in workflow context (inherits all) and outside workflow context (builds minimal).
+    /// This is a shared method used by both SubWorkflowOptions and client-based workflow starting.
+    /// </summary>
+    internal static Dictionary<string, object> BuildInheritedMemo(string tenantId, string agentName, bool systemScoped)
+    {
+        var memo = new Dictionary<string, object>();
+
+        // If in workflow context, inherit all parent memo entries
+        if (Workflow.InWorkflow)
+        {
+            foreach (var kvp in Workflow.Memo)
+            {
+                try
+                {
+                    // Get the JSON-encoded value from the payload
+                    var jsonStr = kvp.Value.Payload.Data.ToStringUtf8();
+                    
+                    // Deserialize the JSON to get the actual value (removes extra quotes)
+                    var jsonElement = JsonSerializer.Deserialize<JsonElement>(jsonStr);
+                    
+                    // Store the appropriate type based on JSON value kind
+                    memo[kvp.Key] = jsonElement.ValueKind switch
+                    {
+                        JsonValueKind.String => jsonElement.GetString()!,
+                        JsonValueKind.Number => jsonElement.GetDouble(),
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        JsonValueKind.Null => null!,
+                        _ => jsonStr // For complex types, use raw JSON string
+                    };
+                }
+                catch
+                {
+                    // Skip entries that cannot be deserialized
+                }
+            }
+        }
+
+        // Override/set required system metadata for the child workflow
+        // These values are specific to the child and should not be inherited
+        memo[Common.WorkflowConstants.Keys.TenantId] = tenantId;
+        memo[Common.WorkflowConstants.Keys.Agent] = agentName;
+        memo[Common.WorkflowConstants.Keys.SystemScoped] = systemScoped;
+        memo[Common.WorkflowConstants.Keys.idPostfix] = WorkflowContextHelper.GetIdPostfix();
+
+        return memo;
+    }
+
+    /// <summary>
+    /// Builds search attributes for child/sub-workflow by inheriting parent attributes when in workflow context.
+    /// Works both in workflow context (inherits all) and outside workflow context (builds minimal).
+    /// This is a shared method used by both SubWorkflowOptions and client-based workflow starting.
+    /// </summary>
+    internal static Temporalio.Common.SearchAttributeCollection? BuildInheritedSearchAttributes(string tenantId, string agentName)
+    {
+        // If in workflow context, directly inherit parent's search attributes
+        if (Workflow.InWorkflow)
+        {
+            // Directly inherit parent's search attributes (same approach as ScheduleBuilder)
+            // This preserves all custom search attributes from parent to child
+            return Workflow.TypedSearchAttributes;
+        }
+
+        // Not in workflow context - build minimal search attributes with available information
+        return new Temporalio.Common.SearchAttributeCollection.Builder()
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.TenantId), tenantId)
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.Agent), agentName)
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
+            .ToSearchAttributeCollection();
     }
 }
 

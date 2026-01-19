@@ -46,11 +46,13 @@ public class BuiltinWorkflow
     [WorkflowSignal("HandleInboundChatOrData")]
     public Task HandleInboundChatOrData(InboundMessage message)
     {
-        Workflow.Logger.LogDebug(
-            "Signal received: Type={Type}, ParticipantId={ParticipantId}, RequestId={RequestId}, QueueDepth={QueueDepth}",
+        Workflow.Logger.LogInformation(
+            "Signal received: Type={Type}, ParticipantId={ParticipantId}, RequestId={RequestId}, SourceWorkflowId={SourceWorkflowId}, QueueDepth={QueueDepth}",
             message.Payload.Type,
             message.Payload.ParticipantId,
             message.Payload.RequestId,
+            message.SourceWorkflowId,
+
             _messageQueue.Count);
         
         _messageQueue.Enqueue(message);
@@ -263,8 +265,8 @@ public class BuiltinWorkflow
                         await MessageProcessor.ProcessMessageAsync(
                             message,
                             _handlersByWorkflowType,
-                            Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowType(),
-                            Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowId(),
+                            WorkflowContextHelper.GetWorkflowType(),
+                            WorkflowContextHelper.GetWorkflowId(),
                             Workflow.Logger);
                         
                         Workflow.Logger.LogDebug(

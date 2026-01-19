@@ -99,12 +99,22 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
         return new FlowDefinition {
             WorkflowType = flow.WorkflowName,
             Agent = flow.AgentName,
+            Summary = ExtractWorkflowSummary<TFlow>(),
             ParameterDefinitions = flow.WorkflowParameters,
             ActivityDefinitions = GetAllActivities(flow.ActivityInterfaces).ToArray(),
             Source = ReadSource(typeof(TFlow)),
             SystemScoped = systemScoped,
             OnboardingJson = onboardingJson
         };
+    }
+
+    /// <summary>
+    /// Extracts the workflow summary from the [Description] attribute on the workflow class.
+    /// </summary>
+    private static string? ExtractWorkflowSummary<TFlow>() where TFlow : class
+    {
+        var descAttr = typeof(TFlow).GetCustomAttribute<System.ComponentModel.DescriptionAttribute>();
+        return descAttr?.Description;
     }
 
     /// <summary>

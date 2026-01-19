@@ -15,11 +15,13 @@ public static class WorkflowConstants
         public const string TenantId = "tenantId";
         public const string Agent = "agent";
         public const string UserId = "userId";
+        public const string idPostfix = "idPostfix";
         public const string SystemScoped = "systemScoped";
         
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";
+        public const string TaskActions = "taskActions";
 
     }
 

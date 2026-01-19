@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
@@ -24,6 +25,7 @@ public class WorkflowCollection
     /// <summary>
     /// Defines a built-in workflow for the agent using the platform-provided workflow implementation.
     /// Creates a dynamic class that extends BuiltinWorkflow with a [Workflow] attribute in the format: {AgentName}:{WorkflowName}
+    /// Built-in workflows are always activable.
     /// </summary>
     /// <param name="name">The name for the workflow (e.g., "Conversational", "Web").</param>
     /// <param name="options">Workflow configuration options. If null, uses default options.</param>
@@ -32,6 +34,9 @@ public class WorkflowCollection
     public XiansWorkflow DefineBuiltIn(string name, WorkflowOptions? options = null)
     {
         options ??= new WorkflowOptions();
+        
+        // Built-in workflows are always activable
+        options.Activable = true;
         
         // Check if workflow with same name already exists
         if (_workflows.Any(w => w.Name == name))
@@ -52,8 +57,7 @@ public class WorkflowCollection
             name, 
             options, 
             isBuiltIn: true, 
-            workflowClassType: dynamicWorkflowClassType,
-            isPlatformWorkflow: false);
+            workflowClassType: dynamicWorkflowClassType);
         
         _workflows.Add(workflow);
         
@@ -102,7 +106,7 @@ public class WorkflowCollection
     /// <summary>
     /// Internal method to define a custom workflow with optional agent prefix validation.
     /// </summary>
-    private XiansWorkflow DefineCustomInternal<T>(WorkflowOptions? options, bool validateAgentPrefix, bool isPlatformWorkflow = false) where T : class
+    private XiansWorkflow DefineCustomInternal<T>(WorkflowOptions? options, bool validateAgentPrefix) where T : class
     {
         options ??= new WorkflowOptions();
         
@@ -116,7 +120,7 @@ public class WorkflowCollection
             throw new InvalidOperationException($"A workflow of type '{workflowType}' has already been registered.");
         }
         
-        var workflow = new XiansWorkflow(_agent, workflowType, null, options, isBuiltIn: false, workflowClassType: typeof(T), isPlatformWorkflow: isPlatformWorkflow);
+        var workflow = new XiansWorkflow(_agent, workflowType, null, options, isBuiltIn: false, workflowClassType: typeof(T));
         _workflows.Add(workflow);
         
         // Note: Workflow definition will be uploaded when RunAllAsync() is called
@@ -134,6 +138,9 @@ public class WorkflowCollection
     public async Task<WorkflowCollection> WithTasks(WorkflowOptions? options = null)
     {
         options ??= new WorkflowOptions();
+        
+        // Task workflows are not activable (cannot be triggered directly)
+        options.Activable = false;
         
         // Create the workflow type name using centralized helper
         var workflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(_agent.Name);
@@ -153,8 +160,7 @@ public class WorkflowCollection
             null, 
             options, 
             isBuiltIn: false, 
-            workflowClassType: dynamicTaskWorkflowType, 
-            isPlatformWorkflow: false);
+            workflowClassType: dynamicTaskWorkflowType);
         
         _workflows.Add(workflow);
         
@@ -185,13 +191,26 @@ public class WorkflowCollection
     {
         try
         {
+            // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
+            var workflowName = workflow.Name;
+            if (workflowName == null && workflow.WorkflowType.Contains(':'))
+            {
+                var parts = workflow.WorkflowType.Split(':', 2);
+                if (parts.Length == 2)
+                {
+                    workflowName = parts[1];
+                }
+            }
+            
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = workflow.Name,
+                Name = workflowName,
+                Summary = ExtractWorkflowSummary(workflow),
                 SystemScoped = _agent.SystemScoped,
                 Workers = workflow.Workers,
+                Activable = workflow.Activable,
                 ActivityDefinitions = [],
                 ParameterDefinitions = ExtractWorkflowParameters(workflow)
             };
@@ -202,6 +221,21 @@ public class WorkflowCollection
         {
             throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Extracts the workflow summary from the [Description] attribute on the workflow class.
+    /// </summary>
+    private static string? ExtractWorkflowSummary(XiansWorkflow workflow)
+    {
+        var workflowType = workflow.GetWorkflowClassType();
+        if (workflowType == null)
+        {
+            return null;
+        }
+
+        var descAttr = workflowType.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>();
+        return descAttr?.Description;
     }
 
     /// <summary>
@@ -232,10 +266,16 @@ public class WorkflowCollection
         }
 
         return workflowRunMethod.GetParameters()
-            .Select(p => new ParameterDefinition
+            .Select(p =>
             {
-                Name = p.Name,
-                Type = p.ParameterType.Name
+                var descAttr = p.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>();
+                return new ParameterDefinition
+                {
+                    Name = p.Name,
+                    Type = p.ParameterType.Name,
+                    Description = descAttr?.Description,
+                    Optional = p.IsOptional
+                };
             })
             .ToList();
     }

@@ -19,6 +19,12 @@ public class WorkflowOptions
     public int MaxHistoryLength { get; set; } = 1000;
 
     /// <summary>
+    /// Whether this workflow can be activated/triggered.
+    /// Default is true.
+    /// </summary>
+    public bool Activable { get; set; } = true;
+
+    /// <summary>
     /// Creates a copy of these options.
     /// </summary>
     internal WorkflowOptions Clone()
@@ -26,7 +32,8 @@ public class WorkflowOptions
         return new WorkflowOptions
         {
             MaxConcurrent = MaxConcurrent,
-            MaxHistoryLength = MaxHistoryLength
+            MaxHistoryLength = MaxHistoryLength,
+            Activable = Activable
         };
     }
 }
