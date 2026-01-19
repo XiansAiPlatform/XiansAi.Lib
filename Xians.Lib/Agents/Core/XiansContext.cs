@@ -94,6 +94,34 @@ public static class XiansContext
     /// </summary>
     public static bool InActivity => WorkflowContextHelper.InActivity;
 
+    /// <summary>
+    /// Safely gets the current workflow ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowId => WorkflowContextHelper.TryGetWorkflowId();
+
+    /// <summary>
+    /// Safely gets the current workflow run ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowRunId => WorkflowContextHelper.TryGetWorkflowRunId();
+
+    /// <summary>
+    /// Safely gets the current workflow type without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowType => WorkflowContextHelper.TryGetWorkflowType();
+
+    /// <summary>
+    /// Safely gets the current agent name without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeAgentName => WorkflowContextHelper.TryGetAgentName();
+
     #endregion
 
     #region Current Agent Access
@@ -355,8 +383,24 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Clears all registered agents and workflows. For testing purposes only.
+    /// Clears all in-memory and static state including registries, caches, and handlers.
+    /// For testing purposes only.
     /// </summary>
+    /// <remarks>
+    /// <para><strong>NOTE:</strong> This method only clears LOCAL state (in-memory registries, static handlers, caches).</para>
+    /// <para>It does NOT delete agents, knowledge, documents, or workflows from the server.</para>
+    /// <para><strong>For real server integration tests:</strong> Use <c>RealServerTestCleanupHelper</c> which handles both
+    /// server resource deletion (agents, knowledge, documents, workflows) AND local state cleanup.</para>
+    /// <para><strong>For mock server tests:</strong> Use this method directly since no server cleanup is needed.</para>
+    /// <para><strong>What gets cleared:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Agent and workflow registries</description></item>
+    /// <item><description>BuiltinWorkflow message handlers and options</description></item>
+    /// <item><description>Knowledge activity static services</description></item>
+    /// <item><description>Settings service cache</description></item>
+    /// <item><description>Certificate cache</description></item>
+    /// </list>
+    /// </remarks>
     internal static void CleanupForTests()
     {
         _agentRegistry.Clear();
@@ -372,9 +416,14 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Clears all registered agents and workflows.
+    /// Clears only the agent and workflow registries.
     /// Intended for testing purposes only.
     /// </summary>
+    /// <remarks>
+    /// <para>This is a minimal cleanup method that only clears registries.</para>
+    /// <para>For comprehensive cleanup, use <see cref="CleanupForTests"/> instead, which also clears
+    /// handlers, caches, and other static state.</para>
+    /// </remarks>
     internal static void Clear()
     {
         _agentRegistry.Clear();
