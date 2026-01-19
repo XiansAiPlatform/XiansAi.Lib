@@ -222,7 +222,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
                         // Test XiansContext.Workflows.StartAsync with workflow type
                         await XiansContext.Workflows.StartAsync(
                             TargetWorkflowType,
-                            idPostfix: $"child-{testId}");
+                            Array.Empty<object>(),
+                            $"child-{testId}");
                         result.StartAsyncCalled = true;
                         break;
 
@@ -230,7 +231,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
                         // Test XiansContext.Workflows.StartAsync with custom postfix
                         await XiansContext.Workflows.StartAsync(
                             TargetWorkflowType,
-                            idPostfix: $"postfix-{testId}");
+                            Array.Empty<object>(),
+                            $"postfix-{testId}");
                         result.StartAsyncCalled = true;
                         result.UsedCustomPostfix = true;
                         break;
@@ -404,7 +406,8 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
             // StartAsync can be called outside workflow context - it uses the Temporal client
             await XiansContext.Workflows.StartAsync(
                 TargetWorkflowType,
-                idPostfix: testId);
+                Array.Empty<object>(),
+                testId);
 
             // If we got here without exception, it worked correctly
             Console.WriteLine("✓ StartAsync outside workflow successfully uses Temporal client");
@@ -721,7 +724,7 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
         // Expecting NullReferenceException (current implementation behavior)
         await Assert.ThrowsAsync<NullReferenceException>(async () =>
         {
-            await XiansContext.Workflows.StartAsync(null!, idPostfix: "test");
+            await XiansContext.Workflows.StartAsync(null!, Array.Empty<object>(), "test");
         });
 
         Console.WriteLine("✓ StartAsync with null workflow type throws NullReferenceException");
@@ -735,7 +738,7 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
         // Expecting NullReferenceException (current implementation behavior)
         await Assert.ThrowsAsync<NullReferenceException>(async () =>
         {
-            await XiansContext.Workflows.ExecuteAsync<string>(null!, idPostfix: "test");
+            await XiansContext.Workflows.ExecuteAsync<string>(null!, Array.Empty<object>(), "test");
         });
 
         Console.WriteLine("✓ ExecuteAsync with null workflow type throws NullReferenceException");

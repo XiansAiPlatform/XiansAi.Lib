@@ -147,11 +147,22 @@ public class WorkflowCollection
     {
         try
         {
+            // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
+            var workflowName = workflow.Name;
+            if (workflowName == null && workflow.WorkflowType.Contains(':'))
+            {
+                var parts = workflow.WorkflowType.Split(':', 2);
+                if (parts.Length == 2)
+                {
+                    workflowName = parts[1];
+                }
+            }
+            
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = workflow.Name,
+                Name = workflowName,
                 Summary = ExtractWorkflowSummary(workflow),
                 SystemScoped = _agent.SystemScoped,
                 Workers = workflow.Workers,

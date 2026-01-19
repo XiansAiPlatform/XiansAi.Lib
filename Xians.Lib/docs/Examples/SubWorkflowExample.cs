@@ -57,9 +57,8 @@ public class ProcessOrderWorkflow
         // Execute payment workflow and wait for result
         var paymentResult = await XiansContext.Workflows.ExecuteAsync<PaymentResult>(
             "PaymentService:ProcessPayment",
-            order.OrderId,  // Use order ID as workflow postfix for uniqueness
-            order.CustomerId,
-            order.Amount
+            new object[] { order.CustomerId, order.Amount },
+            order.OrderId  // Use order ID as workflow postfix for uniqueness
         );
 
         if (!paymentResult.Success)
@@ -71,16 +70,14 @@ public class ProcessOrderWorkflow
         // Start fulfillment workflow (fire and forget)
         await XiansContext.Workflows.StartAsync(
             "FulfillmentService:StartFulfillment",
-            order.OrderId,
-            order
+            new object[] { order.OrderId, order }
         );
 
         // Start notification workflow in parallel (fire and forget)
         await XiansContext.Workflows.StartAsync(
             "NotificationService:SendOrderConfirmation",
-            order.OrderId,
-            order.CustomerId,
-            paymentResult.TransactionId
+            new object[] { order.CustomerId, paymentResult.TransactionId },
+            order.OrderId
         );
 
         return true;
@@ -133,13 +130,13 @@ public class BulkNotificationWorkflow
         var notificationTasks = userIds.Select(userId =>
             XiansContext.Workflows.StartAsync(
                 "NotificationService:SendNotification",
-                userId,  // Use userId as postfix for unique workflow IDs
-                new NotificationData
+                new object[] { new NotificationData
                 {
                     UserId = userId,
                     Message = message,
                     Channel = "email"
-                }
+                } },
+                userId  // Use userId as postfix for unique workflow IDs
             )
         );
 
@@ -189,8 +186,8 @@ public class DataProcessingWorkflow
             ValidateDataWorkflow,
             ValidationResult
         >(
-            dataId,  // ID postfix
-            dataId   // Argument
+            new object[] { dataId },  // Argument
+            dataId   // ID postfix
         );
 
         if (!validationResult.IsValid)
@@ -200,9 +197,8 @@ public class DataProcessingWorkflow
 
         // Start transformation workflow
         await XiansContext.Workflows.StartAsync<TransformDataWorkflow>(
-            dataId,
-            dataId,
-            validationResult.Schema
+            new object[] { dataId, validationResult.Schema },
+            dataId
         );
 
         return new ProcessingResult { Success = true };
@@ -264,8 +260,8 @@ public class OrderService
         // to start a new independent workflow (not a child workflow)
         await XiansContext.Workflows.StartAsync(
             "OrderService:ProcessOrder",
-            order.OrderId,
-            order
+            new object[] { order },
+            order.OrderId
         );
 
         return $"Order {order.OrderId} processing started";
@@ -280,9 +276,8 @@ public class OrderService
         // and wait for the workflow to complete
         var result = await XiansContext.Workflows.ExecuteAsync<PaymentResult>(
             "PaymentService:ProcessPayment",
-            $"payment-{Guid.NewGuid()}", // Unique postfix
-            customerId,
-            amount
+            new object[] { customerId, amount },
+            $"payment-{Guid.NewGuid()}" // Unique postfix
         );
 
         return result;
@@ -310,8 +305,8 @@ public class OrderWithCompensationWorkflow
             // Step 1: Reserve inventory
             inventoryReserved = await XiansContext.Workflows.ExecuteAsync<bool>(
                 "InventoryService:ReserveInventory",
-                order.OrderId,
-                order
+                new object[] { order },
+                order.OrderId
             );
 
             if (!inventoryReserved)
@@ -322,9 +317,8 @@ public class OrderWithCompensationWorkflow
             // Step 2: Process payment
             paymentResult = await XiansContext.Workflows.ExecuteAsync<PaymentResult>(
                 "PaymentService:ProcessPayment",
-                order.OrderId,
-                order.CustomerId,
-                order.Amount
+                new object[] { order.CustomerId, order.Amount },
+                order.OrderId
             );
 
             if (!paymentResult.Success)
@@ -332,8 +326,8 @@ public class OrderWithCompensationWorkflow
                 // Payment failed - compensate by releasing inventory
                 await XiansContext.Workflows.StartAsync(
                     "InventoryService:ReleaseInventory",
-                    order.OrderId,
-                    order
+                    new object[] { order },
+                    order.OrderId
                 );
                 return false;
             }
@@ -341,8 +335,8 @@ public class OrderWithCompensationWorkflow
             // Step 3: Create shipment
             await XiansContext.Workflows.StartAsync(
                 "ShippingService:CreateShipment",
-                order.OrderId,
-                order
+                new object[] { order },
+                order.OrderId
             );
 
             return true;
@@ -354,8 +348,8 @@ public class OrderWithCompensationWorkflow
             {
                 await XiansContext.Workflows.StartAsync(
                     "InventoryService:ReleaseInventory",
-                    order.OrderId,
-                    order
+                    new object[] { order },
+                    order.OrderId
                 );
             }
 
@@ -363,8 +357,8 @@ public class OrderWithCompensationWorkflow
             {
                 await XiansContext.Workflows.StartAsync(
                     "PaymentService:RefundPayment",
-                    order.OrderId,
-                    paymentResult.TransactionId
+                    new object[] { paymentResult.TransactionId },
+                    order.OrderId
                 );
             }
 
