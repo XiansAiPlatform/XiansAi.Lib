@@ -12,6 +12,15 @@ namespace Xians.Lib.Examples;
  * Since Xians.Lib is a framework where you make your own LLM calls,
  * usage tracking is provided as a utility that you call after making LLM calls.
  * 
+ * Examples included:
+ * 1. Basic usage tracking with extension method
+ * 2. Using UsageTracker for automatic timing
+ * 2b. Tracking with conversation history
+ * 3. Multiple LLM calls with separate tracking
+ * 4. Advanced usage with custom metadata
+ * 5. Error handling and resilience
+ * 6. Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
+ * 
  * Note: This example assumes environment variables are set. In a real application,
  * you might use DotNetEnv or another configuration method to load .env files.
  */
@@ -213,6 +222,41 @@ public class UsageTrackingExample
             }
         });
 
+        // Example 6: Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
+        var workflow6 = agent.Workflows.DefineBuiltIn(name: "MAFWorkflow", maxConcurrent: 1);
+
+        workflow6.OnUserChatMessage(async (context) => 
+        {
+            // Get conversation history for message count
+            var history = await context.GetChatHistoryAsync(page: 1, pageSize: 10);
+            var messageCount = history.Count + 1;
+            
+            var modelName = "gpt-4o-mini";
+            using var tracker = new UsageTracker(context, modelName, messageCount, source: "MAF Agent");
+            
+            // In a real application, you would use actual MAF agent here:
+            // var chatClient = new OpenAIClient(apiKey).GetChatClient(modelName);
+            // var mafAgent = chatClient.CreateAIAgent(new ChatClientAgentOptions
+            // {
+            //     ChatOptions = new ChatOptions { Instructions = "You are a helpful assistant." },
+            //     ChatMessageStoreFactory = ctx => new XiansChatMessageStore(context)
+            // });
+            // var response = await mafAgent.RunAsync(context.Message.Text);
+            
+            // For this example, we simulate a MAF response
+            var response = await SimulateMafAgentResponse(context.Message.Text);
+            
+            // Extract token usage from MAF response using reflection helper
+            // This is necessary because MAF responses have complex nested Usage properties
+            var (promptTokens, completionTokens, totalTokens, _) = 
+                UsageTrackingHelper.ExtractUsageFromResponse(response, modelName);
+            
+            // Report usage with automatic timing and A2A context awareness
+            await tracker.ReportAsync(promptTokens, completionTokens, totalTokens);
+            
+            await context.ReplyAsync(GetResponseText(response));
+        });
+
         Console.WriteLine("Usage Tracking Demo Agent started. Press Ctrl+C to stop.");
 
         // Run the agent
@@ -247,12 +291,157 @@ public class UsageTrackingExample
         return text.Length / 4;
     }
 
+    // Simulate a MAF agent response with nested Usage property
+    private static async Task<object> SimulateMafAgentResponse(string prompt)
+    {
+        await Task.Delay(100);
+        
+        var promptTokens = EstimateTokens(prompt);
+        var completionTokens = 50L;
+        
+        // Simulate MAF response structure with nested Usage property
+        return new MafAgentResponse
+        {
+            Text = $"This is a simulated MAF response to: {prompt}",
+            Usage = new UsageInfo
+            {
+                InputTokenCount = promptTokens,
+                OutputTokenCount = completionTokens,
+                TotalTokenCount = promptTokens + completionTokens
+            }
+        };
+    }
+
+    private static string GetResponseText(object response)
+    {
+        return response is MafAgentResponse mafResponse ? mafResponse.Text : string.Empty;
+    }
+
     private class LLMResponse
     {
         public string Text { get; set; } = string.Empty;
         public long PromptTokens { get; set; }
         public long CompletionTokens { get; set; }
         public long TotalTokens { get; set; }
+    }
+
+    // Simulates MAF agent response structure
+    private class MafAgentResponse
+    {
+        public string Text { get; set; } = string.Empty;
+        public UsageInfo? Usage { get; set; }
+    }
+
+    private class UsageInfo
+    {
+        public long InputTokenCount { get; set; }
+        public long OutputTokenCount { get; set; }
+        public long TotalTokenCount { get; set; }
+    }
+}
+
+/// <summary>
+/// Helper class to extract token usage information from MAF agent responses.
+/// Use this when working with Microsoft Agents Framework (MAF) where usage
+/// information is nested in complex response objects.
+/// </summary>
+internal static class UsageTrackingHelper
+{
+    /// <summary>
+    /// Extracts token usage from a MAF agent response object using reflection.
+    /// </summary>
+    /// <param name="response">The response object from agent.RunAsync()</param>
+    /// <param name="modelName">The model name to use if not found in response</param>
+    /// <returns>Tuple containing (promptTokens, completionTokens, totalTokens, modelName)</returns>
+    public static (long promptTokens, long completionTokens, long totalTokens, string model) 
+        ExtractUsageFromResponse(object response, string modelName)
+    {
+        if (response == null)
+        {
+            return (0, 0, 0, modelName);
+        }
+
+        var responseType = response.GetType();
+        
+        // Try to get Usage property
+        var usageProperty = responseType.GetProperty("Usage", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (usageProperty != null)
+        {
+            var usageObj = usageProperty.GetValue(response);
+            if (usageObj != null)
+            {
+                // Try to get token count properties
+                var promptTokens = TryGetPropertyValue(usageObj, "InputTokenCount", "PromptTokens", "InputTokens");
+                var completionTokens = TryGetPropertyValue(usageObj, "OutputTokenCount", "CompletionTokens", "OutputTokens");
+                var totalTokens = TryGetPropertyValue(usageObj, "TotalTokenCount", "TotalTokens");
+                
+                if (promptTokens.HasValue || completionTokens.HasValue || totalTokens.HasValue)
+                {
+                    return (
+                        promptTokens ?? 0,
+                        completionTokens ?? 0,
+                        totalTokens ?? (promptTokens ?? 0) + (completionTokens ?? 0),
+                        modelName
+                    );
+                }
+            }
+        }
+        
+        // Try to get Metadata property and look for Usage there
+        var metadataProperty = responseType.GetProperty("Metadata", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (metadataProperty != null)
+        {
+            var metadata = metadataProperty.GetValue(response) as IReadOnlyDictionary<string, object?>;
+            if (metadata != null && metadata.TryGetValue("Usage", out var usageObj) && usageObj != null)
+            {
+                var promptTokens = TryGetPropertyValue(usageObj, "InputTokenCount", "PromptTokens", "InputTokens");
+                var completionTokens = TryGetPropertyValue(usageObj, "OutputTokenCount", "CompletionTokens", "OutputTokens");
+                var totalTokens = TryGetPropertyValue(usageObj, "TotalTokenCount", "TotalTokens");
+                
+                if (promptTokens.HasValue || completionTokens.HasValue || totalTokens.HasValue)
+                {
+                    return (
+                        promptTokens ?? 0,
+                        completionTokens ?? 0,
+                        totalTokens ?? (promptTokens ?? 0) + (completionTokens ?? 0),
+                        modelName
+                    );
+                }
+            }
+        }
+        
+        // No usage data found - return zeros
+        return (0, 0, 0, modelName);
+    }
+    
+    /// <summary>
+    /// Tries to get a property value from an object using reflection.
+    /// </summary>
+    private static long? TryGetPropertyValue(object obj, params string[] propertyNames)
+    {
+        var objType = obj.GetType();
+        
+        foreach (var propName in propertyNames)
+        {
+            var prop = objType.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (prop != null)
+            {
+                var value = prop.GetValue(obj);
+                if (value != null)
+                {
+                    try
+                    {
+                        return Convert.ToInt64(value);
+                    }
+                    catch
+                    {
+                        // Ignore conversion errors
+                    }
+                }
+            }
+        }
+        
+        return null;
     }
 }
 
