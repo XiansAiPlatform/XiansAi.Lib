@@ -10,6 +10,7 @@ public class TaskWorkflow
     
     private readonly ILogger<TaskWorkflow> _logger;
     private bool _isCompleted;
+    private bool _timedOut;
     private string? _initialWork;
     private string? _finalWork;
     private TaskWorkflowRequest? _request;
@@ -35,10 +36,31 @@ public class TaskWorkflow
         _logger.LogInformation("Task started: {TaskId} - {Title}, Actions: [{Actions}]", 
             _taskId, request.Title, string.Join(", ", _availableActions));
 
-        await Workflow.WaitConditionAsync(() => _isCompleted);
+        // Start timeout timer if specified
+        if (request.Timeout.HasValue)
+        {
+            _ = Workflow.RunTaskAsync(async () =>
+            {
+                await Workflow.DelayAsync(request.Timeout.Value);
+                if (!_isCompleted)
+                {
+                    _timedOut = true;
+                    _performedAction = null;
+                    _actionComment = null;
+                    _logger.LogWarning("Task timed out: {TaskId} after {Timeout}", 
+                        _taskId, request.Timeout.Value);
+                }
+            });
+        }
 
-        _logger.LogInformation("Task completed: {TaskId}, Action={Action}", 
-            _taskId, _performedAction);
+        // Wait for either completion or timeout
+        await Workflow.WaitConditionAsync(() => _isCompleted || _timedOut);
+
+        if (_isCompleted)
+        {
+            _logger.LogInformation("Task completed: {TaskId}, Action={Action}", 
+                _taskId, _performedAction);
+        }
 
         return new TaskWorkflowResult
         {
@@ -47,7 +69,9 @@ public class TaskWorkflow
             FinalWork = _finalWork,
             PerformedAction = _performedAction,
             Comment = _actionComment,
-            CompletedAt = Workflow.UtcNow
+            CompletedAt = Workflow.UtcNow,
+            TimedOut = _timedOut,
+            Completed = _isCompleted
         };
     }
 

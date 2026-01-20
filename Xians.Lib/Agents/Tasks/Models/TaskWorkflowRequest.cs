@@ -17,4 +17,9 @@ public record TaskWorkflowRequest
     /// Available actions for this task. If null/empty, defaults to ["approve", "reject"].
     /// </summary>
     public string[]? Actions { get; init; }
+    
+    /// <summary>
+    /// Timeout duration for the task. If null, task waits indefinitely.
+    /// </summary>
+    public TimeSpan? Timeout { get; init; }
 }

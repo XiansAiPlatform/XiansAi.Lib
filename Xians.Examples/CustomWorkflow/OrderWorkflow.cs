@@ -35,22 +35,31 @@ public class OrderWorkflow
                     Title = "Approve Order",
                     Description = $"Review and approve order for customer {customerId} with amount ${amount}",
                     DraftWork = $"Order Details:\nCustomer: {customerId}\nAmount: ${amount}",
-                    Actions = ["approve", "reject", "hold"]
+                    Actions = ["approve", "reject", "hold"],
+                    Timeout = TimeSpan.FromSeconds(20)
                 }
             );
 
             // Wait for human decision
             var result = await XiansContext.CurrentAgent.Tasks.GetResultAsync(taskHandle);
 
-            comment = result.Comment ?? string.Empty;
+            //result.
 
-            status = result.PerformedAction switch
+            comment = result.Comment;
+            if (result.TimedOut)
             {
-                "approve" => "Human Approved",
-                "reject" => "Human Rejected",
-                "hold" => "On Hold",
-                _ => "Unknown"
-            };
+                status = "Timed Out";
+            }
+            else
+            {
+                status = result.PerformedAction switch
+                {
+                    "approve" => "Human Approved",
+                    "reject" => "Human Rejected",
+                    "hold" => "On Hold",
+                    _ => "Unknown"
+                };
+            }
         }
 
         return new OrderResult

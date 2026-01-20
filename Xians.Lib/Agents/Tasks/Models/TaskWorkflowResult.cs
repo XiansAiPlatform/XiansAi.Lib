@@ -25,4 +25,12 @@ public record TaskWorkflowResult
     /// Comment provided with the action.
     /// </summary>
     public string? Comment { get; init; }
+
+    public bool TimedOut { get; init; }
+
+    /// <summary>
+    /// Whether the task was completed.
+    /// </summary>
+    public bool Completed { get; init; }
+
 }
