@@ -113,7 +113,6 @@ Escalation occurs when:
 - Scales like automation
 - Feels human to customers
 - Keeps compliance teams comfortable
-- Positions Visma Amili as an **AI-native case management platform**
 
 ---
 
@@ -126,4 +125,3 @@ Escalation occurs when:
 ---
 
 **Author:** Generated with ChatGPT  
-**Use case:** Compello / Visma Amili – AI-powered case handling
