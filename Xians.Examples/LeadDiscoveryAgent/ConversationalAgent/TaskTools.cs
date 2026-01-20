@@ -48,7 +48,7 @@ internal class TaskTools
                         $"Description: {info.Description}\n" +
                         $"Status: {status}\n" +
                         $"Available Actions: {string.Join(", ", info.AvailableActions ?? [])}\n" +
-                        $"Current Draft: {info.CurrentDraft ?? "No draft yet"}\n";
+                        $"Current Draft: {info.InitialWork ?? "No draft yet"}\n";
 
             if (info.IsCompleted && !string.IsNullOrEmpty(info.Comment))
             {
@@ -160,7 +160,7 @@ internal class TaskTools
             }
 
             var task = await HitlTask.FromWorkflowIdAsync(taskWorkflowId);
-            var draft = await task.GetDraftAsync();
+            var draft = await task.GetInitialWorkAsync();
 
             _logger.LogInformation("GetTaskDraft completed successfully for TaskId={TaskId}", task.TaskId);
             return draft ?? "No draft work available yet.";
