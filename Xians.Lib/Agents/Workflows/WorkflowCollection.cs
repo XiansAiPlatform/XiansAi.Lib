@@ -385,6 +385,7 @@ public class WorkflowCollection
             _agent.Name, 
             _agent.SystemScoped, 
             _agent.Description, 
+            _agent.Summary,
             _agent.Version, 
             _agent.Author);
 

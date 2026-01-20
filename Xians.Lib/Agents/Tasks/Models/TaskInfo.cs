@@ -34,4 +34,6 @@ public record TaskInfo
     /// Comment provided with the action.
     /// </summary>
     public string? Comment { get; init; }
+
+    public bool TimedOut { get; init; }
 }

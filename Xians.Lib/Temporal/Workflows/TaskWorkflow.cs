@@ -111,7 +111,8 @@ public class TaskWorkflow
             Metadata = _request?.Metadata,
             AvailableActions = _availableActions,
             PerformedAction = _performedAction,
-            Comment = _actionComment
+            Comment = _actionComment,
+            TimedOut = _timedOut
         };
     }
 }
