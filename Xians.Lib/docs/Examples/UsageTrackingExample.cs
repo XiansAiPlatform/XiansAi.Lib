@@ -8,18 +8,22 @@ namespace Xians.Lib.Examples;
 /*
  * Example: Usage Tracking in Xians.Lib Agents
  * 
- * This example demonstrates how to track LLM token usage in your agents.
+ * This example demonstrates how to track LLM token usage and custom metrics in your agents
+ * using the fluent builder API: context.TrackUsage()
+ * 
  * Since Xians.Lib is a framework where you make your own LLM calls,
  * usage tracking is provided as a utility that you call after making LLM calls.
  * 
  * Examples included:
- * 1. Basic usage tracking with extension method
- * 2. Using UsageTracker for automatic timing
- * 2b. Tracking with conversation history
- * 3. Multiple LLM calls with separate tracking
- * 4. Advanced usage with custom metadata
- * 5. Error handling and resilience
- * 6. Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
+ * 1. Custom labels without predefined constants (complete flexibility)
+ * 2. Basic usage tracking with fluent builder
+ * 3. Tracking with manual timing (using Stopwatch)
+ * 4. Multiple LLM calls with separate tracking
+ * 5. Custom metrics tracking (flexible array format)
+ * 6. Fluent builder pattern for convenient tracking
+ * 7. Advanced usage with custom metadata
+ * 8. Error handling and resilience
+ * 9. Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
  * 
  * Note: This example assumes environment variables are set. In a real application,
  * you might use DotNetEnv or another configuration method to load .env files.
@@ -54,100 +58,198 @@ public class UsageTrackingExample
         // Create a built-in workflow
         var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", maxConcurrent: 1);
 
-        // Example 1: Basic usage tracking with extension method
+        // Example 1: Custom labels without predefined constants (complete flexibility)
+        // This shows you can use ANY labels you want - not limited to MetricCategories or MetricTypes
         workflow.OnUserChatMessage(async (context) => 
+        {
+            Console.WriteLine($"Received: {context.Message.Text}");
+            
+            // Simulate some business activity
+            var response = await SimulateOpenAICall(context.Message.Text);
+            await SendEmailsAsync(2);
+            
+            // Track metrics with completely custom labels - no predefined constants needed!
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .WithCustomIdentifier($"msg-{Guid.NewGuid()}")
+                .WithMetrics(
+                    // Use your own category and type names - total flexibility!
+                    ("llm", "tokens_used", (double)response.TotalTokens, "tokens"),
+                    ("business", "emails_dispatched", 2.0, "count"),
+                    ("business", "customer_interactions", 1.0, "count"),
+                    ("cost", "api_cost_usd", 0.0025, "usd"),
+                    ("performance", "response_time_seconds", 1.23, "seconds")
+                )
+                .WithMetadata("customer_tier", "premium")
+                .ReportAsync();
+            
+            await context.ReplyAsync($"{response.Text}\n\n(2 emails sent)");
+        });
+
+        // Example 2: Basic usage tracking with fluent builder (using predefined constants)
+        var workflow2 = agent.Workflows.DefineBuiltIn(name: "StandardTracking", maxConcurrent: 1);
+        
+        workflow2.OnUserChatMessage(async (context) => 
         {
             Console.WriteLine($"Received: {context.Message.Text}");
             
             // Simulate an LLM call (replace with your actual LLM SDK)
             var response = await SimulateOpenAICall(context.Message.Text);
             
-            // Track usage - the easy way!
-            await context.ReportUsageAsync(
-                model: "gpt-4",
-                promptTokens: response.PromptTokens,
-                completionTokens: response.CompletionTokens,
-                totalTokens: response.TotalTokens
-            );
+            // Track token usage using fluent builder
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                )
+                .ReportAsync();
             
             await context.ReplyAsync(response.Text);
         });
 
-        // Example 2: Using UsageTracker for automatic timing
-        var workflow2 = agent.Workflows.DefineBuiltIn(name: "TimedWorkflow", maxConcurrent: 1);
-
-        workflow2.OnUserChatMessage(async (context) => 
-        {
-            // UsageTracker automatically measures response time
-            using var tracker = new UsageTracker(context, "gpt-4");
-            
-            var response = await SimulateOpenAICall(context.Message.Text);
-            
-            // Report includes automatic timing
-            await tracker.ReportAsync(
-                response.PromptTokens,
-                response.CompletionTokens
-            );
-            
-            await context.ReplyAsync(response.Text);
-        });
-
-        // Example 2b: Tracking with conversation history
-        var workflow2b = agent.Workflows.DefineBuiltIn(name: "HistoryTrackingWorkflow", maxConcurrent: 1);
-
-        workflow2b.OnUserChatMessage(async (context) => 
-        {
-            // Get conversation history
-            var history = await context.GetChatHistoryAsync(page: 1, pageSize: 10);
-            Console.WriteLine($"Including {history.Count} messages from history");
-            
-            // Create tracker with message count (history + current)
-            var messageCount = history.Count + 1;
-            using var tracker = new UsageTracker(
-                context, 
-                "gpt-4",
-                messageCount: messageCount
-            );
-            
-            // Simulate LLM call with history
-            var prompt = $"History: {history.Count} messages. Current: {context.Message.Text}";
-            var response = await SimulateOpenAICall(prompt);
-            
-            // Report includes message count and timing
-            await tracker.ReportAsync(
-                response.PromptTokens,
-                response.CompletionTokens
-            );
-            
-            await context.ReplyAsync(response.Text);
-        });
-
-        // Example 3: Multiple LLM calls with separate tracking
-        var workflow3 = agent.Workflows.DefineBuiltIn(name: "MultiStepWorkflow", maxConcurrent: 1);
+        // Example 3: Manual timing with Stopwatch
+        var workflow3 = agent.Workflows.DefineBuiltIn(name: "TimedWorkflow", maxConcurrent: 1);
 
         workflow3.OnUserChatMessage(async (context) => 
         {
-            // Step 1: Analyze sentiment
-            using (var tracker = new UsageTracker(context, "gpt-3.5-turbo", source: "SentimentAnalysis"))
-            {
-                var sentiment = await SimulateOpenAICall($"Analyze sentiment: {context.Message.Text}");
-                await tracker.ReportAsync(sentiment.PromptTokens, sentiment.CompletionTokens);
-                Console.WriteLine($"Sentiment: {sentiment.Text}");
-            }
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var response = await SimulateOpenAICall(context.Message.Text);
+            stopwatch.Stop();
             
-            // Step 2: Generate response based on sentiment
-            using (var tracker = new UsageTracker(context, "gpt-4", source: "ResponseGeneration"))
-            {
-                var response = await SimulateOpenAICall($"Generate response: {context.Message.Text}");
-                await tracker.ReportAsync(response.PromptTokens, response.CompletionTokens);
-                await context.ReplyAsync(response.Text);
-            }
+            // Track with manual timing using fluent builder
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                )
+                .ReportAsync();
+            
+            await context.ReplyAsync(response.Text);
         });
 
-        // Example 4: Advanced usage with custom metadata
-        var workflow4 = agent.Workflows.DefineBuiltIn(name: "DetailedTracking", maxConcurrent: 1);
+        // Example 4: Multiple LLM calls with separate tracking
+        var workflow4 = agent.Workflows.DefineBuiltIn(name: "MultiStepWorkflow", maxConcurrent: 1);
 
         workflow4.OnUserChatMessage(async (context) => 
+        {
+            // Step 1: Analyze sentiment
+            var sentiment = await SimulateOpenAICall($"Analyze sentiment: {context.Message.Text}");
+            await context.TrackUsage()
+                .ForModel("gpt-3.5-turbo")
+                .FromSource("SentimentAnalysis")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, sentiment.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, sentiment.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, sentiment.TotalTokens, "tokens")
+                )
+                .ReportAsync();
+            Console.WriteLine($"Sentiment: {sentiment.Text}");
+            
+            // Step 2: Generate response based on sentiment
+            var response = await SimulateOpenAICall($"Generate response: {context.Message.Text}");
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .FromSource("ResponseGeneration")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                )
+                .ReportAsync();
+            await context.ReplyAsync(response.Text);
+        });
+
+        // Example 5: Custom metrics tracking with flexible array format
+        var workflow5 = agent.Workflows.DefineBuiltIn(name: "CustomMetricsWorkflow", maxConcurrent: 1);
+
+        workflow5.OnUserChatMessage(async (context) => 
+        {
+            var stopwatch = Stopwatch.StartNew();
+            
+            // Simulate sending emails as part of the workflow
+            var response = await SimulateOpenAICall(context.Message.Text);
+            await SendEmailsAsync(3); // Simulate sending 3 emails
+            
+            stopwatch.Stop();
+            
+            // Track both LLM usage AND custom metrics using fluent builder
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .WithMetrics(
+                    // Standard token metrics
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens"),
+                    // Standard activity metrics
+                    (MetricCategories.Activity, MetricTypes.MessageCount, 1, "count"),
+                    // Custom metrics - emails sent by this workflow
+                    ("activity", "email_sent", 3, "count"),
+                    // Custom metrics - workflow completion
+                    ("activity", "workflow_completed", 1, "count"),
+                    // Performance metrics
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                )
+                .ReportAsync();
+            
+            await context.ReplyAsync($"{response.Text}\n\n(3 emails sent successfully)");
+        });
+
+        // Example 6: Fluent builder pattern for convenient tracking
+        var workflow6 = agent.Workflows.DefineBuiltIn(name: "FluentBuilderWorkflow", maxConcurrent: 1);
+
+        workflow6.OnUserChatMessage(async (context) => 
+        {
+            // Simple token tracking with fluent API
+            var response = await SimulateOpenAICall(context.Message.Text);
+            
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                )
+                .ReportAsync();
+            
+            await context.ReplyAsync(response.Text);
+        });
+
+        // Example 6b: Fluent builder with incremental metric building
+        var workflow6b = agent.Workflows.DefineBuiltIn(name: "IncrementalFluentWorkflow", maxConcurrent: 1);
+
+        workflow6b.OnUserChatMessage(async (context) => 
+        {
+            // Start tracking
+            var tracker = context.TrackUsage()
+                .ForModel("gpt-4")
+                .FromSource("EmailWorkflow");
+            
+            // Step 1: LLM call
+            var response = await SimulateOpenAICall(context.Message.Text);
+            tracker.WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens");
+            
+            // Step 2: Send emails
+            await SendEmailsAsync(3);
+            tracker.WithMetric("activity", "email_sent", 3, "count");
+            
+            // Step 3: Complete workflow
+            tracker.WithMetric("activity", "workflow_completed", 1, "count");
+            
+            // Report all metrics at once
+            await tracker.ReportAsync();
+            
+            await context.ReplyAsync($"{response.Text}\n\n(Workflow completed: 3 emails sent)");
+        });
+
+        // Example 7: Advanced usage with custom metadata
+        var workflow7 = agent.Workflows.DefineBuiltIn(name: "DetailedTracking", maxConcurrent: 1);
+
+        workflow7.OnUserChatMessage(async (context) => 
         {
             var stopwatch = Stopwatch.StartNew();
             
@@ -167,31 +269,27 @@ public class UsageTrackingExample
                 ["user_type"] = "premium"
             };
             
-            // Manual usage reporting with full control
-            var record = new UsageEventRecord(
-                TenantId: context.Message.TenantId,
-                UserId: context.Message.ParticipantId,
-                Model: "gpt-4",
-                PromptTokens: response.PromptTokens,
-                CompletionTokens: response.CompletionTokens,
-                TotalTokens: response.TotalTokens,
-                MessageCount: history.Count + 1,
-                WorkflowId: XiansContext.WorkflowId,
-                RequestId: context.Message.RequestId,
-                Source: "UsageTrackingDemo.DetailedTracking",
-                Metadata: metadata,
-                ResponseTimeMs: stopwatch.ElapsedMilliseconds
-            );
-            
-            await UsageEventsClient.Instance.ReportAsync(record);
+            // Track usage with custom metadata using fluent builder
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .FromSource("UsageTrackingDemo.DetailedTracking")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, history.Count + 1, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                )
+                .WithMetadata(metadata)
+                .ReportAsync();
             
             await context.ReplyAsync(response.Text);
         });
 
-        // Example 5: Error handling and resilience
-        var workflow5 = agent.Workflows.DefineBuiltIn(name: "ResilientTracking", maxConcurrent: 1);
+        // Example 8: Error handling and resilience
+        var workflow8 = agent.Workflows.DefineBuiltIn(name: "ResilientTracking", maxConcurrent: 1);
 
-        workflow5.OnUserChatMessage(async (context) => 
+        workflow8.OnUserChatMessage(async (context) => 
         {
             try
             {
@@ -200,12 +298,14 @@ public class UsageTrackingExample
                 // Try to report usage, but don't fail if it doesn't work
                 try
                 {
-                    await context.ReportUsageAsync(
-                        model: "gpt-4",
-                        promptTokens: response.PromptTokens,
-                        completionTokens: response.CompletionTokens,
-                        totalTokens: response.TotalTokens
-                    );
+                    await context.TrackUsage()
+                        .ForModel("gpt-4")
+                        .WithMetrics(
+                            (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
+                            (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
+                            (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                        )
+                        .ReportAsync();
                 }
                 catch (Exception ex)
                 {
@@ -222,17 +322,17 @@ public class UsageTrackingExample
             }
         });
 
-        // Example 6: Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
-        var workflow6 = agent.Workflows.DefineBuiltIn(name: "MAFWorkflow", maxConcurrent: 1);
+        // Example 9: Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
+        var workflow9 = agent.Workflows.DefineBuiltIn(name: "MAFWorkflow", maxConcurrent: 1);
 
-        workflow6.OnUserChatMessage(async (context) => 
+        workflow9.OnUserChatMessage(async (context) => 
         {
             // Get conversation history for message count
             var history = await context.GetChatHistoryAsync(page: 1, pageSize: 10);
             var messageCount = history.Count + 1;
             
             var modelName = "gpt-4o-mini";
-            using var tracker = new UsageTracker(context, modelName, messageCount, source: "MAF Agent");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             
             // In a real application, you would use actual MAF agent here:
             // var chatClient = new OpenAIClient(apiKey).GetChatClient(modelName);
@@ -245,14 +345,25 @@ public class UsageTrackingExample
             
             // For this example, we simulate a MAF response
             var response = await SimulateMafAgentResponse(context.Message.Text);
+            stopwatch.Stop();
             
             // Extract token usage from MAF response using reflection helper
             // This is necessary because MAF responses have complex nested Usage properties
             var (promptTokens, completionTokens, totalTokens, _) = 
                 UsageTrackingHelper.ExtractUsageFromResponse(response, modelName);
             
-            // Report usage with automatic timing and A2A context awareness
-            await tracker.ReportAsync(promptTokens, completionTokens, totalTokens);
+            // Report usage with manual timing and A2A context awareness using fluent builder
+            await context.TrackUsage()
+                .ForModel(modelName)
+                .FromSource("MAF Agent")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, promptTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, completionTokens, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, totalTokens, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, messageCount, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                )
+                .ReportAsync();
             
             await context.ReplyAsync(GetResponseText(response));
         });
@@ -289,6 +400,13 @@ public class UsageTrackingExample
     {
         // Very rough estimation: ~4 characters per token
         return text.Length / 4;
+    }
+
+    private static async Task SendEmailsAsync(int count)
+    {
+        // Simulate sending emails
+        await Task.Delay(50 * count);
+        Console.WriteLine($"Sent {count} emails");
     }
 
     // Simulate a MAF agent response with nested Usage property

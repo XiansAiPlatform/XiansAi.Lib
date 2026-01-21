@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.A2A;
@@ -81,152 +79,201 @@ public static class UsageTrackingExtensions
     }
 
     /// <summary>
-    /// Reports token usage from a message context.
-    /// Automatically captures context information like tenant ID, user ID, workflow ID, and request ID.
+    /// Internal method for reporting usage metrics. Used by the fluent builder.
+    /// Developers should use context.TrackUsage() instead of calling this directly.
     /// </summary>
-    /// <param name="context">The message context.</param>
-    /// <param name="model">The LLM model used (e.g., "gpt-4", "claude-3-opus").</param>
-    /// <param name="promptTokens">Number of tokens in the prompt/input.</param>
-    /// <param name="completionTokens">Number of tokens in the completion/output.</param>
-    /// <param name="totalTokens">Total tokens used (prompt + completion).</param>
-    /// <param name="messageCount">Number of messages sent to the LLM (including history). Defaults to 1 if not specified.</param>
-    /// <param name="source">Optional source identifier (defaults to current workflow type).</param>
-    /// <param name="metadata">Optional metadata dictionary for additional context.</param>
-    /// <param name="responseTimeMs">Optional response time in milliseconds.</param>
-    public static async Task ReportUsageAsync(
+    internal static async Task ReportUsageAsync(
         this UserMessageContext context,
-        string model,
-        long promptTokens,
-        long completionTokens,
-        long totalTokens,
-        long messageCount = 1,
+        List<MetricValue> metrics,
+        string? tenantId = null,
+        string? userId = null,
+        string? workflowId = null,
+        string? requestId = null,
+        string? model = null,
         string? source = null,
-        Dictionary<string, string>? metadata = null,
-        long? responseTimeMs = null)
+        string? customIdentifier = null,
+        Dictionary<string, string>? metadata = null)
     {
-        var record = new UsageEventRecord(
-            TenantId: context.Message.TenantId,
-            UserId: context.Message.ParticipantId,
-            Model: model,
-            PromptTokens: promptTokens,
-            CompletionTokens: completionTokens,
-            TotalTokens: totalTokens,
-            MessageCount: messageCount,
-            WorkflowId: GetWorkflowIdForTracking(context),
-            RequestId: context.Message.RequestId,
-            Source: source ?? GetWorkflowTypeForTracking(context) ?? "Unknown",
-            Metadata: metadata,
-            ResponseTimeMs: responseTimeMs
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = tenantId ?? context.Message.TenantId,
+            UserId = userId ?? context.Message.ParticipantId,
+            WorkflowId = workflowId ?? GetWorkflowIdForTracking(context),
+            RequestId = requestId ?? context.Message.RequestId,
+            Source = source ?? GetWorkflowTypeForTracking(context) ?? "Unknown",
+            Model = model,
+            CustomIdentifier = customIdentifier,
+            Metrics = metrics,
+            Metadata = metadata
+        };
 
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
     }
 
     /// <summary>
-    /// Reports token usage with a custom usage event record.
-    /// Provides full control over all fields in the usage record.
+    /// Starts building a usage report with fluent API.
     /// </summary>
-    /// <param name="context">The message context.</param>
-    /// <param name="record">The complete usage event record to report.</param>
-    public static async Task ReportUsageAsync(
-        this UserMessageContext context,
-        UsageEventRecord record)
+    public static UsageReportBuilder TrackUsage(this UserMessageContext context)
     {
-        await UsageEventsClient.Instance.ReportAsync(record);
+        return new UsageReportBuilder(context);
     }
 }
 
 /// <summary>
-/// Helper class for tracking LLM calls with automatic timing and usage reporting.
+/// Fluent builder for constructing and reporting usage metrics.
 /// </summary>
-/// <example>
-/// // Track an LLM call with automatic timing:
-/// using var tracker = new UsageTracker(context, "gpt-4");
-/// var response = await CallOpenAIAsync(prompt);
-/// tracker.ReportAsync(response.Usage.PromptTokens, response.Usage.CompletionTokens);
-/// </example>
-public class UsageTracker : IDisposable
+public class UsageReportBuilder
 {
     private readonly UserMessageContext _context;
-    private readonly string _model;
-    private readonly long _messageCount;
-    private readonly string? _source;
-    private readonly Dictionary<string, string>? _metadata;
-    private readonly Stopwatch _stopwatch;
-    private bool _reported;
+    private readonly List<MetricValue> _metrics = new();
+    private string? _tenantId;
+    private string? _userId;
+    private string? _workflowId;
+    private string? _requestId;
+    private string? _model;
+    private string? _source;
+    private string? _customIdentifier;
+    private Dictionary<string, string>? _metadata;
+
+    internal UsageReportBuilder(UserMessageContext context)
+    {
+        _context = context;
+    }
 
     /// <summary>
-    /// Creates a new usage tracker that automatically measures response time.
+    /// Overrides the tenant ID (defaults to context.Message.TenantId if not set).
     /// </summary>
-    /// <param name="context">The message context.</param>
-    /// <param name="model">The LLM model being used.</param>
-    /// <param name="messageCount">Number of messages sent to the LLM (including history). Defaults to 1.</param>
-    /// <param name="source">Optional source identifier.</param>
-    /// <param name="metadata">Optional metadata dictionary.</param>
-    public UsageTracker(
-        UserMessageContext context, 
-        string model,
-        long messageCount = 1,
-        string? source = null,
-        Dictionary<string, string>? metadata = null)
+    public UsageReportBuilder WithTenantId(string tenantId)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _model = model ?? throw new ArgumentNullException(nameof(model));
-        _messageCount = messageCount;
+        _tenantId = tenantId;
+        return this;
+    }
+
+    /// <summary>
+    /// Overrides the user ID (defaults to context.Message.ParticipantId if not set).
+    /// </summary>
+    public UsageReportBuilder WithUserId(string userId)
+    {
+        _userId = userId;
+        return this;
+    }
+
+    /// <summary>
+    /// Overrides the workflow ID (defaults to auto-detected workflow ID if not set).
+    /// </summary>
+    public UsageReportBuilder WithWorkflowId(string workflowId)
+    {
+        _workflowId = workflowId;
+        return this;
+    }
+
+    /// <summary>
+    /// Overrides the request ID (defaults to context.Message.RequestId if not set).
+    /// </summary>
+    public UsageReportBuilder WithRequestId(string requestId)
+    {
+        _requestId = requestId;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the model name.
+    /// </summary>
+    public UsageReportBuilder ForModel(string model)
+    {
+        _model = model;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the source identifier.
+    /// </summary>
+    public UsageReportBuilder FromSource(string source)
+    {
         _source = source;
-        _metadata = metadata;
-        _stopwatch = Stopwatch.StartNew();
+        return this;
     }
 
     /// <summary>
-    /// Reports usage with the specified token counts.
-    /// Automatically includes the elapsed time since tracker creation.
+    /// Sets a custom identifier to link this usage event to client/agent-specific data.
+    /// For example, a message ID to correlate token usage with a specific message.
     /// </summary>
-    /// <param name="promptTokens">Number of tokens in the prompt.</param>
-    /// <param name="completionTokens">Number of tokens in the completion.</param>
-    /// <param name="totalTokens">Optional total tokens (calculated if not provided).</param>
-    public async Task ReportAsync(long promptTokens, long completionTokens, long? totalTokens = null)
+    public UsageReportBuilder WithCustomIdentifier(string customIdentifier)
     {
-        _stopwatch.Stop();
-        
-        var record = new UsageEventRecord(
-            TenantId: _context.Message.TenantId,
-            UserId: _context.Message.ParticipantId,
-            Model: _model,
-            PromptTokens: promptTokens,
-            CompletionTokens: completionTokens,
-            TotalTokens: totalTokens ?? (promptTokens + completionTokens),
-            MessageCount: _messageCount,
-            WorkflowId: UsageTrackingExtensions.GetWorkflowIdForTracking(_context),
-            RequestId: _context.Message.RequestId,
-            Source: _source ?? UsageTrackingExtensions.GetWorkflowTypeForTracking(_context) ?? "Unknown",
-            Metadata: _metadata,
-            ResponseTimeMs: _stopwatch.ElapsedMilliseconds
-        );
-
-        await UsageEventsClient.Instance.ReportAsync(record);
-        _reported = true;
+        _customIdentifier = customIdentifier;
+        return this;
     }
 
     /// <summary>
-    /// Disposes the tracker. Logs a warning if usage was not reported.
+    /// Adds a single metric.
     /// </summary>
-    public void Dispose()
+    public UsageReportBuilder WithMetric(
+        string category, 
+        string type, 
+        double value, 
+        string unit = "count")
     {
-        if (!_reported && _stopwatch.IsRunning)
+        _metrics.Add(new MetricValue
         {
-            // Log a warning that tracking was started but never reported
-            // This helps developers catch missing usage reporting calls
-            var logger = Common.Infrastructure.LoggerFactory.CreateLogger<UsageTracker>();
-            logger.LogWarning(
-                "UsageTracker disposed without reporting usage. Model={Model}, ElapsedMs={ElapsedMs}. " +
-                "Call ReportAsync() to record usage, or this may indicate an error in the LLM call.",
-                _model,
-                _stopwatch.ElapsedMilliseconds);
+            Category = category,
+            Type = type,
+            Value = value,
+            Unit = unit
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Adds multiple metrics at once using tuple syntax.
+    /// </summary>
+    public UsageReportBuilder WithMetrics(params (string category, string type, double value, string unit)[] metrics)
+    {
+        foreach (var (category, type, value, unit) in metrics)
+        {
+            _metrics.Add(new MetricValue
+            {
+                Category = category,
+                Type = type,
+                Value = value,
+                Unit = unit
+            });
         }
-        
-        _stopwatch.Stop();
+        return this;
+    }
+
+    /// <summary>
+    /// Adds metadata key-value pair.
+    /// </summary>
+    public UsageReportBuilder WithMetadata(string key, string value)
+    {
+        _metadata ??= new Dictionary<string, string>();
+        _metadata[key] = value;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds multiple metadata entries.
+    /// </summary>
+    public UsageReportBuilder WithMetadata(Dictionary<string, string> metadata)
+    {
+        _metadata = metadata;
+        return this;
+    }
+
+    /// <summary>
+    /// Reports the usage metrics.
+    /// </summary>
+    public async Task ReportAsync()
+    {
+        await _context.ReportUsageAsync(
+            _metrics, 
+            _tenantId,
+            _userId,
+            _workflowId,
+            _requestId,
+            _model, 
+            _source, 
+            _customIdentifier, 
+            _metadata);
     }
 }
-
-

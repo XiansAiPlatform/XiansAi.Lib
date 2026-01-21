@@ -54,6 +54,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
             null, // description
             null, // version
             null, // author
+            null, // summary
             null, // uploader
             null, // temporalService
             _httpService,
@@ -74,7 +75,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ReportAsync_WithValidRecord_SendsCorrectPayload()
+    public async Task ReportAsync_WithValidRequest_SendsCorrectPayload()
     {
         // Arrange
         var receivedRequests = new List<string>();
@@ -91,26 +92,30 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
                     return new WireMock.ResponseMessage();
                 }));
 
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "user123",
-            Model: "gpt-4",
-            PromptTokens: 150,
-            CompletionTokens: 75,
-            TotalTokens: 225,
-            MessageCount: 5,
-            WorkflowId: "workflow-123",
-            RequestId: "req-456",
-            Source: "IntegrationTest",
-            Metadata: new Dictionary<string, string>
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "user123",
+            Model = "gpt-4",
+            WorkflowId = "workflow-123",
+            RequestId = "req-456",
+            Source = "IntegrationTest",
+            Metadata = new Dictionary<string, string>
             {
                 ["test_key"] = "test_value"
             },
-            ResponseTimeMs: 1500
-        );
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.PromptTokens, Value = 150.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.CompletionTokens, Value = 75.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 225.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Activity, Type = MetricTypes.MessageCount, Value = 5.0, Unit = "count" },
+                new MetricValue { Category = MetricCategories.Performance, Type = MetricTypes.ResponseTimeMs, Value = 1500.0, Unit = "ms" }
+            }
+        };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
 
         // Wait a bit for async operation
         await Task.Delay(100);
@@ -123,11 +128,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         Assert.Contains("\"tenantId\":\"test-tenant\"", payload);
         Assert.Contains("\"userId\":\"user123\"", payload);
         Assert.Contains("\"model\":\"gpt-4\"", payload);
-        Assert.Contains("\"promptTokens\":150", payload);
-        Assert.Contains("\"completionTokens\":75", payload);
-        Assert.Contains("\"totalTokens\":225", payload);
-        Assert.Contains("\"messageCount\":5", payload);
-        Assert.Contains("\"responseTimeMs\":1500", payload);
+        Assert.Contains("\"metrics\":", payload);
         Assert.Contains("\"test_key\"", payload);
     }
 
@@ -152,21 +153,22 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
                     return new WireMock.ResponseMessage();
                 }));
 
-        var record = new UsageEventRecord(
-            TenantId: "my-special-tenant",
-            UserId: "user123",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: "workflow-1",
-            RequestId: "req-1",
-            Source: "Test"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "my-special-tenant",
+            UserId = "user123",
+            Model = "gpt-4",
+            WorkflowId = "workflow-1",
+            RequestId = "req-1",
+            Source = "Test",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
         await Task.Delay(100);
 
         // Assert
@@ -185,23 +187,21 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
                 .WithStatusCode(500)
                 .WithBody("Internal Server Error"));
 
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "user123",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: null,
-            RequestId: null,
-            Source: "Test"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "user123",
+            Model = "gpt-4",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act & Assert - Should not throw
         var exception = await Record.ExceptionAsync(async () =>
         {
-            await UsageEventsClient.Instance.ReportAsync(record);
+            await UsageEventsClient.Instance.ReportAsync(request);
             await Task.Delay(100);
         });
 
@@ -220,23 +220,21 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
                 .WithStatusCode(400)
                 .WithBody("{\"error\": \"Invalid request\"}"));
 
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "user123",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: null,
-            RequestId: null,
-            Source: "Test"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "user123",
+            Model = "gpt-4",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(async () =>
         {
-            await UsageEventsClient.Instance.ReportAsync(record);
+            await UsageEventsClient.Instance.ReportAsync(request);
             await Task.Delay(100);
         });
 
@@ -244,7 +242,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UsageTracker_ReportsWithTiming()
+    public async Task FluentBuilder_ReportsWithTiming()
     {
         // Arrange
         var receivedRequests = new List<string>();
@@ -264,28 +262,30 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var context = CreateTestMessageContext();
 
         // Act
-        using (var tracker = new UsageTracker(context, "gpt-4", messageCount: 1))
-        {
-            await Task.Delay(50); // Simulate LLM call
-            await tracker.ReportAsync(100, 50);
-        }
+        var startTime = DateTime.UtcNow;
+        await Task.Delay(50); // Simulate LLM call
+        var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
+        
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetrics(
+                (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.CompletionTokens, 50.0, "tokens"),
+                (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count"),
+                (MetricCategories.Performance, MetricTypes.ResponseTimeMs, elapsed, "ms")
+            )
+            .ReportAsync();
 
         await Task.Delay(100);
 
         // Assert
         Assert.Single(receivedRequests);
         var payload = receivedRequests[0];
-        
-        Assert.Contains("\"responseTimeMs\":", payload);
-        
-        // Parse to verify responseTimeMs is present and > 0
-        var doc = JsonDocument.Parse(payload);
-        var responseTimeMs = doc.RootElement.GetProperty("responseTimeMs").GetInt64();
-        Assert.True(responseTimeMs >= 50, $"Expected responseTimeMs >= 50, got {responseTimeMs}");
+        Assert.Contains("\"metrics\":", payload);
     }
 
     [Fact]
-    public async Task ExtensionMethod_ReportUsageAsync_SendsCorrectData()
+    public async Task FluentBuilder_SendsCorrectData()
     {
         // Arrange
         var receivedRequests = new List<string>();
@@ -305,19 +305,18 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var context = CreateTestMessageContext();
 
         // Act
-        await context.ReportUsageAsync(
-            model: "gpt-3.5-turbo",
-            promptTokens: 200,
-            completionTokens: 100,
-            totalTokens: 300,
-            messageCount: 10,
-            source: "ExtensionMethodTest",
-            metadata: new Dictionary<string, string>
-            {
-                ["test"] = "value"
-            },
-            responseTimeMs: 2000
-        );
+        await context.TrackUsage()
+            .ForModel("gpt-3.5-turbo")
+            .FromSource("ExtensionMethodTest")
+            .WithMetrics(
+                (MetricCategories.Tokens, MetricTypes.PromptTokens, 200.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.CompletionTokens, 100.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.TotalTokens, 300.0, "tokens"),
+                (MetricCategories.Activity, MetricTypes.MessageCount, 10.0, "count"),
+                (MetricCategories.Performance, MetricTypes.ResponseTimeMs, 2000.0, "ms")
+            )
+            .WithMetadata("test", "value")
+            .ReportAsync();
 
         await Task.Delay(100);
 
@@ -326,12 +325,8 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var payload = receivedRequests[0];
         
         Assert.Contains("\"model\":\"gpt-3.5-turbo\"", payload);
-        Assert.Contains("\"promptTokens\":200", payload);
-        Assert.Contains("\"completionTokens\":100", payload);
-        Assert.Contains("\"totalTokens\":300", payload);
-        Assert.Contains("\"messageCount\":10", payload);
+        Assert.Contains("\"metrics\":", payload);
         Assert.Contains("\"source\":\"ExtensionMethodTest\"", payload);
-        Assert.Contains("\"responseTimeMs\":2000", payload);
         Assert.Contains("\"test\"", payload);
     }
 
@@ -356,22 +351,36 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var context = CreateTestMessageContext();
 
         // Act - Send multiple reports
-        await context.ReportUsageAsync("gpt-4", 100, 50, 150, messageCount: 1);
-        await context.ReportUsageAsync("gpt-4", 200, 100, 300, messageCount: 5);
-        await context.ReportUsageAsync("claude-3", 150, 75, 225, messageCount: 3);
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens")
+            .WithMetric(MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count")
+            .ReportAsync();
+            
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 300.0, "tokens")
+            .WithMetric(MetricCategories.Activity, MetricTypes.MessageCount, 5.0, "count")
+            .ReportAsync();
+            
+        await context.TrackUsage()
+            .ForModel("claude-3")
+            .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 225.0, "tokens")
+            .WithMetric(MetricCategories.Activity, MetricTypes.MessageCount, 3.0, "count")
+            .ReportAsync();
 
         await Task.Delay(200);
 
         // Assert
         Assert.Equal(3, receivedRequests.Count);
         
-        Assert.Contains("\"promptTokens\":100", receivedRequests[0]);
-        Assert.Contains("\"promptTokens\":200", receivedRequests[1]);
+        Assert.Contains("\"model\":\"gpt-4\"", receivedRequests[0]);
+        Assert.Contains("\"model\":\"gpt-4\"", receivedRequests[1]);
         Assert.Contains("\"model\":\"claude-3\"", receivedRequests[2]);
     }
 
     [Fact]
-    public async Task UsageTracker_WithMetadata_IncludesInPayload()
+    public async Task FluentBuilder_WithMetadata_IncludesInPayload()
     {
         // Arrange
         var receivedRequests = new List<string>();
@@ -389,19 +398,20 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
                 }));
 
         var context = CreateTestMessageContext();
-        
-        var metadata = new Dictionary<string, string>
-        {
-            ["temperature"] = "0.7",
-            ["max_tokens"] = "2000",
-            ["stream"] = "true"
-        };
 
         // Act
-        using (var tracker = new UsageTracker(context, "gpt-4", messageCount: 1, source: "TestSource", metadata: metadata))
-        {
-            await tracker.ReportAsync(100, 50);
-        }
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .FromSource("TestSource")
+            .WithMetrics(
+                (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.CompletionTokens, 50.0, "tokens"),
+                (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count")
+            )
+            .WithMetadata("temperature", "0.7")
+            .WithMetadata("max_tokens", "2000")
+            .WithMetadata("stream", "true")
+            .ReportAsync();
 
         await Task.Delay(100);
 

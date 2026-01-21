@@ -53,6 +53,7 @@ public class UsageTrackingTests : IDisposable
             null, // description
             null, // version
             null, // author
+            null, // summary
             null, // uploader
             null, // temporalService
             _mockHttpService.Object,
@@ -67,7 +68,7 @@ public class UsageTrackingTests : IDisposable
     }
 
     [Fact]
-    public async Task ReportAsync_WithValidRecord_SendsToCorrectEndpoint()
+    public async Task ReportAsync_WithValidRequest_SendsToCorrectEndpoint()
     {
         // Arrange
         HttpRequestMessage? capturedRequest = null;
@@ -80,21 +81,24 @@ public class UsageTrackingTests : IDisposable
             .Callback<HttpRequestMessage, CancellationToken>((req, ct) => capturedRequest = req)
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "test-user",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: "test-workflow",
-            RequestId: "test-request",
-            Source: "TestAgent"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "test-user",
+            Model = "gpt-4",
+            WorkflowId = "test-workflow",
+            RequestId = "test-request",
+            Source = "TestAgent",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.PromptTokens, Value = 100.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.CompletionTokens, Value = 50.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
 
         // Assert
         Assert.NotNull(capturedRequest);
@@ -116,21 +120,22 @@ public class UsageTrackingTests : IDisposable
             .Callback<HttpRequestMessage, CancellationToken>((req, ct) => capturedRequest = req)
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
-        var record = new UsageEventRecord(
-            TenantId: "my-tenant",
-            UserId: "user123",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: "workflow1",
-            RequestId: "req1",
-            Source: "Test"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "my-tenant",
+            UserId = "user123",
+            Model = "gpt-4",
+            WorkflowId = "workflow1",
+            RequestId = "req1",
+            Source = "Test",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
 
         // Assert
         Assert.NotNull(capturedRequest);
@@ -163,23 +168,27 @@ public class UsageTrackingTests : IDisposable
             ["customField"] = "customValue"
         };
 
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "user123",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 5,
-            WorkflowId: "workflow1",
-            RequestId: "req1",
-            Source: "TestSource",
-            Metadata: metadata,
-            ResponseTimeMs: 1234
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "user123",
+            Model = "gpt-4",
+            WorkflowId = "workflow1",
+            RequestId = "req1",
+            Source = "TestSource",
+            Metadata = metadata,
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.PromptTokens, Value = 100.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.CompletionTokens, Value = 50.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" },
+                new MetricValue { Category = MetricCategories.Activity, Type = MetricTypes.MessageCount, Value = 5.0, Unit = "count" },
+                new MetricValue { Category = MetricCategories.Performance, Type = MetricTypes.ResponseTimeMs, Value = 1234.0, Unit = "ms" }
+            }
+        };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
 
         // Assert
         Assert.NotNull(capturedJson);
@@ -188,15 +197,10 @@ public class UsageTrackingTests : IDisposable
         Assert.Contains("\"tenantId\":", capturedJson);
         Assert.Contains("\"userId\":", capturedJson);
         Assert.Contains("\"model\":", capturedJson);
-        Assert.Contains("\"promptTokens\":100", capturedJson);
-        Assert.Contains("\"completionTokens\":50", capturedJson);
-        Assert.Contains("\"totalTokens\":150", capturedJson);
-        Assert.Contains("\"messageCount\":5", capturedJson);
-        Assert.Contains("\"responseTimeMs\":1234", capturedJson);
-        
-        // Verify values
+        Assert.Contains("\"metrics\":", capturedJson);
         Assert.Contains("\"gpt-4\"", capturedJson);
         Assert.Contains("\"TestSource\"", capturedJson);
+        Assert.Contains("\"customField\"", capturedJson);
     }
 
     [Fact]
@@ -205,21 +209,19 @@ public class UsageTrackingTests : IDisposable
         // Arrange - Clear agent context to simulate no HTTP service
         XiansContext.CleanupForTests();
         
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "test-user",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: null,
-            RequestId: null,
-            Source: "Test"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "test-user",
+            Model = "gpt-4",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act & Assert - Should not throw
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
     }
 
     [Fact]
@@ -233,21 +235,22 @@ public class UsageTrackingTests : IDisposable
                 ItExpr.IsAny<CancellationToken>())
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.InternalServerError));
 
-        var record = new UsageEventRecord(
-            TenantId: "test-tenant",
-            UserId: "test-user",
-            Model: "gpt-4",
-            PromptTokens: 100,
-            CompletionTokens: 50,
-            TotalTokens: 150,
-            MessageCount: 1,
-            WorkflowId: "test-workflow",
-            RequestId: "test-request",
-            Source: "Test"
-        );
+        var request = new UsageReportRequest
+        {
+            TenantId = "test-tenant",
+            UserId = "test-user",
+            Model = "gpt-4",
+            WorkflowId = "test-workflow",
+            RequestId = "test-request",
+            Source = "Test",
+            Metrics = new List<MetricValue>
+            {
+                new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
+            }
+        };
 
         // Act & Assert - Should not throw, just log warning
-        await UsageEventsClient.Instance.ReportAsync(record);
+        await UsageEventsClient.Instance.ReportAsync(request);
     }
 
     [Fact]
@@ -315,29 +318,48 @@ public class UsageTrackingTests : IDisposable
     }
 
     [Fact]
-    public async Task UsageTracker_MeasuresElapsedTime()
+    public async Task FluentBuilder_MeasuresElapsedTime()
     {
         // Arrange
+        string? capturedJson = null;
+        
         _httpMessageHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>(async (req, ct) => 
+            {
+                if (req.Content != null)
+                {
+                    capturedJson = await req.Content.ReadAsStringAsync();
+                }
+            })
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
         var context = CreateTestMessageContext();
 
         // Act
-        using var tracker = new UsageTracker(context, "gpt-4");
+        var startTime = DateTime.UtcNow;
         await Task.Delay(100); // Simulate LLM call time
-        await tracker.ReportAsync(100, 50);
+        var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
+        
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetrics(
+                (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.CompletionTokens, 50.0, "tokens"),
+                (MetricCategories.Performance, MetricTypes.ResponseTimeMs, elapsed, "ms")
+            )
+            .ReportAsync();
 
-        // Assert - Verify time was measured (should be >= 100ms)
-        // We can't directly assert the time, but the test exercises the timing logic
+        // Assert - Verify metrics were sent
+        Assert.NotNull(capturedJson);
+        Assert.Contains("\"metrics\":", capturedJson);
     }
 
     [Fact]
-    public async Task UsageTracker_WithMessageCount_IncludesInReport()
+    public async Task FluentBuilder_WithMessageCount_IncludesInReport()
     {
         // Arrange
         string? capturedJson = null;
@@ -359,16 +381,22 @@ public class UsageTrackingTests : IDisposable
         var context = CreateTestMessageContext();
 
         // Act
-        using var tracker = new UsageTracker(context, "gpt-4", messageCount: 10);
-        await tracker.ReportAsync(100, 50);
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetrics(
+                (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.CompletionTokens, 50.0, "tokens"),
+                (MetricCategories.Activity, MetricTypes.MessageCount, 10.0, "count")
+            )
+            .ReportAsync();
 
         // Assert
         Assert.NotNull(capturedJson);
-        Assert.Contains("\"messageCount\":10", capturedJson);
+        Assert.Contains("\"metrics\":", capturedJson);
     }
 
     [Fact]
-    public async Task ReportUsageAsync_ExtensionMethod_WithMessageCount_IncludesInReport()
+    public async Task FluentBuilder_WithMultipleMetrics_IncludesAllInReport()
     {
         // Arrange
         string? capturedJson = null;
@@ -390,23 +418,24 @@ public class UsageTrackingTests : IDisposable
         var context = CreateTestMessageContext();
 
         // Act
-        await context.ReportUsageAsync(
-            model: "gpt-4",
-            promptTokens: 200,
-            completionTokens: 100,
-            totalTokens: 300,
-            messageCount: 15
-        );
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetrics(
+                (MetricCategories.Tokens, MetricTypes.PromptTokens, 200.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.CompletionTokens, 100.0, "tokens"),
+                (MetricCategories.Tokens, MetricTypes.TotalTokens, 300.0, "tokens"),
+                (MetricCategories.Activity, MetricTypes.MessageCount, 15.0, "count")
+            )
+            .ReportAsync();
 
         // Assert
         Assert.NotNull(capturedJson);
-        Assert.Contains("\"messageCount\":15", capturedJson);
-        Assert.Contains("\"promptTokens\":200", capturedJson);
-        Assert.Contains("\"completionTokens\":100", capturedJson);
+        Assert.Contains("\"metrics\":", capturedJson);
+        Assert.Contains("\"model\":\"gpt-4\"", capturedJson);
     }
 
     [Fact]
-    public async Task ReportUsageAsync_ExtensionMethod_DefaultMessageCount_UsesOne()
+    public async Task FluentBuilder_WithMinimalMetrics_Works()
     {
         // Arrange
         string? capturedJson = null;
@@ -427,17 +456,16 @@ public class UsageTrackingTests : IDisposable
 
         var context = CreateTestMessageContext();
 
-        // Act - Don't specify messageCount
-        await context.ReportUsageAsync(
-            model: "gpt-4",
-            promptTokens: 100,
-            completionTokens: 50,
-            totalTokens: 150
-        );
+        // Act - Minimal usage tracking
+        await context.TrackUsage()
+            .ForModel("gpt-4")
+            .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens")
+            .ReportAsync();
 
         // Assert
         Assert.NotNull(capturedJson);
-        Assert.Contains("\"messageCount\":1", capturedJson);
+        Assert.Contains("\"model\":\"gpt-4\"", capturedJson);
+        Assert.Contains("\"metrics\":", capturedJson);
     }
 
     // Helper methods

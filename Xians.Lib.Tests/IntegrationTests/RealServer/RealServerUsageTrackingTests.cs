@@ -28,9 +28,6 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
     public const string AGENT_NAME = "UsageTrackingTestAgent";
     private const string WORKFLOW_NAME = "UsageTestWorkflow";
 
-    // Track reported usage for verification
-    private static readonly List<UsageEventRecord> _reportedUsage = new();
-
     async Task IAsyncLifetime.InitializeAsync()
     {
         if (!RunRealServerTests) return;
@@ -74,7 +71,6 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
 
         // Cleanup
         XiansContext.Clear();
-        _reportedUsage.Clear();
     }
 
     private async Task InitializePlatformAsync()
@@ -107,20 +103,19 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             await Task.Delay(100);
             
             // Track usage - this is what we're testing!
-            await context.ReportUsageAsync(
-                model: "test-model-gpt-4",
-                promptTokens: 150,
-                completionTokens: 75,
-                totalTokens: 225,
-                messageCount: messageCount,
-                source: $"{AGENT_NAME}.ChatHandler",
-                metadata: new Dictionary<string, string>
-                {
-                    ["test_scenario"] = "real_server_test",
-                    ["message_length"] = context.Message.Text.Length.ToString()
-                },
-                responseTimeMs: 100
-            );
+            await context.TrackUsage()
+                .ForModel("test-model-gpt-4")
+                .FromSource($"{AGENT_NAME}.ChatHandler")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, 150.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, 75.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, 225.0, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, (double)messageCount, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, 100.0, "ms")
+                )
+                .WithMetadata("test_scenario", "real_server_test")
+                .WithMetadata("message_length", context.Message.Text.Length.ToString())
+                .ReportAsync();
             
             Console.WriteLine($"✓ Usage reported for request: {context.Message.RequestId}");
             
@@ -205,7 +200,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
     }
 
     [Fact]
-    public async Task UsageTracker_WithTiming_WorksEndToEnd()
+    public async Task UsageTracking_WithTiming_WorksEndToEnd()
     {
         if (!RunRealServerTests)
         {
@@ -216,26 +211,30 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         // Arrange
         var participantId = $"user-{Guid.NewGuid().ToString()[..8]}";
         
-        // Create a workflow that uses UsageTracker
+        // Create a workflow that uses fluent builder for tracking with timing
         var trackerWorkflow = _agent!.Workflows.DefineBuiltIn(name: "TrackerTestWorkflow", maxConcurrent: 1);
         
         trackerWorkflow.OnUserChatMessage(async (context) =>
         {
-            Console.WriteLine($"Processing with UsageTracker: '{context.Message.Text}'");
+            Console.WriteLine($"Processing with fluent builder: '{context.Message.Text}'");
             
-            // Use UsageTracker for automatic timing
-            using var tracker = new UsageTracker(
-                context, 
-                "test-model-claude", 
-                messageCount: 1,
-                source: "UsageTrackerTest"
-            );
-            
-            // Simulate LLM call
+            // Simulate LLM call with timing
+            var startTime = DateTime.UtcNow;
             await Task.Delay(150);
+            var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
             
-            // Report usage
-            await tracker.ReportAsync(200, 100, 300);
+            // Report usage with fluent builder
+            await context.TrackUsage()
+                .ForModel("test-model-claude")
+                .FromSource("UsageTrackerTest")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, 200.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, 100.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, 300.0, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, elapsed, "ms")
+                )
+                .ReportAsync();
             
             await context.ReplyAsync($"Tracked: {context.Message.Text}");
         });
@@ -258,7 +257,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             var reply = messages.FirstOrDefault(m => m.Text?.Contains("Tracked:") == true);
             Assert.NotNull(reply);
             
-            Console.WriteLine("✓ UsageTracker executed successfully with timing");
+            Console.WriteLine("✓ Usage tracking with timing executed successfully");
         }
         finally
         {
@@ -284,24 +283,21 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         
         metadataWorkflow.OnUserChatMessage(async (context) =>
         {
-            var customMetadata = new Dictionary<string, string>
-            {
-                ["request_type"] = "test",
-                ["priority"] = "high",
-                ["user_tier"] = "premium",
-                ["feature_flag"] = "enabled"
-            };
-            
-            await context.ReportUsageAsync(
-                model: "gpt-4",
-                promptTokens: 100,
-                completionTokens: 50,
-                totalTokens: 150,
-                messageCount: 1,
-                source: "MetadataTest",
-                metadata: customMetadata,
-                responseTimeMs: 500
-            );
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .FromSource("MetadataTest")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, 50.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, 500.0, "ms")
+                )
+                .WithMetadata("request_type", "test")
+                .WithMetadata("priority", "high")
+                .WithMetadata("user_tier", "premium")
+                .WithMetadata("feature_flag", "enabled")
+                .ReportAsync();
             
             await context.ReplyAsync("Metadata tracked");
         });
@@ -354,28 +350,32 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             
             // First "LLM call" - sentiment analysis
             await Task.Delay(50);
-            await context.ReportUsageAsync(
-                model: "gpt-3.5-turbo",
-                promptTokens: 50,
-                completionTokens: 10,
-                totalTokens: 60,
-                messageCount: 1,
-                source: "SentimentAnalysis",
-                responseTimeMs: 50
-            );
+            await context.TrackUsage()
+                .ForModel("gpt-3.5-turbo")
+                .FromSource("SentimentAnalysis")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, 50.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, 10.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, 60.0, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, 50.0, "ms")
+                )
+                .ReportAsync();
             Console.WriteLine("✓ Reported usage for sentiment analysis");
             
             // Second "LLM call" - response generation
             await Task.Delay(100);
-            await context.ReportUsageAsync(
-                model: "gpt-4",
-                promptTokens: 200,
-                completionTokens: 150,
-                totalTokens: 350,
-                messageCount: 1,
-                source: "ResponseGeneration",
-                responseTimeMs: 100
-            );
+            await context.TrackUsage()
+                .ForModel("gpt-4")
+                .FromSource("ResponseGeneration")
+                .WithMetrics(
+                    (MetricCategories.Tokens, MetricTypes.PromptTokens, 200.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, 150.0, "tokens"),
+                    (MetricCategories.Tokens, MetricTypes.TotalTokens, 350.0, "tokens"),
+                    (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count"),
+                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, 100.0, "ms")
+                )
+                .ReportAsync();
             Console.WriteLine("✓ Reported usage for response generation");
             
             await context.ReplyAsync("Multi-call completed");
@@ -430,14 +430,16 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             // Try to report usage (may fail, but shouldn't break workflow)
             try
             {
-                await context.ReportUsageAsync(
-                    model: "gpt-4",
-                    promptTokens: 100,
-                    completionTokens: 50,
-                    totalTokens: 150,
-                    messageCount: 1,
-                    source: "ResilienceTest"
-                );
+                await context.TrackUsage()
+                    .ForModel("gpt-4")
+                    .FromSource("ResilienceTest")
+                    .WithMetrics(
+                        (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
+                        (MetricCategories.Tokens, MetricTypes.CompletionTokens, 50.0, "tokens"),
+                        (MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens"),
+                        (MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count")
+                    )
+                    .ReportAsync();
             }
             catch (Exception ex)
             {

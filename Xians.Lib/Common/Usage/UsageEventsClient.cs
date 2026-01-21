@@ -7,25 +7,31 @@ using Xians.Lib.Agents.Core;
 namespace Xians.Lib.Common.Usage;
 
 /// <summary>
-/// Client for reporting token usage and LLM metrics to the Xians platform.
-/// This is a utility service that developers can use to track LLM usage in their agents.
+/// Client for reporting flexible usage metrics to the Xians platform.
+/// Supports token usage, custom metrics, and activity tracking with both integer and fractional values.
+/// Typically used via the fluent builder API (context.TrackUsage()) or extension methods.
 /// </summary>
 /// <example>
-/// // In your message handler:
+/// // Fluent builder pattern (recommended):
 /// var response = await CallOpenAIAsync(prompt);
 /// 
-/// await UsageEventsClient.Instance.ReportAsync(new UsageEventRecord(
-///     TenantId: context.TenantId,
-///     UserId: context.ParticipantId,
-///     Model: "gpt-4",
-///     PromptTokens: response.Usage.PromptTokens,
-///     CompletionTokens: response.Usage.CompletionTokens,
-///     TotalTokens: response.Usage.TotalTokens,
-///     MessageCount: 1,
-///     WorkflowId: XiansContext.WorkflowId,
-///     RequestId: context.RequestId,
-///     Source: "MyAgent.ChatHandler"
-/// ));
+/// await context.TrackUsage()
+///     .ForModel("gpt-4")
+///     .WithCustomIdentifier(context.Message.Id)  // Link to message for tracking
+///     .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, response.Usage.TotalTokens, "tokens")
+///     .WithMetric("cost", "total_usd", 0.0025, "usd")  // Fractional values supported
+///     .WithMetric("performance", "avg_response_ms", 123.45, "ms")  // Decimals for averages
+///     .ReportAsync();
+///
+/// // Or with direct metrics array:
+/// await context.ReportUsageAsync(
+///     metrics: new List&lt;MetricValue&gt;
+///     {
+///         new() { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150, Unit = "tokens" },
+///         new() { Category = "cost", Type = "total_usd", Value = 0.0025, Unit = "usd" }
+///     },
+///     model: "gpt-4"
+/// );
 /// </example>
 public class UsageEventsClient
 {
@@ -44,12 +50,12 @@ public class UsageEventsClient
     }
 
     /// <summary>
-    /// Reports token usage to the Xians platform server.
+    /// Reports flexible usage metrics to the Xians platform server.
     /// This method is safe to call even if the HTTP service is not ready - it will log a warning and return.
     /// </summary>
-    /// <param name="record">The usage event record containing token counts and metadata.</param>
+    /// <param name="request">The usage report request containing metrics array.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task ReportAsync(UsageEventRecord record, CancellationToken cancellationToken = default)
+    public async Task ReportAsync(UsageReportRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -62,43 +68,41 @@ public class UsageEventsClient
             }
 
             var client = agent.HttpService.Client;
-            var json = JsonContent.Create(record, options: new JsonSerializerOptions
+            var json = JsonContent.Create(request, options: new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
             // Add tenant header for system-scoped agents
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/agent/usage/report");
-            request.Content = json;
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/agent/usage/report");
+            httpRequest.Content = json;
             
-            if (!string.IsNullOrEmpty(record.TenantId))
+            if (!string.IsNullOrEmpty(request.TenantId))
             {
-                request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, record.TenantId);
+                httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, request.TenantId);
             }
 
-            var response = await client.SendAsync(request, cancellationToken);
+            var response = await client.SendAsync(httpRequest, cancellationToken);
             
             if (!response.IsSuccessStatusCode)
             {
                 var payload = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning(
-                    "Failed to report token usage. Status={StatusCode}, Payload={Payload}", 
+                    "Failed to report usage metrics. Status={StatusCode}, Payload={Payload}", 
                     response.StatusCode, 
                     payload);
             }
             else
             {
                 _logger.LogDebug(
-                    "Usage reported successfully: Model={Model}, PromptTokens={PromptTokens}, CompletionTokens={CompletionTokens}, TotalTokens={TotalTokens}",
-                    record.Model,
-                    record.PromptTokens,
-                    record.CompletionTokens,
-                    record.TotalTokens);
+                    "Usage reported successfully: Model={Model}, MetricsCount={MetricsCount}",
+                    request.Model,
+                    request.Metrics?.Count ?? 0);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to report token usage metrics.");
+            _logger.LogWarning(ex, "Failed to report usage metrics.");
         }
     }
 
@@ -234,32 +238,67 @@ public class UsageEventsClient
 }
 
 /// <summary>
-/// Record representing a token usage event to be reported to the platform.
+/// Request model for flexible metrics reporting.
+/// Supports standard and custom metrics in a scalable array format.
 /// </summary>
-/// <param name="TenantId">The tenant ID associated with this usage.</param>
-/// <param name="UserId">The user/participant ID who triggered this usage.</param>
-/// <param name="Model">The LLM model used (e.g., "gpt-4", "claude-3-opus").</param>
-/// <param name="PromptTokens">Number of tokens in the prompt/input.</param>
-/// <param name="CompletionTokens">Number of tokens in the completion/output.</param>
-/// <param name="TotalTokens">Total tokens used (prompt + completion).</param>
-/// <param name="MessageCount">Number of messages in the conversation context.</param>
-/// <param name="WorkflowId">The workflow ID where this usage occurred.</param>
-/// <param name="RequestId">The request ID for correlation.</param>
-/// <param name="Source">Source identifier (e.g., "MyAgent.ChatHandler", "MyAgent.KnowledgeRetrieval").</param>
-/// <param name="Metadata">Optional metadata dictionary for additional context.</param>
-/// <param name="ResponseTimeMs">Optional response time in milliseconds.</param>
-public record UsageEventRecord(
-    string TenantId,
-    string UserId,
-    string? Model,
-    long PromptTokens,
-    long CompletionTokens,
-    long TotalTokens,
-    long MessageCount,
-    string? WorkflowId,
-    string? RequestId,
-    string? Source,
-    Dictionary<string, string>? Metadata = null,
-    long? ResponseTimeMs = null);
+public class UsageReportRequest
+{
+    public string? TenantId { get; set; }
+    public string? UserId { get; set; }
+    public string? WorkflowId { get; set; }
+    public string? RequestId { get; set; }
+    public string? Source { get; set; }
+    public string? Model { get; set; }
+    public string? CustomIdentifier { get; set; }
+    public required List<MetricValue> Metrics { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
+}
+
+/// <summary>
+/// Represents a single metric value with category, type, and unit.
+/// </summary>
+public class MetricValue
+{
+    public required string Category { get; set; }
+    public required string Type { get; set; }
+    public required double Value { get; set; }
+    public string Unit { get; set; } = "count";
+}
+
+/// <summary>
+/// Standard metric categories supported by the platform.
+/// </summary>
+public static class MetricCategories
+{
+    public const string Tokens = "tokens";
+    public const string Activity = "activity";
+    public const string Performance = "performance";
+    public const string LlmUsage = "llm_usage";
+}
+
+/// <summary>
+/// Standard metric types supported by the platform.
+/// </summary>
+public static class MetricTypes
+{
+    // Token metrics
+    public const string PromptTokens = "prompt_tokens";
+    public const string CompletionTokens = "completion_tokens";
+    public const string TotalTokens = "total_tokens";
+    
+    // Activity metrics
+    public const string MessageCount = "message_count";
+    public const string WorkflowCompleted = "workflow_completed";
+    public const string EmailSent = "email_sent";
+    
+    // Performance metrics
+    public const string ResponseTimeMs = "response_time_ms";
+    public const string ProcessingTimeMs = "processing_time_ms";
+    
+    // LLM usage metrics
+    public const string LlmCalls = "llm_calls";
+    public const string CacheHits = "cache_hits";
+    public const string CacheMisses = "cache_misses";
+}
 
 
