@@ -3,6 +3,7 @@ using Xians.Lib.Common.Usage;
 using Xians.Lib.Tests.TestUtilities;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
+using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -88,7 +89,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         });
         
         // Create workflow with message handler that tracks usage
-        _workflow = _agent.Workflows.DefineBuiltIn(name: WORKFLOW_NAME, maxConcurrent: 1);
+        _workflow = _agent.Workflows.DefineBuiltIn(name: WORKFLOW_NAME, options: new WorkflowOptions { MaxConcurrent = 1 });
         
         // Register handler that simulates LLM call and tracks usage
         _workflow.OnUserChatMessage(async (context) =>
@@ -212,7 +213,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         var participantId = $"user-{Guid.NewGuid().ToString()[..8]}";
         
         // Create a workflow that uses fluent builder for tracking with timing
-        var trackerWorkflow = _agent!.Workflows.DefineBuiltIn(name: "TrackerTestWorkflow", maxConcurrent: 1);
+        var trackerWorkflow = _agent!.Workflows.DefineBuiltIn(name: "TrackerTestWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
         
         trackerWorkflow.OnUserChatMessage(async (context) =>
         {
@@ -279,7 +280,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         var participantId = $"user-{Guid.NewGuid().ToString()[..8]}";
         
         // Create workflow that reports usage with custom metadata
-        var metadataWorkflow = _agent!.Workflows.DefineBuiltIn(name: "MetadataTestWorkflow", maxConcurrent: 1);
+        var metadataWorkflow = _agent!.Workflows.DefineBuiltIn(name: "MetadataTestWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
         
         metadataWorkflow.OnUserChatMessage(async (context) =>
         {
@@ -342,7 +343,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         var participantId = $"user-{Guid.NewGuid().ToString()[..8]}";
         
         // Create workflow that makes multiple "LLM calls" (simulated)
-        var multiCallWorkflow = _agent!.Workflows.DefineBuiltIn(name: "MultiCallTestWorkflow", maxConcurrent: 1);
+        var multiCallWorkflow = _agent!.Workflows.DefineBuiltIn(name: "MultiCallTestWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
         
         multiCallWorkflow.OnUserChatMessage(async (context) =>
         {
@@ -423,7 +424,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         // This test verifies that even if usage reporting fails,
         // the workflow continues to work normally
         
-        var resilientWorkflow = _agent!.Workflows.DefineBuiltIn(name: "ResilientTestWorkflow", maxConcurrent: 1);
+        var resilientWorkflow = _agent!.Workflows.DefineBuiltIn(name: "ResilientTestWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
         
         resilientWorkflow.OnUserChatMessage(async (context) =>
         {

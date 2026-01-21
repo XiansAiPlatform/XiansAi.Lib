@@ -1,18 +1,27 @@
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common.Usage;
 using Xians.Lib.Agents.Messaging;
+using Xians.Lib.Agents.Workflows.Models;
 using System.Diagnostics;
+using Temporalio.Workflows;
 
 namespace Xians.Lib.Examples;
 
 /*
  * Example: Usage Tracking in Xians.Lib Agents
  * 
- * This example demonstrates how to track LLM token usage and custom metrics in your agents
- * using the fluent builder API: context.TrackUsage()
+ * This example demonstrates how to track LLM token usage and custom metrics in your agents.
  * 
- * Since Xians.Lib is a framework where you make your own LLM calls,
- * usage tracking is provided as a utility that you call after making LLM calls.
+ * TWO APIs AVAILABLE:
+ * 
+ * 1. context.TrackUsage() - For message handlers
+ *    - Has A2A context awareness (uses target workflow ID in A2A scenarios)
+ *    - Example: await context.TrackUsage().WithMetric(...).ReportAsync()
+ * 
+ * 2. XiansContext.Metrics.Track() - For workflows and general use
+ *    - Context-aware: Automatically uses activities in workflows, direct HTTP outside
+ *    - Ideal for workflows where you need automatic activity handling
+ *    - Example: await XiansContext.Metrics.Track().WithMetric(...).ReportAsync()
  * 
  * Examples included:
  * 1. Custom labels without predefined constants (complete flexibility)
@@ -24,6 +33,7 @@ namespace Xians.Lib.Examples;
  * 7. Advanced usage with custom metadata
  * 8. Error handling and resilience
  * 9. Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
+ * 10. XiansContext.Metrics examples (workflow-focused API)
  * 
  * Note: This example assumes environment variables are set. In a real application,
  * you might use DotNetEnv or another configuration method to load .env files.
@@ -56,7 +66,7 @@ public class UsageTrackingExample
         });
 
         // Create a built-in workflow
-        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", maxConcurrent: 1);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         // Example 1: Custom labels without predefined constants (complete flexibility)
         // This shows you can use ANY labels you want - not limited to MetricCategories or MetricTypes
@@ -87,7 +97,7 @@ public class UsageTrackingExample
         });
 
         // Example 2: Basic usage tracking with fluent builder (using predefined constants)
-        var workflow2 = agent.Workflows.DefineBuiltIn(name: "StandardTracking", maxConcurrent: 1);
+        var workflow2 = agent.Workflows.DefineBuiltIn(name: "StandardTracking", options: new WorkflowOptions { MaxConcurrent = 1 });
         
         workflow2.OnUserChatMessage(async (context) => 
         {
@@ -110,7 +120,7 @@ public class UsageTrackingExample
         });
 
         // Example 3: Manual timing with Stopwatch
-        var workflow3 = agent.Workflows.DefineBuiltIn(name: "TimedWorkflow", maxConcurrent: 1);
+        var workflow3 = agent.Workflows.DefineBuiltIn(name: "TimedWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow3.OnUserChatMessage(async (context) => 
         {
@@ -133,7 +143,7 @@ public class UsageTrackingExample
         });
 
         // Example 4: Multiple LLM calls with separate tracking
-        var workflow4 = agent.Workflows.DefineBuiltIn(name: "MultiStepWorkflow", maxConcurrent: 1);
+        var workflow4 = agent.Workflows.DefineBuiltIn(name: "MultiStepWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow4.OnUserChatMessage(async (context) => 
         {
@@ -165,7 +175,7 @@ public class UsageTrackingExample
         });
 
         // Example 5: Custom metrics tracking with flexible array format
-        var workflow5 = agent.Workflows.DefineBuiltIn(name: "CustomMetricsWorkflow", maxConcurrent: 1);
+        var workflow5 = agent.Workflows.DefineBuiltIn(name: "CustomMetricsWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow5.OnUserChatMessage(async (context) => 
         {
@@ -200,7 +210,7 @@ public class UsageTrackingExample
         });
 
         // Example 6: Fluent builder pattern for convenient tracking
-        var workflow6 = agent.Workflows.DefineBuiltIn(name: "FluentBuilderWorkflow", maxConcurrent: 1);
+        var workflow6 = agent.Workflows.DefineBuiltIn(name: "FluentBuilderWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow6.OnUserChatMessage(async (context) => 
         {
@@ -220,7 +230,7 @@ public class UsageTrackingExample
         });
 
         // Example 6b: Fluent builder with incremental metric building
-        var workflow6b = agent.Workflows.DefineBuiltIn(name: "IncrementalFluentWorkflow", maxConcurrent: 1);
+        var workflow6b = agent.Workflows.DefineBuiltIn(name: "IncrementalFluentWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow6b.OnUserChatMessage(async (context) => 
         {
@@ -247,7 +257,7 @@ public class UsageTrackingExample
         });
 
         // Example 7: Advanced usage with custom metadata
-        var workflow7 = agent.Workflows.DefineBuiltIn(name: "DetailedTracking", maxConcurrent: 1);
+        var workflow7 = agent.Workflows.DefineBuiltIn(name: "DetailedTracking", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow7.OnUserChatMessage(async (context) => 
         {
@@ -287,7 +297,7 @@ public class UsageTrackingExample
         });
 
         // Example 8: Error handling and resilience
-        var workflow8 = agent.Workflows.DefineBuiltIn(name: "ResilientTracking", maxConcurrent: 1);
+        var workflow8 = agent.Workflows.DefineBuiltIn(name: "ResilientTracking", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow8.OnUserChatMessage(async (context) => 
         {
@@ -323,7 +333,7 @@ public class UsageTrackingExample
         });
 
         // Example 9: Using Microsoft Agents Framework (MAF) with UsageTrackingHelper
-        var workflow9 = agent.Workflows.DefineBuiltIn(name: "MAFWorkflow", maxConcurrent: 1);
+        var workflow9 = agent.Workflows.DefineBuiltIn(name: "MAFWorkflow", options: new WorkflowOptions { MaxConcurrent = 1 });
 
         workflow9.OnUserChatMessage(async (context) => 
         {
@@ -372,6 +382,89 @@ public class UsageTrackingExample
 
         // Run the agent
         await agent.RunAllAsync();
+    }
+
+    //
+    // ============================================================================
+    // XiansContext.Metrics Examples (Workflow-focused API)
+    // ============================================================================
+    // The following examples demonstrate XiansContext.Metrics.Track() API which is:
+    // - Context-aware: Automatically uses activities in workflows, direct HTTP outside
+    // - Ideal for workflows where you need automatic activity handling
+    // - Can also be used in message handlers as an alternative to context.TrackUsage()
+    //
+
+    /// <summary>
+    /// Example: Tracking workflow metrics with XiansContext.Metrics
+    /// This API automatically handles workflow context (uses activities under the hood)
+    /// </summary>
+    [Workflow]
+    public class DataProcessingWorkflow
+    {
+        [WorkflowRun]
+        public async Task<string> RunAsync(string dataId)
+        {
+            // Track workflow start
+            await XiansContext.Metrics
+                .Track()
+                .WithMetric("workflow_processing", "started", 1, "count")
+                .ReportAsync();
+
+            // Simulate processing
+            await Workflow.DelayAsync(TimeSpan.FromSeconds(5));
+
+            // Track workflow completion with metadata
+            await XiansContext.Metrics
+                .Track()
+                .WithMetric("workflow_processing", "completed", 1, "count")
+                .WithMetric("workflow_processing", "duration", 5000, "ms")
+                .WithMetadata("data_id", dataId)
+                .ReportAsync();
+
+            return "Processed";
+        }
+    }
+
+    /// <summary>
+    /// Example: Tracking with explicit overrides when you need full control
+    /// </summary>
+    public static async Task TrackWithExplicitValues()
+    {
+        await XiansContext.Metrics
+            .Track()
+            .WithTenantId("custom-tenant-123")
+            .WithUserId("user-456")
+            .WithWorkflowId("workflow-789")
+            .WithRequestId("request-abc")
+            .FromSource("CustomService")
+            .ForModel("gpt-4")
+            .WithMetric("api_calls", "external_api", 1, "count")
+            .WithMetric("api_calls", "response_time", 250, "ms")
+            .WithMetadata("api_endpoint", "/v1/chat/completions")
+            .ReportAsync();
+    }
+
+    /// <summary>
+    /// Example: Direct ReportAsync when you already have a UsageReportRequest
+    /// Useful for advanced scenarios or when building requests programmatically
+    /// </summary>
+    public static async Task DirectReportExample()
+    {
+        var request = new UsageReportRequest
+        {
+            TenantId = XiansContext.TenantId,
+            WorkflowId = XiansContext.WorkflowId,
+            Source = "BatchProcessor",
+            Metrics = new List<MetricValue>
+            {
+                new() { Category = "batch_processing", Type = "records_processed", Value = 1000, Unit = "count" },
+                new() { Category = "batch_processing", Type = "batch_size", Value = 1000, Unit = "count" },
+                new() { Category = "batch_processing", Type = "duration", Value = 45000, Unit = "ms" }
+            }
+        };
+
+        // Auto-detects context (workflow vs agent)
+        await XiansContext.Metrics.ReportAsync(request);
     }
 
     // ============================================================================
