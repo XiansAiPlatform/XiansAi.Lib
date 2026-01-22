@@ -266,7 +266,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         await Task.Delay(50); // Simulate LLM call
         var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
         
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
@@ -305,7 +305,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var context = CreateTestMessageContext();
 
         // Act
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-3.5-turbo")
             .FromSource("ExtensionMethodTest")
             .WithMetrics(
@@ -351,19 +351,19 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var context = CreateTestMessageContext();
 
         // Act - Send multiple reports
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens")
             .WithMetric(MetricCategories.Activity, MetricTypes.MessageCount, 1.0, "count")
             .ReportAsync();
             
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 300.0, "tokens")
             .WithMetric(MetricCategories.Activity, MetricTypes.MessageCount, 5.0, "count")
             .ReportAsync();
             
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("claude-3")
             .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 225.0, "tokens")
             .WithMetric(MetricCategories.Activity, MetricTypes.MessageCount, 3.0, "count")
@@ -400,7 +400,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var context = CreateTestMessageContext();
 
         // Act
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .FromSource("TestSource")
             .WithMetrics(

@@ -104,7 +104,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             await Task.Delay(100);
             
             // Track usage - this is what we're testing!
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("test-model-gpt-4")
                 .FromSource($"{AGENT_NAME}.ChatHandler")
                 .WithMetrics(
@@ -225,7 +225,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
             
             // Report usage with fluent builder
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("test-model-claude")
                 .FromSource("UsageTrackerTest")
                 .WithMetrics(
@@ -284,7 +284,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
         
         metadataWorkflow.OnUserChatMessage(async (context) =>
         {
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .FromSource("MetadataTest")
                 .WithMetrics(
@@ -351,7 +351,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             
             // First "LLM call" - sentiment analysis
             await Task.Delay(50);
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-3.5-turbo")
                 .FromSource("SentimentAnalysis")
                 .WithMetrics(
@@ -366,7 +366,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             
             // Second "LLM call" - response generation
             await Task.Delay(100);
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .FromSource("ResponseGeneration")
                 .WithMetrics(
@@ -431,7 +431,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
             // Try to report usage (may fail, but shouldn't break workflow)
             try
             {
-                await context.TrackUsage()
+                await XiansContext.Metrics.Track(context)
                     .ForModel("gpt-4")
                     .FromSource("ResilienceTest")
                     .WithMetrics(

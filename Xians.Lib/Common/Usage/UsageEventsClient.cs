@@ -9,23 +9,31 @@ namespace Xians.Lib.Common.Usage;
 /// <summary>
 /// Client for reporting flexible usage metrics to the Xians platform.
 /// Supports token usage, custom metrics, and activity tracking with both integer and fractional values.
-/// Typically used via the fluent builder API (context.TrackUsage()) or extension methods.
+/// Typically used via the fluent builder API (XiansContext.Metrics.Track()).
 /// </summary>
 /// <example>
 /// // Fluent builder pattern (recommended):
 /// var response = await CallOpenAIAsync(prompt);
 /// 
-/// await context.TrackUsage()
+/// // In message handlers:
+/// await XiansContext.Metrics.Track(context)
 ///     .ForModel("gpt-4")
-///     .WithCustomIdentifier(context.Message.Id)  // Link to message for tracking
+///     .WithCustomIdentifier($"msg-{Guid.NewGuid()}")  // Link to message for tracking
 ///     .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, response.Usage.TotalTokens, "tokens")
 ///     .WithMetric("cost", "total_usd", 0.0025, "usd")  // Fractional values supported
 ///     .WithMetric("performance", "avg_response_ms", 123.45, "ms")  // Decimals for averages
 ///     .ReportAsync();
 ///
-/// // Or with direct metrics array:
-/// await context.ReportUsageAsync(
-///     metrics: new List&lt;MetricValue&gt;
+/// // In workflows:
+/// await XiansContext.Metrics.Track()
+///     .ForModel("gpt-4")
+///     .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, response.Usage.TotalTokens, "tokens")
+///     .ReportAsync();
+///
+/// // Or with direct UsageReportRequest:
+/// var request = new UsageReportRequest
+/// {
+///     Metrics = new List&lt;MetricValue&gt;
 ///     {
 ///         new() { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150, Unit = "tokens" },
 ///         new() { Category = "cost", Type = "total_usd", Value = 0.0025, Unit = "usd" }
@@ -106,135 +114,6 @@ public class UsageEventsClient
         }
     }
 
-    /// <summary>
-    /// Extracts token usage information from Microsoft.SemanticKernel ChatMessageContent responses.
-    /// Returns actual tokens from the LLM response metadata.
-    /// If no usage data is found, returns 0 for all token counts and logs a warning.
-    /// </summary>
-    /// <param name="responses">List of ChatMessageContent responses from Semantic Kernel.</param>
-    /// <returns>Tuple containing token counts, model name, and completion ID.</returns>
-    public (long promptTokens, long completionTokens, long totalTokens, string? model, string? completionId) 
-        ExtractUsageFromSemanticKernelResponses(IEnumerable<object> responses)
-    {
-        if (responses == null || !responses.Any())
-        {
-            _logger.LogWarning("No responses provided for token extraction");
-            return (0, 0, 0, null, null);
-        }
-
-        // Convert to list for easier iteration
-        var responseList = responses.ToList();
-
-        // Usage data typically appears in the last response when streaming
-        // Iterate in reverse to check most recent messages first
-        foreach (var response in Enumerable.Reverse(responseList))
-        {
-            // Try to access Metadata property via reflection
-            var metadataProperty = response.GetType().GetProperty("Metadata");
-            if (metadataProperty == null)
-                continue;
-
-            var metadata = metadataProperty.GetValue(response) as IReadOnlyDictionary<string, object?>;
-            if (metadata == null || metadata.Count == 0)
-                continue;
-            
-            long? promptTokens = null;
-            long? completionTokens = null;
-            long? totalTokens = null;
-            
-            // Try to extract from nested Usage object first (common format)
-            if (metadata.TryGetValue("Usage", out var usageObj) && usageObj != null)
-            {
-                _logger.LogDebug("Found Usage object of type: {UsageType}", usageObj.GetType().FullName);
-                
-                // Try to get properties using reflection (handles OpenAI.Chat.ChatTokenUsage)
-                promptTokens = TryGetPropertyValue(usageObj, "InputTokenCount", "PromptTokens", "InputTokens");
-                completionTokens = TryGetPropertyValue(usageObj, "OutputTokenCount", "CompletionTokens", "OutputTokens");
-                totalTokens = TryGetPropertyValue(usageObj, "TotalTokenCount", "TotalTokens");
-            }
-            
-            // If we found any usage data, extract other metadata and return
-            if (promptTokens.HasValue || completionTokens.HasValue || totalTokens.HasValue)
-            {
-                var pt = promptTokens ?? 0;
-                var ct = completionTokens ?? 0;
-                var tt = totalTokens ?? (pt + ct);
-                
-                // Try to get ModelId property
-                var modelProperty = response.GetType().GetProperty("ModelId");
-                var model = modelProperty?.GetValue(response) as string;
-                
-                _logger.LogDebug("Model: {Model}", model);
-                var completionId = TryGetString(metadata, "Id", "id", "completion_id");
-                
-                _logger.LogInformation(
-                    "Extracted token usage from LLM response: prompt={PromptTokens}, completion={CompletionTokens}, total={TotalTokens}, model={Model}",
-                    pt, ct, tt, model ?? "null");
-                
-                return (pt, ct, tt, model, completionId);
-            }
-        }
-        
-        // No usage data found - log warning and return zeros
-        _logger.LogWarning(
-            "No usage metadata found in LLM response ({ResponseCount} responses checked). Token tracking will report 0 tokens. " +
-            "Ensure your LLM provider returns usage information in the response metadata.",
-            responseList.Count);
-        
-        return (0, 0, 0, null, null);
-    }
-
-    /// <summary>
-    /// Tries to get a string value from metadata with multiple possible key names.
-    /// </summary>
-    private string? TryGetString(IReadOnlyDictionary<string, object?> metadata, params string[] keys)
-    {
-        foreach (var key in keys)
-        {
-            if (metadata.TryGetValue(key, out var value) && value != null)
-            {
-                return value.ToString();
-            }
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Tries to get a property value from an object using reflection.
-    /// Handles objects like OpenAI.Chat.ChatTokenUsage that have properties instead of dictionary access.
-    /// </summary>
-    private long? TryGetPropertyValue(object obj, params string[] propertyNames)
-    {
-        if (obj == null) return null;
-        
-        var type = obj.GetType();
-        
-        foreach (var propertyName in propertyNames)
-        {
-            try
-            {
-                var property = type.GetProperty(propertyName, 
-                    System.Reflection.BindingFlags.Public | 
-                    System.Reflection.BindingFlags.Instance | 
-                    System.Reflection.BindingFlags.IgnoreCase);
-                
-                if (property != null)
-                {
-                    var value = property.GetValue(obj);
-                    if (value != null)
-                    {
-                        return Convert.ToInt64(value);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to get property '{PropertyName}' from type {TypeName}", propertyName, type.FullName);
-            }
-        }
-        
-        return null;
-    }
 }
 
 /// <summary>

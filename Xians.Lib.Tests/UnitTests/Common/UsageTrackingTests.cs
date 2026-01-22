@@ -254,70 +254,6 @@ public class UsageTrackingTests : IDisposable
     }
 
     [Fact]
-    public void ExtractUsageFromSemanticKernelResponses_WithNoResponses_ReturnsZeros()
-    {
-        // Arrange
-        var responses = new List<object>();
-
-        // Act
-        var (promptTokens, completionTokens, totalTokens, model, completionId) = 
-            UsageEventsClient.Instance.ExtractUsageFromSemanticKernelResponses(responses);
-
-        // Assert
-        Assert.Equal(0, promptTokens);
-        Assert.Equal(0, completionTokens);
-        Assert.Equal(0, totalTokens);
-        Assert.Null(model);
-        Assert.Null(completionId);
-    }
-
-    [Fact]
-    public void ExtractUsageFromSemanticKernelResponses_WithNullResponses_ReturnsZeros()
-    {
-        // Act
-        var (promptTokens, completionTokens, totalTokens, model, completionId) = 
-            UsageEventsClient.Instance.ExtractUsageFromSemanticKernelResponses(null!);
-
-        // Assert
-        Assert.Equal(0, promptTokens);
-        Assert.Equal(0, completionTokens);
-        Assert.Equal(0, totalTokens);
-    }
-
-    [Fact]
-    public void ExtractUsageFromSemanticKernelResponses_WithMockUsageData_ExtractsCorrectly()
-    {
-        // Arrange - Create mock response with usage metadata
-        var mockResponse = new MockChatMessageContent
-        {
-            ModelId = "gpt-4",
-            Metadata = new Dictionary<string, object?>
-            {
-                ["Usage"] = new MockUsageData
-                {
-                    InputTokenCount = 150,
-                    OutputTokenCount = 75,
-                    TotalTokenCount = 225
-                },
-                ["Id"] = "completion-123"
-            }
-        };
-
-        var responses = new List<object> { mockResponse };
-
-        // Act
-        var (promptTokens, completionTokens, totalTokens, model, completionId) = 
-            UsageEventsClient.Instance.ExtractUsageFromSemanticKernelResponses(responses);
-
-        // Assert
-        Assert.Equal(150, promptTokens);
-        Assert.Equal(75, completionTokens);
-        Assert.Equal(225, totalTokens);
-        Assert.Equal("gpt-4", model);
-        Assert.Equal("completion-123", completionId);
-    }
-
-    [Fact]
     public async Task FluentBuilder_MeasuresElapsedTime()
     {
         // Arrange
@@ -344,7 +280,7 @@ public class UsageTrackingTests : IDisposable
         await Task.Delay(100); // Simulate LLM call time
         var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
         
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
@@ -381,7 +317,7 @@ public class UsageTrackingTests : IDisposable
         var context = CreateTestMessageContext();
 
         // Act
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
@@ -418,7 +354,7 @@ public class UsageTrackingTests : IDisposable
         var context = CreateTestMessageContext();
 
         // Act
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 200.0, "tokens"),
@@ -457,7 +393,7 @@ public class UsageTrackingTests : IDisposable
         var context = CreateTestMessageContext();
 
         // Act - Minimal usage tracking
-        await context.TrackUsage()
+        await XiansContext.Metrics.Track(context)
             .ForModel("gpt-4")
             .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens")
             .ReportAsync();
@@ -486,20 +422,7 @@ public class UsageTrackingTests : IDisposable
         );
     }
 
-    // Mock classes for testing
-
-    private class MockChatMessageContent
-    {
-        public string? ModelId { get; set; }
-        public Dictionary<string, object?>? Metadata { get; set; }
-    }
-
-    private class MockUsageData
-    {
-        public long InputTokenCount { get; set; }
-        public long OutputTokenCount { get; set; }
-        public long TotalTokenCount { get; set; }
-    }
+    // Helper methods
 
     private class TestUserMessageContext : UserMessageContext
     {

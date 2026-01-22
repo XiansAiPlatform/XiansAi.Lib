@@ -25,7 +25,7 @@ public static class UsageTrackingAdvancedExamples
             var response = await CallExternalApiAsync();
 
             // Report usage with all fields explicitly set
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .WithTenantId("custom-tenant-id")           // Override tenant
                 .WithUserId("custom-user-id")               // Override user
                 .WithWorkflowId("custom-workflow-id")       // Override workflow
@@ -63,7 +63,7 @@ public static class UsageTrackingAdvancedExamples
                 var result = await ProcessForTenantAsync(tenantId);
 
                 // Report usage under each tenant's account
-                await context.TrackUsage()
+                await XiansContext.Metrics.Track(context)
                     .WithTenantId(tenantId)  // Report to specific tenant
                     .ForModel("gpt-4")
                     .FromSource("AdminAgent.CrossTenantProcessor")
@@ -99,7 +99,7 @@ public static class UsageTrackingAdvancedExamples
                 var result = await LongRunningProcessAsync();
 
                 // Report usage linked to original workflow and request
-                await context.TrackUsage()
+                await XiansContext.Metrics.Track(context)
                     .WithWorkflowId(workflowId)     // Link to original workflow
                     .WithRequestId(requestId)        // Link to original request
                     .ForModel("gpt-4")
@@ -136,7 +136,7 @@ public static class UsageTrackingAdvancedExamples
                 totalTokens += result.TokensUsed;
 
                 // Report individual item usage with batch request ID
-                await context.TrackUsage()
+                await XiansContext.Metrics.Track(context)
                     .WithRequestId(batchRequestId)  // Group by batch ID
                     .ForModel("gpt-4")
                     .FromSource($"BatchProcessor.{item}")
@@ -168,7 +168,7 @@ public static class UsageTrackingAdvancedExamples
             var result = await ProcessOnBehalfOfUserAsync(delegatedUserId);
 
             // Report usage under the delegated user's account
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .WithUserId(delegatedUserId)  // Charge to delegated user
                 .ForModel("gpt-4")
                 .FromSource("DelegationAgent")
@@ -195,7 +195,7 @@ public static class UsageTrackingAdvancedExamples
             var response = await CallApiAsync();
 
             // Only override RequestId, let everything else auto-populate
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .WithRequestId($"api-call-{Guid.NewGuid()}")  // Custom request ID for API correlation
                 .ForModel("gpt-4")
                 // TenantId, UserId, WorkflowId will be auto-populated from context

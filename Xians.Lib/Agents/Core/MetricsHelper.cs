@@ -1,6 +1,8 @@
 using Temporalio.Workflows;
 using Xians.Lib.Common.Usage;
 using Xians.Lib.Temporal.Workflows.Usage;
+using Xians.Lib.Agents.Messaging;
+using Xians.Lib.Agents.A2A;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -37,6 +39,7 @@ public class MetricsHelper
     /// Starts a fluent builder for tracking metrics with automatic context population.
     /// Auto-populates tenant ID, workflow ID, user ID, etc. from XiansContext when available.
     /// </summary>
+    /// <param name="context">Optional message context for A2A-aware workflow ID detection.</param>
     /// <returns>A fluent builder for constructing and reporting usage metrics.</returns>
     /// <example>
     /// <code>
@@ -49,16 +52,50 @@ public class MetricsHelper
     /// 
     /// // In an agent message handler
     /// await XiansContext.Metrics
-    ///     .Track()
+    ///     .Track(context)
     ///     .WithMetric("tokens", "total", 150, "tokens")
     ///     .WithMetric("tokens", "prompt", 100, "tokens")
     ///     .ForModel("gpt-4")
     ///     .ReportAsync();
     /// </code>
     /// </example>
-    public ContextAwareUsageReportBuilder Track()
+    public ContextAwareUsageReportBuilder Track(UserMessageContext? context = null)
     {
-        return new ContextAwareUsageReportBuilder();
+        return new ContextAwareUsageReportBuilder(context);
+    }
+
+    /// <summary>
+    /// Gets the correct workflow ID for usage tracking.
+    /// For A2A contexts, returns the target workflow ID instead of the source workflow ID.
+    /// </summary>
+    internal static string? GetWorkflowIdForTracking(UserMessageContext? context)
+    {
+        if (context is A2AMessageContext a2aContext)
+        {
+            // In A2A contexts, use the target workflow ID (where the handler is executing)
+            return a2aContext.TargetWorkflowId;
+        }
+        // For regular contexts, use the current workflow ID from XiansContext
+        return XiansContext.SafeWorkflowId;
+    }
+
+    /// <summary>
+    /// Gets the correct workflow type for usage tracking.
+    /// For A2A contexts, returns the target workflow type instead of the source workflow type.
+    /// </summary>
+    internal static string? GetWorkflowTypeForTracking(UserMessageContext? context)
+    {
+        if (context is A2AMessageContext a2aContext)
+        {
+            // In A2A contexts, use the target workflow type (where the handler is executing)
+            var targetType = a2aContext.TargetWorkflowType;
+            if (!string.IsNullOrWhiteSpace(targetType))
+            {
+                return targetType;
+            }
+        }
+        // For regular contexts, use the current workflow type from XiansContext
+        return XiansContext.SafeWorkflowType;
     }
 }
 
@@ -69,6 +106,7 @@ public class MetricsHelper
 public class ContextAwareUsageReportBuilder
 {
     private readonly List<MetricValue> _metrics = new();
+    private readonly UserMessageContext? _context;
     private string? _tenantId;
     private string? _userId;
     private string? _workflowId;
@@ -78,8 +116,9 @@ public class ContextAwareUsageReportBuilder
     private string? _customIdentifier;
     private Dictionary<string, string>? _metadata;
 
-    internal ContextAwareUsageReportBuilder()
+    internal ContextAwareUsageReportBuilder(UserMessageContext? context = null)
     {
+        _context = context;
     }
 
     /// <summary>
@@ -217,13 +256,52 @@ public class ContextAwareUsageReportBuilder
     public async Task ReportAsync()
     {
         // Auto-populate from XiansContext if available and not explicitly set
+        // Use A2A-aware workflow ID detection if context is provided
+        var workflowId = _workflowId ?? MetricsHelper.GetWorkflowIdForTracking(_context);
+        var workflowType = _source ?? MetricsHelper.GetWorkflowTypeForTracking(_context) ?? "Unknown";
+        
+        // Get tenant ID - try from context message first, then XiansContext
+        var tenantId = _tenantId;
+        if (tenantId == null)
+        {
+            if (_context != null)
+            {
+                tenantId = _context.Message.TenantId;
+            }
+            else
+            {
+                try
+                {
+                    tenantId = XiansContext.TenantId;
+                }
+                catch
+                {
+                    // Will throw later if still null
+                }
+            }
+        }
+        
+        // Get user ID - try from context message first
+        var userId = _userId;
+        if (userId == null && _context != null)
+        {
+            userId = _context.Message.ParticipantId;
+        }
+        
+        // Get request ID - try from context message first
+        var requestId = _requestId;
+        if (requestId == null && _context != null)
+        {
+            requestId = _context.Message.RequestId;
+        }
+        
         var request = new UsageReportRequest
         {
-            TenantId = _tenantId ?? XiansContext.TenantId,
-            UserId = _userId,
-            WorkflowId = _workflowId ?? XiansContext.SafeWorkflowId,
-            RequestId = _requestId,
-            Source = _source ?? XiansContext.SafeWorkflowType ?? "Unknown",
+            TenantId = tenantId ?? XiansContext.TenantId, // Will throw if not available
+            UserId = userId,
+            WorkflowId = workflowId,
+            RequestId = requestId,
+            Source = workflowType,
             Model = _model,
             CustomIdentifier = _customIdentifier,
             Metrics = _metrics,

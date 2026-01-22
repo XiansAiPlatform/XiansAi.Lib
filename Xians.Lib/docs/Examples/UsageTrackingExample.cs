@@ -12,16 +12,13 @@ namespace Xians.Lib.Examples;
  * 
  * This example demonstrates how to track LLM token usage and custom metrics in your agents.
  * 
- * TWO APIs AVAILABLE:
+ * SINGLE UNIFIED API:
  * 
- * 1. context.TrackUsage() - For message handlers
- *    - Has A2A context awareness (uses target workflow ID in A2A scenarios)
- *    - Example: await context.TrackUsage().WithMetric(...).ReportAsync()
- * 
- * 2. XiansContext.Metrics.Track() - For workflows and general use
+ * XiansContext.Metrics.Track() - For all contexts (workflows, message handlers, activities)
  *    - Context-aware: Automatically uses activities in workflows, direct HTTP outside
- *    - Ideal for workflows where you need automatic activity handling
- *    - Example: await XiansContext.Metrics.Track().WithMetric(...).ReportAsync()
+ *    - A2A-aware: Pass UserMessageContext to get correct workflow ID in A2A scenarios
+ *    - Example: await XiansContext.Metrics.Track(context).WithMetric(...).ReportAsync()
+ *    - Example (workflow): await XiansContext.Metrics.Track().WithMetric(...).ReportAsync()
  * 
  * Examples included:
  * 1. Custom labels without predefined constants (complete flexibility)
@@ -79,7 +76,7 @@ public class UsageTrackingExample
             await SendEmailsAsync(2);
             
             // Track metrics with completely custom labels - no predefined constants needed!
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithCustomIdentifier($"msg-{Guid.NewGuid()}")
                 .WithMetrics(
@@ -107,7 +104,7 @@ public class UsageTrackingExample
             var response = await SimulateOpenAICall(context.Message.Text);
             
             // Track token usage using fluent builder
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
                     (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
@@ -129,7 +126,7 @@ public class UsageTrackingExample
             stopwatch.Stop();
             
             // Track with manual timing using fluent builder
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
                     (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
@@ -149,7 +146,7 @@ public class UsageTrackingExample
         {
             // Step 1: Analyze sentiment
             var sentiment = await SimulateOpenAICall($"Analyze sentiment: {context.Message.Text}");
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-3.5-turbo")
                 .FromSource("SentimentAnalysis")
                 .WithMetrics(
@@ -162,7 +159,7 @@ public class UsageTrackingExample
             
             // Step 2: Generate response based on sentiment
             var response = await SimulateOpenAICall($"Generate response: {context.Message.Text}");
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .FromSource("ResponseGeneration")
                 .WithMetrics(
@@ -188,7 +185,7 @@ public class UsageTrackingExample
             stopwatch.Stop();
             
             // Track both LLM usage AND custom metrics using fluent builder
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
                     // Standard token metrics
@@ -217,7 +214,7 @@ public class UsageTrackingExample
             // Simple token tracking with fluent API
             var response = await SimulateOpenAICall(context.Message.Text);
             
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
                     (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
@@ -235,7 +232,7 @@ public class UsageTrackingExample
         workflow6b.OnUserChatMessage(async (context) => 
         {
             // Start tracking
-            var tracker = context.TrackUsage()
+            var tracker = XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .FromSource("EmailWorkflow");
             
@@ -280,7 +277,7 @@ public class UsageTrackingExample
             };
             
             // Track usage with custom metadata using fluent builder
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .FromSource("UsageTrackingDemo.DetailedTracking")
                 .WithMetrics(
@@ -308,7 +305,7 @@ public class UsageTrackingExample
                 // Try to report usage, but don't fail if it doesn't work
                 try
                 {
-                    await context.TrackUsage()
+                    await XiansContext.Metrics.Track(context)
                         .ForModel("gpt-4")
                         .WithMetrics(
                             (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
@@ -363,7 +360,7 @@ public class UsageTrackingExample
                 UsageTrackingHelper.ExtractUsageFromResponse(response, modelName);
             
             // Report usage with manual timing and A2A context awareness using fluent builder
-            await context.TrackUsage()
+            await XiansContext.Metrics.Track(context)
                 .ForModel(modelName)
                 .FromSource("MAF Agent")
                 .WithMetrics(
@@ -391,7 +388,7 @@ public class UsageTrackingExample
     // The following examples demonstrate XiansContext.Metrics.Track() API which is:
     // - Context-aware: Automatically uses activities in workflows, direct HTTP outside
     // - Ideal for workflows where you need automatic activity handling
-    // - Can also be used in message handlers as an alternative to context.TrackUsage()
+    // - Can also be used in message handlers as an alternative to XiansContext.Metrics.Track(context)
     //
 
     /// <summary>
