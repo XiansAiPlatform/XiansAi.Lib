@@ -17,11 +17,11 @@ public class SubWorkflowOptions : ChildWorkflowOptions
     /// Child workflows always inherit the system-scoped setting from their parent workflow.
     /// </summary>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
     /// <param name="retryPolicy">Optional retry policy. Defaults to MaximumAttempts=1.</param>
     public SubWorkflowOptions(
         string workflowType, 
-        string? uniqueKey = null, 
+        string[] uniqueKeys, 
         RetryPolicy? retryPolicy = null)
     {
         if (string.IsNullOrWhiteSpace(workflowType))
@@ -44,7 +44,7 @@ public class SubWorkflowOptions : ChildWorkflowOptions
         var agentName = workflowType.Contains(':') ? workflowType.Split(':')[0] : workflowType;
 
         // Generate workflow ID using shared method (includes parent idPostfix + optional uniqueKey)
-        Id = SubWorkflowService.BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKey);
+        Id = SubWorkflowService.BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
 
         // Inherit all parent workflow's memo and search attributes using shared methods
         // This ensures complete metadata propagation from parent to child
@@ -53,7 +53,7 @@ public class SubWorkflowOptions : ChildWorkflowOptions
 
         // Set workflow summary for debugging
         StaticSummary = $"Sub-workflow of '{XiansContext.WorkflowId}' with type '{workflowType}'" +
-                       (uniqueKey != null ? $" and unique key '{uniqueKey}'" : "");
+                       $" and unique keys '{string.Join(", ", uniqueKeys)}'";
 
         // Default retry policy: single attempt (fail fast)
         RetryPolicy = retryPolicy ?? new RetryPolicy { MaximumAttempts = 1 };

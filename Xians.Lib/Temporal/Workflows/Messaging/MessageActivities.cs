@@ -347,8 +347,8 @@ public class MessageActivities
 /// </summary>
 public class ActivityUserMessageContext : UserMessageContext
 {
-    private readonly Xians.Lib.Agents.Messaging.MessageService _messageService;
-    private readonly Xians.Lib.Agents.Knowledge.KnowledgeService _knowledgeService;
+    private readonly MessageService _messageService;
+    private readonly KnowledgeService _knowledgeService;
     private readonly string _workflowId;
     private readonly string _workflowType;
     private readonly string _participantId;
@@ -413,6 +413,7 @@ public class ActivityUserMessageContext : UserMessageContext
     {
         var request = new GetMessageHistoryRequest
         {
+            WorkflowId = _workflowId,
             WorkflowType = _workflowType,
             ParticipantId = _participantId,
             Scope = _scope,

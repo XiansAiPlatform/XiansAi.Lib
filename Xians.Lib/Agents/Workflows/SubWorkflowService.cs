@@ -29,10 +29,11 @@ public static class SubWorkflowService
     /// If called outside a workflow, starts a new workflow using the Temporal client.
     /// </summary>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="uniqueKey">Optional uniqueKey for workflow ID uniqueness.</param>
+    /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public static async Task StartAsync(string workflowType, string? uniqueKey = null, params object[] args)
+    public static async Task StartAsync(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
         if (Workflow.InWorkflow)
         {
@@ -42,7 +43,11 @@ public static class SubWorkflowService
                 workflowType,
                 XiansContext.WorkflowId);
 
-            var options = new SubWorkflowOptions(workflowType, uniqueKey);
+            var options = new SubWorkflowOptions(workflowType, uniqueKeys);
+            if (executionTimeout.HasValue)
+            {
+                options.ExecutionTimeout = executionTimeout.Value;
+            }
             await Workflow.StartChildWorkflowAsync(workflowType, args, options);
         }
         else
@@ -52,7 +57,7 @@ public static class SubWorkflowService
                 "Starting workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
-            await StartViaClientAsync(workflowType, uniqueKey, args);
+            await StartViaClientAsync(workflowType, uniqueKeys, executionTimeout, args);
         }
     }
     
@@ -62,15 +67,15 @@ public static class SubWorkflowService
     /// If called outside a workflow, starts a new workflow using the Temporal client.
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <param name="cancellationToken">Cancellation token (only applicable when called outside workflow context).</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task StartAsync<TWorkflow>(string? idPostfix = null, params object[] args)
+    public static async Task StartAsync<TWorkflow>(string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
-        await StartAsync(workflowType, idPostfix, args);
+        await StartAsync(workflowType, uniqueKeys, executionTimeout, args);
     }
 
     /// <summary>
@@ -81,13 +86,14 @@ public static class SubWorkflowService
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>The workflow result.</returns>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
-    public static async Task<TResult> ExecuteAsync<TWorkflow, TResult>(string? idPostfix = null, params object[] args)
+    public static async Task<TResult> ExecuteAsync<TWorkflow, TResult>(string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
-        return await ExecuteAsync<TResult>(workflowType, idPostfix, args);
+        return await ExecuteAsync<TResult>(workflowType, uniqueKeys, executionTimeout, args);
     }
 
     /// <summary>
@@ -98,9 +104,10 @@ public static class SubWorkflowService
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
     /// <param name="uniqueKey">Optional uniqueKey for workflow ID uniqueness.</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>The workflow result.</returns>
-    public static async Task<TResult> ExecuteAsync<TResult>(string workflowType, string? uniqueKey = null, params object[] args)
+    public static async Task<TResult> ExecuteAsync<TResult>(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
         if (Workflow.InWorkflow)
         {
@@ -110,7 +117,11 @@ public static class SubWorkflowService
                 workflowType,
                 XiansContext.WorkflowId);
 
-            var options = new SubWorkflowOptions(workflowType, uniqueKey);
+            var options = new SubWorkflowOptions(workflowType, uniqueKeys);
+            if (executionTimeout.HasValue)
+            {
+                options.ExecutionTimeout = executionTimeout.Value;
+            }
             return await Workflow.ExecuteChildWorkflowAsync<TResult>(workflowType, args, options);
         }
         else
@@ -120,7 +131,7 @@ public static class SubWorkflowService
                 "Executing workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
-            return await ExecuteViaClientAsync<TResult>(workflowType, uniqueKey, args);
+            return await ExecuteViaClientAsync<TResult>(workflowType, uniqueKeys, executionTimeout, args);
         }
     }
 
@@ -144,12 +155,12 @@ public static class SubWorkflowService
     /// Requires access to the agent to get the Temporal client.
     /// Propagates parent workflow metadata when available from context.
     /// </summary>
-    private static async Task StartViaClientAsync(string workflowType, string? uniqueKey, object[] args)
+    private static async Task StartViaClientAsync(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout, object[] args)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
         // Build workflow ID (includes parent idPostfix + optional uniqueKey)
-        var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKey);
+        var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
@@ -161,6 +172,11 @@ public static class SubWorkflowService
             Memo = BuildInheritedMemo(tenantId, agentName, systemScoped),
             TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName)
         };
+
+        if (executionTimeout.HasValue)
+        {
+            options.ExecutionTimeout = executionTimeout.Value;
+        }
 
         await client.StartWorkflowAsync(workflowType, args, options);
 
@@ -175,12 +191,12 @@ public static class SubWorkflowService
     /// Requires access to the agent to get the Temporal client.
     /// If called from an activity, propagates parent workflow metadata.
     /// </summary>
-    private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string? uniqueKey, object[] args)
+    private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout, object[] args)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
         // Build workflow ID (includes parent idPostfix + optional uniqueKey)
-        var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKey);
+        var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
         var options = new WorkflowOptions
@@ -192,6 +208,11 @@ public static class SubWorkflowService
             Memo = BuildInheritedMemo(tenantId, agentName, systemScoped),
             TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName)
         };
+
+        if (executionTimeout.HasValue)
+        {
+            options.ExecutionTimeout = executionTimeout.Value;
+        }
 
         var result = await client.ExecuteWorkflowAsync<TResult>(workflowType, args, options);
 
@@ -254,7 +275,7 @@ public static class SubWorkflowService
     /// Includes parent's idPostfix when available (from workflow/activity context) plus optional uniqueKey.
     /// Format: {tenantId}:{agentName}:{workflowName}[:{idPostfix}][:{uniqueKey}]
     /// </summary>
-    internal static string BuildSubWorkflowId(string agentName, string workflowType, string tenantId, string? uniqueKey = null)
+    internal static string BuildSubWorkflowId(string agentName, string workflowType, string tenantId, string[] uniqueKeys)
     {
         // Extract workflow name from workflow type (format: "AgentName:WorkflowName")
         var workflowName = workflowType.Contains(':') 
@@ -264,18 +285,9 @@ public static class SubWorkflowService
         // Build base workflow ID
         var workflowId = $"{tenantId}:{agentName}:{workflowName}";
         
-        // Get idPostfix from parent workflow/activity context (if available)
-        var idPostfix = XiansContext.GetIdPostfix();
-        
-        // Append non-null, non-empty suffix parts (idPostfix, then uniqueKey)
-        if (!string.IsNullOrWhiteSpace(idPostfix))
+        if (uniqueKeys.Length > 0)
         {
-            workflowId += $":{idPostfix}";
-        }
-        
-        if (!string.IsNullOrWhiteSpace(uniqueKey))
-        {
-            workflowId += $":{uniqueKey}";
+            workflowId += $":{string.Join(":", uniqueKeys)}";
         }
 
         return workflowId;

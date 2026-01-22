@@ -47,7 +47,20 @@ public static class LoggerFactory
     /// <returns>A logger instance.</returns>
     public static ILogger<T> CreateLogger<T>()
     {
-        return Instance.CreateLogger<T>();
+        try
+        {
+            return Instance.CreateLogger<T>();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Factory was disposed (likely by a test), recreate it
+            lock (_lock)
+            {
+                _loggerFactory?.Dispose();
+                _loggerFactory = CreateDefaultLoggerFactory();
+            }
+            return Instance.CreateLogger<T>();
+        }
     }
 
     /// <summary>

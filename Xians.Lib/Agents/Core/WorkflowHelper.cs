@@ -20,12 +20,22 @@ public class WorkflowHelper
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
     /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task StartAsync<TWorkflow>(object[] args, string? uniqueKey = null)
+    public async Task StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
-        // Don't populate uniqueKey from context - BuildSubWorkflowId handles parent idPostfix
-        await SubWorkflowService.StartAsync<TWorkflow>(uniqueKey, args);
+        // Build array with idPostfix and uniqueKey when not null
+        var idPostfix = XiansContext.GetIdPostfix();
+        var uniqueKeys = new List<string>();
+        
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+            uniqueKeys.Add(idPostfix);
+        
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+            uniqueKeys.Add(uniqueKey);
+
+        await SubWorkflowService.StartAsync<TWorkflow>(uniqueKeys.ToArray(), executionTimeout, args);
     }
 
     /// <summary>
@@ -36,12 +46,22 @@ public class WorkflowHelper
     /// </summary>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
     /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task StartAsync(string workflowType, object[] args, string? uniqueKey = null)
+    public async Task StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
-        // Don't populate uniqueKey from context - BuildSubWorkflowId handles parent idPostfix
-        await SubWorkflowService.StartAsync(workflowType, uniqueKey, args);
+        // Build array with idPostfix and uniqueKey when not null
+        var idPostfix = XiansContext.GetIdPostfix();
+        var uniqueKeys = new List<string>();
+        
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+            uniqueKeys.Add(idPostfix);
+        
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+            uniqueKeys.Add(uniqueKey);
+
+        await SubWorkflowService.StartAsync(workflowType, uniqueKeys.ToArray(), executionTimeout, args);
     }
 
     /// <summary>
@@ -53,12 +73,22 @@ public class WorkflowHelper
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>The workflow result.</returns>
-    public async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object[] args, string? uniqueKey = null)
+    public async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
-        // Don't populate uniqueKey from context - BuildSubWorkflowId handles parent idPostfix
-        return await SubWorkflowService.ExecuteAsync<TWorkflow, TResult>(uniqueKey, args);
+        // Build array with idPostfix and uniqueKey when not null
+        var idPostfix = XiansContext.GetIdPostfix();
+        var uniqueKeys = new List<string>();
+        
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+            uniqueKeys.Add(idPostfix);
+        
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+            uniqueKeys.Add(uniqueKey);
+
+        return await SubWorkflowService.ExecuteAsync<TWorkflow, TResult>(uniqueKeys.ToArray(), executionTimeout, args);
     }
 
     /// <summary>
@@ -70,12 +100,22 @@ public class WorkflowHelper
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
     /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>The workflow result.</returns>
-    public async Task<TResult> ExecuteAsync<TResult>(string workflowType, object[] args, string? uniqueKey = null)
+    public async Task<TResult> ExecuteAsync<TResult>(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
-        // Don't populate uniqueKey from context - BuildSubWorkflowId handles parent idPostfix
-        return await SubWorkflowService.ExecuteAsync<TResult>(workflowType, uniqueKey, args);
+        // Build array with idPostfix and uniqueKey when not null
+        var idPostfix = XiansContext.GetIdPostfix();
+        var uniqueKeys = new List<string>();
+        
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+            uniqueKeys.Add(idPostfix);
+        
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+            uniqueKeys.Add(uniqueKey);
+
+        return await SubWorkflowService.ExecuteAsync<TResult>(workflowType, uniqueKeys.ToArray(), executionTimeout, args);
     }
 
     #region Temporal Client Access

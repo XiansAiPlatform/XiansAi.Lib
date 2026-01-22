@@ -270,11 +270,9 @@ public static class XiansContext
             if (Workflow.InWorkflow)
             {
                 var searchAttrs = Workflow.TypedSearchAttributes;
-                if (searchAttrs != null)
-                {
-                    var key = Temporalio.Common.SearchAttributeKey.CreateKeyword(keyName);
-                    return searchAttrs.Get(key);
-                }
+                var key = Temporalio.Common.SearchAttributeKey.CreateKeyword(keyName);
+                return searchAttrs.Get(key);
+                
             }
             // Note: Activities don't have direct access to search attributes
         }

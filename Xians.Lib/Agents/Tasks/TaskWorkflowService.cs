@@ -29,23 +29,15 @@ public static class TaskWorkflowService
         return WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(agentName);
     }
 
-    private static TaskWorkflowRequest EnsureTaskId(TaskWorkflowRequest request)
-    {
-        if (!string.IsNullOrWhiteSpace(request.TaskId))
-        {
-            return request;
-        }
-        return request with { TaskId = Guid.NewGuid().ToString() };
-    }
-
     private static TaskWorkflowOptions CreateWorkflowOptions(TaskWorkflowRequest request)
     {
         return new TaskWorkflowOptions(
-            taskId: request.TaskId!,
             title: request.Title,
             description: request.Description,
             participantId: request.ParticipantId,
-            actions: request.Actions);
+            actions: request.Actions,
+            // We will set the workflow to timeout after 1 day from the request timeout
+            executionTimeout: request.Timeout?.Add(TimeSpan.FromDays(1)));
     }
 
     #endregion
@@ -63,23 +55,13 @@ public static class TaskWorkflowService
                 "CreateAndWaitAsync can only be called from within a workflow context.");
         }
 
-        var requestWithTaskId = EnsureTaskId(request);
-        var options = CreateWorkflowOptions(requestWithTaskId);
-
-        _logger.LogInformation(
-            "Creating task workflow: TaskId={TaskId}, Title={Title}",
-            requestWithTaskId.TaskId,
-            requestWithTaskId.Title);
+        var options = CreateWorkflowOptions(request);
 
         var result = await Workflow.ExecuteChildWorkflowAsync<TaskWorkflowResult>(
             GetTaskWorkflowType(),
-            new[] { requestWithTaskId },
+            new[] { request },
             options);
 
-        _logger.LogInformation(
-            "Task workflow completed: TaskId={TaskId}, Action={Action}",
-            result.TaskId,
-            result.PerformedAction);
 
         return result;
     }
@@ -95,17 +77,11 @@ public static class TaskWorkflowService
                 "StartTaskAsync can only be called from within a workflow context.");
         }
 
-        var requestWithTaskId = EnsureTaskId(request);
-        var options = CreateWorkflowOptions(requestWithTaskId);
-
-        _logger.LogInformation(
-            "Starting task workflow: TaskId={TaskId}, Title={Title}",
-            requestWithTaskId.TaskId,
-            requestWithTaskId.Title);
+        var options = CreateWorkflowOptions(request);
 
         var handle = await Workflow.StartChildWorkflowAsync(
             GetTaskWorkflowType(),
-            new[] { requestWithTaskId },
+            new[] { request },
             options);
 
         return handle;
@@ -124,11 +100,6 @@ public static class TaskWorkflowService
 
         var result = await handle.GetResultAsync<TaskWorkflowResult>();
 
-        _logger.LogInformation(
-            "Task workflow completed: TaskId={TaskId}, Action={Action}",
-            result.TaskId,
-            result.PerformedAction);
-
         return result;
     }
 
@@ -143,17 +114,11 @@ public static class TaskWorkflowService
                 "CreateAsync can only be called from within a workflow context.");
         }
 
-        var requestWithTaskId = EnsureTaskId(request);
-        var options = CreateWorkflowOptions(requestWithTaskId);
-
-        _logger.LogInformation(
-            "Starting task workflow (fire and forget): TaskId={TaskId}, Title={Title}",
-            requestWithTaskId.TaskId,
-            requestWithTaskId.Title);
+        var options = CreateWorkflowOptions(request);
 
         await Workflow.StartChildWorkflowAsync(
             GetTaskWorkflowType(),
-            new[] { requestWithTaskId },
+            new[] { request },
             options);
     }
 
@@ -171,7 +136,6 @@ public static class TaskWorkflowService
     {
         var request = new TaskWorkflowRequest
         {
-            TaskId = taskId,
             Title = title,
             Description = description,
             ParticipantId = participantId,
@@ -197,7 +161,6 @@ public static class TaskWorkflowService
     {
         var request = new TaskWorkflowRequest
         {
-            TaskId = taskId,
             Title = title,
             Description = description,
             ParticipantId = participantId,
