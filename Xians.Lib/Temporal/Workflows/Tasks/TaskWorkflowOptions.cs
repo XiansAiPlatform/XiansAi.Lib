@@ -164,7 +164,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         return new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), XiansContext.GetIdPostfix())
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), participantId)
             .ToSearchAttributeCollection();
     }

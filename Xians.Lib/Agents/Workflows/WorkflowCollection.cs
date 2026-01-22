@@ -80,26 +80,26 @@ public class WorkflowCollection
 
     /// <summary>
     /// Defines a built-in Supervisor Workflow for the agent.
-    /// This is a shorthand for DefineBuiltIn("Supervisor Workflow").
+    /// This is a shorthand for DefineBuiltIn(WorkflowConstants.WorkflowTypes.Supervisor).
     /// </summary>
     /// <param name="options">Workflow configuration options. If null, uses default options.</param>
     /// <returns>A new built-in XiansWorkflow instance for Supervisor Workflow.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists.</exception>
     public XiansWorkflow DefineSupervisor(WorkflowOptions? options = null)
     {
-        return DefineBuiltIn("Supervisor Workflow", options);
+        return DefineBuiltIn(WorkflowConstants.WorkflowTypes.Supervisor, options);
     }
 
     /// <summary>
     /// Defines a built-in Integrator Workflow for the agent.
-    /// This is a shorthand for DefineBuiltIn("Integrator Workflow").
+    /// This is a shorthand for DefineBuiltIn(WorkflowConstants.WorkflowTypes.Integrator).
     /// </summary>
     /// <param name="options">Workflow configuration options. If null, uses default options.</param>
     /// <returns>A new built-in XiansWorkflow instance for Integrator Workflow.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow with the same name already exists.</exception>
     public XiansWorkflow DefineIntegrator(WorkflowOptions? options = null)
     {
-        return DefineBuiltIn("Integrator Workflow", options);
+        return DefineBuiltIn(WorkflowConstants.WorkflowTypes.Integrator, options);
     }
 
     /// <summary>

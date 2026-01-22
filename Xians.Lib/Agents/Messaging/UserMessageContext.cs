@@ -104,7 +104,7 @@ public class UserMessageContext
     /// <returns>A list of DbMessage objects representing the chat history.</returns>
     public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        var workflowType = WorkflowContextHelper.GetWorkflowType();
+        var workflowType = XiansContext.WorkflowType;
         
         _logger.LogInformation(
             "Fetching chat history: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
@@ -136,7 +136,7 @@ public class UserMessageContext
     /// <returns>The last hint string, or null if not found.</returns>
     public virtual async Task<string?> GetLastHintAsync()
     {
-        var workflowType = WorkflowContextHelper.GetWorkflowType();
+        var workflowType = XiansContext.WorkflowType;
         
         _logger.LogInformation(
             "Fetching last hint: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
@@ -300,8 +300,8 @@ public class UserMessageContext
         return new SendMessageRequest
         {
             ParticipantId = Message.ParticipantId,
-            WorkflowId = WorkflowContextHelper.GetWorkflowId(),
-            WorkflowType = WorkflowContextHelper.GetWorkflowType(),
+            WorkflowId = XiansContext.WorkflowId,
+            WorkflowType = XiansContext.WorkflowType,
             Text = content,
             Data = data ?? Message.Data,
             RequestId = Message.RequestId,
@@ -328,8 +328,8 @@ public class UserMessageContext
             TargetWorkflowId = targetWorkflowId,
             TargetWorkflowType = targetWorkflowType,
             SourceAgent = agent.Name,
-            SourceWorkflowType = WorkflowContextHelper.GetWorkflowType(),
-            SourceWorkflowId = WorkflowContextHelper.GetWorkflowId(),
+            SourceWorkflowType = XiansContext.WorkflowType,
+            SourceWorkflowId = XiansContext.WorkflowId,
             ThreadId = Message.ThreadId!,
             ParticipantId = Message.ParticipantId,
             Authorization = Message.Authorization,

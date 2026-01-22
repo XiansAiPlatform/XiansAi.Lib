@@ -31,6 +31,16 @@ public static class WorkflowConstants
     public static class WorkflowTypes
     {
         /// <summary>
+        /// Supervisor workflow name
+        /// </summary>
+        public const string Supervisor = "Supervisor Workflow";
+        
+        /// <summary>
+        /// Integrator workflow name
+        /// </summary>
+        public const string Integrator = "Integrator Workflow";
+        
+        /// <summary>
         /// Generates the task workflow type name for a specific agent.
         /// Format: {AgentName}:Task Workflow
         /// </summary>

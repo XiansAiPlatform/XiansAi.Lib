@@ -265,8 +265,8 @@ public class BuiltinWorkflow
                         await MessageProcessor.ProcessMessageAsync(
                             message,
                             _handlersByWorkflowType,
-                            WorkflowContextHelper.GetWorkflowType(),
-                            WorkflowContextHelper.GetWorkflowId(),
+                            XiansContext.WorkflowType,
+                            XiansContext.WorkflowId,
                             Workflow.Logger);
                         
                         Workflow.Logger.LogDebug(

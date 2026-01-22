@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
@@ -25,12 +24,8 @@ namespace Xians.Lib.Agents.Messaging;
 /// // Send with custom scope
 /// await UserMessaging.SendChatAsync("user-123", "Hello!", scope: "notifications");
 /// 
-/// // Send as an impersonated 
-/// await UserMessaging.SendChatAsWorkflowAsync(workflowType, "user-123", "Content discovered!");
-/// 
-/// // Send as an impersonated platform workflow
-/// var taskWorkflowType = WorkflowIdentity.BuildPlatformWorkflowType("Task Workflow");
-/// await UserMessaging.SendChatAsWorkflowAsync(taskWorkflowType, "user-123", "Task completed!");
+/// // Send as an impersonated workflow
+/// await UserMessaging.SendChatAsWorkflowAsync("MyWorkflow", "user-123", "Content discovered!");
 /// </example>
 internal static class UserMessaging
 {
@@ -56,7 +51,7 @@ internal static class UserMessaging
 
     /// <summary>
     /// Sends a chat message to a participant while impersonating a workflow.
-    /// Use <see cref="WorkflowIdentity"/> to construct builtin or platform workflow types.
+    /// Use <see cref="XiansContext.BuildBuiltInWorkflowType"/> to construct builtin workflow types.
     /// </summary>
     /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:WorkflowName").</param>
     /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
@@ -67,13 +62,8 @@ internal static class UserMessaging
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     /// <example>
-    /// // Impersonate a workflow
-    /// var workflowType = "MyAgent:ContentDiscovery";
-    /// await UserMessaging.SendChatAsWorkflowAsync(workflowType, "user-123", "Content discovered!");
-    /// 
-    /// // Impersonate a platform workflow
-    /// var taskWorkflowType = WorkflowIdentity.BuildPlatformWorkflowType("Task Workflow");
-    /// await UserMessaging.SendChatAsWorkflowAsync(taskWorkflowType, "user-123", "Task completed!");
+    /// // Impersonate a builtin workflow
+    /// await UserMessaging.SendChatAsWorkflowAsync("ContentDiscovery", "user-123", "Content discovered!");
     /// </example>
     public static async Task SendChatAsWorkflowAsync(
         string builtInworkflowName,
@@ -168,7 +158,7 @@ internal static class UserMessaging
     /// <summary>
     /// Sends a data message to a participant while impersonating a workflow.
     /// Data messages are typically used for structured data that may be processed differently than chat messages.
-    /// Use <see cref="WorkflowIdentity"/> to construct builtin or platform workflow types.
+    /// Use <see cref="XiansContext.BuildBuiltInWorkflowType"/> to construct builtin workflow types.
     /// </summary>
     /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:WorkflowName").</param>
     /// <param name="participantId">The ID of the participant (user) to send the data to.</param>
@@ -218,7 +208,7 @@ internal static class UserMessaging
     /// <summary>
     /// Internal method that handles sending messages while impersonating a workflow.
     /// Uses Temporal activities for workflow context, or direct HTTP for activity context.
-    /// Constructs workflow ID following the standard pattern using WorkflowIdentity utility.
+    /// Constructs workflow ID following the standard pattern using XiansContext utility methods.
     /// </summary>
     private static async Task SendMessageAsWorkflowAsync(
         string builtInworkflowName,
@@ -243,8 +233,8 @@ internal static class UserMessaging
         
         // Build workflow ID using standard utility
         // Format: {tenantId}:{workflowType}:{participantId}
-        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(XiansContext.CurrentAgent.Name, builtInworkflowName);
-        var workflowId = WorkflowIdentity.BuildBuiltInWorkflowId(XiansContext.CurrentAgent.Name, builtInworkflowName);
+        var workflowType = XiansContext.BuildBuiltInWorkflowType(XiansContext.CurrentAgent.Name, builtInworkflowName);
+        var workflowId = XiansContext.BuildBuiltInWorkflowId(XiansContext.CurrentAgent.Name, builtInworkflowName);
 
         
         await SendMessageInternalAsync( 
