@@ -53,7 +53,7 @@ internal static class UserMessaging
     /// Sends a chat message to a participant while impersonating a workflow.
     /// Use <see cref="XiansContext.BuildBuiltInWorkflowType"/> to construct builtin workflow types.
     /// </summary>
-    /// <param name="workflowType">The workflow type to impersonate (e.g., "AgentName:WorkflowName").</param>
+    /// <param name="builtInworkflowName">The builtin workflow name to impersonate (e.g., "ContentDiscovery").</param>
     /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
     /// <param name="text">The chat message content.</param>
     /// <param name="data">Optional data object to include with the message.</param>

@@ -571,33 +571,34 @@ public static class XiansContext
     /// Constructs a builtin workflow type identifier.
     /// </summary>
     /// <param name="agentName">The name of the agent owning the workflow.</param>
-    /// <param name="name">The name for the builtin workflow.</param>
+    /// <param name="workflowName">The name for the builtin workflow.</param>
     /// <returns>A workflow type in the format "{AgentName}:{name}"</returns>
-    public static string BuildBuiltInWorkflowType(string agentName, string name)
+    public static string BuildBuiltInWorkflowType(string agentName, string workflowName)
     {
         if (string.IsNullOrWhiteSpace(agentName))
         {
             throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
         }
 
-        if (string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(workflowName))
         {
-            throw new ArgumentException("Name cannot be null or empty.", nameof(name));
+            throw new ArgumentException("Workflow name cannot be null or empty.", nameof(workflowName));
         }
 
-        return agentName + ":" + name;
+        return agentName + ":" + workflowName;
     }
 
     /// <summary>
     /// Constructs a builtin workflow ID.
     /// </summary>
     /// <param name="agentName">The name of the agent owning the workflow.</param>
-    /// <param name="name">The name for the builtin workflow.</param>
+    /// <param name="workflowName">The name for the builtin workflow.</param>
     /// <returns>A workflow ID in the format "{TenantId}:{AgentName}:{name}"</returns>
-    public static string BuildBuiltInWorkflowId(string agentName, string name)
+    public static string BuildBuiltInWorkflowId(string agentName, string workflowName)
     {
         var idPostfix = XiansContext.GetIdPostfix();
-        return TenantId + ":" + BuildBuiltInWorkflowType(agentName, name) + idPostfix != null ? ":" + idPostfix : "";
+        var workflowId = $"{TenantId}:{BuildBuiltInWorkflowType(agentName, workflowName)}:{idPostfix}";
+        return workflowId;
     }
 
     /// <summary>
