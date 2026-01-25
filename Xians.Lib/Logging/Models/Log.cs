@@ -31,14 +31,9 @@ public class Log
     /// The workflow ID associated with this log entry.
     /// </summary>
     public required string WorkflowId { get; set; }
-    
-    /// <summary>
-    /// The workflow run ID (execution ID) associated with this log entry.
-    /// </summary>
-    public required string WorkflowRunId { get; set; }
-    
-    /// <summary>
-    /// The workflow type associated with this log entry.
+
+     /// <summary>
+    /// The workflow Type associated with this log entry.
     /// </summary>
     public required string WorkflowType { get; set; }
     
@@ -55,15 +50,10 @@ public class Log
     /// <summary>
     /// Additional properties for the log entry.
     /// </summary>
-    public Dictionary<string, object>? Properties { get; set; }
+    public string? Activation { get; set; }
     
     /// <summary>
     /// Exception details if an exception was logged.
     /// </summary>
     public string? Exception { get; set; }
-    
-    /// <summary>
-    /// Timestamp when the log was last updated.
-    /// </summary>
-    public DateTime? UpdatedAt { get; set; }
 }

@@ -1,5 +1,6 @@
 using Xians.Lib.Agents.Core;
 using DotNetEnv;
+using Microsoft.Extensions.Logging;
 
 Env.Load();
 
@@ -12,11 +13,14 @@ var serverUrl = Environment.GetEnvironmentVariable("XIANS_SERVER_URL")
 var xiansApiKey = Environment.GetEnvironmentVariable("XIANS_API_KEY") 
     ?? throw new InvalidOperationException("XIANS_API_KEY environment variable is not set");
 
-// Initialize Xians Platform
+// Initialize Xians Platform with optional logging configuration
 var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 {
     ServerUrl = serverUrl,
-    ApiKey = xiansApiKey
+    ApiKey = xiansApiKey,
+    // Optional: Configure log levels programmatically (overrides environment variables)
+    ConsoleLogLevel = LogLevel.Information,  // What shows in console
+    ServerLogLevel = LogLevel.Warning         // What gets uploaded to server
 });
 
 // Register a new agent with Xians

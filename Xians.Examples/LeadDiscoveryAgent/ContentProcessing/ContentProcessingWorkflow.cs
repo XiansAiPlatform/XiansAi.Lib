@@ -35,7 +35,6 @@ public class ContentProcessingWorkflow
         var taskHandle = await TaskWorkflowService.StartTaskAsync(
             new TaskWorkflowRequest
             {
-                TaskId = $"content-approval-{Workflow.NewGuid()}",
                 Title = "Approve Content",
                 Description = "Approve the content before it is published",
                 ParticipantId = reportingUserID,

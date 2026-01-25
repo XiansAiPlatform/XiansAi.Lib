@@ -16,7 +16,7 @@ namespace Xians.Lib.Agents.Messaging;
 public class UserMessageContext
 {
     private readonly Dictionary<string, string>? _metadata;
-    private readonly MessageActivityExecutor _executor;
+    private readonly MessageActivityExecutor? _executor;
     private readonly ILogger<UserMessageContext> _logger;
     private readonly string? _cachedWorkflowId;
 
@@ -122,6 +122,10 @@ public class UserMessageContext
         var request = BuildMessageHistoryRequest( page, pageSize);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         var messages = await _executor.GetHistoryAsync(request);
 
         _logger.LogInformation(
@@ -152,6 +156,10 @@ public class UserMessageContext
         var request = BuildLastHintRequest(workflowType);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         var hint = await _executor.GetLastHintAsync(request);
 
         _logger.LogInformation(
@@ -215,6 +223,10 @@ public class UserMessageContext
         var request = BuildSendMessageRequest(content, data, messageType);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         await _executor.SendMessageAsync(request);
 
         _logger.LogInformation(
@@ -251,6 +263,10 @@ public class UserMessageContext
         var request = BuildSendHandoffRequest(targetWorkflowId, targetWorkflowType, text, data);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         var result = await _executor.SendHandoffAsync(request);
 
         _logger.LogInformation(

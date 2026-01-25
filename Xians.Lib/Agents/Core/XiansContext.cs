@@ -23,6 +23,9 @@ public static class XiansContext
     internal static readonly IAgentRegistry _agentRegistry = new AgentRegistry();
     internal static readonly IWorkflowRegistry _workflowRegistry = new WorkflowRegistry();
 
+    // AsyncLocal storage for participant ID - isolated per async execution context
+    private static readonly AsyncLocal<string?> _asyncLocalParticipantId = new AsyncLocal<string?>();
+
     #region Workflow/Activity Context
 
     /// <summary>
@@ -123,6 +126,27 @@ public static class XiansContext
     /// </summary>
     public static string? SafeAgentName => TryGetAgentName();
 
+    /// <summary>
+    /// Safely gets the current tenant ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeTenantId => TryGetTenantId();
+
+    /// <summary>
+    /// Safely gets the current participant ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeParticipantId => TryGetParticipantId();
+
+    /// <summary>
+    /// Safely gets the current idPostfix without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeIdPostfix => TryGetIdPostfix();
+
     #endregion
 
     #region Workflow/Activity Context Helper Methods
@@ -131,12 +155,41 @@ public static class XiansContext
         "Not in workflow or activity context. This operation requires Temporal context.";
 
     /// <summary>
-    /// Gets the participant ID from search attributes, memo, or workflow ID.
-    /// Tries in order: search attributes → memo → workflow ID parsing.
+    /// Sets the participant ID for the current async execution context.
+    /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// </summary>
+    /// <param name="participantId">The participant ID to set for this execution context.</param>
+    public static void SetParticipantId(string participantId)
+    {
+        _asyncLocalParticipantId.Value = participantId;
+    }
+
+    /// <summary>
+    /// Clears the participant ID from the current async execution context.
+    /// Call this in a finally block to clean up after activity execution.
+    /// </summary>
+    public static void ClearParticipantId()
+    {
+        _asyncLocalParticipantId.Value = null;
+    }
+
+    /// <summary>
+    /// Gets the participant ID from the current async execution context, search attributes, memo, or workflow ID.
+    /// Tries in order: async local context → search attributes → memo → workflow ID parsing.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string GetParticipantId() => 
-        GetWorkflowMetadata(Common.WorkflowConstants.Keys.UserId);
+    public static string GetParticipantId()
+    {
+        // First check if it was set via SetParticipantId() in the current async context
+        if (!string.IsNullOrEmpty(_asyncLocalParticipantId.Value))
+        {
+            return _asyncLocalParticipantId.Value;
+        }
+        
+        // Fall back to existing logic (search attributes, memo, workflow ID)
+        return GetWorkflowMetadata(Common.WorkflowConstants.Keys.UserId) 
+            ?? throw new InvalidOperationException(NotInContextErrorMessage);
+    }
 
     /// <summary>
     /// Gets the idPostfix from search attributes, memo, or workflow ID.
@@ -144,13 +197,13 @@ public static class XiansContext
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
     public static string GetIdPostfix() => 
-        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix);
+        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? GetIdPostfixFromWorkflowId() ?? throw new InvalidOperationException(NotInContextErrorMessage);
 
     /// <summary>
     /// Generic method to retrieve workflow metadata from search attributes, memo, or workflow ID.
     /// Tries in order: search attributes → memo → workflow ID parsing.
     /// </summary>
-    private static string GetWorkflowMetadata(string keyName)
+    private static string? GetWorkflowMetadata(string keyName)
     {
         var fromSearchAttrs = GetFromSearchAttributes(keyName);
         if (!string.IsNullOrEmpty(fromSearchAttrs))
@@ -160,7 +213,7 @@ public static class XiansContext
         if (!string.IsNullOrEmpty(fromMemo))
             return fromMemo;
 
-        return GetIdPostfixFromWorkflowId() ?? string.Empty;
+        return null;
     }
 
     /// <summary>
@@ -261,6 +314,54 @@ public static class XiansContext
     private static string? TryGetAgentName() => TryGetFromContext(() => AgentName);
 
     /// <summary>
+    /// Tries to get the current tenant ID without throwing an exception.
+    /// </summary>
+    /// <returns>The tenant ID if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetTenantId()
+    {
+        try
+        {
+            return InWorkflowOrActivity ? TenantId : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current participant ID without throwing an exception.
+    /// </summary>
+    /// <returns>The participant ID if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetParticipantId()
+    {
+        try
+        {
+            return InWorkflowOrActivity ? GetParticipantId() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current idPostfix without throwing an exception.
+    /// </summary>
+    /// <returns>The idPostfix if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetIdPostfix()
+    {
+        try
+        {
+            return InWorkflowOrActivity ? GetIdPostfix() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Attempts to get idPostfix from search attributes (workflow context only).
     /// </summary>
     private static string? GetFromSearchAttributes(string keyName)
@@ -322,7 +423,7 @@ public static class XiansContext
             {
                 return null;
             }
-            return parts[parts.Length - 1];
+            return parts[3];
         }
         catch
         {

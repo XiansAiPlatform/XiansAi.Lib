@@ -299,7 +299,6 @@ public class LoggingServicesTests : IAsyncLifetime
             Level = level,
             Message = message,
             WorkflowId = "test-workflow",
-            WorkflowRunId = "run-123",
             WorkflowType = "TestWorkflow",
             Agent = "TestAgent",
             ParticipantId = "user-123"

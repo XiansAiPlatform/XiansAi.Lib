@@ -68,10 +68,22 @@ public class UsageEventsClient
         try
         {
             // Get HTTP client from current agent context
-            var agent = XiansContext.CurrentAgent;
+            // If not in workflow context, try to get first registered agent
+            XiansAgent? agent;
+            try
+            {
+                agent = XiansContext.CurrentAgent;
+            }
+            catch
+            {
+                // Not in workflow context - try to get first registered agent
+                agent = XiansContext.GetAllAgents().FirstOrDefault();
+            }
+            
             if (agent?.HttpService == null)
             {
-                _logger.LogWarning("HTTP service not available for usage reporting. Skipping usage event.");
+                _logger.LogDebug("HTTP service not available for usage reporting. Agent found: {AgentFound}, HttpService: {HttpServiceAvailable}", 
+                    agent != null, agent?.HttpService != null);
                 return;
             }
 

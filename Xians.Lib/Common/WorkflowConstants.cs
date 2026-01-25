@@ -96,9 +96,15 @@ public static class WorkflowConstants
         public const string ConsoleLogLevel = "CONSOLE_LOG_LEVEL";
         
         /// <summary>
-        /// Controls the minimum log level for API logging (logs sent to server).
+        /// Controls the minimum log level for server logging (logs sent to server).
         /// Valid values: TRACE, DEBUG, INFORMATION, INFO, WARNING, WARN, ERROR, CRITICAL
         /// Default: ERROR
+        /// </summary>
+        public const string ServerLogLevel = "SERVER_LOG_LEVEL";
+        
+        /// <summary>
+        /// Legacy environment variable name for server logging (deprecated, use SERVER_LOG_LEVEL).
+        /// Maintained for backward compatibility.
         /// </summary>
         public const string ApiLogLevel = "API_LOG_LEVEL";
     }

@@ -126,7 +126,7 @@ public class ContentDiscoveryWorkflow
     {
         try
         {
-            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>(contentURL, null, [contentURL, _reportingUserID]);
+            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>([contentURL], null, contentURL, _reportingUserID);
         }
         catch (WorkflowAlreadyStartedException)
         {

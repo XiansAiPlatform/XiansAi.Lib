@@ -2,6 +2,7 @@ using Xians.Lib.Configuration.Models;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Security.Models;
 using Xians.Lib.Common.Security;
+using Microsoft.Extensions.Logging;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -23,6 +24,18 @@ public class XiansOptions : ServerConfiguration
     /// If not provided, uses default caching settings (5-minute TTL, enabled).
     /// </summary>
     public CacheOptions? Cache { get; set; }
+
+    /// <summary>
+    /// Gets or sets the console log level.
+    /// If not provided, falls back to CONSOLE_LOG_LEVEL environment variable or Debug.
+    /// </summary>
+    public LogLevel? ConsoleLogLevel { get; set; }
+
+    /// <summary>
+    /// Gets or sets the server log level (threshold for uploading logs to server).
+    /// If not provided, falls back to SERVER_LOG_LEVEL (or legacy API_LOG_LEVEL) environment variable or Error.
+    /// </summary>
+    public LogLevel? ServerLogLevel { get; set; }
     
     /// <summary>
     /// The tenant ID extracted from the API key certificate.

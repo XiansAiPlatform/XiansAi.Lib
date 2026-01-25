@@ -100,8 +100,8 @@ public class ApiLogger : ILogger
     /// </summary>
     public bool IsEnabled(LogLevel logLevel)
     {
-        var apiLogLevel = Common.Infrastructure.LoggerFactory.GetApiLogLevel();
-        return logLevel >= apiLogLevel;
+        var serverLogLevel = Common.Infrastructure.LoggerFactory.GetServerLogLevel();
+        return logLevel >= serverLogLevel;
     }
 
     /// <summary>
@@ -127,12 +127,11 @@ public class ApiLogger : ILogger
 
         // Extract context from Temporal workflow/activity using XiansContext
         var workflowId = XiansContext.SafeWorkflowId ?? "Outside Workflows";
-        var workflowRunId = XiansContext.SafeWorkflowRunId ?? "No RunId Available";
-        var workflowType = XiansContext.SafeWorkflowType ?? "No Workflow Type Available";
         var agent = XiansContext.SafeAgentName ?? "No Agent Available";
-        
-        // TODO: Extract participant ID once we have an accurate method
-        var participantId = "No Participant Id Available";
+        var participantId = XiansContext.SafeParticipantId ?? "No Participant Available";
+        var idPostfix = XiansContext.SafeIdPostfix ?? "No IdPostfix Available";
+        var workflowType = XiansContext.SafeWorkflowType ?? "No WorkflowType Available";
+
 
         var log = new Log
         {
@@ -141,13 +140,11 @@ public class ApiLogger : ILogger
             Level = logLevel,
             Message = logMessage,
             WorkflowId = workflowId,
-            WorkflowRunId = workflowRunId,
             WorkflowType = workflowType,
             Agent = agent,
+            Activation = idPostfix,
             ParticipantId = participantId,
-            Properties = null,
-            Exception = exception?.ToString(),
-            UpdatedAt = null
+            Exception = exception?.ToString()
         };
 
         LoggingServices.EnqueueLog(log);

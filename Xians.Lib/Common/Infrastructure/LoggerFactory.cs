@@ -11,6 +11,8 @@ public static class LoggerFactory
 {
     private static ILoggerFactory? _loggerFactory;
     private static readonly object _lock = new();
+    private static LogLevel? _consoleLogLevelOverride;
+    private static LogLevel? _serverLogLevelOverride;
 
     /// <summary>
     /// Gets or sets the logger factory instance.
@@ -118,10 +120,39 @@ public static class LoggerFactory
     }
 
     /// <summary>
-    /// Gets the console log level from environment variables.
+    /// Configures the logger factory with log level overrides from XiansOptions.
+    /// Should be called during platform initialization.
+    /// </summary>
+    /// <param name="consoleLogLevel">Console log level override (null to use environment variable).</param>
+    /// <param name="serverLogLevel">Server log level override (null to use environment variable).</param>
+    public static void ConfigureLogLevels(LogLevel? consoleLogLevel, LogLevel? serverLogLevel)
+    {
+        lock (_lock)
+        {
+            _consoleLogLevelOverride = consoleLogLevel;
+            _serverLogLevelOverride = serverLogLevel;
+            
+            // Reset the factory so it picks up the new configuration
+            if (_loggerFactory != null)
+            {
+                _loggerFactory.Dispose();
+                _loggerFactory = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the console log level from XiansOptions override or environment variables.
     /// </summary>
     private static LogLevel GetConsoleLogLevel()
     {
+        // Check override first (from XiansOptions)
+        if (_consoleLogLevelOverride.HasValue)
+        {
+            return _consoleLogLevelOverride.Value;
+        }
+
+        // Fall back to environment variable
         return ParseLogLevel(
             Environment.GetEnvironmentVariable(Common.WorkflowConstants.EnvironmentVariables.ConsoleLogLevel),
             defaultLevel: LogLevel.Debug
@@ -129,10 +160,25 @@ public static class LoggerFactory
     }
 
     /// <summary>
-    /// Gets the API log level from environment variables.
+    /// Gets the server log level from XiansOptions override or environment variables.
+    /// Checks SERVER_LOG_LEVEL first, then falls back to legacy API_LOG_LEVEL for backward compatibility.
     /// </summary>
-    public static LogLevel GetApiLogLevel()
+    public static LogLevel GetServerLogLevel()
     {
+        // Check override first (from XiansOptions)
+        if (_serverLogLevelOverride.HasValue)
+        {
+            return _serverLogLevelOverride.Value;
+        }
+
+        // Check new environment variable name first
+        var serverLogLevel = Environment.GetEnvironmentVariable(Common.WorkflowConstants.EnvironmentVariables.ServerLogLevel);
+        if (!string.IsNullOrEmpty(serverLogLevel))
+        {
+            return ParseLogLevel(serverLogLevel, defaultLevel: LogLevel.Error);
+        }
+
+        // Fall back to legacy API_LOG_LEVEL for backward compatibility
         return ParseLogLevel(
             Environment.GetEnvironmentVariable(Common.WorkflowConstants.EnvironmentVariables.ApiLogLevel),
             defaultLevel: LogLevel.Error

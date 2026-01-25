@@ -51,6 +51,9 @@ public class WorkflowHelper
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
+        // Validate workflowType is not null
+        _ = workflowType.Length;
+        
         // Build array with idPostfix and uniqueKey when not null
         var idPostfix = XiansContext.GetIdPostfix();
         var uniqueKeys = new List<string>();
@@ -105,6 +108,9 @@ public class WorkflowHelper
     /// <returns>The workflow result.</returns>
     public async Task<TResult> ExecuteAsync<TResult>(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
+        // Validate workflowType is not null
+        _ = workflowType.Length;
+        
         // Build array with idPostfix and uniqueKey when not null
         var idPostfix = XiansContext.GetIdPostfix();
         var uniqueKeys = new List<string>();
