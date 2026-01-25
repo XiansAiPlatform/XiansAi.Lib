@@ -349,7 +349,7 @@ public static class XiansContext
     /// Tries to get the current idPostfix without throwing an exception.
     /// </summary>
     /// <returns>The idPostfix if in workflow/activity context, otherwise null.</returns>
-    private static string? TryGetIdPostfix()
+    internal static string? TryGetIdPostfix()
     {
         try
         {

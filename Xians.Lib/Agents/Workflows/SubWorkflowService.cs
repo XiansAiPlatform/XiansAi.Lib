@@ -338,7 +338,12 @@ public static class SubWorkflowService
         memo[Common.WorkflowConstants.Keys.TenantId] = tenantId;
         memo[Common.WorkflowConstants.Keys.Agent] = agentName;
         memo[Common.WorkflowConstants.Keys.SystemScoped] = systemScoped;
-        memo[Common.WorkflowConstants.Keys.idPostfix] = XiansContext.GetIdPostfix();
+        
+        var idPostfix = XiansContext.TryGetIdPostfix();
+        if (idPostfix != null)
+        {
+            memo[Common.WorkflowConstants.Keys.idPostfix] = idPostfix;
+        }
 
         return memo;
     }
@@ -359,11 +364,17 @@ public static class SubWorkflowService
         }
 
         // Not in workflow context - build minimal search attributes with available information
-        return new Temporalio.Common.SearchAttributeCollection.Builder()
+        var builder = new Temporalio.Common.SearchAttributeCollection.Builder()
             .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.TenantId), tenantId)
-            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.Agent), agentName)
-            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.idPostfix), XiansContext.GetIdPostfix())
-            .ToSearchAttributeCollection();
+            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.Agent), agentName);
+        
+        var idPostfix = XiansContext.TryGetIdPostfix();
+        if (idPostfix != null)
+        {
+            builder.Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.idPostfix), idPostfix);
+        }
+        
+        return builder.ToSearchAttributeCollection();
     }
 }
 

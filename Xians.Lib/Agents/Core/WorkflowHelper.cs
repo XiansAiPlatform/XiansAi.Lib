@@ -26,7 +26,7 @@ public class WorkflowHelper
     public async Task StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
         // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.GetIdPostfix();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         var uniqueKeys = new List<string>();
         
         if (!string.IsNullOrWhiteSpace(idPostfix))
@@ -55,7 +55,7 @@ public class WorkflowHelper
         _ = workflowType.Length;
         
         // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.GetIdPostfix();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         var uniqueKeys = new List<string>();
         
         if (!string.IsNullOrWhiteSpace(idPostfix))
@@ -82,7 +82,7 @@ public class WorkflowHelper
     public async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
     {
         // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.GetIdPostfix();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         var uniqueKeys = new List<string>();
         
         if (!string.IsNullOrWhiteSpace(idPostfix))
@@ -112,7 +112,7 @@ public class WorkflowHelper
         _ = workflowType.Length;
         
         // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.GetIdPostfix();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         var uniqueKeys = new List<string>();
         
         if (!string.IsNullOrWhiteSpace(idPostfix))
