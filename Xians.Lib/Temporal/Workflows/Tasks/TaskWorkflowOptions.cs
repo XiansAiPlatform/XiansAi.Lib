@@ -55,8 +55,10 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         // Generate task queue using centralized utility
         TaskQueue = TenantContext.GetTaskQueueName(taskWorkflowType, isSystemScoped, tenantId);
 
+        var idPostfix = XiansContext.GetIdPostfix();
+        var idSuffix = new [] { idPostfix, Guid.NewGuid().ToString() };
         // Generate workflow ID with task ID as postfix
-        Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, Guid.NewGuid().ToString());
+        Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, idSuffix);
 
         // Default actions if not provided
         var effectiveActions = actions is { Length: > 0 } ? actions : new[] { "approve", "reject" };
