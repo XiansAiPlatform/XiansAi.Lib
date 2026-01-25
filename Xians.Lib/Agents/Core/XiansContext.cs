@@ -387,8 +387,10 @@ public static class XiansContext
 
     #region Operation Helpers
 
-    private static readonly Lazy<WorkflowHelper> _workflowHelper = new(() => new WorkflowHelper());
-    private static readonly Lazy<MessagingHelper> _messagingHelper = new(() => new MessagingHelper());
+    private static readonly Lazy<WorkflowHelper> _workflowHelper = new();
+    private static readonly Lazy<MessagingHelper> _messagingHelper = new();
+    private static readonly MetricsHelper _metricsHelper = new();
+
 
     /// <summary>
     /// Gets workflow operations for starting, executing, signaling, and querying workflows.
@@ -400,6 +402,12 @@ public static class XiansContext
     /// Gets messaging operations for proactive messaging and A2A communication.
     /// </summary>
     public static MessagingHelper Messaging => _messagingHelper.Value;
+
+    /// <summary>
+    /// Gets metrics operations for reporting usage statistics.
+    /// Automatically handles workflow vs non-workflow contexts.
+    /// </summary>
+    public static MetricsHelper Metrics => _metricsHelper;
 
     #endregion
 

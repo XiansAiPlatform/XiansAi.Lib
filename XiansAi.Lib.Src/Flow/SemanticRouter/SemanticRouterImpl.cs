@@ -26,13 +26,11 @@ internal class SemanticRouterHubImpl : IDisposable
     //private readonly ServerSettings _settings;
     //private readonly LlmConfigurationResolver _configResolver;
     private readonly Lazy<HttpClient> _httpClient;
-    private readonly UsageEventsClient _usageEventsClient;
 
     public SemanticRouterHubImpl()
     {
         _logger = Globals.LogFactory.CreateLogger<SemanticRouterHubImpl>();
         _httpClient = new Lazy<HttpClient>(() => new HttpClient());
-        _usageEventsClient = UsageEventsClient.Instance;
     }
 
     private ChatCompletionAgent CreateChatCompletionAgent(
@@ -98,18 +96,8 @@ internal class SemanticRouterHubImpl : IDisposable
                 responses.Add(response);
             }
             stopwatch.Stop();
-            long responseTimeMs = stopwatch.ElapsedMilliseconds;
             
             var completion = string.Join(" ", responses.Select(r => r.Content));
-
-            // Record usage events asynchronously
-            _ = RecordUsageEvents(
-                responses,
-                null,
-                responseTimeMs,
-                historyMessageCount,
-                reducedMessageCount,
-                "SemanticRouter.Completion");
 
             return completion;
         }
@@ -182,7 +170,6 @@ internal class SemanticRouterHubImpl : IDisposable
                 responses.Add(item);
             }
             stopwatch.Stop();
-            long responseTimeMs = stopwatch.ElapsedMilliseconds;
             
             var response = string.Join(" ", responses.Select(r => r.Content));
 
@@ -195,15 +182,6 @@ internal class SemanticRouterHubImpl : IDisposable
                 messageThread.SkipResponse = false;
                 return null;
             }
-
-            // Record usage events asynchronously
-            _ = RecordUsageEvents(
-                responses,
-                messageThread,
-                responseTimeMs,
-                historyMessageCount,
-                reducedMessageCount,
-                "SemanticRouter.Route");
 
             return response;
         }
@@ -244,60 +222,6 @@ internal class SemanticRouterHubImpl : IDisposable
             _logger.LogError(e, "Error intercepting outgoing message");
             return response; // Continue with original response on error
         }
-    }
-
-    /// <summary>
-    /// Records usage events by extracting token usage from LLM responses and reporting to the usage service.
-    /// </summary>
-    private async Task RecordUsageEvents(
-        List<ChatMessageContent> responses,
-        MessageThread? messageThread,
-        long responseTimeMs,
-        long historyMessageCount,
-        long reducedMessageCount,
-        string source)
-    {
-
-        _logger.LogInformation("Recording usage events for {Source}", source);
-        // Extract actual token usage from LLM response
-        var (promptTokens, completionTokens, totalTokens, actualModel, completionId) = 
-            _usageEventsClient.ExtractUsageFromResponses(responses);
-
-        var metadata = new Dictionary<string, string>();
-        
-        // Add message thread metadata if available
-        if (messageThread != null)
-        {
-            if (!string.IsNullOrEmpty(messageThread.WorkflowType))
-                metadata["workflowType"] = messageThread.WorkflowType;
-            if (!string.IsNullOrEmpty(messageThread.ParticipantId))
-                metadata["participantId"] = messageThread.ParticipantId;
-        }
-        
-        // Add completion and model metadata
-        if (!string.IsNullOrEmpty(completionId))
-            metadata["completionId"] = completionId;
-        if (!string.IsNullOrEmpty(actualModel))
-            metadata["configuredModel"] = actualModel;
-
-        // Add history reduction metadata
-        metadata["historyMessageCount"] = historyMessageCount.ToString();
-        metadata["reducedMessageCount"] = reducedMessageCount.ToString();
-        metadata["messagesDropped"] = (historyMessageCount - reducedMessageCount).ToString();
-
-        await _usageEventsClient.ReportAsync(new UsageEventRecord(
-            TenantId: AgentContext.TenantId,
-            UserId: AgentContext.UserId,
-            Model: actualModel,
-            PromptTokens: promptTokens,
-            CompletionTokens: completionTokens,
-            TotalTokens: totalTokens,
-            MessageCount: reducedMessageCount,
-            WorkflowId: messageThread?.WorkflowId,
-            RequestId: messageThread?.LatestMessage?.RequestId,
-            Source: source,
-            Metadata: metadata.Count > 0 ? metadata : null,
-            ResponseTimeMs: responseTimeMs));
     }
 
     private async Task<Kernel> CreateKernelWithPlugins(
