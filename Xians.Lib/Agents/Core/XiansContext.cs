@@ -180,6 +180,7 @@ public static class XiansContext
 
     private static readonly WorkflowHelper _workflowHelper = new();
     private static readonly MessagingHelper _messagingHelper = new();
+    private static readonly MetricsHelper _metricsHelper = new();
 
     /// <summary>
     /// Gets workflow operations for starting, executing, signaling, and querying workflows.
@@ -191,6 +192,12 @@ public static class XiansContext
     /// Gets messaging operations for proactive messaging and A2A communication.
     /// </summary>
     public static MessagingHelper Messaging => _messagingHelper;
+
+    /// <summary>
+    /// Gets metrics operations for reporting usage statistics.
+    /// Automatically handles workflow vs non-workflow contexts.
+    /// </summary>
+    public static MetricsHelper Metrics => _metricsHelper;
 
     #endregion
 
