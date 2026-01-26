@@ -11,10 +11,21 @@ public class XiansAgentRegistration
     public string? Name { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the agent is a template.
+    /// Template agents can be used as templates for creating new agent instances.
+    /// </summary>
+    public bool IsTemplate { get; set; }
+
+    /// <summary>
     /// Gets or sets whether the agent is system-scoped.
     /// System-scoped agents are shared across all users.
     /// </summary>
-    public bool SystemScoped { get; set; } = false;
+    [Obsolete("Use IsTemplate property instead. This property will be removed in a future version.")]
+    public bool SystemScoped 
+    { 
+        get => IsTemplate; 
+        set => IsTemplate = value; 
+    }
 
     /// <summary>
     /// Gets or sets the description of the agent.

@@ -1,6 +1,7 @@
 using Xians.Lib.Agents.Core;
 using DotNetEnv;
 using Microsoft.Extensions.Logging;
+using Xians.Lib.Agents.Knowledge;  // For UploadEmbeddedResourceAsync extension
 
 Env.Load();
 
@@ -26,9 +27,22 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 // Register a new agent with Xians
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
-    Name = "My Simple System Agent",
-    SystemScoped = true  // See important notes below
+    Name = "My Simple System Agent Local",
+    IsTemplate = false  
 });
+
+// Upload embedded knowledge resources
+await xiansAgent.Knowledge.UploadEmbeddedResourceAsync(
+    resourcePath: "knowledge/system-prompt.md",
+    knowledgeName: "system-prompt",
+    knowledgeType: "markdown"
+);
+
+await xiansAgent.Knowledge.UploadEmbeddedResourceAsync(
+    resourcePath: "knowledge/user-guide.md",
+    knowledgeName: "user-guide"
+    // Type is auto-inferred from .md extension
+);
 
 // Define a built-in conversational workflow
 var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Conversing Workflow");

@@ -59,7 +59,7 @@ public class UsageTrackingExample
         var agent = platform.Agents.Register(new XiansAgentRegistration
         {
             Name = "UsageTrackingDemo",
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Create a built-in workflow
