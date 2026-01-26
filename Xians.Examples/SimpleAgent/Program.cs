@@ -1,5 +1,7 @@
 using Xians.Lib.Agents.Core;
 using DotNetEnv;
+using Microsoft.Extensions.Logging;
+using Xians.Lib.Agents.Knowledge;  // For UploadEmbeddedResourceAsync extension
 
 Env.Load();
 
@@ -12,19 +14,35 @@ var serverUrl = Environment.GetEnvironmentVariable("XIANS_SERVER_URL")
 var xiansApiKey = Environment.GetEnvironmentVariable("XIANS_API_KEY") 
     ?? throw new InvalidOperationException("XIANS_API_KEY environment variable is not set");
 
-// Initialize Xians Platform
+// Initialize Xians Platform with optional logging configuration
 var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 {
     ServerUrl = serverUrl,
-    ApiKey = xiansApiKey
+    ApiKey = xiansApiKey,
+    // Optional: Configure log levels programmatically (overrides environment variables)
+    ConsoleLogLevel = LogLevel.Information,  // What shows in console
+    ServerLogLevel = LogLevel.Warning         // What gets uploaded to server
 });
 
 // Register a new agent with Xians
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
-    Name = "My Simple System Agent",
-    SystemScoped = true  // See important notes below
+    Name = "My Simple System Agent Local",
+    IsTemplate = false  
 });
+
+// Upload embedded knowledge resources
+await xiansAgent.Knowledge.UploadEmbeddedResourceAsync(
+    resourcePath: "knowledge/system-prompt.md",
+    knowledgeName: "system-prompt",
+    knowledgeType: "markdown"
+);
+
+await xiansAgent.Knowledge.UploadEmbeddedResourceAsync(
+    resourcePath: "knowledge/user-guide.md",
+    knowledgeName: "user-guide"
+    // Type is auto-inferred from .md extension
+);
 
 // Define a built-in conversational workflow
 var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Conversing Workflow");

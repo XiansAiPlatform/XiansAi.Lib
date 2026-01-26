@@ -1,14 +1,12 @@
-using System.Net.Http.Json;
 using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
-using System.Net.Http;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Agents.Knowledge;
-using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Common.Infrastructure;
+
 using Xians.Lib.Temporal.Workflows.Knowledge;
 using Xians.Lib.Temporal.Workflows.Models;
+using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Temporal.Workflows.Messaging;
 
@@ -44,6 +42,9 @@ public class MessageActivities
             request.RequestId,
             request.WorkflowType,
             request.MessageType);
+
+        // Set the participant ID for this async execution context
+        XiansContext.SetParticipantId(request.ParticipantId);
 
         try
         {
@@ -102,6 +103,11 @@ public class MessageActivities
             // Re-throw to let Temporal handle retry
             // The workflow will send error response to user after all retries are exhausted
             throw;
+        }
+        finally
+        {
+            // Clean up the async local context
+            XiansContext.ClearParticipantId();
         }
     }
 
@@ -347,8 +353,8 @@ public class MessageActivities
 /// </summary>
 public class ActivityUserMessageContext : UserMessageContext
 {
-    private readonly Xians.Lib.Agents.Messaging.MessageService _messageService;
-    private readonly Xians.Lib.Agents.Knowledge.KnowledgeService _knowledgeService;
+    private readonly MessageService _messageService;
+    private readonly KnowledgeService _knowledgeService;
     private readonly string _workflowId;
     private readonly string _workflowType;
     private readonly string _participantId;
@@ -413,6 +419,7 @@ public class ActivityUserMessageContext : UserMessageContext
     {
         var request = new GetMessageHistoryRequest
         {
+            WorkflowId = _workflowId,
             WorkflowType = _workflowType,
             ParticipantId = _participantId,
             Scope = _scope,

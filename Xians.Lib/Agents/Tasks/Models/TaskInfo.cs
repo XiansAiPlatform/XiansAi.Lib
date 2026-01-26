@@ -2,7 +2,6 @@ namespace Xians.Lib.Agents.Tasks.Models;
 
 public record TaskInfo
 {
-    public required string TaskId { get; init; }
     public required string Title { get; init; }
     public required string Description { get; init; }
     
@@ -34,4 +33,6 @@ public record TaskInfo
     /// Comment provided with the action.
     /// </summary>
     public string? Comment { get; init; }
+
+    public bool TimedOut { get; init; }
 }

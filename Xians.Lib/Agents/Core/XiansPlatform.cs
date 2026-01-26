@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
@@ -19,7 +18,7 @@ public class XiansPlatform
     /// <summary>
     /// Gets the cache service for managing cached data.
     /// </summary>
-    public Xians.Lib.Common.Caching.CacheService Cache { get; private set; }
+    public CacheService Cache { get; private set; }
 
     /// <summary>
     /// Gets the platform configuration options.
@@ -59,12 +58,21 @@ public class XiansPlatform
         // Validate configuration
         options.Validate();
 
+        // Configure logging levels if provided in options
+        Common.Infrastructure.LoggerFactory.ConfigureLogLevels(
+            options.ConsoleLogLevel,
+            options.ServerLogLevel
+        );
+
         // Create HTTP service
-        var httpLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<HttpClientService>();
+        var httpLogger = Common.Infrastructure.LoggerFactory.CreateLogger<HttpClientService>();
         var httpService = ServiceFactory.CreateHttpClientService(options, httpLogger);
         
+        // Initialize logging services to start background log upload
+        Logging.LoggingServices.Initialize(httpService);
+        
         // Create Temporal service
-        var temporalLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TemporalClientService>();
+        var temporalLogger = Common.Infrastructure.LoggerFactory.CreateLogger<TemporalClientService>();
         ITemporalClientService temporalService;
         
         if (options.TemporalConfiguration != null)

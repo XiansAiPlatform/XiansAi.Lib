@@ -21,6 +21,7 @@ public static class TestCleanup
     /// - Static activity services (KnowledgeActivities)
     /// - Server settings cache
     /// - Certificate cache
+    /// - Logger factory
     /// </remarks>
     public static void ResetAllStaticState()
     {
@@ -38,6 +39,9 @@ public static class TestCleanup
         
         // Clear certificate cache
         Security.CertificateCache.Clear();
+        
+        // Reset logger factory to prevent ObjectDisposedException
+        Infrastructure.LoggerFactory.Reset();
     }
 
     /// <summary>

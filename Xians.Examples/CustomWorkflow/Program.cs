@@ -23,16 +23,16 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 // Register a new agent with Xians
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
-    Name = "Order Manager Agent",
-    Description = "An agent that manages orders",
-    Summary = "Manages orders from submission to completion",
+    Name = "System Order Manager Agent",
+    Description = "An order management agent that automates the complete order lifecycle from submission to fulfillment. The agent processes customer orders, validates order details, and implements human-in-the-loop (HITL) approval workflows for high-value transactions exceeding $100. It features automated approval for standard orders, timeout handling for pending decisions, and flexible action options (approve, reject, hold) for manual review. The agent integrates conversational AI capabilities for customer interactions, supports custom workflow definitions, and provides supervisor and integrator workflows for comprehensive order orchestration. Built on the Xians platform with Temporal workflow engine, it ensures reliable, scalable, and transparent order processing with full audit trails and task management.",    
+    Summary = "An intelligent order management agent that automates the complete order lifecycle from submission to fulfillment. ",
     Version = "1.0.0",
     Author = "99x",
-    SystemScoped = false  // See important notes below
+    SystemScoped = true  // See important notes below
 });
 
 // Define a custom workflow
-var orderWorkflow = xiansAgent.Workflows.DefineCustom<OrderWorkflow>(new WorkflowOptions { Activable = true });
+//var orderWorkflow = xiansAgent.Workflows.DefineCustom<OrderWorkflow>(new WorkflowOptions { Activable = true });
 
 // // Define a custom workflow
 // var scheduleWorkflow = xiansAgent.Workflows.DefineCustom<OrderExtractionWorkflow>(new WorkflowOptions { Activable = false });
@@ -58,7 +58,5 @@ supervisorWorkflow.OnUserChatMessage(async (context) =>
     await context.ReplyAsync(response);
 });
 
-// Enable HITL tasks
-await xiansAgent.Workflows.WithTasks();
 // Start the agent and all workflows
 await xiansAgent.RunAllAsync();

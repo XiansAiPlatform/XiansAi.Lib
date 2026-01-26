@@ -22,18 +22,15 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
     /// <param name="participantId">User ID of the task participant. If null, inherits from parent workflow's UserId.</param>
     /// <param name="actions">Available actions for this task. If null/empty, defaults to ["approve", "reject"].</param>
     /// <param name="retryPolicy">Optional retry policy. Defaults to MaximumAttempts=1.</param>
+    /// <param name="executionTimeout">Optional execution timeout.</param>
     public TaskWorkflowOptions(
-        string taskId,
         string title,
         string description,
         string? participantId,
         string[]? actions = null,
+        TimeSpan? executionTimeout = null,
         RetryPolicy? retryPolicy = null)
     {
-        if (string.IsNullOrWhiteSpace(taskId))
-        {
-            throw new ArgumentException("Task ID cannot be null or empty.", nameof(taskId));
-        }
 
         if (string.IsNullOrWhiteSpace(title))
         {
@@ -58,8 +55,10 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         // Generate task queue using centralized utility
         TaskQueue = TenantContext.GetTaskQueueName(taskWorkflowType, isSystemScoped, tenantId);
 
+        var idPostfix = XiansContext.GetIdPostfix();
+        var idSuffix = new [] { idPostfix, Guid.NewGuid().ToString() };
         // Generate workflow ID with task ID as postfix
-        Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, taskId);
+        Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, idSuffix);
 
         // Default actions if not provided
         var effectiveActions = actions is { Length: > 0 } ? actions : new[] { "approve", "reject" };
@@ -69,13 +68,19 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName, effectiveParticipantId);
 
         // Set workflow summary for debugging
-        StaticSummary = $"Task workflow '{title}' (ID: {taskId}) in '{XiansContext.WorkflowId}'";
+        StaticSummary = $"Task workflow '{title}' in '{XiansContext.WorkflowId}'";
 
         // Default retry policy: single attempt (fail fast)
         RetryPolicy = retryPolicy ?? new RetryPolicy { MaximumAttempts = 1 };
 
         // Task workflow should be abandoned when parent closes
         ParentClosePolicy = ParentClosePolicy.Terminate;
+
+        if (executionTimeout.HasValue)
+        {
+            ExecutionTimeout = executionTimeout;
+        }
+
     }
 
     /// <summary>
@@ -164,7 +169,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         return new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), WorkflowContextHelper.GetIdPostfix())
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), XiansContext.GetIdPostfix())
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), participantId)
             .ToSearchAttributeCollection();
     }

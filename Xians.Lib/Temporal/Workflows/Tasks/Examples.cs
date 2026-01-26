@@ -124,7 +124,6 @@ public static class TaskWorkflowExamples
 
             var request = new TaskWorkflowRequest
             {
-                TaskId = $"process-order-{orderId}",
                 Title = $"Process Order #{orderId}",
                 Description = $"Review and process order for ${amount}",
                 ParticipantId = "sales-manager@example.com",

@@ -2,8 +2,6 @@ namespace Xians.Lib.Agents.Tasks.Models;
 
 public record TaskWorkflowResult
 {
-    public required string TaskId { get; init; }
-    
     /// <summary>
     /// The initial draft work when the task was created.
     /// </summary>

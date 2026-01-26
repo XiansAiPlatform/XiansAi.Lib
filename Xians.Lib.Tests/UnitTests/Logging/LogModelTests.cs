@@ -17,8 +17,7 @@ public class LogModelTests
             Level = LogLevel.Information,
             Message = "Test message",
             WorkflowId = "test-workflow",
-            WorkflowRunId = "run-123",
-            WorkflowType = "TestWorkflow",
+            WorkflowType = "TestAgent:TestWorkflow",
             Agent = "TestAgent",
             ParticipantId = "user-123"
         };
@@ -28,8 +27,6 @@ public class LogModelTests
         Assert.Equal(LogLevel.Information, log.Level);
         Assert.Equal("Test message", log.Message);
         Assert.Equal("test-workflow", log.WorkflowId);
-        Assert.Equal("run-123", log.WorkflowRunId);
-        Assert.Equal("TestWorkflow", log.WorkflowType);
         Assert.Equal("TestAgent", log.Agent);
         Assert.Equal("user-123", log.ParticipantId);
     }
@@ -37,14 +34,7 @@ public class LogModelTests
     [Fact]
     public void Log_WithOptionalFields_StoresCorrectly()
     {
-        // Arrange
-        var properties = new Dictionary<string, object>
-        {
-            ["CustomField"] = "CustomValue",
-            ["Count"] = 42
-        };
-
-        // Act
+        // Arrange & Act
         var log = new Log
         {
             Id = "log-123",
@@ -52,23 +42,17 @@ public class LogModelTests
             Level = LogLevel.Error,
             Message = "Error message",
             WorkflowId = "workflow-1",
-            WorkflowRunId = "run-1",
-            WorkflowType = "ErrorWorkflow",
+            WorkflowType = "ErrorAgent:ErrorWorkflow",
             Agent = "ErrorAgent",
             ParticipantId = "user-1",
-            Properties = properties,
-            Exception = "System.Exception: Test error",
-            UpdatedAt = DateTime.UtcNow.AddMinutes(5)
+            Activation = "activation-123",
+            Exception = "System.Exception: Test error"
         };
 
         // Assert
         Assert.Equal("log-123", log.Id);
-        Assert.NotNull(log.Properties);
-        Assert.Equal(2, log.Properties.Count);
-        Assert.Equal("CustomValue", log.Properties["CustomField"]);
-        Assert.Equal(42, log.Properties["Count"]);
+        Assert.Equal("activation-123", log.Activation);
         Assert.Contains("Test error", log.Exception);
-        Assert.NotNull(log.UpdatedAt);
     }
 
     [Fact]
@@ -93,8 +77,7 @@ public class LogModelTests
                 Level = level,
                 Message = $"Message at {level}",
                 WorkflowId = "test",
-                WorkflowRunId = "run",
-                WorkflowType = "type",
+                WorkflowType = "agent:workflow",
                 Agent = "agent",
                 ParticipantId = "participant"
             };
@@ -116,8 +99,7 @@ public class LogModelTests
             Level = LogLevel.Information,
             Message = "Test",
             WorkflowId = "test",
-            WorkflowRunId = "run",
-            WorkflowType = "type",
+            WorkflowType = "agent:workflow",
             Agent = "agent",
             ParticipantId = "participant"
         };
@@ -138,8 +120,7 @@ public class LogModelTests
             Level = LogLevel.Warning,
             Message = "Warning without exception",
             WorkflowId = "test",
-            WorkflowRunId = "run",
-            WorkflowType = "type",
+            WorkflowType = "agent:workflow",
             Agent = "agent",
             ParticipantId = "participant",
             Exception = null
@@ -150,7 +131,7 @@ public class LogModelTests
     }
 
     [Fact]
-    public void Log_WithEmptyProperties_HandlesCorrectly()
+    public void Log_WithNullActivation_HandlesCorrectly()
     {
         // Arrange & Act
         var log = new Log
@@ -158,15 +139,13 @@ public class LogModelTests
             Level = LogLevel.Debug,
             Message = "Debug message",
             WorkflowId = "test",
-            WorkflowRunId = "run",
-            WorkflowType = "type",
+            WorkflowType = "agent:workflow",
             Agent = "agent",
             ParticipantId = "participant",
-            Properties = new Dictionary<string, object>()
+            Activation = null
         };
 
         // Assert
-        Assert.NotNull(log.Properties);
-        Assert.Empty(log.Properties);
+        Assert.Null(log.Activation);
     }
 }

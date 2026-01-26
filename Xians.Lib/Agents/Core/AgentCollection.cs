@@ -55,7 +55,7 @@ public class AgentCollection
         
         return new XiansAgent(
             registration.Name, 
-            registration.SystemScoped,
+            registration.IsTemplate,
             registration.Description,
             registration.Summary,
             registration.Version,

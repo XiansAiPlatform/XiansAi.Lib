@@ -179,7 +179,6 @@ public class CaseWorkflow
         var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
             new TaskWorkflowRequest
             {
-                TaskId = $"{caseId}-{emailType}-{Workflow.NewGuid()}",
                 Title = title,
                 Description = $"Review and approve AI-generated email for case {caseId} (Customer: {customerId}, Amount: ${amount})",
                 DraftWork = $"--- Draft Email ---\n{draftContent}\n\n--- Customer Details ---\nCustomer ID: {customerId}\nOutstanding Amount: ${amount}",
@@ -217,7 +216,6 @@ public class CaseWorkflow
         var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
             new TaskWorkflowRequest
             {
-                TaskId = $"{caseId}-customer-reply-{Workflow.NewGuid()}",
                 Title = "Response to Customer Inquiry",
                 Description = $"Review AI response to customer inquiry for case {caseId} (Customer: {customerId}, Amount: ${amount})",
                 DraftWork = $"--- Customer's Message ---\n{customerMessage}\n\n" +
@@ -251,7 +249,6 @@ public class CaseWorkflow
         var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
             new TaskWorkflowRequest
             {
-                TaskId = $"{caseId}-payment-plan-{Workflow.NewGuid()}",
                 Title = "Approve Payment Plan Proposal",
                 Description = $"Review AI-proposed payment plan for customer {customerId}",
                 DraftWork = draftPlan,
@@ -281,7 +278,6 @@ public class CaseWorkflow
         var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
             new TaskWorkflowRequest
             {
-                TaskId = $"{caseId}-missed-payment-{Workflow.NewGuid()}",
                 Title = "Handle Missed Payment",
                 Description = $"Customer {customerId} missed a scheduled payment",
                 DraftWork = draftAlert,
@@ -315,7 +311,6 @@ public class CaseWorkflow
         var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
             new TaskWorkflowRequest
             {
-                TaskId = $"{caseId}-escalation-decision-{Workflow.NewGuid()}",
                 Title = "Escalation Decision Required",
                 Description = $"AI recommends escalating case {caseId} to human case handler",
                 DraftWork = recommendation,

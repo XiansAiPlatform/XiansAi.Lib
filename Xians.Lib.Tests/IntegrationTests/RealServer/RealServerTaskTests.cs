@@ -175,7 +175,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Start a task workflow directly from the client
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Test Query Task",
                 Description = "Testing task query functionality",
                 ParticipantId = "test-reviewer",
@@ -205,7 +204,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 
             // Verify task info
             Assert.NotNull(taskInfo);
-            Assert.Equal(taskId, taskInfo.TaskId);
             Assert.Equal("Test Query Task", taskInfo.Title);
             Assert.Equal("Testing task query functionality", taskInfo.Description);
             Assert.Equal("Initial draft for query test", taskInfo.FinalWork);
@@ -217,8 +215,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Assert.Contains("reject", taskInfo.AvailableActions);
             Assert.Contains("hold", taskInfo.AvailableActions);
             
-            Console.WriteLine($"✓ Task queried successfully");
-            Console.WriteLine($"  Task ID: {taskInfo.TaskId}");
+            Console.WriteLine($"✓ Task queried successfully"); 
             Console.WriteLine($"  Title: {taskInfo.Title}");
             Console.WriteLine($"  Draft: {taskInfo.FinalWork}");
             Console.WriteLine($"  Available Actions: {string.Join(", ", taskInfo.AvailableActions)}");
@@ -255,7 +252,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Start a task workflow
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Test Update Draft",
                 Description = "Testing draft update functionality",
                 ParticipantId = "test-reviewer",
@@ -333,7 +329,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Start a task workflow
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Test Task Approval",
                 Description = "Testing task approval functionality",
                 ParticipantId = "test-reviewer",
@@ -403,7 +398,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Start a task workflow
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Test Task Rejection",
                 Description = "Testing task rejection functionality",
                 ParticipantId = "test-reviewer",
@@ -473,7 +467,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Start a task workflow with custom actions
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Test Custom Actions",
                 Description = "Testing custom action functionality",
                 ParticipantId = "test-reviewer",
@@ -545,7 +538,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Console.WriteLine($"Step 1: Creating task...");
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Full Lifecycle Test",
                 Description = "Testing complete task lifecycle",
                 ParticipantId = "test-reviewer",
@@ -646,7 +638,6 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             // Start a task workflow
             var request = new TaskWorkflowRequest
             {
-                TaskId = taskId,
                 Title = "Test Handle Management",
                 Description = "Testing task handle functionality",
                 ParticipantId = "test-reviewer",
@@ -677,10 +668,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
 
             Assert.NotNull(taskInfo);
-            Assert.Equal(taskId, taskInfo.TaskId);
             Assert.Equal("Test Handle Management", taskInfo.Title);
             Console.WriteLine($"✓ Task queried using handle");
-            Console.WriteLine($"  Task ID: {taskInfo.TaskId}");
             Console.WriteLine($"  Title: {taskInfo.Title}");
 
             // Clean up

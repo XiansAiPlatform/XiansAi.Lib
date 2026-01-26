@@ -18,4 +18,11 @@
     <ProjectReference Include="..\..\Xians.Lib\Xians.Lib.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Embed all .md files in the Knowledge folder -->
+    <EmbeddedResource Include="knowledge\**\*.md" />
+
+    <!-- Embed all .json files in the Knowledge folder -->
+    <EmbeddedResource Include="knowledge\**\*.json" />
+  </ItemGroup>
 </Project>

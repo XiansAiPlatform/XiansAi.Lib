@@ -28,15 +28,14 @@ public class OrderWorkflow
         // call HITL task if amount is greater than 100
         if (amount > 100)
         {
-            var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
-                new TaskWorkflowRequest
-                {
-                    TaskId = $"order-approval-{Workflow.NewGuid()}",
-                    Title = "Approve Order",
-                    Description = $"Review and approve order for customer {customerId} with amount ${amount}",
-                    DraftWork = $"Order Details:\nCustomer: {customerId}\nAmount: ${amount}",
-                    Actions = ["approve", "reject", "hold"],
-                    Timeout = TimeSpan.FromSeconds(20)
+        var taskHandle = await XiansContext.CurrentAgent.Tasks.StartTaskAsync(
+            new TaskWorkflowRequest
+            {
+                Title = "Approve Order",
+                Description = $"Review and approve order for customer {customerId} with amount ${amount}",
+                DraftWork = $"Order Details:\nCustomer: {customerId}\nAmount: ${amount}",
+                Actions = ["approve", "reject", "hold"],
+                Timeout = TimeSpan.FromSeconds(20)
                 }
             );
 

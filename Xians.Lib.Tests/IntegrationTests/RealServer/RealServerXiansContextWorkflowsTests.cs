@@ -33,9 +33,9 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
     private const string DATA_WORKFLOW_NAME = "DataWorkflow";
 
     // Full workflow types
-    private string ParentWorkflowType => Xians.Lib.Common.WorkflowIdentity.BuildBuiltInWorkflowType(_agentName, PARENT_WORKFLOW_NAME);
-    private string TargetWorkflowType => Xians.Lib.Common.WorkflowIdentity.BuildBuiltInWorkflowType(_agentName, TARGET_WORKFLOW_NAME);
-    private string DataWorkflowType => Xians.Lib.Common.WorkflowIdentity.BuildBuiltInWorkflowType(_agentName, DATA_WORKFLOW_NAME);
+    private string ParentWorkflowType => XiansContext.BuildBuiltInWorkflowType(_agentName, PARENT_WORKFLOW_NAME);
+    private string TargetWorkflowType => XiansContext.BuildBuiltInWorkflowType(_agentName, TARGET_WORKFLOW_NAME);
+    private string DataWorkflowType => XiansContext.BuildBuiltInWorkflowType(_agentName, DATA_WORKFLOW_NAME);
 
     // Static result storage for cross-context verification
     private static readonly ConcurrentDictionary<string, WorkflowTestResult> _testResults = new();

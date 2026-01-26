@@ -249,10 +249,9 @@ public class ContextAwareUsageReportBuilder
     /// <summary>
     /// Reports the usage metrics with automatic context detection.
     /// Auto-populates tenant ID, workflow ID, source, etc. from XiansContext if not explicitly set.
-    /// Throws if TenantId cannot be determined from context.
+    /// If TenantId cannot be determined, it will be set to null and the server will handle it.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when TenantId is not set and cannot be extracted from context.</exception>
     public async Task ReportAsync()
     {
         // Auto-populate from XiansContext if available and not explicitly set
@@ -260,7 +259,7 @@ public class ContextAwareUsageReportBuilder
         var workflowId = _workflowId ?? MetricsHelper.GetWorkflowIdForTracking(_context);
         var workflowType = _source ?? MetricsHelper.GetWorkflowTypeForTracking(_context) ?? "Unknown";
         
-        // Get tenant ID - try from context message first, then XiansContext
+        // Get tenant ID - try from context message first, then XiansContext safely
         var tenantId = _tenantId;
         if (tenantId == null)
         {
@@ -270,14 +269,8 @@ public class ContextAwareUsageReportBuilder
             }
             else
             {
-                try
-                {
-                    tenantId = XiansContext.TenantId;
-                }
-                catch
-                {
-                    // Will throw later if still null
-                }
+                // Use safe accessor to avoid throwing when not in workflow context
+                tenantId = XiansContext.SafeTenantId;
             }
         }
         
@@ -297,7 +290,7 @@ public class ContextAwareUsageReportBuilder
         
         var request = new UsageReportRequest
         {
-            TenantId = tenantId ?? XiansContext.TenantId, // Will throw if not available
+            TenantId = tenantId, // Can be null if not in workflow context and not provided
             UserId = userId,
             WorkflowId = workflowId,
             RequestId = requestId,

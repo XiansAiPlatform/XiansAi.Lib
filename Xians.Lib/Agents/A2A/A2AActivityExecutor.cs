@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Common;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Temporal;
 using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Temporal.Workflows.A2A;

@@ -45,7 +45,7 @@ public class ScheduleCollection
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
         
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();   
+            idPostfix = XiansContext.GetIdPostfix();   
 
         return new ScheduleBuilder(scheduleId, _workflowType, _agent, idPostfix, _temporalService);
     }
@@ -62,7 +62,7 @@ public class ScheduleCollection
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
         
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            idPostfix = XiansContext.GetIdPostfix();
 
         try
         {
@@ -120,7 +120,7 @@ public class ScheduleCollection
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
         
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            idPostfix = XiansContext.GetIdPostfix();
 
         try
         {
@@ -151,7 +151,7 @@ public class ScheduleCollection
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
         
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            idPostfix = XiansContext.GetIdPostfix();
 
         try
         {
@@ -173,7 +173,7 @@ public class ScheduleCollection
     public async Task PauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
     {
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            idPostfix = XiansContext.GetIdPostfix();
             
         var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.PauseAsync(note);
@@ -188,7 +188,7 @@ public class ScheduleCollection
     public async Task UnpauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
     {
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            idPostfix = XiansContext.GetIdPostfix();
             
         var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.UnpauseAsync(note);
@@ -202,7 +202,7 @@ public class ScheduleCollection
     public async Task TriggerAsync(string scheduleId, string? idPostfix = null)
     {
         if (idPostfix is null)
-            idPostfix = WorkflowContextHelper.GetIdPostfix();
+            idPostfix = XiansContext.GetIdPostfix();
             
         var schedule = await GetAsync(scheduleId, idPostfix);
         await schedule.TriggerAsync();

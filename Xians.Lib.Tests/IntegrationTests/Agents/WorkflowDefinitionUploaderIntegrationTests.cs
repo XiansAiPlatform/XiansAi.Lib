@@ -99,7 +99,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", options: new WorkflowOptions { MaxConcurrent = 1 });
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -134,7 +134,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow", options: new WorkflowOptions { MaxConcurrent = 2 });
+        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
