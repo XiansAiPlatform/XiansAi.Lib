@@ -14,6 +14,7 @@ public class WorkflowDefinition
     public required string WorkflowType { get; set; }
     
     [JsonPropertyName("name")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? Name { get; set; }
     
     [JsonPropertyName("source")]
@@ -29,6 +30,7 @@ public class WorkflowDefinition
     public bool SystemScoped { get; set; } = false;
     
     [JsonPropertyName("workers")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Always)]
     public int Workers { get; set; } = 1;
 }
 

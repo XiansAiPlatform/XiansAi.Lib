@@ -98,13 +98,25 @@ internal class WorkflowDefinitionUploader
                     throw new InvalidOperationException($"Hash check failed: {error}");
             }
 
+            // Serialize with options (ignore null/default values)
+            var jsonOptions = new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = false
+            };
+            var serializedPayload = JsonSerializer.Serialize(definition, jsonOptions);
+            
+            // Log the payload for debugging
+            _logger?.LogDebug("📤 Uploading workflow definition JSON payload: {Payload}", serializedPayload);
+            
             // Upload the definition
-            var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition));
+            var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition, options: jsonOptions));
             
             if (!uploadResponse.IsSuccessStatusCode)
             {
                 var errorMessage = await uploadResponse.Content.ReadAsStringAsync();
                 _logger?.LogError("Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
+                _logger?.LogError("Failed JSON payload was: {Payload}", serializedPayload);
                 throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
             }
             

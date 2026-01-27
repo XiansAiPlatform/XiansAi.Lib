@@ -1,8 +1,11 @@
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
+using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows;
+using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Xians.Lib.Agents.Workflows;
 
@@ -13,12 +16,14 @@ public class WorkflowCollection
 {
     private readonly XiansAgent _agent;
     private readonly WorkflowDefinitionUploader? _uploader;
+    private readonly ILogger<WorkflowCollection> _logger;
     private readonly List<XiansWorkflow> _workflows = new();
 
     internal WorkflowCollection(XiansAgent agent, WorkflowDefinitionUploader? uploader)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _uploader = uploader;
+        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<WorkflowCollection>();
     }
 
     /// <summary>
@@ -137,25 +142,169 @@ public class WorkflowCollection
     /// </summary>
     private async Task UploadWorkflowDefinitionAsync(XiansWorkflow workflow)
     {
+        if (_uploader == null)
+        {
+            return; // No uploader configured, skip
+        }
+
         try
         {
+            var workflowClassType = workflow.GetWorkflowClassType();
+            var source = workflowClassType != null ? ReadSource(workflowClassType) : null;
+            
+            // Only set Source if we actually found source code
+            var sourceToUpload = !string.IsNullOrWhiteSpace(source) ? source : null;
+            
+            var parameters = ExtractWorkflowParameters(workflow);
+            var activities = ExtractActivityDefinitions(workflow);
+            
+            // Extract workflow name from workflow type for custom workflows that extend BuiltinWorkflow
+            // This helps the server visualization recognize it as a built-in-style workflow
+            // Format: "AgentName:WorkflowName" -> extract "WorkflowName"
+            string? workflowName = workflow.Name;
+            if (workflowName == null && workflowClassType != null)
+            {
+                // Check if workflow extends BuiltinWorkflow
+                if (typeof(BuiltinWorkflow).IsAssignableFrom(workflowClassType))
+                {
+                    // Extract name from workflow type (e.g., "My Agent:Conversational" -> "Conversational")
+                    var workflowTypeParts = workflow.WorkflowType.Split(':', 2);
+                    if (workflowTypeParts.Length == 2)
+                    {
+                        workflowName = workflowTypeParts[1];
+                    }
+                }
+            }
+            
+            // Ensure ParameterDefinitions is always an array (even if empty) for visualization
+            // should handle connecting SG_InputParameters to the message processing system.
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = workflow.Name,
+                Name = workflowName, // Set name for BuiltinWorkflow subclasses to help server visualization
                 SystemScoped = _agent.SystemScoped,
-                Workers = workflow.Workers,
-                ActivityDefinitions = [],
-                ParameterDefinitions = ExtractWorkflowParameters(workflow)
+                Workers = (workflow.Workers == 1) ? 1 : workflow.Workers, // Keep default (1) 
+                ActivityDefinitions = activities,
+                ParameterDefinitions = parameters, // Always an array (empty [] if no parameters)
+                Source = sourceToUpload
             };
+            
+            _logger.LogDebug(
+                "Uploading workflow definition: WorkflowType={WorkflowType}, Parameters={ParameterCount}, Activities={ActivityCount}, HasSource={HasSource}",
+                workflow.WorkflowType,
+                parameters.Count,
+                activities.Length,
+                !string.IsNullOrWhiteSpace(sourceToUpload));
 
-            await _uploader!.UploadWorkflowDefinitionAsync(definition);
+            await _uploader.UploadWorkflowDefinitionAsync(definition);
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
+            // Log the error but don't throw - allow the agent to continue running
+            _logger.LogWarning(ex, "Failed to upload workflow definition for workflow type {WorkflowType}, but continuing. The visualize button may not work until this is resolved.", workflow.WorkflowType);
+            
+            // Optionally, can uncomment the line below to throw and stop the agent if upload fails
+            // throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Extracts activity definitions from the workflow.
+    /// </summary>
+    private static ActivityDefinition[] ExtractActivityDefinitions(XiansWorkflow workflow)
+    {
+        var activities = new List<ActivityDefinition>();
+
+        // Extract activities from user-added activity instances
+        foreach (var activityInstance in workflow.GetActivityInstances())
+        {
+            activities.AddRange(ExtractActivitiesFromType(activityInstance.GetType()));
+        }
+
+        // Extract activities from user-added activity types
+        foreach (var activityType in workflow.GetActivityTypes())
+        {
+            activities.AddRange(ExtractActivitiesFromType(activityType));
+        }
+
+        // Extract activities from the workflow class itself (if it has activity methods)
+        var workflowClassType = workflow.GetWorkflowClassType();
+        if (workflowClassType != null)
+        {
+            activities.AddRange(ExtractActivitiesFromType(workflowClassType));
+        }
+
+        return activities.ToArray();
+    }
+
+    /// <summary>
+    /// Extracts activity definitions from a type by finding methods with [Activity] attributes.
+    /// </summary>
+    private static List<ActivityDefinition> ExtractActivitiesFromType(Type type)
+    {
+        var activities = new List<ActivityDefinition>();
+
+        // Find all methods with [Activity] attribute
+        var activityMethods = type.GetMethods()
+            .Where(m => m.GetCustomAttributes(typeof(Temporalio.Activities.ActivityAttribute), true).Any())
+            .ToList();
+
+        foreach (var method in activityMethods)
+        {
+            var activityAttribute = method.GetCustomAttributes(typeof(Temporalio.Activities.ActivityAttribute), true)
+                .FirstOrDefault() as Temporalio.Activities.ActivityAttribute;
+            
+            var activityName = activityAttribute?.Name ?? method.Name;
+
+            // Extract parameters
+            var parameters = method.GetParameters()
+                .Select(p => new ParameterDefinition
+                {
+                    Name = p.Name,
+                    Type = p.ParameterType.Name
+                })
+                .ToList();
+
+            // Extract KnowledgeIds if KnowledgeAttribute is present
+            var knowledgeIds = new List<string>();
+            try
+            {
+                var knowledgeAttribute = method.GetCustomAttributes()
+                    .FirstOrDefault(attr => attr.GetType().Name == "KnowledgeAttribute");
+                
+                if (knowledgeAttribute != null)
+                {
+                    var knowledgeProperty = knowledgeAttribute.GetType().GetProperty("Knowledge");
+                    if (knowledgeProperty != null)
+                    {
+                        var knowledgeValue = knowledgeProperty.GetValue(knowledgeAttribute);
+                        if (knowledgeValue is string[] knowledgeArray)
+                        {
+                            knowledgeIds.AddRange(knowledgeArray);
+                        }
+                        else if (knowledgeValue is IEnumerable<string> knowledgeEnumerable)
+                        {
+                            knowledgeIds.AddRange(knowledgeEnumerable);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // KnowledgeAttribute might not exist in Platform 3, ignore
+            }
+
+            activities.Add(new ActivityDefinition
+            {
+                ActivityName = activityName,
+                ParameterDefinitions = parameters,
+                KnowledgeIds = knowledgeIds,
+                AgentToolNames = new List<string>()
+            });
+        }
+
+        return activities;
     }
 
     /// <summary>
@@ -170,21 +319,18 @@ public class WorkflowCollection
             return [];
         }
 
-        // Check if this is a built-in workflow (extends BuiltinWorkflow)
-        if (workflowType.IsSubclassOf(typeof(BuiltinWorkflow)) || workflowType == typeof(BuiltinWorkflow))
-        {
-            // Built-in workflows (including dynamic ones) don't have custom parameters
-            return [];
-        }
-
+        // Extract parameters from [WorkflowRun] method 
+        // This ensures the visualization can properly render SG_InputParameters even for BuiltinWorkflow subclasses
         var workflowRunMethod = workflowType.GetMethods()
             .FirstOrDefault(m => m.GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowRunAttribute), true).Any());
 
         if (workflowRunMethod == null)
         {
-            throw new InvalidOperationException($"Workflow run method not found for workflow type {workflowType}");
+            // If no [WorkflowRun] method found, return empty list 
+            return [];
         }
 
+        // Extract parameters from the RunAsync method
         return workflowRunMethod.GetParameters()
             .Select(p => new ParameterDefinition
             {
@@ -192,6 +338,71 @@ public class WorkflowCollection
                 Type = p.ParameterType.Name
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Attempts to read the source code of a type from embedded resources.
+    /// </summary>
+    /// <param name="type">The type to read source for</param>
+    /// <returns>The source code, or null if not found</returns>
+    private string? ReadSource(Type type)
+    {
+        try
+        {
+            var assembly = type.Assembly;
+            var resourceName = $"{type.Name}.cs";
+            var assemblyName = assembly.GetName().Name;
+
+            // Try multiple resource name patterns (handles both with and without LogicalName)
+            var possibleResourceNames = new List<string>
+            {
+                resourceName, // e.g., "ConversationalWorkflow.cs" (when using LogicalName)
+                $"{assemblyName}.{resourceName}", // e.g., "MyAgent.ConversationalWorkflow.cs" (default behavior)
+            };
+
+            // If type has namespace, try with namespace prefix
+            if (!string.IsNullOrEmpty(type.Namespace))
+            {
+                var namespacePrefix = type.Namespace.Replace(".", ".");
+                possibleResourceNames.Add($"{assemblyName}.{namespacePrefix}.{resourceName}");
+            }
+
+            Stream? stream = null;
+            string? foundResourceName = null;
+
+            foreach (var name in possibleResourceNames)
+            {
+                stream = assembly.GetManifestResourceStream(name);
+                if (stream != null)
+                {
+                    foundResourceName = name;
+                    break;
+                }
+            }
+
+            if (stream == null)
+            {
+                _logger.LogWarning("Source code not found in assembly '{AssemblyName}' for type '{TypeName}'. Make sure the workflow's .cs file is marked as an EmbeddedResource in your .csproj file.", assemblyName, type.FullName);
+                return null;
+            }
+
+            using var reader = new StreamReader(stream);
+            var source = reader.ReadToEnd();
+
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                _logger.LogWarning("Source code found for {TypeName} but it is empty or whitespace", type.FullName);
+                return null;
+            }
+
+            _logger.LogDebug("Found source code for {TypeName} in resource '{ResourceName}' ({Length} characters)", type.FullName, foundResourceName, source.Length);
+            return source;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading embedded source for {TypeName}", type.FullName);
+            return null;
+        }
     }
 
     /// <summary>
