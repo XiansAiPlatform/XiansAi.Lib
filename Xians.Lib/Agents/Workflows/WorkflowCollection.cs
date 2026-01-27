@@ -159,30 +159,62 @@ public class WorkflowCollection
             var activities = ExtractActivityDefinitions(workflow);
             
             // Extract workflow name from workflow type for custom workflows that extend BuiltinWorkflow
-            // This helps the server visualization recognize it as a built-in-style workflow
+            // CRITICAL FOR VISUALIZATION: The Name field is essential for server to:
+            // 1. Recognize this as a built-in-style workflow
+            // 2. Connect SG_InputParameters at the top of the flow diagram
+            // 3. Show "Handle Message Processing" node instead of generic "Process Messages"
+            // Without Name: SG_InputParameters appears disconnected on the side
+            // With Name: SG_InputParameters is connected at the top
             // Format: "AgentName:WorkflowName" -> extract "WorkflowName"
             string? workflowName = workflow.Name;
-            if (workflowName == null && workflowClassType != null)
+            
+            // Always try to extract name if it's null - this is critical for visualization
+            if (workflowName == null)
             {
-                // Check if workflow extends BuiltinWorkflow
-                if (typeof(BuiltinWorkflow).IsAssignableFrom(workflowClassType))
+                if (workflowClassType != null)
                 {
-                    // Extract name from workflow type (e.g., "My Agent:Conversational" -> "Conversational")
+                    // Check if workflow extends BuiltinWorkflow
+                    if (typeof(BuiltinWorkflow).IsAssignableFrom(workflowClassType))
+                    {
+                        // Extract name from workflow type (e.g., "My Agent:Conversational" -> "Conversational")
+                        var workflowTypeParts = workflow.WorkflowType.Split(':', 2);
+                        if (workflowTypeParts.Length == 2)
+                        {
+                            workflowName = workflowTypeParts[1];
+                            _logger.LogDebug(
+                                "Extracted workflow name '{WorkflowName}' from workflow type '{WorkflowType}' for BuiltinWorkflow subclass",
+                                workflowName,
+                                workflow.WorkflowType);
+                        }
+                        else
+                        {
+                            _logger.LogWarning(
+                                "Workflow type '{WorkflowType}' does not follow 'AgentName:WorkflowName' format. Name extraction skipped.",
+                                workflow.WorkflowType);
+                        }
+                    }
+                }
+                else
+                {
+                    // Try to extract from workflow type even without class type (fallback)
                     var workflowTypeParts = workflow.WorkflowType.Split(':', 2);
                     if (workflowTypeParts.Length == 2)
                     {
                         workflowName = workflowTypeParts[1];
+                        _logger.LogDebug(
+                            "Extracted workflow name '{WorkflowName}' from workflow type '{WorkflowType}' (no class type available)",
+                            workflowName,
+                            workflow.WorkflowType);
                     }
                 }
             }
             
             // Ensure ParameterDefinitions is always an array (even if empty) for visualization
-            // should handle connecting SG_InputParameters to the message processing system.
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = workflowName, // Set name for BuiltinWorkflow subclasses to help server visualization
+                Name = workflowName, // Set name for BuiltinWorkflow subclasses to enable proper visualization
                 SystemScoped = _agent.SystemScoped,
                 Workers = (workflow.Workers == 1) ? 1 : workflow.Workers, // Keep default (1) 
                 ActivityDefinitions = activities,
@@ -190,14 +222,32 @@ public class WorkflowCollection
                 Source = sourceToUpload
             };
             
-            _logger.LogDebug(
-                "Uploading workflow definition: WorkflowType={WorkflowType}, Parameters={ParameterCount}, Activities={ActivityCount}, HasSource={HasSource}",
+            // Log critical information for debugging visualization issues
+            _logger.LogInformation(
+                "📤 Uploading workflow definition: WorkflowType={WorkflowType}, Name={WorkflowName}, Parameters={ParameterCount}, Activities={ActivityCount}, HasSource={HasSource}, Activities=[{ActivityNames}]",
                 workflow.WorkflowType,
+                workflowName ?? "(null - THIS WILL CAUSE SG_InputParameters TO BE DISCONNECTED!)",
                 parameters.Count,
                 activities.Length,
-                !string.IsNullOrWhiteSpace(sourceToUpload));
+                !string.IsNullOrWhiteSpace(sourceToUpload),
+                string.Join(", ", activities.Select(a => a.ActivityName)));
+            
+            // Warn if Name is missing for BuiltinWorkflow subclasses - this causes visualization issues
+            if (workflowName == null && workflowClassType != null && typeof(BuiltinWorkflow).IsAssignableFrom(workflowClassType))
+            {
+                _logger.LogWarning(
+                    "⚠️ WARNING: Name field is NULL for BuiltinWorkflow subclass '{WorkflowType}'. " +
+                    "This will cause SG_InputParameters to appear disconnected in the visualization. " +
+                    "Expected format: 'AgentName:WorkflowName'",
+                    workflow.WorkflowType);
+            }
 
             await _uploader.UploadWorkflowDefinitionAsync(definition);
+            
+            _logger.LogInformation(
+                "✅ Successfully uploaded workflow definition for {WorkflowType} with Name={WorkflowName}",
+                workflow.WorkflowType,
+                workflowName ?? "(null - SG_InputParameters may be disconnected)");
         }
         catch (Exception ex)
         {

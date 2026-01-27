@@ -84,12 +84,12 @@ internal class WorkflowDefinitionUploader
             switch (hashCheckResponse.StatusCode)
             {
                 case HttpStatusCode.OK:
-                    _logger?.LogInformation("Workflow definition for {WorkflowType} already up to date on server", definition.WorkflowType);
+                    _logger?.LogInformation("✅ Workflow definition for {WorkflowType} already up to date on server (hash: {Hash})", definition.WorkflowType, hash);
                     return hashCheckResponse;
 
                 case HttpStatusCode.NotFound:
                     // Proceed with upload
-                    _logger?.LogDebug("Workflow definition not found or outdated, uploading...");
+                    _logger?.LogInformation("📤 Workflow definition not found or outdated on server, uploading new version (hash: {Hash})...", hash);
                     break;
 
                 default:
@@ -106,8 +106,11 @@ internal class WorkflowDefinitionUploader
             };
             var serializedPayload = JsonSerializer.Serialize(definition, jsonOptions);
             
-            // Log the payload for debugging
-            _logger?.LogDebug("📤 Uploading workflow definition JSON payload: {Payload}", serializedPayload);
+            // Log the payload for debugging (truncate if too long)
+            var payloadPreview = serializedPayload.Length > 500 
+                ? serializedPayload.Substring(0, 500) + "... (truncated)" 
+                : serializedPayload;
+            _logger?.LogInformation("📤 Uploading workflow definition JSON payload (hash: {Hash}): {Payload}", hash, payloadPreview);
             
             // Upload the definition
             var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition, options: jsonOptions));
@@ -115,11 +118,12 @@ internal class WorkflowDefinitionUploader
             if (!uploadResponse.IsSuccessStatusCode)
             {
                 var errorMessage = await uploadResponse.Content.ReadAsStringAsync();
-                _logger?.LogError("Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
+                _logger?.LogError("❌ Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
                 _logger?.LogError("Failed JSON payload was: {Payload}", serializedPayload);
                 throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
             }
             
+            _logger?.LogInformation("✅ Successfully uploaded workflow definition for {WorkflowType} to server (hash: {Hash})", definition.WorkflowType, hash);
             return uploadResponse;
         });
     }
