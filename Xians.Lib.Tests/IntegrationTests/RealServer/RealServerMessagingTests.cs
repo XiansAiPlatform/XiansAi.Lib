@@ -101,11 +101,7 @@ public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
             return;
         }
 
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         

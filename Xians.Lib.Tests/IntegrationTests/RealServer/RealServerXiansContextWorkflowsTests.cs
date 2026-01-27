@@ -55,18 +55,14 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
         XiansContext.CleanupForTests();
         _testResults.Clear();
 
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         // Register agent (system-scoped to avoid tenant isolation issues in tests)
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = true
+            IsTemplate = true
         });
 
         DefineTestWorkflows();

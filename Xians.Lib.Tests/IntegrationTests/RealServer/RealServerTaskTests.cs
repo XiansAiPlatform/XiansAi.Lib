@@ -53,11 +53,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
         _taskIds.Clear();
 
         // Initialize platform
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -65,7 +61,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
         _platformAgent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = "Platform",
-            SystemScoped = true
+            IsTemplate = true
         });
 
         // Enable task workflow support

@@ -60,11 +60,7 @@ public abstract class RealServerA2ATestsBase : RealServerTestBase, IAsyncLifetim
         _customWorkflowIds.Clear();
 
         // Initialize platform
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -75,7 +71,7 @@ public abstract class RealServerA2ATestsBase : RealServerTestBase, IAsyncLifetim
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = UseSystemScoped
+            IsTemplate = UseSystemScoped
         });
 
         if (UseSystemScoped)

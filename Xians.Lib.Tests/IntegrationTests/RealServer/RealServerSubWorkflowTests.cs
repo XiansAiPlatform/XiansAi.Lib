@@ -73,11 +73,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         _customWorkflowIds.Clear();
 
         // Initialize platform
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -85,7 +81,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Define CHILD TARGET workflow - simple child that records execution

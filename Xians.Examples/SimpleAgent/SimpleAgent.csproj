@@ -24,5 +24,6 @@
 
     <!-- Embed all .json files in the Knowledge folder -->
     <EmbeddedResource Include="knowledge\**\*.json" />
+    <EmbeddedResource Include="knowledge\**\*.txt" />
   </ItemGroup>
 </Project>

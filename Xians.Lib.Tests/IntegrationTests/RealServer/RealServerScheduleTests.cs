@@ -40,17 +40,13 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine($"Initializing Schedule tests against REAL server: {ServerUrl}");
         
         // Initialize platform
-        _platform = await XiansPlatform.InitializeAsync(new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        });
+        _platform = await XiansPlatform.InitializeAsync(CreateTestOptions());
 
         // Register agent
         _agent = _platform.Agents.Register(new XiansAgentRegistration
         {
             Name = _agentName,
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Define a workflow for scheduling

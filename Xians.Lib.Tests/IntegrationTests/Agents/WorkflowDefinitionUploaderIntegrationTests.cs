@@ -71,7 +71,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
         {
             Name = "TestAgent",
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Act
@@ -95,7 +95,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
         {
             Name = uniqueAgentName,
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Act
@@ -130,7 +130,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
         {
             Name = uniqueAgentName,
-            SystemScoped = true
+            IsTemplate = true
         });
 
         // Act

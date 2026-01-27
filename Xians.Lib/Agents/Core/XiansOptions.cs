@@ -38,6 +38,14 @@ public class XiansOptions : ServerConfiguration
     public LogLevel? ServerLogLevel { get; set; }
     
     /// <summary>
+    /// Gets or sets whether to disable server logging entirely.
+    /// When true, LoggingServices will not be initialized and logs will not be uploaded to the server.
+    /// Useful for testing scenarios where the server is not available.
+    /// Default is false.
+    /// </summary>
+    public bool DisableServerLogging { get; set; } = false;
+    
+    /// <summary>
     /// The tenant ID extracted from the API key certificate.
     /// This represents the tenant that owns this API key.
     /// </summary>

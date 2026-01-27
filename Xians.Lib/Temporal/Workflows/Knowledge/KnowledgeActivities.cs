@@ -80,10 +80,11 @@ public class KnowledgeActivities
     public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetKnowledgeAsync(GetKnowledgeRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "GetKnowledge activity started: Name={Name}, Agent={Agent}, Tenant={Tenant}",
+            "GetKnowledge activity started: Name={Name}, Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
             request.KnowledgeName,
             request.AgentName,
-            request.TenantId);
+            request.TenantId,
+            request.ActivationName);
 
         try
         {
@@ -91,7 +92,8 @@ public class KnowledgeActivities
             return await service.GetAsync(
                 request.KnowledgeName,
                 request.AgentName,
-                request.TenantId);
+                request.TenantId,
+                request.ActivationName);
         }
         catch (Exception ex)
         {
@@ -110,16 +112,18 @@ public class KnowledgeActivities
     public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemKnowledgeAsync(GetKnowledgeRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "GetSystemKnowledge activity started: Name={Name}, Agent={Agent}",
+            "GetSystemKnowledge activity started: Name={Name}, Agent={Agent}, ActivationName={ActivationName}",
             request.KnowledgeName,
-            request.AgentName);
+            request.AgentName,
+            request.ActivationName);
 
         try
         {
             var service = CreateKnowledgeService();
             return await service.GetSystemAsync(
                 request.KnowledgeName,
-                request.AgentName);
+                request.AgentName,
+                request.ActivationName);
         }
         catch (Exception ex)
         {
@@ -152,12 +156,13 @@ public class KnowledgeActivities
     public async Task<bool> UpdateKnowledgeAsync(UpdateKnowledgeRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "UpdateKnowledge activity started: Name={Name}, Agent={Agent}, Type={Type}, SystemScoped={SystemScoped}, Tenant={Tenant}",
+            "UpdateKnowledge activity started: Name={Name}, Agent={Agent}, Type={Type}, SystemScoped={SystemScoped}, Tenant={Tenant}, ActivationName={ActivationName}",
             request.KnowledgeName,
             request.AgentName,
             request.Type,
             request.SystemScoped,
-            request.TenantId);
+            request.TenantId,
+            request.ActivationName);
 
         try
         {
@@ -168,7 +173,8 @@ public class KnowledgeActivities
                 request.Type,
                 request.AgentName,
                 request.TenantId,
-                request.SystemScoped);
+                request.SystemScoped,
+                request.ActivationName);
         }
         catch (Exception ex)
         {
@@ -187,10 +193,11 @@ public class KnowledgeActivities
     public async Task<bool> DeleteKnowledgeAsync(DeleteKnowledgeRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "DeleteKnowledge activity started: Name={Name}, Agent={Agent}, Tenant={Tenant}",
+            "DeleteKnowledge activity started: Name={Name}, Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
             request.KnowledgeName,
             request.AgentName,
-            request.TenantId);
+            request.TenantId,
+            request.ActivationName);
 
         try
         {
@@ -198,7 +205,8 @@ public class KnowledgeActivities
             return await service.DeleteAsync(
                 request.KnowledgeName,
                 request.AgentName,
-                request.TenantId);
+                request.TenantId,
+                request.ActivationName);
         }
         catch (Exception ex)
         {
@@ -217,16 +225,18 @@ public class KnowledgeActivities
     public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListKnowledgeAsync(ListKnowledgeRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "ListKnowledge activity started: Agent={Agent}, Tenant={Tenant}",
+            "ListKnowledge activity started: Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
             request.AgentName,
-            request.TenantId);
+            request.TenantId,
+            request.ActivationName);
 
         try
         {
             var service = CreateKnowledgeService();
             return await service.ListAsync(
                 request.AgentName,
-                request.TenantId);
+                request.TenantId,
+                request.ActivationName);
         }
         catch (Exception ex)
         {

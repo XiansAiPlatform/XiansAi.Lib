@@ -73,17 +73,13 @@ public class RealServerWorkflowTests : RealServerTestBase
         Console.WriteLine($"Testing workflow definition upload to REAL server: {ServerUrl}");
         
         // Arrange - Initialize XiansPlatform with real server credentials
-        var platform = await XiansPlatform.InitializeAsync(new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        });
+        var platform = await XiansPlatform.InitializeAsync(CreateTestOptions());
 
         // Act - Register agent with fixed name to avoid spamming server
         var agent = platform.Agents.Register(new XiansAgentRegistration
         {
             Name = AGENT_NAME,
-            SystemScoped = false
+            IsTemplate = false
         });
         
         Console.WriteLine($"✓ Step 1: Registered agent '{AGENT_NAME}'");
