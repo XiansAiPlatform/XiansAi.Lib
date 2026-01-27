@@ -923,7 +923,13 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
             // Deploy only template A to create a tenant-scoped instance
             await templateAgentA.DeployAsync();
-            deployedAgent = templateAgentA;
+            
+            // Access the deployed (tenant-scoped) replica by registering with IsTemplate = false
+            deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+            {
+                Name = templateAgentAName,
+                IsTemplate = false
+            });
 
             // Listing knowledge on the deployed agent should not include template B's knowledge
             var deployedKnowledgeList = await deployedAgent.Knowledge.ListAsync();
