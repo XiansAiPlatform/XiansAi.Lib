@@ -68,8 +68,11 @@ public class XiansPlatform
         var httpLogger = Common.Infrastructure.LoggerFactory.CreateLogger<HttpClientService>();
         var httpService = ServiceFactory.CreateHttpClientService(options, httpLogger);
         
-        // Initialize logging services to start background log upload
-        Logging.LoggingServices.Initialize(httpService);
+        // Initialize logging services to start background log upload (unless disabled)
+        if (!options.DisableServerLogging)
+        {
+            Logging.LoggingServices.Initialize(httpService);
+        }
         
         // Create Temporal service
         var temporalLogger = Common.Infrastructure.LoggerFactory.CreateLogger<TemporalClientService>();

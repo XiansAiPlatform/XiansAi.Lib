@@ -39,13 +39,25 @@ public static class LoggingServices
     private static readonly string _logApiEndpoint = WorkflowConstants.ApiEndpoints.Logs;
     private static int _batchSize = 100;
     private static int _processingIntervalMs = 60000; // 60 seconds
+    
+    // Retry tracking to prevent infinite loops
+    private static readonly ConcurrentDictionary<string, int> _logRetryCount = new();
+    private const int MAX_RETRIES = 3;
 
     /// <summary>
     /// Enqueues a log to the global queue for processing.
+    /// Only enqueues if LoggingServices has been initialized.
     /// </summary>
     /// <param name="log">The log entry to enqueue.</param>
     public static void EnqueueLog(Log log)
     {
+        // Only enqueue logs if the service has been initialized
+        // This prevents logs from accumulating when server logging is disabled
+        if (!_isInitialized)
+        {
+            return;
+        }
+        
         _globalLogQueue.Enqueue(log);
     }
 
@@ -205,6 +217,17 @@ public static class LoggingServices
                 Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
                 RequeueLogBatch(logs);
             }
+            else
+            {
+                // Successful upload - remove retry tracking for these logs
+                foreach (var log in logs)
+                {
+                    if (!string.IsNullOrEmpty(log.Id))
+                    {
+                        _logRetryCount.TryRemove(log.Id, out _);
+                    }
+                }
+            }
         }
         catch (ObjectDisposedException)
         {
@@ -220,13 +243,32 @@ public static class LoggingServices
     }
     
     /// <summary>
-    /// Helper method to re-queue a batch of logs.
+    /// Helper method to re-queue a batch of logs with retry limit.
+    /// Logs that exceed MAX_RETRIES are dropped to prevent infinite accumulation.
     /// </summary>
     private static void RequeueLogBatch(List<Log> logs)
     {
         foreach (var log in logs)
         {
-            _globalLogQueue.Enqueue(log);
+            // Skip logs without IDs
+            if (string.IsNullOrEmpty(log.Id))
+            {
+                _globalLogQueue.Enqueue(log);
+                continue;
+            }
+            
+            var retryCount = _logRetryCount.GetOrAdd(log.Id, 0);
+            if (retryCount < MAX_RETRIES)
+            {
+                _logRetryCount[log.Id] = retryCount + 1;
+                _globalLogQueue.Enqueue(log);
+            }
+            else
+            {
+                // Drop log after max retries to prevent infinite accumulation
+                _logRetryCount.TryRemove(log.Id, out _);
+                Console.Error.WriteLine($"Dropping log {log.Id} after {MAX_RETRIES} failed attempts");
+            }
         }
     }
 
@@ -286,6 +328,9 @@ public static class LoggingServices
             _isInitialized = false;
         }
         
+        // Clear retry tracking on shutdown
+        _logRetryCount.Clear();
+        
         Console.WriteLine("Log flushing completed");
     }
     
@@ -312,5 +357,14 @@ public static class LoggingServices
 
         _batchSize = batchSize;
         _processingIntervalMs = processingIntervalMs;
+    }
+    
+    /// <summary>
+    /// Gets statistics about the current logging state.
+    /// </summary>
+    /// <returns>A tuple containing (queued logs count, logs with retries count).</returns>
+    public static (int QueuedCount, int RetryingCount) GetLoggingStats()
+    {
+        return (_globalLogQueue.Count, _logRetryCount.Count);
     }
 }

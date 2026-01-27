@@ -54,6 +54,7 @@ public class LoggingServicesTests : IAsyncLifetime
     public void EnqueueLog_AddsLogToQueue()
     {
         // Arrange
+        LoggingServices.Initialize(_httpService!);
         var log = CreateTestLog(LogLevel.Information, "Test message");
         var initialCount = LoggingServices.GlobalLogQueue.Count;
 
@@ -183,6 +184,7 @@ public class LoggingServicesTests : IAsyncLifetime
     public void EnqueueLog_WithCriticalLevel_AddsToQueue()
     {
         // Arrange
+        LoggingServices.Initialize(_httpService!);
         var log = CreateTestLog(LogLevel.Critical, "Critical error");
         var initialCount = LoggingServices.GlobalLogQueue.Count;
 
@@ -197,6 +199,7 @@ public class LoggingServicesTests : IAsyncLifetime
     public void EnqueueLog_WithException_AddsToQueue()
     {
         // Arrange
+        LoggingServices.Initialize(_httpService!);
         var log = CreateTestLog(LogLevel.Error, "Error with exception");
         log.Exception = new InvalidOperationException("Test exception").ToString();
         var initialCount = LoggingServices.GlobalLogQueue.Count;
@@ -213,6 +216,7 @@ public class LoggingServicesTests : IAsyncLifetime
     public void EnqueueLog_MultipleLogs_AllAddedToQueue()
     {
         // Arrange
+        LoggingServices.Initialize(_httpService!);
         var initialCount = LoggingServices.GlobalLogQueue.Count;
         var logsToAdd = 5;
 

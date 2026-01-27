@@ -456,7 +456,8 @@ public class ActivityUserMessageContext : UserMessageContext
         return await _knowledgeService.GetAsync(
             knowledgeName,
             GetAgentNameFromWorkflowType(),
-            _tenantId);
+            _tenantId,
+            activationName: null);
     }
 
     /// <summary>
@@ -482,7 +483,8 @@ public class ActivityUserMessageContext : UserMessageContext
         return await _knowledgeService.DeleteAsync(
             knowledgeName,
             GetAgentNameFromWorkflowType(),
-            _tenantId);
+            _tenantId,
+            activationName: null);
     }
 
     /// <summary>
@@ -493,7 +495,8 @@ public class ActivityUserMessageContext : UserMessageContext
     {
         return await _knowledgeService.ListAsync(
             GetAgentNameFromWorkflowType(),
-            _tenantId);
+            _tenantId,
+            activationName: null);
     }
 
     /// <summary>

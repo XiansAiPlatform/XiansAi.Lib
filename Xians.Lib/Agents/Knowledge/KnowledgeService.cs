@@ -2,11 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Common;
-using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
-using Xians.Lib.Temporal.Workflows.Knowledge;
 
 namespace Xians.Lib.Agents.Knowledge;
 
@@ -17,12 +14,12 @@ namespace Xians.Lib.Agents.Knowledge;
 internal class KnowledgeService
 {
     private readonly HttpClient _httpClient;
-    private readonly Xians.Lib.Common.Caching.CacheService? _cacheService;
+    private readonly Common.Caching.CacheService? _cacheService;
     private readonly ILogger _logger;
 
     public KnowledgeService(
         HttpClient httpClient, 
-        Xians.Lib.Common.Caching.CacheService? cacheService,
+        Common.Caching.CacheService? cacheService,
         ILogger logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
@@ -36,9 +33,10 @@ internal class KnowledgeService
     /// <param name="knowledgeName">The name of the knowledge to retrieve.</param>
     /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="activationName">The activation name (ID postfix).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The knowledge object, or null if not found.</returns>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string agentName, string? tenantId, CancellationToken cancellationToken = default)
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string agentName, string? tenantId, string? activationName, CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
@@ -46,15 +44,16 @@ internal class KnowledgeService
         // tenantId is optional for system-scoped agents
 
         // Check cache first
-        var cacheKey = GetCacheKey(tenantId, agentName, knowledgeName);
+        var cacheKey = GetCacheKey(tenantId, agentName, activationName, knowledgeName);
         var cached = _cacheService?.GetKnowledge<Models.Knowledge>(cacheKey);
         if (cached != null)
         {
             _logger.LogDebug(
-                "Cache hit for knowledge: Name={Name}, Agent={Agent}, Tenant={Tenant}",
+                "Cache hit for knowledge: Name={Name}, Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
                 knowledgeName,
                 agentName,
-                tenantId);
+                tenantId,
+                activationName);
             return cached;
         }
 
@@ -62,12 +61,18 @@ internal class KnowledgeService
         var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeLatest}?" +
                       $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
                       $"&agent={UrlEncoder.Default.Encode(agentName)}";
+        
+        if (!string.IsNullOrEmpty(activationName))
+        {
+            endpoint += $"&activationName={UrlEncoder.Default.Encode(activationName)}";
+        }
 
         _logger.LogDebug(
-            "Fetching knowledge from server: Name={Name}, Agent={Agent}, Tenant={Tenant}",
+            "Fetching knowledge from server: Name={Name}, Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
             knowledgeName,
             agentName,
-            tenantId);
+            tenantId,
+            activationName);
 
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -120,30 +125,37 @@ internal class KnowledgeService
     /// <summary>
     /// Retrieves system-scoped knowledge (no tenant) from server with caching.
     /// </summary>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemAsync(string knowledgeName, string agentName, CancellationToken cancellationToken = default)
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemAsync(string knowledgeName, string agentName, string? activationName, CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
         ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
 
-        var cacheKey = GetCacheKey(null, agentName, knowledgeName);
+        var cacheKey = GetCacheKey(null, agentName, activationName, knowledgeName);
         var cached = _cacheService?.GetKnowledge<Models.Knowledge>(cacheKey);
         if (cached != null)
         {
             _logger.LogDebug(
-                "Cache hit for system knowledge: Name={Name}, Agent={Agent}",
+                "Cache hit for system knowledge: Name={Name}, Agent={Agent}, ActivationName={ActivationName}",
                 knowledgeName,
-                agentName);
+                agentName,
+                activationName);
             return cached;
         }
 
         var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeLatestSystem}?" +
                       $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
                       $"&agent={UrlEncoder.Default.Encode(agentName)}";
+        
+        if (!string.IsNullOrEmpty(activationName))
+        {
+            endpoint += $"&activationName={UrlEncoder.Default.Encode(activationName)}";
+        }
 
         _logger.LogDebug(
-            "Fetching system knowledge from server: Name={Name}, Agent={Agent}",
+            "Fetching system knowledge from server: Name={Name}, Agent={Agent}, ActivationName={ActivationName}",
             knowledgeName,
-            agentName);
+            agentName,
+            activationName);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
 
@@ -198,6 +210,7 @@ internal class KnowledgeService
     /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID for isolation.</param>
     /// <param name="systemScoped">Whether this knowledge is system-scoped (shared across tenants).</param>
+    /// <param name="activationName">The activation name (ID postfix).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the operation succeeds.</returns>
     /// <exception cref="ArgumentException">Thrown when validation fails.</exception>
@@ -209,6 +222,7 @@ internal class KnowledgeService
         string agentName, 
         string? tenantId,
         bool systemScoped = false,
+        string? activationName = null,
         CancellationToken cancellationToken = default)
     {
         // Validate inputs
@@ -231,15 +245,21 @@ internal class KnowledgeService
         };
 
         _logger.LogDebug(
-            "Updating knowledge: Name={Name}, Agent={Agent}, Type={Type}, SystemScoped={SystemScoped}, ContentLength={Length}",
+            "Updating knowledge: Name={Name}, Agent={Agent}, Type={Type}, SystemScoped={SystemScoped}, ContentLength={Length}, ActivationName={ActivationName}",
             knowledgeName,
             agentName,
             type,
             systemScoped,
-            content.Length);
+            content.Length,
+            activationName);
 
         // POST to api/agent/knowledge
         var endpoint = WorkflowConstants.ApiEndpoints.Knowledge;
+        
+        if (!string.IsNullOrEmpty(activationName))
+        {
+            endpoint += $"?activationName={UrlEncoder.Default.Encode(activationName)}";
+        }
         
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
         httpRequest.Content = JsonContent.Create(knowledge);
@@ -259,7 +279,7 @@ internal class KnowledgeService
         }
 
         // Invalidate cache after update
-        var cacheKey = GetCacheKey(tenantId, agentName, knowledgeName);
+        var cacheKey = GetCacheKey(tenantId, agentName, activationName, knowledgeName);
         _cacheService?.RemoveKnowledge(cacheKey);
 
         _logger.LogInformation(
@@ -275,9 +295,10 @@ internal class KnowledgeService
     /// <param name="knowledgeName">The name of the knowledge to delete.</param>
     /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="activationName">The activation name (ID postfix).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if deleted, false if not found.</returns>
-    public async Task<bool> DeleteAsync(string knowledgeName, string agentName, string? tenantId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(string knowledgeName, string agentName, string? tenantId, string? activationName, CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
@@ -288,12 +309,18 @@ internal class KnowledgeService
         var endpoint = $"{WorkflowConstants.ApiEndpoints.Knowledge}?" +
                       $"name={UrlEncoder.Default.Encode(knowledgeName)}" +
                       $"&agent={UrlEncoder.Default.Encode(agentName)}";
+        
+        if (!string.IsNullOrEmpty(activationName))
+        {
+            endpoint += $"&activationName={UrlEncoder.Default.Encode(activationName)}";
+        }
 
         _logger.LogDebug(
-            "Deleting knowledge: Name={Name}, Agent={Agent}, Tenant={Tenant}",
+            "Deleting knowledge: Name={Name}, Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
             knowledgeName,
             agentName,
-            tenantId);
+            tenantId,
+            activationName);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, endpoint);
         httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
@@ -322,7 +349,7 @@ internal class KnowledgeService
         }
 
         // Invalidate cache after deletion
-        var cacheKey = GetCacheKey(tenantId, agentName, knowledgeName);
+        var cacheKey = GetCacheKey(tenantId, agentName, activationName, knowledgeName);
         _cacheService?.RemoveKnowledge(cacheKey);
 
         _logger.LogInformation(
@@ -337,9 +364,10 @@ internal class KnowledgeService
     /// </summary>
     /// <param name="agentName">The agent name.</param>
     /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="activationName">The activation name (ID postfix).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of knowledge items.</returns>
-    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(string agentName, string? tenantId, CancellationToken cancellationToken = default)
+    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(string agentName, string? tenantId, string? activationName, CancellationToken cancellationToken = default)
     {
         // Validate inputs
         ValidationHelper.ValidateRequiredWithMaxLength(agentName, nameof(agentName), 256);
@@ -348,11 +376,17 @@ internal class KnowledgeService
         // Build URL
         var endpoint = $"{WorkflowConstants.ApiEndpoints.KnowledgeList}?" +
                       $"agent={UrlEncoder.Default.Encode(agentName)}";
+        
+        if (!string.IsNullOrEmpty(activationName))
+        {
+            endpoint += $"&activationName={UrlEncoder.Default.Encode(activationName)}";
+        }
 
         _logger.LogDebug(
-            "Listing knowledge: Agent={Agent}, Tenant={Tenant}",
+            "Listing knowledge: Agent={Agent}, Tenant={Tenant}, ActivationName={ActivationName}",
             agentName,
-            tenantId);
+            tenantId,
+            activationName);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
         httpRequest.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
@@ -389,11 +423,11 @@ internal class KnowledgeService
 
     /// <summary>
     /// Generates a cache key for knowledge items.
-    /// Format: "knowledge:{tenantId}:{agentName}:{knowledgeName}"
+    /// Format: "knowledge:{tenantId}:{agentName}:{activationName}:{knowledgeName}"
     /// </summary>
-    private string GetCacheKey(string? tenantId, string agentName, string knowledgeName)
+    private string GetCacheKey(string? tenantId, string agentName, string? activationName, string knowledgeName)
     {
-        return $"knowledge:{tenantId}:{agentName}:{knowledgeName}";
+        return $"knowledge:{tenantId}:{agentName}:{activationName}:{knowledgeName}";
     }
 }
 

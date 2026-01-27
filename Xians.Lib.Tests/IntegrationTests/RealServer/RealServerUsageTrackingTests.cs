@@ -76,11 +76,7 @@ public class RealServerUsageTrackingTests : RealServerTestBase, IAsyncLifetime
 
     private async Task InitializePlatformAsync()
     {
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         _agent = _platform.Agents.Register(new XiansAgentRegistration 

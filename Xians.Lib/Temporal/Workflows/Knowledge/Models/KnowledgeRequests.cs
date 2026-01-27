@@ -1,4 +1,3 @@
-using Xians.Lib.Agents.Knowledge.Models;
 namespace Xians.Lib.Temporal.Workflows.Knowledge.Models;
 
 /// <summary>
@@ -9,6 +8,7 @@ public class GetKnowledgeRequest
     public required string KnowledgeName { get; set; }
     public required string AgentName { get; set; }
     public string? TenantId { get; set; }
+    public string? ActivationName { get; set; }
 }
 
 /// <summary>
@@ -22,6 +22,7 @@ public class UpdateKnowledgeRequest
     public required string AgentName { get; set; }
     public string? TenantId { get; set; }
     public bool SystemScoped { get; set; }
+    public string? ActivationName { get; set; }
 }
 
 /// <summary>
@@ -32,6 +33,7 @@ public class DeleteKnowledgeRequest
     public required string KnowledgeName { get; set; }
     public required string AgentName { get; set; }
     public string? TenantId { get; set; }
+    public string? ActivationName { get; set; }
 }
 
 /// <summary>
@@ -41,5 +43,6 @@ public class ListKnowledgeRequest
 {
     public required string AgentName { get; set; }
     public string? TenantId { get; set; }
+    public string? ActivationName { get; set; }
 }
 
