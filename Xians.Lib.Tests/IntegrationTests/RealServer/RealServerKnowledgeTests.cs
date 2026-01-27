@@ -898,9 +898,6 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         });
         templateAgentB.Workflows.DefineBuiltIn("list-template-b");
 
-        await templateAgentA.UploadWorkflowDefinitionsAsync();
-        await templateAgentB.UploadWorkflowDefinitionsAsync();
-
         var knowledgeAName = $"{_testKnowledgePrefix}-template-a";
         var knowledgeBName = $"{_testKnowledgePrefix}-template-b";
 
@@ -908,7 +905,8 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
         try
         {
-            // Attach distinct knowledge to each template
+            // Attach distinct knowledge to each template BEFORE uploading workflow definitions
+            // This ensures the knowledge is included when deploying the template
             await templateAgentA.Knowledge.UpdateAsync(
                 knowledgeAName,
                 "Template A only knowledge",
@@ -920,6 +918,10 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
                 "Template B only knowledge",
                 "text",
                 systemScoped: true);
+
+            // Upload workflow definitions after knowledge is attached
+            await templateAgentA.UploadWorkflowDefinitionsAsync();
+            await templateAgentB.UploadWorkflowDefinitionsAsync();
 
             // Deploy only template A to create a tenant-scoped instance
             await templateAgentA.DeployAsync();

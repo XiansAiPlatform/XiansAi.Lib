@@ -17,6 +17,7 @@ namespace Xians.Lib.Tests.IntegrationTests.Logging;
 /// </summary>
 
 [Trait("Category", "Integration")]
+[Collection("LoggingServices")] // Prevent parallel execution due to static state
 public class LoggingServicesTests : IAsyncLifetime
 {
     private WireMockServer? _mockServer;

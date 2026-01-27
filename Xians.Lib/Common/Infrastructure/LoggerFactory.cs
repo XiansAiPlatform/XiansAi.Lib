@@ -60,8 +60,9 @@ public static class LoggerFactory
             {
                 _loggerFactory?.Dispose();
                 _loggerFactory = CreateDefaultLoggerFactory();
+                // Use the newly created factory directly to avoid race conditions
+                return _loggerFactory.CreateLogger<T>();
             }
-            return Instance.CreateLogger<T>();
         }
     }
 
