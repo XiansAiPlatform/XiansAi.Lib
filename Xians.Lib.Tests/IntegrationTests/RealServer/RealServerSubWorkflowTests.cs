@@ -73,11 +73,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         _customWorkflowIds.Clear();
 
         // Initialize platform
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -85,7 +81,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Define CHILD TARGET workflow - simple child that records execution
@@ -139,7 +135,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
                 var childWorkflowType = ChildWorkflowType;
                 
                 // Start child workflow without waiting
-                await SubWorkflowService.StartAsync(childWorkflowType, testId);
+                await SubWorkflowService.StartAsync(childWorkflowType, new[] { testId });
                 
                 // Record parent execution (simplified - just verify StartAsync was called successfully)
                 var result = new SubWorkflowTestResult
@@ -382,7 +378,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         // Act - call StartAsync outside of workflow context
         var childWorkflowType = ChildWorkflowType;
         
-        await SubWorkflowService.StartAsync(childWorkflowType, testId);
+        await SubWorkflowService.StartAsync(childWorkflowType, new[] { testId });
         
         Console.WriteLine($"✓ Started workflow via client using StartAsync(string)");
 
@@ -459,7 +455,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         _customWorkflowIds.Add(resultWorkflowId);
         
         // Start it via StartAsync instead (ExecuteAsync would hang for built-in workflows)
-        await SubWorkflowService.StartAsync(resultWorkflowType, testId);
+        await SubWorkflowService.StartAsync(resultWorkflowType, new[] { testId });
         
         Console.WriteLine($"✓ Workflow started via SubWorkflowService");
 
@@ -540,7 +536,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         // Act & Assert - workflow type without "AgentName:WorkflowName" format
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await SubWorkflowService.StartAsync("InvalidWorkflowType");
+            await SubWorkflowService.StartAsync("InvalidWorkflowType", Array.Empty<string>());
         });
 
         Assert.Contains("Invalid workflow type", exception.Message);
@@ -568,7 +564,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
         // Act & Assert - workflow type with non-existent agent
         var exception = await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
         {
-            await SubWorkflowService.StartAsync("NonExistentAgent:SomeWorkflow");
+            await SubWorkflowService.StartAsync("NonExistentAgent:SomeWorkflow", Array.Empty<string>());
         });
 
         Assert.Contains("Agent 'NonExistentAgent' not found", exception.Message);
@@ -598,7 +594,7 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
 
         // Act - start workflow and verify it can be found
         var childWorkflowType = ChildWorkflowType;
-        await SubWorkflowService.StartAsync(childWorkflowType, testId);
+        await SubWorkflowService.StartAsync(childWorkflowType, new[] { testId });
         
         // Build expected workflow ID that SubWorkflowService creates
         // Format: {tenantId}:{agentName}:{fullWorkflowName}:{postfix}

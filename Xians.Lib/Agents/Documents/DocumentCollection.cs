@@ -247,9 +247,9 @@ public class DocumentCollection
     private void PrepareDocumentForSave(Document document)
     {
         document.AgentId = _agent.Name;
-        if (WorkflowContextHelper.InWorkflowOrActivity)
+        if (XiansContext.InWorkflowOrActivity)
         {
-            document.WorkflowId = WorkflowContextHelper.GetWorkflowId();
+            document.WorkflowId = XiansContext.WorkflowId;
         }
     }
 

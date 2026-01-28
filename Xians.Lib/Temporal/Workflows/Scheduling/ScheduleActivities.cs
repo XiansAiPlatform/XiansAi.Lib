@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
+using Temporalio.Common;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Common.Infrastructure;
@@ -41,7 +42,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await workflow.Schedules!.ExistsAsync(request.ScheduleId))
+            if (await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix))
             {
                 _logger.LogInformation("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleId);
                 return false;
@@ -49,11 +50,20 @@ public class ScheduleActivities
 
             _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
 
-            await workflow.Schedules!
-                .Create(request.ScheduleId)
+            // Reconstruct search attributes from serializable format
+            var builder = workflow.Schedules!
+                .Create(request.ScheduleId, request.IdPostfix)
                 .WithCronSchedule(request.CronExpression, request.Timezone)
-                .WithInput(request.WorkflowInput)
-                .StartAsync();
+                .WithInput(request.WorkflowInput);
+
+            // Add search attributes if provided
+            if (request.SearchAttributes != null)
+            {
+                var searchAttrs = ReconstructSearchAttributes(request.SearchAttributes);
+                builder = builder.WithTypedSearchAttributes(searchAttrs);
+            }
+
+            await builder.CreateIfNotExistsAsync();
 
             _logger.LogInformation(
                 "✅ Successfully created schedule '{ScheduleId}' with cron '{CronExpression}'",
@@ -80,7 +90,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await workflow.Schedules!.ExistsAsync(request.ScheduleId))
+            if (await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix))
             {
                 _logger.LogInformation("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleId);
                 return false;
@@ -88,11 +98,20 @@ public class ScheduleActivities
 
             _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
 
-            await workflow.Schedules!
-                .Create(request.ScheduleId)
+            // Reconstruct search attributes from serializable format
+            var builder = workflow.Schedules!
+                .Create(request.ScheduleId, request.IdPostfix)
                 .WithIntervalSchedule(request.Interval)
-                .WithInput(request.WorkflowInput)
-                .StartAsync();
+                .WithInput(request.WorkflowInput);
+
+            // Add search attributes if provided
+            if (request.SearchAttributes != null)
+            {
+                var searchAttrs = ReconstructSearchAttributes(request.SearchAttributes);
+                builder = builder.WithTypedSearchAttributes(searchAttrs);
+            }
+
+            await builder.CreateIfNotExistsAsync();
 
             _logger.LogInformation(
                 "✅ Successfully created interval schedule '{ScheduleId}' with interval '{Interval}'",
@@ -110,19 +129,19 @@ public class ScheduleActivities
     /// <summary>
     /// Checks if a schedule exists using the Xians Schedule SDK.
     /// </summary>
-    /// <param name="request">The schedule exists request containing the schedule ID.</param>
+    /// <param name="request">The schedule exists request containing the schedule ID and idPostfix.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
     [Activity]
     public async Task<bool> ScheduleExists(ScheduleExistsRequest request)
     {
         var workflow = GetCurrentWorkflow();
-        return await workflow.Schedules!.ExistsAsync(request.ScheduleId);
+        return await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix);
     }
 
     /// <summary>
     /// Deletes a schedule using the Xians Schedule SDK.
     /// </summary>
-    /// <param name="request">The delete schedule request containing the schedule ID.</param>
+    /// <param name="request">The delete schedule request containing the schedule ID and idPostfix.</param>
     /// <returns>True if deleted successfully, false if not found.</returns>
     [Activity]
     public async Task<bool> DeleteSchedule(DeleteScheduleRequest request)
@@ -131,7 +150,7 @@ public class ScheduleActivities
 
         try
         {
-            await workflow.Schedules!.DeleteAsync(request.ScheduleId);
+            await workflow.Schedules!.DeleteAsync(request.ScheduleId, request.IdPostfix);
             _logger.LogInformation("✅ Successfully deleted schedule '{ScheduleId}'", request.ScheduleId);
             return true;
         }
@@ -150,7 +169,7 @@ public class ScheduleActivities
     /// <summary>
     /// Pauses a schedule using the Xians Schedule SDK.
     /// </summary>
-    /// <param name="request">The pause schedule request containing the schedule ID and optional note.</param>
+    /// <param name="request">The pause schedule request containing the schedule ID, idPostfix, and optional note.</param>
     [Activity]
     public async Task PauseSchedule(PauseScheduleRequest request)
     {
@@ -158,7 +177,7 @@ public class ScheduleActivities
 
         try
         {
-            await workflow.Schedules!.PauseAsync(request.ScheduleId, request.Note);
+            await workflow.Schedules!.PauseAsync(request.ScheduleId, request.IdPostfix, request.Note);
             _logger.LogInformation("⏸️ Successfully paused schedule '{ScheduleId}'", request.ScheduleId);
         }
         catch (Exception ex)
@@ -171,7 +190,7 @@ public class ScheduleActivities
     /// <summary>
     /// Resumes a schedule using the Xians Schedule SDK.
     /// </summary>
-    /// <param name="request">The resume schedule request containing the schedule ID and optional note.</param>
+    /// <param name="request">The resume schedule request containing the schedule ID, idPostfix, and optional note.</param>
     [Activity]
     public async Task ResumeSchedule(ResumeScheduleRequest request)
     {
@@ -179,7 +198,7 @@ public class ScheduleActivities
 
         try
         {
-            await workflow.Schedules!.UnpauseAsync(request.ScheduleId, request.Note);
+            await workflow.Schedules!.UnpauseAsync(request.ScheduleId, request.IdPostfix, request.Note);
             _logger.LogInformation("▶️ Successfully resumed schedule '{ScheduleId}'", request.ScheduleId);
         }
         catch (Exception ex)
@@ -192,7 +211,7 @@ public class ScheduleActivities
     /// <summary>
     /// Triggers an immediate execution of a schedule using the Xians Schedule SDK.
     /// </summary>
-    /// <param name="request">The trigger schedule request containing the schedule ID.</param>
+    /// <param name="request">The trigger schedule request containing the schedule ID and idPostfix.</param>
     [Activity]
     public async Task TriggerSchedule(TriggerScheduleRequest request)
     {
@@ -200,7 +219,7 @@ public class ScheduleActivities
 
         try
         {
-            await workflow.Schedules!.TriggerAsync(request.ScheduleId);
+            await workflow.Schedules!.TriggerAsync(request.ScheduleId, request.IdPostfix);
             _logger.LogInformation("🚀 Successfully triggered schedule '{ScheduleId}'", request.ScheduleId);
         }
         catch (Exception ex)
@@ -208,6 +227,25 @@ public class ScheduleActivities
             _logger.LogError(ex, "Failed to trigger schedule '{ScheduleId}'", request.ScheduleId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Reconstructs SearchAttributeCollection from serializable dictionary format.
+    /// </summary>
+    private SearchAttributeCollection? ReconstructSearchAttributes(Dictionary<string, object>? searchAttrs)
+    {
+        if (searchAttrs == null || !searchAttrs.Any())
+            return null;
+
+        var builder = new SearchAttributeCollection.Builder();
+        foreach (var kvp in searchAttrs)
+        {
+            // Create search attribute key and add to collection
+            // Note: We assume keyword type for simplicity. Could be enhanced to support other types.
+            var key = SearchAttributeKey.CreateKeyword(kvp.Key);
+            builder.Set(key, kvp.Value?.ToString() ?? string.Empty);
+        }
+        return builder.ToSearchAttributeCollection();
     }
 }
 

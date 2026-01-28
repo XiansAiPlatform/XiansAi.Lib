@@ -12,6 +12,7 @@ using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Temporal.Workflows.Documents;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Temporal.Workflows.Scheduling;
+using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -27,18 +28,15 @@ public class XiansWorkflow
     private readonly List<Type> _activityTypes = new();
     private readonly Type? _workflowClassType;
     private string? _taskQueue;
+    private readonly bool _activable;
 
-    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, int workers, bool isBuiltIn, Type? workflowClassType = null, bool isPlatformWorkflow = false)
+    internal XiansWorkflow(XiansAgent agent, string workflowType, string? name, WorkflowOptions options, bool isBuiltIn, Type? workflowClassType = null)
     {
         if (agent == null)
             throw new ArgumentNullException(nameof(agent));
         
         if (string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentNullException(nameof(workflowType));
-
-        // Enforce that workflow type starts with agent name prefix (unless it's a platform workflow)
-        if (!isPlatformWorkflow)
-        {
             var expectedPrefix = agent.Name + ":";
             if (!workflowType.StartsWith(expectedPrefix))
             {
@@ -47,21 +45,29 @@ public class XiansWorkflow
                     $"Expected format: '{expectedPrefix}WorkflowName'",
                     nameof(workflowType));
             }
-        }
-
         _agent = agent;
         WorkflowType = workflowType;
         Name = name;
-        Workers = workers;
+        Options = options.Clone();
+        Workers = Options.MaxConcurrent;
         _isBuiltIn = isBuiltIn;
         _workflowClassType = workflowClassType;
+        _activable = options.Activable;
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
 
-        // Initialize schedule collection if temporal service is available
-        if (agent.TemporalService != null)
+        // Register workflow options for built-in workflows
+        if (_isBuiltIn)
         {
-            Schedules = new ScheduleCollection(agent, workflowType, agent.TemporalService);
+            BuiltinWorkflow.RegisterWorkflowOptions(workflowType, Options);
         }
+
+        // Initialize schedule collection if temporal service is available
+        if (agent.TemporalService == null)
+        {
+            throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules.");
+        }
+
+        Schedules = new ScheduleCollection(_agent, WorkflowType, _agent.TemporalService ?? throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules."));
 
         // Register this workflow in XiansContext so it can be accessed via CurrentWorkflow
         XiansContext.RegisterWorkflow(workflowType, this);
@@ -78,14 +84,24 @@ public class XiansWorkflow
     public string? Name { get; private set; }
 
     /// <summary>
-    /// Gets the number of workers for this workflow.
+    /// Gets the workflow options.
+    /// </summary>
+    public WorkflowOptions Options { get; }
+
+    /// <summary>
+    /// Gets the number of workers for this workflow (same as Options.MaxConcurrent).
     /// </summary>
     public int Workers { get; }
 
     /// <summary>
+    /// Gets whether this workflow is activable.
+    /// </summary>
+    public bool Activable => _activable;
+
+    /// <summary>
     /// Gets the schedule collection for managing scheduled executions of this workflow.
     /// </summary>
-    public ScheduleCollection? Schedules { get; }
+    public ScheduleCollection Schedules { get; private set; }
 
     /// <summary>
     /// Gets the task queue name for this workflow.

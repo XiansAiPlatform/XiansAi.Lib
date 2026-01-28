@@ -16,8 +16,9 @@ namespace Xians.Lib.Agents.Messaging;
 public class UserMessageContext
 {
     private readonly Dictionary<string, string>? _metadata;
-    private readonly MessageActivityExecutor _executor;
+    private readonly MessageActivityExecutor? _executor;
     private readonly ILogger<UserMessageContext> _logger;
+    private readonly string? _cachedWorkflowId;
 
     /// <summary>
     /// Gets the current message with text, data, and context information.
@@ -50,6 +51,9 @@ public class UserMessageContext
     {
         _metadata = metadata;
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<UserMessageContext>();
+
+        // Cache workflow ID from context if available
+        _cachedWorkflowId = XiansContext.SafeWorkflowId;
 
         // Initialize current message with context
         Message = new CurrentMessage(
@@ -104,20 +108,24 @@ public class UserMessageContext
     /// <returns>A list of DbMessage objects representing the chat history.</returns>
     public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        var workflowType = WorkflowContextHelper.GetWorkflowType();
         
+        Console.WriteLine($"***** Fetching chat history: WorkflowId={_cachedWorkflowId}, ParticipantId={Message.ParticipantId}, Page={page}, PageSize={pageSize}, Tenant={Message.TenantId}");
         _logger.LogInformation(
-            "Fetching chat history: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
-            workflowType,
+            "Fetching chat history: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
+            _cachedWorkflowId,
             Message.ParticipantId,
             page,
             pageSize,
             Message.TenantId);
 
         // Shared business logic: Build request
-        var request = BuildMessageHistoryRequest(workflowType, page, pageSize);
+        var request = BuildMessageHistoryRequest( page, pageSize);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         var messages = await _executor.GetHistoryAsync(request);
 
         _logger.LogInformation(
@@ -136,7 +144,7 @@ public class UserMessageContext
     /// <returns>The last hint string, or null if not found.</returns>
     public virtual async Task<string?> GetLastHintAsync()
     {
-        var workflowType = WorkflowContextHelper.GetWorkflowType();
+        var workflowType = XiansContext.WorkflowType;
         
         _logger.LogInformation(
             "Fetching last hint: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
@@ -148,6 +156,10 @@ public class UserMessageContext
         var request = BuildLastHintRequest(workflowType);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         var hint = await _executor.GetLastHintAsync(request);
 
         _logger.LogInformation(
@@ -211,6 +223,10 @@ public class UserMessageContext
         var request = BuildSendMessageRequest(content, data, messageType);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         await _executor.SendMessageAsync(request);
 
         _logger.LogInformation(
@@ -247,6 +263,10 @@ public class UserMessageContext
         var request = BuildSendHandoffRequest(targetWorkflowId, targetWorkflowType, text, data);
 
         // Context-aware execution via executor
+        if (_executor == null)
+        {
+            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
+        }
         var result = await _executor.SendHandoffAsync(request);
 
         _logger.LogInformation(
@@ -263,11 +283,12 @@ public class UserMessageContext
     /// Builds a message history request.
     /// Shared business logic used by GetChatHistoryAsync.
     /// </summary>
-    private GetMessageHistoryRequest BuildMessageHistoryRequest(string workflowType, int page, int pageSize)
+    private GetMessageHistoryRequest BuildMessageHistoryRequest( int page, int pageSize)
     {
         return new GetMessageHistoryRequest
         {
-            WorkflowType = workflowType,
+            WorkflowId = _cachedWorkflowId ?? XiansContext.WorkflowId ?? throw new InvalidOperationException("WorkflowId is required"),
+            WorkflowType = XiansContext.WorkflowType,
             ParticipantId = Message.ParticipantId,
             Scope = Message.Scope,
             TenantId = Message.TenantId,
@@ -300,8 +321,8 @@ public class UserMessageContext
         return new SendMessageRequest
         {
             ParticipantId = Message.ParticipantId,
-            WorkflowId = WorkflowContextHelper.GetWorkflowId(),
-            WorkflowType = WorkflowContextHelper.GetWorkflowType(),
+            WorkflowId = _cachedWorkflowId ?? string.Empty,
+            WorkflowType = XiansContext.WorkflowType,
             Text = content,
             Data = data ?? Message.Data,
             RequestId = Message.RequestId,
@@ -328,8 +349,8 @@ public class UserMessageContext
             TargetWorkflowId = targetWorkflowId,
             TargetWorkflowType = targetWorkflowType,
             SourceAgent = agent.Name,
-            SourceWorkflowType = WorkflowContextHelper.GetWorkflowType(),
-            SourceWorkflowId = WorkflowContextHelper.GetWorkflowId(),
+            SourceWorkflowType = XiansContext.WorkflowType,
+            SourceWorkflowId = _cachedWorkflowId ?? string.Empty,
             ThreadId = Message.ThreadId!,
             ParticipantId = Message.ParticipantId,
             Authorization = Message.Authorization,

@@ -46,13 +46,14 @@ internal class MessageService
         
         // Build query string with proper URL encoding
         var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationHistory}?" +
-                      $"workflowType={Uri.EscapeDataString(request.WorkflowType ?? string.Empty)}" +
+                      $"workflowId={Uri.EscapeDataString(request.WorkflowId ?? string.Empty)}" +
+                      $"&workflowType={Uri.EscapeDataString(request.WorkflowType ?? string.Empty)}" +
                       $"&participantId={Uri.EscapeDataString(request.ParticipantId ?? string.Empty)}" +
                       $"&page={request.Page}" +
                       $"&pageSize={fetchSize}" +
                       $"&scope={Uri.EscapeDataString(request.Scope ?? string.Empty)}";
 
-        _logger.LogTrace("Fetching message history from {Endpoint}", endpoint);
+        _logger.LogInformation("Fetching message history from {Endpoint}", endpoint);
 
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -90,13 +91,13 @@ internal class MessageService
             messages = messages.Where(m => m.RequestId != latestMessage.RequestId).ToList();
             
             _logger.LogInformation(
-                "Message history fetched (page 1): {Count} messages (dropped latest message)",
+                "Message history fetched - (page 1): {Count} messages (dropped latest message)",
                 messages.Count);
         }
         else
         {
             _logger.LogInformation(
-                "Message history fetched (page {Page}): {Count} messages",
+                "Message history fetched - (page {Page}): {Count} messages",
                 request.Page,
                 messages.Count);
         }
@@ -153,7 +154,7 @@ internal class MessageService
                     request.Text ?? string.Empty, request.Data, request.TenantId, request.Authorization, request.ThreadId, request.Hint ?? string.Empty, request.Origin, 
                     type, cancellationToken);
                 
-                _logger.LogInformation("Message sent successfully: RequestId={RequestId}", request.RequestId);
+                _logger.LogInformation("Message sent successfully: RequestId={RequestId}, WorkflowId={WorkflowId}", request.RequestId,request.WorkflowId);
                 return;
             }
             catch (RateLimitException ex) when (attempt < maxRetries)

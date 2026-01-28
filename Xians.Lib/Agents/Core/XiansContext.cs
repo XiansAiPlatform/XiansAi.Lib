@@ -1,12 +1,8 @@
-using System.Collections.Concurrent;
+using System.Reflection;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Agents.Workflows;
-using Xians.Lib.Agents.Knowledge;
-using Xians.Lib.Agents.Documents;
-using Xians.Lib.Agents.Scheduling;
-using Xians.Lib.Agents.Messaging;
+
 using Xians.Lib.Agents.A2A;
 using Xians.Lib.Agents.Core.Registry;
 
@@ -27,13 +23,16 @@ public static class XiansContext
     internal static readonly IAgentRegistry _agentRegistry = new AgentRegistry();
     internal static readonly IWorkflowRegistry _workflowRegistry = new WorkflowRegistry();
 
+    // AsyncLocal storage for participant ID - isolated per async execution context
+    private static readonly AsyncLocal<string?> _asyncLocalParticipantId = new AsyncLocal<string?>();
+
     #region Workflow/Activity Context
 
     /// <summary>
     /// Gets the current workflow ID from Temporal context.
     /// Internal - for public access, use XiansContext.CurrentWorkflow.WorkflowId
     /// </summary>
-    public static string WorkflowId => WorkflowContextHelper.GetWorkflowId();
+    public static string WorkflowId => GetWorkflowId();
 
     /// <summary>
     /// Gets the current tenant ID extracted from the workflow ID.
@@ -61,7 +60,7 @@ public static class XiansContext
     /// Gets the current workflow type from Temporal context.
     /// Internal - for public access, use XiansContext.CurrentWorkflow.WorkflowType
     /// </summary>
-    internal static string WorkflowType => WorkflowContextHelper.GetWorkflowType();
+    internal static string WorkflowType => GetWorkflowType();
 
     /// <summary>
     /// Gets the current agent name extracted from the workflow type.
@@ -87,12 +86,351 @@ public static class XiansContext
     /// <summary>
     /// Checks if the code is currently executing within a Temporal workflow.
     /// </summary>
-    public static bool InWorkflow => WorkflowContextHelper.InWorkflow;
+    public static bool InWorkflow => Workflow.InWorkflow;
 
     /// <summary>
     /// Checks if the code is currently executing within a Temporal activity.
     /// </summary>
-    public static bool InActivity => WorkflowContextHelper.InActivity;
+    public static bool InActivity => ActivityExecutionContext.HasCurrent;
+
+    /// <summary>
+    /// Checks if the code is currently executing within a Temporal workflow or activity.
+    /// </summary>
+    public static bool InWorkflowOrActivity => Workflow.InWorkflow || ActivityExecutionContext.HasCurrent;
+
+    /// <summary>
+    /// Safely gets the current workflow ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowId => TryGetWorkflowId();
+
+    /// <summary>
+    /// Safely gets the current workflow run ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowRunId => TryGetWorkflowRunId();
+
+    /// <summary>
+    /// Safely gets the current workflow type without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeWorkflowType => TryGetWorkflowType();
+
+    /// <summary>
+    /// Safely gets the current agent name without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeAgentName => TryGetAgentName();
+
+    /// <summary>
+    /// Safely gets the current tenant ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeTenantId => TryGetTenantId();
+
+    /// <summary>
+    /// Safely gets the current participant ID without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeParticipantId => TryGetParticipantId();
+
+    /// <summary>
+    /// Safely gets the current idPostfix without throwing exceptions.
+    /// Returns null if not in workflow or activity context.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeIdPostfix => TryGetIdPostfix();
+
+    #endregion
+
+    #region Workflow/Activity Context Helper Methods
+
+    private const string NotInContextErrorMessage = 
+        "Not in workflow or activity context. This operation requires Temporal context.";
+
+    /// <summary>
+    /// Sets the participant ID for the current async execution context.
+    /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// </summary>
+    /// <param name="participantId">The participant ID to set for this execution context.</param>
+    public static void SetParticipantId(string participantId)
+    {
+        _asyncLocalParticipantId.Value = participantId;
+    }
+
+    /// <summary>
+    /// Clears the participant ID from the current async execution context.
+    /// Call this in a finally block to clean up after activity execution.
+    /// </summary>
+    public static void ClearParticipantId()
+    {
+        _asyncLocalParticipantId.Value = null;
+    }
+
+    /// <summary>
+    /// Gets the participant ID from the current async execution context, search attributes, memo, or workflow ID.
+    /// Tries in order: async local context → search attributes → memo → workflow ID parsing.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    public static string GetParticipantId()
+    {
+        // First check if it was set via SetParticipantId() in the current async context
+        if (!string.IsNullOrEmpty(_asyncLocalParticipantId.Value))
+        {
+            return _asyncLocalParticipantId.Value;
+        }
+        
+        // Fall back to existing logic (search attributes, memo, workflow ID)
+        return GetWorkflowMetadata(Common.WorkflowConstants.Keys.UserId) 
+            ?? throw new InvalidOperationException(NotInContextErrorMessage);
+    }
+
+    /// <summary>
+    /// Gets the idPostfix from search attributes, memo, or workflow ID.
+    /// Tries in order: search attributes → memo → workflow ID parsing.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    public static string GetIdPostfix() => 
+        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? GetIdPostfixFromWorkflowId() ?? throw new InvalidOperationException(NotInContextErrorMessage);
+
+    /// <summary>
+    /// Generic method to retrieve workflow metadata from search attributes, memo, or workflow ID.
+    /// Tries in order: search attributes → memo → workflow ID parsing.
+    /// </summary>
+    private static string? GetWorkflowMetadata(string keyName)
+    {
+        var fromSearchAttrs = GetFromSearchAttributes(keyName);
+        if (!string.IsNullOrEmpty(fromSearchAttrs))
+            return fromSearchAttrs;
+
+        var fromMemo = GetFromMemo(keyName);
+        if (!string.IsNullOrEmpty(fromMemo))
+            return fromMemo;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the current workflow ID.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    private static string GetWorkflowId() => 
+        GetFromContext(
+            () => Workflow.Info.WorkflowId,
+            () => ActivityExecutionContext.Current.Info.WorkflowId
+        );
+
+    /// <summary>
+    /// Gets the current workflow type.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    private static string GetWorkflowType() => 
+        GetFromContext(
+            () => Workflow.Info.WorkflowType,
+            () => ActivityExecutionContext.Current.Info.WorkflowType
+        );
+
+    /// <summary>
+    /// Gets the current workflow run ID.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    private static string GetWorkflowRunId() => 
+        GetFromContext(
+            () => Workflow.Info.RunId,
+            () => ActivityExecutionContext.Current.Info.WorkflowRunId
+        );
+
+    /// <summary>
+    /// Gets the current task queue name.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    public static string GetTaskQueue() => 
+        GetFromContext(
+            () => Workflow.Info.TaskQueue,
+            () => ActivityExecutionContext.Current.Info.TaskQueue
+        );
+
+    /// <summary>
+    /// Generic helper to get data from either workflow or activity context.
+    /// </summary>
+    private static T GetFromContext<T>(Func<T> fromWorkflow, Func<T> fromActivity)
+    {
+        if (Workflow.InWorkflow)
+            return fromWorkflow();
+        
+        if (ActivityExecutionContext.HasCurrent)
+            return fromActivity();
+        
+        throw new InvalidOperationException(NotInContextErrorMessage);
+    }
+
+    /// <summary>
+    /// Tries to get a value from context without throwing exceptions.
+    /// </summary>
+    private static T? TryGetFromContext<T>(Func<T> getter) where T : class
+    {
+        try
+        {
+            return InWorkflowOrActivity ? getter() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current workflow ID without throwing an exception.
+    /// </summary>
+    /// <returns>The workflow ID if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetWorkflowId() => TryGetFromContext(GetWorkflowId);
+
+    /// <summary>
+    /// Tries to get the current workflow type without throwing an exception.
+    /// </summary>
+    /// <returns>The workflow type if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetWorkflowType() => TryGetFromContext(GetWorkflowType);
+
+    /// <summary>
+    /// Tries to get the current workflow run ID without throwing an exception.
+    /// </summary>
+    /// <returns>The workflow run ID if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetWorkflowRunId() => TryGetFromContext(GetWorkflowRunId);
+
+    /// <summary>
+    /// Tries to get the current agent name without throwing an exception.
+    /// </summary>
+    /// <returns>The agent name if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetAgentName() => TryGetFromContext(() => AgentName);
+
+    /// <summary>
+    /// Tries to get the current tenant ID without throwing an exception.
+    /// </summary>
+    /// <returns>The tenant ID if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetTenantId()
+    {
+        try
+        {
+            return InWorkflowOrActivity ? TenantId : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current participant ID without throwing an exception.
+    /// </summary>
+    /// <returns>The participant ID if in workflow/activity context, otherwise null.</returns>
+    private static string? TryGetParticipantId()
+    {
+        try
+        {
+            return InWorkflowOrActivity ? GetParticipantId() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current idPostfix without throwing an exception.
+    /// </summary>
+    /// <returns>The idPostfix if in workflow/activity context, otherwise null.</returns>
+    internal static string? TryGetIdPostfix()
+    {
+        try
+        {
+            return InWorkflowOrActivity ? GetIdPostfix() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to get idPostfix from search attributes (workflow context only).
+    /// </summary>
+    private static string? GetFromSearchAttributes(string keyName)
+    {
+        try
+        {
+            if (Workflow.InWorkflow)
+            {
+                var searchAttrs = Workflow.TypedSearchAttributes;
+                var key = Temporalio.Common.SearchAttributeKey.CreateKeyword(keyName);
+                return searchAttrs.Get(key);
+                
+            }
+            // Note: Activities don't have direct access to search attributes
+        }
+        catch
+        {
+            // Search attribute doesn't exist or wrong type, continue to next method
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Attempts to get idPostfix from workflow memo.
+    /// Works in workflow context only (activities inherit parent workflow ID).
+    /// </summary>
+    private static string? GetFromMemo(string keyName)
+    {
+        try
+        {
+            if (Workflow.InWorkflow)
+            {
+                if (Workflow.Memo.TryGetValue(keyName, out var value))
+                {
+                    return value.Payload.Data.ToStringUtf8()?.Replace("\"", "");
+                }
+            }
+            // Note: Activities don't have access to memo directly, they use the parent workflow's ID
+        }
+        catch
+        {
+            // Memo doesn't exist or can't be parsed, continue to next method
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Parses idPostfix from workflow ID as fallback.
+    /// Workflow ID format: {tenantId}:{agentName}:{workflowName}:{idPostfix}
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    private static string? GetIdPostfixFromWorkflowId()
+    {
+        try
+        {
+            var workflowId = GetWorkflowId();
+            var parts = workflowId.Split(':');
+            if (parts.Length < 4)
+            {
+                return null;
+            }
+            return parts[3];
+        }
+        catch
+        {
+            // Workflow ID doesn't exist or can't be parsed, continue to next method
+        }
+        return null;
+    }
 
     #endregion
 
@@ -150,19 +488,27 @@ public static class XiansContext
 
     #region Operation Helpers
 
-    private static readonly WorkflowHelper _workflowHelper = new();
-    private static readonly MessagingHelper _messagingHelper = new();
+    private static readonly Lazy<WorkflowHelper> _workflowHelper = new();
+    private static readonly Lazy<MessagingHelper> _messagingHelper = new();
+    private static readonly MetricsHelper _metricsHelper = new();
+
 
     /// <summary>
     /// Gets workflow operations for starting, executing, signaling, and querying workflows.
     /// Also provides access to the Temporal client for advanced operations.
     /// </summary>
-    public static WorkflowHelper Workflows => _workflowHelper;
+    public static WorkflowHelper Workflows => _workflowHelper.Value;
 
     /// <summary>
     /// Gets messaging operations for proactive messaging and A2A communication.
     /// </summary>
-    public static MessagingHelper Messaging => _messagingHelper;
+    public static MessagingHelper Messaging => _messagingHelper.Value;
+
+    /// <summary>
+    /// Gets metrics operations for reporting usage statistics.
+    /// Automatically handles workflow vs non-workflow contexts.
+    /// </summary>
+    public static MetricsHelper Metrics => _metricsHelper;
 
     #endregion
 
@@ -232,18 +578,7 @@ public static class XiansContext
             throw new ArgumentNullException(nameof(workflowName), "Workflow name cannot be null or empty.");
         }
 
-        // Get current agent to construct the workflow type
-        var agent = CurrentAgent;
-        if (agent == null)
-        {
-            throw new InvalidOperationException(
-                "Cannot get built-in workflow: No agent context available. " +
-                "Ensure you're calling this from within a workflow or after registering an agent.");
-        }
-
-        // Use WorkflowIdentity to construct the built-in workflow type
-        // Format: "{AgentName}:BuiltIn Workflow-{name}"
-        var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
+        var workflowType = GetBuiltInWorkflowType(workflowName);
 
         if (_workflowRegistry.TryGet(workflowType, out var workflow))
         {
@@ -251,7 +586,7 @@ public static class XiansContext
         }
 
         throw new KeyNotFoundException(
-            $"Built-in workflow '{workflowName}' not found for agent '{agent.Name}'. " +
+            $"Built-in workflow '{workflowName}' not found for agent '{CurrentAgent.Name}'. " +
             $"Expected workflow type: '{workflowType}'. " +
             $"Available workflows: {string.Join(", ", _workflowRegistry.GetAll().Select(w => w.WorkflowType))}");
     }
@@ -268,19 +603,29 @@ public static class XiansContext
         workflow = null;
 
         if (string.IsNullOrWhiteSpace(workflowName))
+            return false;
+
+        try
+        {
+            var workflowType = GetBuiltInWorkflowType(workflowName);
+            return _workflowRegistry.TryGet(workflowType, out workflow);
+        }
+        catch
         {
             return false;
         }
+    }
 
-        var agent = CurrentAgent;
-        if (agent == null)
-        {
-            return false;
-        }
+    /// <summary>
+    /// Constructs the workflow type for a built-in workflow.
+    /// </summary>
+    private static string GetBuiltInWorkflowType(string workflowName)
+    {
+        var agent = CurrentAgent ?? throw new InvalidOperationException(
+            "Cannot get built-in workflow: No agent context available. " +
+            "Ensure you're calling this from within a workflow or after registering an agent.");
 
-        // Use WorkflowIdentity to construct the built-in workflow type
-        var workflowType = Common.WorkflowIdentity.BuildBuiltInWorkflowType(agent.Name, workflowName);
-        return _workflowRegistry.TryGet(workflowType, out workflow);
+        return BuildBuiltInWorkflowType(agent.Name, workflowName);
     }
 
     /// <summary>
@@ -329,6 +674,69 @@ public static class XiansContext
 
     #endregion
 
+    #region Workflow Identity Construction
+
+    /// <summary>
+    /// Constructs a builtin workflow type identifier.
+    /// </summary>
+    /// <param name="agentName">The name of the agent owning the workflow.</param>
+    /// <param name="workflowName">The name for the builtin workflow.</param>
+    /// <returns>A workflow type in the format "{AgentName}:{name}"</returns>
+    public static string BuildBuiltInWorkflowType(string agentName, string workflowName)
+    {
+        if (string.IsNullOrWhiteSpace(agentName))
+        {
+            throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
+        }
+
+        if (string.IsNullOrWhiteSpace(workflowName))
+        {
+            throw new ArgumentException("Workflow name cannot be null or empty.", nameof(workflowName));
+        }
+
+        return agentName + ":" + workflowName;
+    }
+
+    /// <summary>
+    /// Constructs a builtin workflow ID.
+    /// </summary>
+    /// <param name="agentName">The name of the agent owning the workflow.</param>
+    /// <param name="workflowName">The name for the builtin workflow.</param>
+    /// <returns>A workflow ID in the format "{TenantId}:{AgentName}:{name}"</returns>
+    public static string BuildBuiltInWorkflowId(string agentName, string workflowName)
+    {
+        var idPostfix = XiansContext.GetIdPostfix();
+        var workflowId = $"{TenantId}:{BuildBuiltInWorkflowType(agentName, workflowName)}:{idPostfix}";
+        return workflowId;
+    }
+
+    /// <summary>
+    /// Gets the workflow type string from a workflow class Type.
+    /// Extracts the name from the [Workflow] attribute.
+    /// </summary>
+    /// <param name="workflowClassType">The Type of the workflow class.</param>
+    /// <returns>The workflow type string from the WorkflowAttribute.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when workflowClassType is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the workflow class doesn't have a WorkflowAttribute with a Name.</exception>
+    public static string GetWorkflowTypeFor(Type workflowClassType)
+    {
+        if (workflowClassType == null)
+        {
+            throw new ArgumentNullException(nameof(workflowClassType));
+        }
+
+        var workflowAttr = workflowClassType.GetCustomAttribute<WorkflowAttribute>();
+        if (workflowAttr?.Name == null)
+        {
+            throw new InvalidOperationException(
+                $"Workflow class '{workflowClassType.Name}' does not have a WorkflowAttribute with a Name property set.");
+        }
+
+        return workflowAttr.Name;
+    }
+
+    #endregion
+
     #region Internal Registration
 
     /// <summary>
@@ -355,8 +763,24 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Clears all registered agents and workflows. For testing purposes only.
+    /// Clears all in-memory and static state including registries, caches, and handlers.
+    /// For testing purposes only.
     /// </summary>
+    /// <remarks>
+    /// <para><strong>NOTE:</strong> This method only clears LOCAL state (in-memory registries, static handlers, caches).</para>
+    /// <para>It does NOT delete agents, knowledge, documents, or workflows from the server.</para>
+    /// <para><strong>For real server integration tests:</strong> Use <c>RealServerTestCleanupHelper</c> which handles both
+    /// server resource deletion (agents, knowledge, documents, workflows) AND local state cleanup.</para>
+    /// <para><strong>For mock server tests:</strong> Use this method directly since no server cleanup is needed.</para>
+    /// <para><strong>What gets cleared:</strong></para>
+    /// <list type="bullet">
+    /// <item><description>Agent and workflow registries</description></item>
+    /// <item><description>BuiltinWorkflow message handlers and options</description></item>
+    /// <item><description>Knowledge activity static services</description></item>
+    /// <item><description>Settings service cache</description></item>
+    /// <item><description>Certificate cache</description></item>
+    /// </list>
+    /// </remarks>
     internal static void CleanupForTests()
     {
         _agentRegistry.Clear();
@@ -372,9 +796,14 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Clears all registered agents and workflows.
+    /// Clears only the agent and workflow registries.
     /// Intended for testing purposes only.
     /// </summary>
+    /// <remarks>
+    /// <para>This is a minimal cleanup method that only clears registries.</para>
+    /// <para>For comprehensive cleanup, use <see cref="CleanupForTests"/> instead, which also clears
+    /// handlers, caches, and other static state.</para>
+    /// </remarks>
     internal static void Clear()
     {
         _agentRegistry.Clear();

@@ -1,5 +1,6 @@
 using DotNetEnv;
 using Xians.Lib.Common.Testing;
+using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
@@ -35,6 +36,20 @@ public abstract class RealServerTestBase : IDisposable
         // Only run if we have valid credentials
         RunRealServerTests = !string.IsNullOrEmpty(ServerUrl) && 
                              !string.IsNullOrEmpty(ApiKey);
+    }
+
+    /// <summary>
+    /// Helper method to create XiansOptions for testing with server logging disabled.
+    /// This prevents connection errors to the logging server during tests.
+    /// </summary>
+    protected XiansOptions CreateTestOptions()
+    {
+        return new XiansOptions
+        {
+            ServerUrl = ServerUrl!,
+            ApiKey = ApiKey!,
+            DisableServerLogging = true  // Disable server logging for tests
+        };
     }
 
     /// <summary>

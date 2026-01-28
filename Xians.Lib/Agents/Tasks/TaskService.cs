@@ -1,10 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client;
 using Xians.Lib.Agents.Tasks.Models;
-using Xians.Lib.Common;
-using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows;
-using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
 
@@ -33,8 +30,6 @@ internal class TaskService
     /// </summary>
     public WorkflowHandle<TaskWorkflow> GetTaskHandle(string taskId)
     {
-        // Build workflow ID manually to avoid requiring workflow context
-        // Format: {tenantId}:{agentName}:Task Workflow:{taskId}
         var workflowId = $"{_tenantId}:{_agentName}:Task Workflow:{taskId}";
         return _client.GetWorkflowHandle<TaskWorkflow>(workflowId);
     }
@@ -67,30 +62,17 @@ internal class TaskService
     }
 
     /// <summary>
-    /// Sends a signal to complete the task.
+    /// Performs an action on a task with an optional comment.
     /// </summary>
-    public async Task CompleteTaskAsync(string taskId)
+    public async Task PerformActionAsync(string taskId, string action, string? comment = null)
     {
-        _logger.LogDebug("Completing task: TaskId={TaskId}, TenantId={TenantId}", taskId, _tenantId);
+        _logger.LogDebug("Performing action: TaskId={TaskId}, Action={Action}, TenantId={TenantId}", 
+            taskId, action, _tenantId);
         
         var handle = GetTaskHandle(taskId);
-        await handle.SignalAsync(wf => wf.CompleteTask());
+        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        await handle.SignalAsync(wf => wf.PerformAction(actionRequest));
         
-        _logger.LogInformation("Task completed: TaskId={TaskId}", taskId);
-    }
-
-    /// <summary>
-    /// Sends a signal to reject the task.
-    /// </summary>
-    public async Task RejectTaskAsync(string taskId, string rejectionMessage)
-    {
-        _logger.LogDebug("Rejecting task: TaskId={TaskId}, TenantId={TenantId}, Reason={Reason}", 
-            taskId, _tenantId, rejectionMessage);
-        
-        var handle = GetTaskHandle(taskId);
-        await handle.SignalAsync(wf => wf.RejectTask(rejectionMessage));
-        
-        _logger.LogWarning("Task rejected: TaskId={TaskId}, Reason={Reason}", taskId, rejectionMessage);
+        _logger.LogInformation("Action performed: TaskId={TaskId}, Action={Action}", taskId, action);
     }
 }
-

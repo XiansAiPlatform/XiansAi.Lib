@@ -71,7 +71,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
         {
             Name = "TestAgent",
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Act
@@ -95,11 +95,11 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
         {
             Name = uniqueAgentName,
-            SystemScoped = false
+            IsTemplate = false
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational", maxConcurrent: 1);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "Conversational");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -119,7 +119,7 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         Assert.Equal($"{uniqueAgentName}:Conversational", uploadedDefinition.WorkflowType);
         Assert.Equal("Conversational", uploadedDefinition.Name);
         Assert.False(uploadedDefinition.SystemScoped);
-        Assert.Equal(1, uploadedDefinition.Workers);
+        Assert.Equal(100, uploadedDefinition.Workers); // Default is 100 (Temporal's default)
     }
 
     [Fact]
@@ -130,11 +130,11 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         var agent = _platform!.Agents.Register(new XiansAgentRegistration
         {
             Name = uniqueAgentName,
-            SystemScoped = true
+            IsTemplate = true
         });
 
         // Act
-        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow", maxConcurrent: 2);
+        var workflow = agent.Workflows.DefineBuiltIn(name: "SystemWorkflow");
         
         // Upload workflow definitions (happens automatically in RunAllAsync, but we call it explicitly for testing)
         await agent.Workflows.UploadAllDefinitionsAsync();
@@ -150,13 +150,24 @@ public class WorkflowDefinitionUploaderIntegrationTests : IAsyncLifetime
         Assert.Equal(uniqueAgentName, uploadedDefinition.Agent);
         Assert.Equal($"{uniqueAgentName}:SystemWorkflow", uploadedDefinition.WorkflowType);
         Assert.True(uploadedDefinition.SystemScoped);
-        Assert.Equal(2, uploadedDefinition.Workers);
+        Assert.Equal(100, uploadedDefinition.Workers); // Default is 100 (Temporal's default)
     }
 
     public Task DisposeAsync()
     {
+        // Clean up mock server
         _mockServer?.Stop();
         _mockServer?.Dispose();
+        
+        // Clean up static state to prevent test contamination
+        // This clears:
+        // - Agent and workflow registries
+        // - BuiltinWorkflow handlers
+        // - Knowledge activities services
+        // - Settings cache
+        // - Certificate cache
+        XiansContext.CleanupForTests();
+        
         return Task.CompletedTask;
     }
 }

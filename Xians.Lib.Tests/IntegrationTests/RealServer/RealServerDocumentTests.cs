@@ -82,11 +82,7 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             return;
         }
 
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -94,7 +90,7 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = false  // Documents only work with tenant-scoped agents
+            IsTemplate = false  // Documents only work with tenant-scoped agents
         });
         
         // Define and upload workflow definition
@@ -822,7 +818,7 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             var agent2 = _platform!.Agents.Register(new XiansAgentRegistration 
             { 
                 Name = agent2Name,
-                SystemScoped = false
+                IsTemplate = false
             });
             
             var workflow2 = agent2.Workflows.DefineBuiltIn("document-tests-2");
@@ -924,7 +920,7 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             var agent2 = _platform!.Agents.Register(new XiansAgentRegistration 
             { 
                 Name = agent2Name,
-                SystemScoped = false
+                IsTemplate = false
             });
             
             var workflow2 = agent2.Workflows.DefineBuiltIn("document-tests-2");
@@ -998,7 +994,7 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
             var agent2 = _platform!.Agents.Register(new XiansAgentRegistration 
             { 
                 Name = agent2Name,
-                SystemScoped = false
+                IsTemplate = false
             });
             
             var workflow2 = agent2.Workflows.DefineBuiltIn("document-tests-2");
@@ -1071,17 +1067,13 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
         if (!RunRealServerTests) return;
 
         // Create a system-scoped agent
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         var platform = await XiansPlatform.InitializeAsync(options);
         var systemAgent = platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = $"SystemScopedTest-{Guid.NewGuid().ToString()[..8]}",
-            SystemScoped = true
+            IsTemplate = true
         });
 
         try
@@ -1134,11 +1126,7 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
         if (!RunRealServerTests) return;
         
         // Initialize platform
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -1146,7 +1134,7 @@ public class RealServerDocumentWorkflowTests : RealServerTestBase, IAsyncLifetim
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = AGENT_NAME,
-            SystemScoped = false
+            IsTemplate = false
         });
         
         // Define workflows

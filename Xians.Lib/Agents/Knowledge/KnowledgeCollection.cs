@@ -1,11 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Http;
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Encodings.Web;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Agents.Knowledge;
@@ -21,6 +16,7 @@ public class KnowledgeCollection
     private readonly XiansAgent _agent;
     private readonly KnowledgeActivityExecutor _executor;
     private readonly ILogger<KnowledgeCollection> _logger;
+    private readonly List<Xians.Lib.Agents.Knowledge.Models.Knowledge> _localKnowledge = new();
 
     internal KnowledgeCollection(XiansAgent agent, IHttpClientService? httpService, Xians.Lib.Common.Caching.CacheService? cacheService)
     {
@@ -46,14 +42,17 @@ public class KnowledgeCollection
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
 
         var tenantId = GetTenantId();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         
-        _logger.LogDebug(
-            "Getting knowledge '{Name}' for agent '{AgentName}'",
+        _logger.LogInformation(
+            "Getting knowledge '{Name}' for agent '{AgentName}' with tenantId '{TenantId}' and idPostfix '{IdPostfix}'",
             knowledgeName,
-            _agent.Name);
+            _agent.Name,
+            tenantId,
+            idPostfix);
 
         // Context-aware execution via executor
-        var knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+        var knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, idPostfix, cancellationToken);
 
         // If the server returned system-scoped knowledge for a tenant-scoped
         // agent (e.g., template deployed previously but tenant copy missing),
@@ -62,12 +61,12 @@ public class KnowledgeCollection
         {
             await UpdateAsync(
                 knowledgeName,
-                knowledge.Content ?? string.Empty,
+                knowledge.Content,
                 knowledge.Type,
                 systemScoped: false,
                 cancellationToken);
 
-            knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+            knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, idPostfix, cancellationToken);
         }
 
         return knowledge;
@@ -77,16 +76,18 @@ public class KnowledgeCollection
     /// Retrieves system-scoped knowledge by name.
     /// Always uses SystemScoped=true and no tenant ID.
     /// </summary>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemAsync(string knowledgeName, CancellationToken cancellationToken = default)
+    internal async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetSystemAsync(string knowledgeName, CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
 
+        var idPostfix = XiansContext.TryGetIdPostfix();
+        
         _logger.LogDebug(
             "Getting system knowledge '{Name}' for agent '{AgentName}'",
             knowledgeName,
             _agent.Name);
 
-        return await _executor.GetSystemAsync(knowledgeName, _agent.Name, cancellationToken);
+        return await _executor.GetSystemAsync(knowledgeName, _agent.Name, idPostfix, cancellationToken);
     }
 
     /// <summary>
@@ -101,13 +102,14 @@ public class KnowledgeCollection
     /// <returns>True if the operation succeeds.</returns>
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     /// <exception cref="HttpRequestException">Thrown when the HTTP request fails.</exception>
-    public async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null, bool? systemScoped = null, CancellationToken cancellationToken = default)
+    internal async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null, bool? systemScoped = null, CancellationToken cancellationToken = default)
     {
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
         ValidationHelper.ValidateRequired(content, nameof(content));
 
         var tenantId = GetTenantId();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         
         // If systemScoped is not explicitly set, use the agent's SystemScoped setting
         var isSystemScoped = systemScoped ?? _agent.SystemScoped;
@@ -120,7 +122,35 @@ public class KnowledgeCollection
             isSystemScoped);
 
         // Context-aware execution via executor
-        return await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, cancellationToken);
+        var result = await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, idPostfix, cancellationToken);
+        
+        // Track locally
+        if (result)
+        {
+            var existingKnowledge = _localKnowledge.FirstOrDefault(k => k.Name == knowledgeName);
+            if (existingKnowledge != null)
+            {
+                // Update existing
+                existingKnowledge.Content = content;
+                existingKnowledge.Type = type;
+                existingKnowledge.SystemScoped = isSystemScoped;
+            }
+            else
+            {
+                // Add new
+                _localKnowledge.Add(new Xians.Lib.Agents.Knowledge.Models.Knowledge
+                {
+                    Name = knowledgeName,
+                    Content = content,
+                    Type = type,
+                    SystemScoped = isSystemScoped,
+                    Agent = _agent.Name,
+                    TenantId = tenantId
+                });
+            }
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -131,12 +161,13 @@ public class KnowledgeCollection
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if deleted, false if not found.</returns>
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
-    public async Task<bool> DeleteAsync(string knowledgeName, CancellationToken cancellationToken = default)
+    internal async Task<bool> DeleteAsync(string knowledgeName, CancellationToken cancellationToken = default)
     {
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
 
         var tenantId = GetTenantId();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         
         _logger.LogInformation(
             "Deleting knowledge '{Name}' for agent '{AgentName}'",
@@ -144,7 +175,19 @@ public class KnowledgeCollection
             _agent.Name);
 
         // Context-aware execution via executor
-        return await _executor.DeleteAsync(knowledgeName, _agent.Name, tenantId, cancellationToken);
+        var result = await _executor.DeleteAsync(knowledgeName, _agent.Name, tenantId, idPostfix, cancellationToken);
+        
+        // Remove from local tracking if deletion succeeded
+        if (result)
+        {
+            var existingKnowledge = _localKnowledge.FirstOrDefault(k => k.Name == knowledgeName);
+            if (existingKnowledge != null)
+            {
+                _localKnowledge.Remove(existingKnowledge);
+            }
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -157,26 +200,27 @@ public class KnowledgeCollection
     public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListAsync(CancellationToken cancellationToken = default)
     {
         var tenantId = GetTenantId();
+        var idPostfix = XiansContext.TryGetIdPostfix();
         
         _logger.LogDebug(
             "Listing knowledge for agent '{AgentName}'",
             _agent.Name);
 
         // Context-aware execution via executor
-        return await _executor.ListAsync(_agent.Name, tenantId, cancellationToken);
+        return await _executor.ListAsync(_agent.Name, tenantId, idPostfix, cancellationToken);
     }
 
     /// <summary>
-    /// Displays a formatted summary of all uploaded knowledge items.
+    /// Displays a formatted summary of all locally tracked knowledge items.
     /// </summary>
-    public async Task DisplayKnowledgeSummaryAsync(CancellationToken cancellationToken = default)
+    public Task DisplayKnowledgeSummaryAsync(CancellationToken cancellationToken = default)
     {
-        var knowledgeList = await ListAsync(cancellationToken);
-        
-        if (knowledgeList.Count == 0)
+        if (_localKnowledge.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
+        
+        var knowledgeList = _localKnowledge;
 
         // Fixed box width for better console compatibility
         const int boxWidth = 63;
@@ -256,6 +300,8 @@ public class KnowledgeCollection
         Console.ResetColor();
         Console.WriteLine();
         Console.WriteLine();
+        
+        return Task.CompletedTask;
     }
 
     /// <summary>

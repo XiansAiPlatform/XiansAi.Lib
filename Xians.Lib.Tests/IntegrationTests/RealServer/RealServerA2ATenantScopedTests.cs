@@ -56,11 +56,7 @@ public class RealServerA2ATenantScopedTests : RealServerTestBase, IAsyncLifetime
         _targetWorkflowExecuted.Clear();
 
         // Initialize platform
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -68,7 +64,7 @@ public class RealServerA2ATenantScopedTests : RealServerTestBase, IAsyncLifetime
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = false  // ← This is the key difference!
+            IsTemplate = false  // ← This is the key difference!
         });
 
         Console.WriteLine($"Agent registered with tenant ID: {_agent.Options!.CertificateTenantId}");

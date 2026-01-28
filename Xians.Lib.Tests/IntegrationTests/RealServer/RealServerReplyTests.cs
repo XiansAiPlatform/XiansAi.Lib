@@ -41,16 +41,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         _testResults.Clear();
         _handlerExecuted.Clear();
 
-        _platform = await XiansPlatform.InitializeAsync(new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        });
+        _platform = await XiansPlatform.InitializeAsync(CreateTestOptions());
         
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = _agentName,
-            SystemScoped = false
+            IsTemplate = false
         });
 
         Console.WriteLine($"Agent registered with tenant ID: {_agent.Options!.CertificateTenantId}");

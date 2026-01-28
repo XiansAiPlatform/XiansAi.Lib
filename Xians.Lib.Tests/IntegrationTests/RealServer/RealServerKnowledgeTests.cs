@@ -113,11 +113,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         // Clean up static registries from previous tests
         XiansContext.CleanupForTests();
 
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -653,11 +649,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         // Create two separate platform instances with different agents
         XiansContext.CleanupForTests();
         
-        var options1 = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options1 = CreateTestOptions();
         var platform1 = await XiansPlatform.InitializeAsync(options1);
         var agent1 = platform1.Agents.Register(new XiansAgentRegistration { Name = "Agent1-IsolationTest" });
         var workflow1 = agent1.Workflows.DefineBuiltIn("isolation-test-1");
@@ -665,11 +657,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
         XiansContext.CleanupForTests();
 
-        var options2 = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options2 = CreateTestOptions();
         var platform2 = await XiansPlatform.InitializeAsync(options2);
         var agent2 = platform2.Agents.Register(new XiansAgentRegistration { Name = "Agent2-IsolationTest" });
         var workflow2 = agent2.Workflows.DefineBuiltIn("isolation-test-2");
@@ -727,16 +715,12 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
         // Create a system-scoped agent
         XiansContext.CleanupForTests();
-        var systemOptions = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var systemOptions = CreateTestOptions();
         var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
         var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration 
         { 
             Name = "SystemScopedKnowledgeAgent",
-            SystemScoped = true  // System-scoped agent
+            IsTemplate = true  // System-scoped agent
         });
         var workflow = systemAgent.Workflows.DefineBuiltIn("sys-knowledge-test");
         await systemAgent.UploadWorkflowDefinitionsAsync();
@@ -823,16 +807,12 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
         // Create a system-scoped template agent with knowledge
         XiansContext.CleanupForTests();
-        var systemOptions = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var systemOptions = CreateTestOptions();
         var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
         var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
         {
             Name = "TemplateAgent",
-            SystemScoped = true
+            IsTemplate = true
         });
         systemAgent.Workflows.DefineBuiltIn("template-workflow");
 
@@ -858,7 +838,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         var deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
         {
             Name = "TemplateAgent",
-            SystemScoped = false
+            IsTemplate = false
         });
 
         var deployedKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
@@ -897,11 +877,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
         // Create two system-scoped agent templates, each with unique knowledge
         XiansContext.CleanupForTests();
-        var systemOptions = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var systemOptions = CreateTestOptions();
 
         var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
 
@@ -911,14 +887,14 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         var templateAgentA = systemPlatform.Agents.Register(new XiansAgentRegistration
         {
             Name = templateAgentAName,
-            SystemScoped = true
+            IsTemplate = true
         });
         templateAgentA.Workflows.DefineBuiltIn("list-template-a");
 
         var templateAgentB = systemPlatform.Agents.Register(new XiansAgentRegistration
         {
             Name = templateAgentBName,
-            SystemScoped = true
+            IsTemplate = true
         });
         templateAgentB.Workflows.DefineBuiltIn("list-template-b");
 
@@ -947,7 +923,13 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
             // Deploy only template A to create a tenant-scoped instance
             await templateAgentA.DeployAsync();
-            deployedAgent = templateAgentA;
+            
+            // Access the deployed (tenant-scoped) replica by registering with IsTemplate = false
+            deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+            {
+                Name = templateAgentAName,
+                IsTemplate = false
+            });
 
             // Listing knowledge on the deployed agent should not include template B's knowledge
             var deployedKnowledgeList = await deployedAgent.Knowledge.ListAsync();

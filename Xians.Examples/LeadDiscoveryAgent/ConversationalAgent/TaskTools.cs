@@ -41,17 +41,18 @@ internal class TaskTools
             var info = await task.GetInfoAsync();
 
             var status = info.IsCompleted 
-                ? (info.Success ? "Approved" : "Rejected") 
+                ? $"Completed ({info.PerformedAction})" 
                 : "Pending";
 
             var result = $"Task: {info.Title}\n" +
                         $"Description: {info.Description}\n" +
                         $"Status: {status}\n" +
-                        $"Current Draft: {info.CurrentDraft ?? "No draft yet"}\n";
+                        $"Available Actions: {string.Join(", ", info.AvailableActions ?? [])}\n" +
+                        $"Current Draft: {info.InitialWork ?? "No draft yet"}\n";
 
-            if (info.IsCompleted && !info.Success && !string.IsNullOrEmpty(info.RejectionReason))
+            if (info.IsCompleted && !string.IsNullOrEmpty(info.Comment))
             {
-                result += $"Rejection Reason: {info.RejectionReason}\n";
+                result += $"Comment: {info.Comment}\n";
             }
 
             _logger.LogInformation("GetTaskInfo completed successfully for TaskId={TaskId}", task.TaskId);
@@ -94,12 +95,14 @@ internal class TaskTools
     }
 
     /// <summary>
-    /// Approves/completes the current task.
+    /// Performs an action on the current task.
     /// </summary>
-    [Description("Approve and complete the current task.")]
-    public async Task<string> ApproveTask()
+    [Description("Perform an action on the current task (e.g., approve, reject, publish).")]
+    public async Task<string> PerformTaskAction(
+        [Description("The action to perform")] string action,
+        [Description("Optional comment for the action")] string? comment = null)
     {
-        _logger.LogInformation("ApproveTask tool invoked");
+        _logger.LogInformation("PerformTaskAction tool invoked with Action={Action}", action);
 
         try
         {
@@ -110,45 +113,34 @@ internal class TaskTools
             }
 
             var task = await HitlTask.FromWorkflowIdAsync(taskWorkflowId);
-            await task.ApproveAsync();
+            await task.PerformActionAsync(action, comment);
 
-            _logger.LogInformation("ApproveTask completed successfully for TaskId={TaskId}", task.TaskId);
-            return $"Task approved successfully.";
+            _logger.LogInformation("PerformTaskAction completed successfully for TaskId={TaskId}, Action={Action}", task.TaskId, action);
+            return $"Task action '{action}' performed successfully." + (comment != null ? $" Comment: {comment}" : "");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "ApproveTask tool failed");
-            return $"Error approving task: {ex.Message}";
+            _logger.LogError(ex, "PerformTaskAction tool failed");
+            return $"Error performing task action: {ex.Message}";
         }
     }
 
     /// <summary>
-    /// Rejects the current task with a rejection message.
+    /// Approves the current task.
     /// </summary>
-    [Description("Reject the current task with a reason.")]
-    public async Task<string> RejectTask([Description("The reason for rejecting the task")] string rejectionMessage)
+    [Description("Approve and complete the current task.")]
+    public async Task<string> ApproveTask([Description("Optional comment")] string? comment = null)
     {
-        _logger.LogInformation("RejectTask tool invoked with Reason={Reason}", rejectionMessage);
+        return await PerformTaskAction("approve", comment);
+    }
 
-        try
-        {
-            var taskWorkflowId = await _context.GetLastHintAsync();
-            if (string.IsNullOrWhiteSpace(taskWorkflowId))
-            {
-                return "No task workflow ID found in context.";
-            }
-
-            var task = await HitlTask.FromWorkflowIdAsync(taskWorkflowId);
-            await task.RejectAsync(rejectionMessage);
-
-            _logger.LogInformation("RejectTask completed successfully for TaskId={TaskId}", task.TaskId);
-            return $"Task rejected successfully with reason: {rejectionMessage}";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "RejectTask tool failed");
-            return $"Error rejecting task: {ex.Message}";
-        }
+    /// <summary>
+    /// Rejects the current task.
+    /// </summary>
+    [Description("Reject the current task with an optional reason.")]
+    public async Task<string> RejectTask([Description("Optional reason for rejecting")] string? reason = null)
+    {
+        return await PerformTaskAction("reject", reason);
     }
 
     /// <summary>
@@ -168,7 +160,7 @@ internal class TaskTools
             }
 
             var task = await HitlTask.FromWorkflowIdAsync(taskWorkflowId);
-            var draft = await task.GetDraftAsync();
+            var draft = await task.GetInitialWorkAsync();
 
             _logger.LogInformation("GetTaskDraft completed successfully for TaskId={TaskId}", task.TaskId);
             return draft ?? "No draft work available yet.";
@@ -180,4 +172,3 @@ internal class TaskTools
         }
     }
 }
-
