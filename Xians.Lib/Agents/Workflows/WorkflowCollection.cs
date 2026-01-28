@@ -159,10 +159,6 @@ public class WorkflowCollection
             var activities = ExtractActivityDefinitions(workflow);
             
             // Extract workflow name from workflow type for custom workflows that extend BuiltinWorkflow
-            // CRITICAL FOR VISUALIZATION: The Name field is essential for server to:
-            // 1. Recognize this as a built-in-style workflow
-            // 2. Connect SG_InputParameters at the top of the flow diagram
-            // 3. Show "Handle Message Processing" node instead of generic "Process Messages"
             // Without Name: SG_InputParameters appears disconnected on the side
             // With Name: SG_InputParameters is connected at the top
             // Format: "AgentName:WorkflowName" -> extract "WorkflowName"
@@ -222,7 +218,6 @@ public class WorkflowCollection
                 Source = sourceToUpload
             };
             
-            // Log critical information for debugging visualization issues
             _logger.LogInformation(
                 "📤 Uploading workflow definition: WorkflowType={WorkflowType}, Name={WorkflowName}, Parameters={ParameterCount}, Activities={ActivityCount}, HasSource={HasSource}, Activities=[{ActivityNames}]",
                 workflow.WorkflowType,
@@ -391,7 +386,7 @@ public class WorkflowCollection
     }
 
     /// <summary>
-    /// Attempts to read the source code of a type from embedded resources.
+    /// Attempts to read the source code of a type from embedded resources or generated source cache.
     /// </summary>
     /// <param name="type">The type to read source for</param>
     /// <returns>The source code, or null if not found</returns>
@@ -399,9 +394,32 @@ public class WorkflowCollection
     {
         try
         {
+            // First, check if this is a dynamic type with generated source code
+            // Dynamic types are created by DynamicWorkflowTypeBuilder and have generated source
+            // Check if the assembly is a dynamic assembly (created via Reflection.Emit)
+            // Dynamic assemblies have names starting with "DynamicWorkflows_"
+            var assemblyName = type.Assembly.GetName().Name;
+            var isDynamicAssembly = assemblyName?.StartsWith("DynamicWorkflows_") == true;
+            
+            if (isDynamicAssembly)
+            {
+                // Try to get the workflow type name from the [Workflow] attribute
+                var workflowAttribute = type.GetCustomAttribute<Temporalio.Workflows.WorkflowAttribute>();
+                if (workflowAttribute != null && !string.IsNullOrEmpty(workflowAttribute.Name))
+                {
+                    var generatedSource = DynamicWorkflowTypeBuilder.GetSourceCode(workflowAttribute.Name);
+                    if (!string.IsNullOrWhiteSpace(generatedSource))
+                    {
+                        _logger.LogDebug("Found generated source code for dynamic type {TypeName} (workflow: {WorkflowType})", type.FullName, workflowAttribute.Name);
+                        return generatedSource;
+                    }
+                }
+            }
+
+            // Fall back to reading from embedded resources (for DefineCustom workflows)
             var assembly = type.Assembly;
             var resourceName = $"{type.Name}.cs";
-            var assemblyName = assembly.GetName().Name;
+            // assemblyName already declared above, reuse it
 
             // Try multiple resource name patterns (handles both with and without LogicalName)
             var possibleResourceNames = new List<string>

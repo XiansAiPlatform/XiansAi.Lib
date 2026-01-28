@@ -12,6 +12,8 @@ internal static class DynamicWorkflowTypeBuilder
 {
     // Cache for dynamically created workflow types to avoid recreating the same type multiple times
     private static readonly Dictionary<string, Type> _typeCache = new();
+    // Cache for generated source code for dynamic types (enables visualization)
+    private static readonly Dictionary<string, string> _sourceCodeCache = new();
     private static readonly object _cacheLock = new();
 
     /// <summary>
@@ -31,6 +33,11 @@ internal static class DynamicWorkflowTypeBuilder
 
             var createdType = CreateType(workflowTypeName);
             _typeCache[workflowTypeName] = createdType;
+            
+            // Generate and cache source code for visualization
+            var sourceCode = GenerateSourceCode(workflowTypeName);
+            _sourceCodeCache[workflowTypeName] = sourceCode;
+            
             return createdType;
         }
     }
@@ -332,6 +339,61 @@ internal static class DynamicWorkflowTypeBuilder
     }
 
     /// <summary>
+    /// Gets the generated source code for a dynamic workflow type.
+    /// Returns null if the source code was not generated or the type doesn't exist.
+    /// </summary>
+    /// <param name="workflowTypeName">The workflow type name in the format "AgentName:WorkflowName"</param>
+    /// <returns>The generated C# source code, or null if not found</returns>
+    public static string? GetSourceCode(string workflowTypeName)
+    {
+        lock (_cacheLock)
+        {
+            return _sourceCodeCache.TryGetValue(workflowTypeName, out var sourceCode) ? sourceCode : null;
+        }
+    }
+
+    /// <summary>
+    /// Generates C# source code that represents the dynamic workflow type.
+    /// This enables visualization of DefineBuiltIn() workflows.
+    /// </summary>
+    /// <param name="workflowTypeName">The workflow type name in the format "AgentName:WorkflowName"</param>
+    /// <returns>The generated C# source code</returns>
+    private static string GenerateSourceCode(string workflowTypeName)
+    {
+        // Extract workflow name from "AgentName:WorkflowName"
+        var parts = workflowTypeName.Split(':', 2);
+        var workflowName = parts.Length == 2 ? parts[1] : workflowTypeName;
+        
+        // Generate a class name from the workflow name
+        var className = SanitizeTypeName(workflowName) + "Workflow";
+        
+        // Generate the C# source code that matches what the dynamic type does
+        var sourceCode = $@"using Temporalio.Workflows;
+using Xians.Lib.Temporal.Workflows;
+
+/// <summary>
+/// Auto-generated workflow class for built-in workflow ""{workflowName}"".
+/// This source code is generated at runtime to enable visualization.
+/// </summary>
+[Workflow(""{workflowTypeName}"")]
+public class {className} : BuiltinWorkflow
+{{
+    /// <summary>
+    /// Main workflow execution method.
+    /// This calls the base implementation which handles message processing.
+    /// </summary>
+    [WorkflowRun]
+    public override async Task RunAsync()
+    {{
+        // Call base implementation to handle message processing
+        await base.RunAsync();
+    }}
+}}";
+
+        return sourceCode;
+    }
+
+    /// <summary>
     /// Clears the type cache. Intended for testing purposes only.
     /// </summary>
     internal static void ClearCacheForTests()
@@ -339,6 +401,7 @@ internal static class DynamicWorkflowTypeBuilder
         lock (_cacheLock)
         {
             _typeCache.Clear();
+            _sourceCodeCache.Clear();
         }
     }
 }
