@@ -129,6 +129,16 @@ public class XiansWorkflow
     internal Type? GetWorkflowClassType() => _workflowClassType;
 
     /// <summary>
+    /// Gets the activity instances added to this workflow.
+    /// </summary>
+    internal IReadOnlyList<object> GetActivityInstances() => _activityInstances.AsReadOnly();
+
+    /// <summary>
+    /// Gets the activity types added to this workflow.
+    /// </summary>
+    internal IReadOnlyList<Type> GetActivityTypes() => _activityTypes.AsReadOnly();
+
+    /// <summary>
     /// Adds an activity instance to the workflow.
     /// The activity will be registered with all workers for this workflow.
     /// </summary>
