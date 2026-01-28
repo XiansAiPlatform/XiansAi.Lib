@@ -171,11 +171,16 @@ public class XiansWorkflow
 
     /// <summary>
     /// Registers a handler for user chat messages.
-    /// Works for both built-in workflows and custom workflows that extend BuiltinWorkflow.
     /// </summary>
     /// <param name="handler">The async handler to process user chat messages.</param>
     public void OnUserChatMessage(Func<UserMessageContext, Task> handler)
     {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnUserChatMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
         var tenantId = GetTenantIdOrNull();
 
         BuiltinWorkflow.RegisterChatHandler(
@@ -196,11 +201,16 @@ public class XiansWorkflow
 
     /// <summary>
     /// Registers a handler for user data messages.
-    /// Works for both built-in workflows and custom workflows that extend BuiltinWorkflow.
     /// </summary>
     /// <param name="handler">The async handler to process user data messages.</param>
     public void OnUserDataMessage(Func<UserMessageContext, Task> handler)
     {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnUserDataMessage is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
         var tenantId = GetTenantIdOrNull();
 
         BuiltinWorkflow.RegisterDataHandler(
@@ -221,11 +231,16 @@ public class XiansWorkflow
 
     /// <summary>
     /// Registers a handler for webhook messages.
-    /// Works for both built-in workflows and custom workflows that extend BuiltinWorkflow.
     /// </summary>
     /// <param name="handler">The async handler to process webhook messages.</param>
     public void OnWebhook(Func<WebhookContext, Task> handler)
     {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnWebhook is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
         var tenantId = GetTenantIdOrNull();
 
         BuiltinWorkflow.RegisterWebhookHandler(

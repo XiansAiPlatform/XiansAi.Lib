@@ -157,64 +157,28 @@ public class WorkflowCollection
             
             var parameters = ExtractWorkflowParameters(workflow);
             var activities = ExtractActivityDefinitions(workflow);
-            
-            // Extract workflow name from workflow type for custom workflows that extend BuiltinWorkflow
-            // Without Name: SG_InputParameters appears disconnected on the side
-            // With Name: SG_InputParameters is connected at the top
-            // Format: "AgentName:WorkflowName" -> extract "WorkflowName"
-            string? workflowName = workflow.Name;
-            
-            // Always try to extract name if it's null - this is critical for visualization
-            if (workflowName == null)
+
+            // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
+            var workflowName = workflow.Name;
+            if (workflowName == null && workflow.WorkflowType.Contains(':'))
             {
-                if (workflowClassType != null)
+                var parts = workflow.WorkflowType.Split(':', 2);
+                if (parts.Length == 2)
                 {
-                    // Check if workflow extends BuiltinWorkflow
-                    if (typeof(BuiltinWorkflow).IsAssignableFrom(workflowClassType))
-                    {
-                        // Extract name from workflow type (e.g., "My Agent:Conversational" -> "Conversational")
-                        var workflowTypeParts = workflow.WorkflowType.Split(':', 2);
-                        if (workflowTypeParts.Length == 2)
-                        {
-                            workflowName = workflowTypeParts[1];
-                            _logger.LogDebug(
-                                "Extracted workflow name '{WorkflowName}' from workflow type '{WorkflowType}' for BuiltinWorkflow subclass",
-                                workflowName,
-                                workflow.WorkflowType);
-                        }
-                        else
-                        {
-                            _logger.LogWarning(
-                                "Workflow type '{WorkflowType}' does not follow 'AgentName:WorkflowName' format. Name extraction skipped.",
-                                workflow.WorkflowType);
-                        }
-                    }
-                }
-                else
-                {
-                    // Try to extract from workflow type even without class type (fallback)
-                    var workflowTypeParts = workflow.WorkflowType.Split(':', 2);
-                    if (workflowTypeParts.Length == 2)
-                    {
-                        workflowName = workflowTypeParts[1];
-                        _logger.LogDebug(
-                            "Extracted workflow name '{WorkflowName}' from workflow type '{WorkflowType}' (no class type available)",
-                            workflowName,
-                            workflow.WorkflowType);
-                    }
+                    workflowName = parts[1];
                 }
             }
-            
+
             // Ensure ParameterDefinitions is always an array (even if empty) for visualization
             var definition = new WorkflowDefinition
             {
                 Agent = _agent.Name,
                 WorkflowType = workflow.WorkflowType,
-                Name = workflowName, // Set name for BuiltinWorkflow subclasses to enable proper visualization
+                Name = workflow.Name,
                 SystemScoped = _agent.SystemScoped,
-                Workers = (workflow.Workers == 1) ? 1 : workflow.Workers, // Keep default (1) 
-                ActivityDefinitions = activities,
-                ParameterDefinitions = parameters, // Always an array (empty [] if no parameters)
+                Workers = workflow.Workers,
+                ActivityDefinitions = [],
+                ParameterDefinitions = ExtractWorkflowParameters(workflow),
                 Source = sourceToUpload
             };
             
@@ -416,55 +380,9 @@ public class WorkflowCollection
                 }
             }
 
-            // Fall back to reading from embedded resources (for DefineCustom workflows)
-            var assembly = type.Assembly;
-            var resourceName = $"{type.Name}.cs";
-            // assemblyName already declared above, reuse it
-
-            // Try multiple resource name patterns (handles both with and without LogicalName)
-            var possibleResourceNames = new List<string>
-            {
-                resourceName, // e.g., "ConversationalWorkflow.cs" (when using LogicalName)
-                $"{assemblyName}.{resourceName}", // e.g., "MyAgent.ConversationalWorkflow.cs" (default behavior)
-            };
-
-            // If type has namespace, try with namespace prefix
-            if (!string.IsNullOrEmpty(type.Namespace))
-            {
-                var namespacePrefix = type.Namespace.Replace(".", ".");
-                possibleResourceNames.Add($"{assemblyName}.{namespacePrefix}.{resourceName}");
-            }
-
-            Stream? stream = null;
-            string? foundResourceName = null;
-
-            foreach (var name in possibleResourceNames)
-            {
-                stream = assembly.GetManifestResourceStream(name);
-                if (stream != null)
-                {
-                    foundResourceName = name;
-                    break;
-                }
-            }
-
-            if (stream == null)
-            {
-                _logger.LogWarning("Source code not found in assembly '{AssemblyName}' for type '{TypeName}'. Make sure the workflow's .cs file is marked as an EmbeddedResource in your .csproj file.", assemblyName, type.FullName);
-                return null;
-            }
-
-            using var reader = new StreamReader(stream);
-            var source = reader.ReadToEnd();
-
-            if (string.IsNullOrWhiteSpace(source))
-            {
-                _logger.LogWarning("Source code found for {TypeName} but it is empty or whitespace", type.FullName);
-                return null;
-            }
-
-            _logger.LogDebug("Found source code for {TypeName} in resource '{ResourceName}' ({Length} characters)", type.FullName, foundResourceName, source.Length);
-            return source;
+            // Visualization is only supported for built-in (DefineBuiltIn) workflows.
+            // Custom (DefineCustom) workflows do not have source uploaded.
+            return null;
         }
         catch (Exception ex)
         {
