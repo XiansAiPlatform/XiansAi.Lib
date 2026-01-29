@@ -9,6 +9,14 @@ public class CreateCronScheduleRequest
     public required string CronExpression { get; set; }
     public required object[] WorkflowInput { get; set; }
     public string? Timezone { get; set; }
+    /// <summary>
+    /// The idPostfix to use when constructing the full schedule ID.
+    /// </summary>
+    public required string IdPostfix { get; set; }
+    /// <summary>
+    /// Search attributes as serializable dictionary. Will be converted to SearchAttributeCollection in activity.
+    /// </summary>
+    public Dictionary<string, object>? SearchAttributes { get; set; }
 }
 
 /// <summary>
@@ -19,6 +27,14 @@ public class CreateIntervalScheduleRequest
     public required string ScheduleId { get; set; }
     public required TimeSpan Interval { get; set; }
     public required object[] WorkflowInput { get; set; }
+    /// <summary>
+    /// The idPostfix to use when constructing the full schedule ID.
+    /// </summary>
+    public required string IdPostfix { get; set; }
+    /// <summary>
+    /// Search attributes as serializable dictionary. Will be converted to SearchAttributeCollection in activity.
+    /// </summary>
+    public Dictionary<string, object>? SearchAttributes { get; set; }
 }
 
 /// <summary>
@@ -27,6 +43,7 @@ public class CreateIntervalScheduleRequest
 public class ScheduleExistsRequest
 {
     public required string ScheduleId { get; set; }
+    public required string IdPostfix { get; set; }
 }
 
 /// <summary>
@@ -35,6 +52,7 @@ public class ScheduleExistsRequest
 public class DeleteScheduleRequest
 {
     public required string ScheduleId { get; set; }
+    public required string IdPostfix { get; set; }
 }
 
 /// <summary>
@@ -43,6 +61,7 @@ public class DeleteScheduleRequest
 public class PauseScheduleRequest
 {
     public required string ScheduleId { get; set; }
+    public required string IdPostfix { get; set; }
     public string? Note { get; set; }
 }
 
@@ -52,6 +71,7 @@ public class PauseScheduleRequest
 public class ResumeScheduleRequest
 {
     public required string ScheduleId { get; set; }
+    public required string IdPostfix { get; set; }
     public string? Note { get; set; }
 }
 
@@ -61,6 +81,7 @@ public class ResumeScheduleRequest
 public class TriggerScheduleRequest
 {
     public required string ScheduleId { get; set; }
+    public required string IdPostfix { get; set; }
 }
 
 

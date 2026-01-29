@@ -101,11 +101,7 @@ public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
             return;
         }
 
-        var options = new XiansOptions
-        {
-            ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!
-        };
+        var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
         
@@ -331,6 +327,7 @@ public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
             // Act - Get history
             var historyRequest = new GetMessageHistoryRequest
             {
+                WorkflowId = workflowId,
                 WorkflowType = workflowType,
                 ParticipantId = _testParticipantId,
                 Scope = _testScope,
@@ -369,12 +366,14 @@ public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
             var messageService = new MessageService(httpClient, logger);
 
             var workflowType = $"{_agentName}:{WORKFLOW_NAME}";
+            var workflowId = $"{_platform!.Options.CertificateTenantId}:{workflowType}";
             // Use a random participant ID that shouldn't have any history
             var randomParticipantId = $"nonexistent-{Guid.NewGuid()}";
 
             // Act
             var historyRequest = new GetMessageHistoryRequest
             {
+                WorkflowId = workflowId,
                 WorkflowType = workflowType,
                 ParticipantId = randomParticipantId,
                 Scope = "nonexistent-scope",
@@ -447,6 +446,7 @@ public class RealServerMessagingTests : RealServerTestBase, IAsyncLifetime
             // Verify in history
             var historyRequest = new GetMessageHistoryRequest
             {
+                WorkflowId = workflowId,
                 WorkflowType = workflowType,
                 ParticipantId = _testParticipantId,
                 Scope = _testScope,

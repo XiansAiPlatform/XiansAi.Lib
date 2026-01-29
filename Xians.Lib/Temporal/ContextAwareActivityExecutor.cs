@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
 using Temporalio.Common;
 
-namespace Xians.Lib.Agents.Core;
+namespace Xians.Lib.Temporal;
 
 /// <summary>
 /// Base class for executing operations that work in both workflow and non-workflow contexts.

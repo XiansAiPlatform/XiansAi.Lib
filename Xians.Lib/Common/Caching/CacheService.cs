@@ -196,7 +196,14 @@ public class CacheService : ICacheService
     public void Dispose()
     {
         _cache.Dispose();
-        _logger.LogDebug("Cache service disposed");
+        try
+        {
+            _logger.LogDebug("Cache service disposed");
+        }
+        catch (ObjectDisposedException)
+        {
+            // Logger may already be disposed - safe to ignore
+        }
     }
 }
 

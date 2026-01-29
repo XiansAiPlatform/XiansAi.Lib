@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Temporal;
 using Xians.Lib.Temporal.Workflows.Knowledge;
 using Xians.Lib.Temporal.Workflows.Knowledge.Models;
 
@@ -47,18 +44,20 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
         string knowledgeName,
         string agentName,
         string? tenantId,
+        string? activationName,
         CancellationToken cancellationToken = default)
     {
         var request = new GetKnowledgeRequest
         {
             KnowledgeName = knowledgeName,
             AgentName = agentName,
-            TenantId = tenantId
+            TenantId = tenantId,
+            ActivationName = activationName
         };
 
         return await ExecuteAsync(
             act => act.GetKnowledgeAsync(request),
-            svc => svc.GetAsync(knowledgeName, agentName, tenantId, cancellationToken),
+            svc => svc.GetAsync(knowledgeName, agentName, tenantId, activationName, cancellationToken),
             operationName: "GetKnowledge");
     }
     
@@ -68,18 +67,20 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
     public async Task<Models.Knowledge?> GetSystemAsync(
         string knowledgeName,
         string agentName,
+        string? activationName,
         CancellationToken cancellationToken = default)
     {
         var request = new GetKnowledgeRequest
         {
             KnowledgeName = knowledgeName,
             AgentName = agentName,
-            TenantId = null
+            TenantId = null,
+            ActivationName = activationName
         };
 
         return await ExecuteAsync(
             act => act.GetSystemKnowledgeAsync(request),
-            svc => svc.GetSystemAsync(knowledgeName, agentName, cancellationToken),
+            svc => svc.GetSystemAsync(knowledgeName, agentName, activationName, cancellationToken),
             operationName: "GetSystemKnowledge");
     }
 
@@ -93,6 +94,7 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
         string agentName,
         string? tenantId,
         bool systemScoped = false,
+        string? activationName = null,
         CancellationToken cancellationToken = default)
     {
         var request = new UpdateKnowledgeRequest
@@ -102,12 +104,13 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
             Type = type,
             AgentName = agentName,
             TenantId = tenantId,
-            SystemScoped = systemScoped
+            SystemScoped = systemScoped,
+            ActivationName = activationName
         };
 
         return await ExecuteAsync(
             act => act.UpdateKnowledgeAsync(request),
-            svc => svc.UpdateAsync(knowledgeName, content, type, agentName, tenantId, systemScoped, cancellationToken),
+            svc => svc.UpdateAsync(knowledgeName, content, type, agentName, tenantId, systemScoped, activationName, cancellationToken),
             operationName: "UpdateKnowledge");
     }
 
@@ -118,18 +121,20 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
         string knowledgeName,
         string agentName,
         string? tenantId,
+        string? activationName,
         CancellationToken cancellationToken = default)
     {
         var request = new DeleteKnowledgeRequest
         {
             KnowledgeName = knowledgeName,
             AgentName = agentName,
-            TenantId = tenantId
+            TenantId = tenantId,
+            ActivationName = activationName
         };
 
         return await ExecuteAsync(
             act => act.DeleteKnowledgeAsync(request),
-            svc => svc.DeleteAsync(knowledgeName, agentName, tenantId, cancellationToken),
+            svc => svc.DeleteAsync(knowledgeName, agentName, tenantId, activationName, cancellationToken),
             operationName: "DeleteKnowledge");
     }
 
@@ -139,17 +144,19 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
     public async Task<List<Models.Knowledge>> ListAsync(
         string agentName,
         string? tenantId,
+        string? activationName,
         CancellationToken cancellationToken = default)
     {
         var request = new ListKnowledgeRequest
         {
             AgentName = agentName,
-            TenantId = tenantId
+            TenantId = tenantId,
+            ActivationName = activationName
         };
 
         return await ExecuteAsync(
             act => act.ListKnowledgeAsync(request),
-            svc => svc.ListAsync(agentName, tenantId, cancellationToken),
+            svc => svc.ListAsync(agentName, tenantId, activationName, cancellationToken),
             operationName: "ListKnowledge");
     }
 }

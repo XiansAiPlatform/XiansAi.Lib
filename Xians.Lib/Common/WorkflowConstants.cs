@@ -15,11 +15,13 @@ public static class WorkflowConstants
         public const string TenantId = "tenantId";
         public const string Agent = "agent";
         public const string UserId = "userId";
+        public const string idPostfix = "idPostfix";
         public const string SystemScoped = "systemScoped";
         
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";
+        public const string TaskActions = "taskActions";
 
     }
 
@@ -28,6 +30,16 @@ public static class WorkflowConstants
     /// </summary>
     public static class WorkflowTypes
     {
+        /// <summary>
+        /// Supervisor workflow name
+        /// </summary>
+        public const string Supervisor = "Supervisor Workflow";
+        
+        /// <summary>
+        /// Integrator workflow name
+        /// </summary>
+        public const string Integrator = "Integrator Workflow";
+        
         /// <summary>
         /// Generates the task workflow type name for a specific agent.
         /// Format: {AgentName}:Task Workflow
@@ -68,6 +80,33 @@ public static class WorkflowConstants
         public const string ConversationHistory = "api/agent/conversation/history";
         public const string ConversationOutbound = "api/agent/conversation/outbound";
         public const string ConversationLastHint = "api/agent/conversation/last-hint";
+        public const string Logs = "api/agent/logs";
+    }
+
+    /// <summary>
+    /// Environment variable names
+    /// </summary>
+    public static class EnvironmentVariables
+    {
+        /// <summary>
+        /// Controls the minimum log level for console output.
+        /// Valid values: TRACE, DEBUG, INFORMATION, INFO, WARNING, WARN, ERROR, CRITICAL
+        /// Default: DEBUG
+        /// </summary>
+        public const string ConsoleLogLevel = "CONSOLE_LOG_LEVEL";
+        
+        /// <summary>
+        /// Controls the minimum log level for server logging (logs sent to server).
+        /// Valid values: TRACE, DEBUG, INFORMATION, INFO, WARNING, WARN, ERROR, CRITICAL
+        /// Default: ERROR
+        /// </summary>
+        public const string ServerLogLevel = "SERVER_LOG_LEVEL";
+        
+        /// <summary>
+        /// Legacy environment variable name for server logging (deprecated, use SERVER_LOG_LEVEL).
+        /// Maintained for backward compatibility.
+        /// </summary>
+        public const string ApiLogLevel = "API_LOG_LEVEL";
     }
 
     /// <summary>

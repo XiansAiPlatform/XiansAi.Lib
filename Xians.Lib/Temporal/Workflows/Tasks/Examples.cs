@@ -18,7 +18,6 @@ public static class TaskWorkflowExamples
         [WorkflowRun]
         public async Task<string> RunAsync(string documentId, string approverId)
         {
-            // Create a task and wait for the approver to complete it
             var result = await TaskWorkflowService.CreateAndWaitAsync(
                 taskId: $"approve-{documentId}",
                 title: "Approve Document",
@@ -26,14 +25,9 @@ public static class TaskWorkflowExamples
                 participantId: approverId
             );
 
-            if (result.Success)
-            {
-                return $"Document approved at {result.CompletedAt}";
-            }
-            else
-            {
-                return $"Approval failed: {result.RejectionReason}";
-            }
+            return result.PerformedAction == "approve"
+                ? $"Document approved at {result.CompletedAt}"
+                : $"Document {result.PerformedAction}: {result.Comment}";
         }
     }
 
@@ -51,27 +45,27 @@ public static class TaskWorkflowExamples
                 taskId: $"{requestId}-manager",
                 title: "Manager Approval Required",
                 description: "Please review this budget request",
-                participantId: directorId,
+                participantId: managerId,
                 draftWork: "Initial budget proposal"
             );
 
-            if (!managerResult.Success)
+            if (managerResult.PerformedAction != "approve")
             {
-                return $"Manager rejected: {managerResult.RejectionReason}";
+                return $"Manager {managerResult.PerformedAction}: {managerResult.Comment}";
             }
 
-            // Stage 2: Director approval (with manager's feedback)
+            // Stage 2: Director approval
             var directorResult = await TaskWorkflowService.CreateAndWaitAsync(
                 taskId: $"{requestId}-director",
                 title: "Director Approval Required",
                 description: "Final approval needed for budget request",
-                participantId: "cfo@example.com",
+                participantId: directorId,
                 draftWork: managerResult.FinalWork
             );
 
-            if (!directorResult.Success)
+            if (directorResult.PerformedAction != "approve")
             {
-                return $"Director rejected: {directorResult.RejectionReason}";
+                return $"Director {directorResult.PerformedAction}: {directorResult.Comment}";
             }
 
             return $"Fully approved! Final version: {directorResult.FinalWork}";
@@ -80,7 +74,6 @@ public static class TaskWorkflowExamples
 
     /// <summary>
     /// Example 3: Parallel task execution with multiple reviewers.
-    /// Uses CreateAndWaitAsync in parallel for proper result handling.
     /// </summary>
     [Workflow("Examples:Parallel Review")]
     public class ParallelReviewWorkflow
@@ -88,13 +81,12 @@ public static class TaskWorkflowExamples
         [WorkflowRun]
         public async Task<string> RunAsync(string documentId, string[] reviewers)
         {
-            // Create tasks for all reviewers in parallel and wait for completion
             var tasks = reviewers.Select(reviewer =>
                 TaskWorkflowService.CreateAndWaitAsync(
                     taskId: $"review-{documentId}-{reviewer}",
                     title: $"Review Document {documentId}",
                     description: "Please provide your feedback",
-                    participantId: "coordinator@example.com",
+                    participantId: reviewer,
                     metadata: new Dictionary<string, object>
                     {
                         { "documentId", documentId },
@@ -103,14 +95,11 @@ public static class TaskWorkflowExamples
                 )
             ).ToList();
 
-            // Wait for all reviews to complete
             var results = await Task.WhenAll(tasks);
+            var approveCount = results.Count(r => r.PerformedAction == "approve");
+            var otherCount = results.Length - approveCount;
 
-            // Count successful reviews
-            var successCount = results.Count(r => r.Success);
-            var failCount = results.Length - successCount;
-
-            return $"Reviews completed: {successCount} successful, {failCount} failed";
+            return $"Reviews completed: {approveCount} approved, {otherCount} other actions";
         }
     }
 
@@ -135,17 +124,15 @@ public static class TaskWorkflowExamples
 
             var request = new TaskWorkflowRequest
             {
-                TaskId = $"process-order-{orderId}",
                 Title = $"Process Order #{orderId}",
                 Description = $"Review and process order for ${amount}",
                 ParticipantId = "sales-manager@example.com",
                 DraftWork = "Order details to be reviewed...",
+                Actions = ["approve", "reject", "hold", "escalate"],
                 Metadata = metadata
             };
 
-            return await TaskWorkflowService.CreateAndWaitAsync(
-                request
-            );
+            return await TaskWorkflowService.CreateAndWaitAsync(request);
         }
     }
 
@@ -162,16 +149,15 @@ public static class TaskWorkflowExamples
 
             if (purchaseAmount < approvalThreshold)
             {
-                // Auto-approve small purchases
                 return $"Auto-approved: Amount ${purchaseAmount} is below threshold";
             }
 
-            // Require approval for large purchases
             var result = await TaskWorkflowService.CreateAndWaitAsync(
                 taskId: $"large-purchase-{Guid.NewGuid()}",
                 title: "Large Purchase Approval",
                 description: $"Approval needed for ${purchaseAmount} purchase by {requesterId}",
                 participantId: "finance-manager@example.com",
+                actions: ["approve", "reject", "request-quote"],
                 metadata: new Dictionary<string, object>
                 {
                     { "amount", purchaseAmount },
@@ -180,14 +166,13 @@ public static class TaskWorkflowExamples
                 }
             );
 
-            if (result.Success)
+            return result.PerformedAction switch
             {
-                return $"Purchase approved: {result.FinalWork}";
-            }
-            else
-            {
-                return $"Purchase rejected: {result.RejectionReason}";
-            }
+                "approve" => $"Purchase approved: {result.Comment}",
+                "reject" => $"Purchase rejected: {result.Comment}",
+                "request-quote" => $"Additional quote requested: {result.Comment}",
+                _ => $"Unknown action: {result.PerformedAction}"
+            };
         }
     }
 
@@ -206,11 +191,10 @@ public static class TaskWorkflowExamples
             // Wait for some condition or time
             await Workflow.DelayAsync(TimeSpan.FromSeconds(10));
 
-            // You could complete the task programmatically
-            await TaskWorkflowService.CompleteTaskAsync(existingTaskId);
+            // Complete the task programmatically
+            await TaskWorkflowService.PerformActionAsync(existingTaskId, "approve", "Auto-approved after review");
             
             return $"Task {existingTaskId} updated and completed";
         }
     }
 }
-

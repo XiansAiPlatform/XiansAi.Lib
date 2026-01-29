@@ -1,6 +1,5 @@
 using Temporalio.Client;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
@@ -27,7 +26,7 @@ public static class TemporalTestUtils
     /// </summary>
     public static string BuildWorkflowId(string agentName, string workflowName, string? tenantId = null)
     {
-        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, workflowName);
+        var workflowType = XiansContext.BuildBuiltInWorkflowType(agentName, workflowName);
         return $"{tenantId ?? DefaultTestTenantId}:{workflowType}";
     }
 
@@ -36,7 +35,7 @@ public static class TemporalTestUtils
     /// </summary>
     public static string GetTaskQueue(string agentName, string workflowName, bool systemScoped = false, string? tenantId = null)
     {
-        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, workflowName);
+        var workflowType = XiansContext.BuildBuiltInWorkflowType(agentName, workflowName);
         return TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId ?? DefaultTestTenantId);
     }
 
@@ -57,7 +56,7 @@ public static class TemporalTestUtils
         string? tenantId = null,
         TimeSpan? executionTimeout = null)
     {
-        var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, workflowName);
+        var workflowType = XiansContext.BuildBuiltInWorkflowType(agentName, workflowName);
         var workflowId = BuildWorkflowId(agentName, workflowName, tenantId);
         var taskQueue = GetTaskQueue(agentName, workflowName, systemScoped, tenantId);
 
@@ -219,7 +218,7 @@ public static class TemporalTestUtils
         {
             try
             {
-                var workflowType = WorkflowIdentity.BuildBuiltInWorkflowType(agentName, name);
+                var workflowType = XiansContext.BuildBuiltInWorkflowType(agentName, name);
                 var tenant = tenantId ?? DefaultTestTenantId;
                 
                 // Terminate the main workflow

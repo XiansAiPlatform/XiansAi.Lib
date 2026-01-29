@@ -73,6 +73,9 @@ public static class ServiceFactory
         ServerConfiguration config, 
         ILogger<HttpClientService>? logger = null)
     {
+        // Validate config before creating any resources
+        config.Validate();
+        
         logger ??= LoggerFactory.CreateLogger<HttpClientService>();
         return new HttpClientService(config, logger);
     }

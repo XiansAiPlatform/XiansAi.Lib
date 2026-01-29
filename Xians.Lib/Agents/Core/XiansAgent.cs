@@ -222,6 +222,7 @@ public class XiansAgent
             cancellationToken = tokenSource.Token;
         }
 
+        // Run all workflows
         await Workflows.RunAllAsync(cancellationToken);
     }
 }

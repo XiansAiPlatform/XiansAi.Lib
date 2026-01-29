@@ -83,7 +83,7 @@ internal static class MessageResponseHelper
         ILogger logger)
     {
         // Extract tenant ID from WorkflowId using centralized utility
-        var workflowId = Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowId();
+        var workflowId = Agents.Core.XiansContext.WorkflowId;
         string workflowTenantId;
         try
         {
@@ -103,6 +103,6 @@ internal static class MessageResponseHelper
             errorMessage,
             workflowTenantId,
             workflowId,
-            Xians.Lib.Agents.Core.WorkflowContextHelper.GetWorkflowType());
+            Xians.Lib.Agents.Core.XiansContext.WorkflowType);
     }
 }

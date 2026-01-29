@@ -126,7 +126,7 @@ public class ContentDiscoveryWorkflow
     {
         try
         {
-            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>(contentURL, [contentURL, _reportingUserID]);
+            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>([contentURL], null, contentURL, _reportingUserID);
         }
         catch (WorkflowAlreadyStartedException)
         {
@@ -176,31 +176,17 @@ public class ContentDiscoveryWorkflow
     /// </summary>
     private async Task EnsureScheduleExists()
     {
-        try
-        {
-            // Call the Schedule SDK directly - it automatically detects workflow context
-            // and uses ScheduleActivities under the hood!
-            var schedule = await XiansContext.CurrentWorkflow.Schedules!
-                .Create($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
-                .WithIntervalSchedule(TimeSpan.FromHours(_intervalHours))
-                .WithInput( new object[] { _contentSiteURL, _intervalHours, _reportingUserID } )
-                .StartAsync();
+        // CreateIfNotExistsAsync is idempotent - no try-catch needed
+        var schedule = await XiansContext.CurrentWorkflow.Schedules!
+            .Create($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
+            .WithIntervalSchedule(TimeSpan.FromHours(_intervalHours))
+            .WithInput(new object[] { _contentSiteURL, _intervalHours, _reportingUserID })
+            .CreateIfNotExistsAsync();
 
-            _logger.LogInformation(
-                "Schedule '{ScheduleId}' ensured - will run every {IntervalHours} hours",
-                schedule.Id,
-                _intervalHours);
-        }
-        catch (ScheduleAlreadyExistsException ex)
-        {
-            _logger.LogInformation(
-                "Schedule '{ScheduleId}' already exists, no action needed",
-                ex.ScheduleId);
-        }
-        catch (Exception ex)
-        {
-            throw new ApplicationFailureException("Failed to create schedule", ex);
-        }
+        _logger.LogInformation(
+            "Schedule '{ScheduleId}' ensured - will run every {IntervalHours} hours",
+            schedule.Id,
+            _intervalHours);
     }
 }
 

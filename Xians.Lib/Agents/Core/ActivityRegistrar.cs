@@ -6,6 +6,7 @@ using Xians.Lib.Temporal.Workflows.Knowledge;
 using Xians.Lib.Temporal.Workflows.Documents;
 using Xians.Lib.Temporal.Workflows.A2A;
 using Xians.Lib.Temporal.Workflows.Tasks;
+using Xians.Lib.Temporal.Workflows.Usage;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -46,6 +47,14 @@ internal class ActivityRegistrar
             "A2ASignalQueryActivities",
             () => new A2ASignalQueryActivities(),
             typeof(A2ASignalQueryActivities));
+
+        // Usage tracking activities (always available, no dependencies)
+        registeredCount += TryRegisterActivity(
+            workerOptions,
+            workflowType,
+            "UsageActivities",
+            () => new UsageActivities(),
+            typeof(UsageActivities));
 
         // Task activities (requires Temporal client)
         if (_agent.TemporalService != null)
