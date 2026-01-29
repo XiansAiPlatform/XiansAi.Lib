@@ -379,9 +379,31 @@ public class WorkflowCollection
                     }
                 }
             }
+            else
+            {
+                // Custom workflows: try to read source from embedded resources (e.g. <EmbeddedResource Include="ConversationalWorkflow.cs" LogicalName="%(Filename)%(Extension)" />)
+                var assembly = type.Assembly;
+                var candidateName = type.Name + ".cs";
+                var resourceName = assembly.GetManifestResourceNames()
+                    .FirstOrDefault(n => n.Equals(candidateName, StringComparison.OrdinalIgnoreCase) || n.EndsWith("." + candidateName, StringComparison.OrdinalIgnoreCase));
+                if (resourceName != null)
+                {
+                    using (var stream = assembly.GetManifestResourceStream(resourceName))
+                    {
+                        if (stream != null)
+                        {
+                            using var reader = new System.IO.StreamReader(stream);
+                            var embeddedSource = reader.ReadToEnd();
+                            if (!string.IsNullOrWhiteSpace(embeddedSource))
+                            {
+                                _logger.LogDebug("Found embedded source code for custom workflow {TypeName} from resource {ResourceName}", type.FullName, resourceName);
+                                return embeddedSource;
+                            }
+                        }
+                    }
+                }
+            }
 
-            // Visualization is only supported for built-in (DefineBuiltIn) workflows.
-            // Custom (DefineCustom) workflows do not have source uploaded.
             return null;
         }
         catch (Exception ex)
