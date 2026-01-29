@@ -448,7 +448,9 @@ public class WorkflowCollection
     }
 
     /// <summary>
-    /// Attempts to read the source code of a type from embedded resources or generated source cache.
+    /// Attempts to read the source code of a type from embedded resources.
+    /// Only custom workflows with embedded source files will have source code.
+    /// Built-in workflows (dynamic types) do not have real source code.
     /// </summary>
     /// <param name="type">The type to read source for</param>
     /// <returns>The source code, or null if not found</returns>
@@ -456,26 +458,18 @@ public class WorkflowCollection
     {
         try
         {
-            // First, check if this is a dynamic type with generated source code
-            // Dynamic types are created by DynamicWorkflowTypeBuilder and have generated source
-            // Check if the assembly is a dynamic assembly (created via Reflection.Emit)
+            // Check if this is a dynamic type (built-in workflow)
+            // Dynamic types are created by DynamicWorkflowTypeBuilder via Reflection.Emit
             // Dynamic assemblies have names starting with "DynamicWorkflows_"
             var assemblyName = type.Assembly.GetName().Name;
             var isDynamicAssembly = assemblyName?.StartsWith("DynamicWorkflows_") == true;
             
             if (isDynamicAssembly)
             {
-                // Try to get the workflow type name from the [Workflow] attribute
-                var workflowAttribute = type.GetCustomAttribute<Temporalio.Workflows.WorkflowAttribute>();
-                if (workflowAttribute != null && !string.IsNullOrEmpty(workflowAttribute.Name))
-                {
-                    var generatedSource = DynamicWorkflowTypeBuilder.GetSourceCode(workflowAttribute.Name);
-                    if (!string.IsNullOrWhiteSpace(generatedSource))
-                    {
-                        _logger.LogDebug("Found generated source code for dynamic type {TypeName} (workflow: {WorkflowType})", type.FullName, workflowAttribute.Name);
-                        return generatedSource;
-                    }
-                }
+                // Built-in workflows: no real source code exists, return null
+                // The Visualize button will be disabled for built-in workflows
+                _logger.LogDebug("Skipping source code for built-in workflow {TypeName} (dynamic type)", type.FullName);
+                return null;
             }
             else
             {
