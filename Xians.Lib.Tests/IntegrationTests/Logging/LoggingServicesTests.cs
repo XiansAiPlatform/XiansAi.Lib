@@ -52,10 +52,14 @@ public class LoggingServicesTests : IAsyncLifetime
     }
 
     [Fact]
-    public void EnqueueLog_AddsLogToQueue()
+    public async Task EnqueueLog_AddsLogToQueue()
     {
-        // Arrange
+        // Arrange - ensure clean state
+        LoggingServices.Shutdown();
+        await Task.Delay(500); // Allow shutdown to complete fully
         LoggingServices.Initialize(_httpService!);
+        await Task.Delay(100); // Allow initialization to complete
+        
         var log = CreateTestLog(LogLevel.Information, "Test message");
         var initialCount = LoggingServices.GlobalLogQueue.Count;
 
@@ -182,10 +186,14 @@ public class LoggingServicesTests : IAsyncLifetime
     }
 
     [Fact]
-    public void EnqueueLog_WithCriticalLevel_AddsToQueue()
+    public async Task EnqueueLog_WithCriticalLevel_AddsToQueue()
     {
-        // Arrange
+        // Arrange - ensure clean state
+        LoggingServices.Shutdown();
+        await Task.Delay(500); // Allow shutdown to complete fully
         LoggingServices.Initialize(_httpService!);
+        await Task.Delay(100); // Allow initialization to complete
+        
         var log = CreateTestLog(LogLevel.Critical, "Critical error");
         var initialCount = LoggingServices.GlobalLogQueue.Count;
 
@@ -197,10 +205,14 @@ public class LoggingServicesTests : IAsyncLifetime
     }
 
     [Fact]
-    public void EnqueueLog_WithException_AddsToQueue()
+    public async Task EnqueueLog_WithException_AddsToQueue()
     {
-        // Arrange
+        // Arrange - ensure clean state
+        LoggingServices.Shutdown();
+        await Task.Delay(500); // Allow shutdown to complete fully
         LoggingServices.Initialize(_httpService!);
+        await Task.Delay(100); // Allow initialization to complete
+        
         var log = CreateTestLog(LogLevel.Error, "Error with exception");
         log.Exception = new InvalidOperationException("Test exception").ToString();
         var initialCount = LoggingServices.GlobalLogQueue.Count;
@@ -209,15 +221,20 @@ public class LoggingServicesTests : IAsyncLifetime
         LoggingServices.EnqueueLog(log);
 
         // Assert
-        Assert.True(LoggingServices.GlobalLogQueue.Count > initialCount);
+        Assert.True(LoggingServices.GlobalLogQueue.Count > initialCount, 
+            $"Expected queue count to increase from {initialCount}, but it's still {LoggingServices.GlobalLogQueue.Count}");
         Assert.Contains("Test exception", log.Exception);
     }
 
     [Fact]
-    public void EnqueueLog_MultipleLogs_AllAddedToQueue()
+    public async Task EnqueueLog_MultipleLogs_AllAddedToQueue()
     {
-        // Arrange
+        // Arrange - ensure clean state
+        LoggingServices.Shutdown();
+        await Task.Delay(500); // Allow shutdown to complete fully
         LoggingServices.Initialize(_httpService!);
+        await Task.Delay(100); // Allow initialization to complete
+        
         var initialCount = LoggingServices.GlobalLogQueue.Count;
         var logsToAdd = 5;
 

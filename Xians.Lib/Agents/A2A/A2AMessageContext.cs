@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Workflows;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Agents.Core;
@@ -114,6 +113,7 @@ public class A2AMessageContext : UserMessageContext
     /// <param name="data">The data object to send.</param>
     public override Task ReplyAsync(string text, object? data)
     {
+        _logger.LogInformation("A2A response: {Text}, {Data}", text, data);
         CaptureResponse(text, data);
         return Task.CompletedTask;
     }

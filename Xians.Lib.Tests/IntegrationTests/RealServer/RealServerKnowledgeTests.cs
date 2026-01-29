@@ -907,17 +907,15 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         {
             // Attach distinct knowledge to each template BEFORE uploading workflow definitions
             // This ensures the knowledge is included when deploying the template
-            await templateAgentA.Knowledge.UpdateAsync(
+            await templateAgentA.Knowledge.UploadTextResourceAsync(
                 knowledgeAName,
                 "Template A only knowledge",
-                "text",
-                systemScoped: true);
+                "text");
 
-            await templateAgentB.Knowledge.UpdateAsync(
+            await templateAgentB.Knowledge.UploadTextResourceAsync(
                 knowledgeBName,
                 "Template B only knowledge",
-                "text",
-                systemScoped: true);
+                "text");
 
             // Upload workflow definitions after knowledge is attached
             await templateAgentA.UploadWorkflowDefinitionsAsync();
@@ -933,7 +931,12 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
                 IsTemplate = false
             });
 
-            // Listing knowledge on the deployed agent should not include template B's knowledge
+            // First, access the knowledge to trigger tenant-scoped replication
+            // (GetAsync creates tenant-scoped replica from system-scoped template)
+            var knowledgeA = await deployedAgent.Knowledge.GetAsync(knowledgeAName);
+            Assert.NotNull(knowledgeA);
+            
+            // Now listing knowledge on the deployed agent should not include template B's knowledge
             var deployedKnowledgeList = await deployedAgent.Knowledge.ListAsync();
 
             Assert.NotNull(deployedKnowledgeList);

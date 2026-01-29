@@ -36,9 +36,10 @@ internal class A2AService
     public async Task<A2AActivityResponse> ProcessDirectAsync(ProcessMessageActivityRequest request)
     {
         _logger.LogDebug(
-            "Processing A2A message directly: Target={TargetWorkflow}, RequestId={RequestId}",
+            "Processing A2A message directly: Target={TargetWorkflow}, RequestId={RequestId}, Text={Text}",
             _targetWorkflowType,
-            request.RequestId);
+            request.RequestId,
+            request.MessageText);
 
         // Get the handler for the target workflow
         var handlerMetadata = GetHandlerMetadata(_targetWorkflowType);

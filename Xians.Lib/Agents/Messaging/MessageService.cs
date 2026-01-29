@@ -101,13 +101,6 @@ internal class MessageService
                 request.Page,
                 messages.Count);
         }
-
-        // print all messages and requestId, and text
-        foreach (var message in messages)
-        {
-            _logger.LogInformation("Message: {Message}, RequestId: {RequestId}, Text: {Text}", message.Text, message.RequestId, message.Text);
-        }
-
         return messages;
     }
 

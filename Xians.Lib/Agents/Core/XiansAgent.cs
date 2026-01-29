@@ -4,6 +4,7 @@ using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Agents.Documents;
 using Xians.Lib.Agents.Tasks;
+using Xians.Lib.Agents.Metrics;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -32,6 +33,11 @@ public class XiansAgent
     /// Gets the task collection for creating and managing human-in-the-loop tasks.
     /// </summary>
     public TaskCollection Tasks { get; private set; }
+
+    /// <summary>
+    /// Gets the metrics collection for tracking and reporting usage metrics.
+    /// </summary>
+    public MetricsCollection Metrics { get; private set; }
 
     /// <summary>
     /// Gets the name of the agent.
@@ -94,6 +100,7 @@ public class XiansAgent
         Knowledge = new KnowledgeCollection(this, httpService, cacheService);
         Documents = new DocumentCollection(this, httpService);
         Tasks = new TaskCollection(this);
+        Metrics = new MetricsCollection(this);
         
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);

@@ -35,8 +35,8 @@ public class WorkflowCollection
     {
         options ??= new WorkflowOptions();
         
-        // Built-in workflows are always activable
-        options.Activable = true;
+        // Built-in workflows are not activable because they are automatically activated upon invocation
+        options.Activable = false;
         
         // Check if workflow with same name already exists
         if (_workflows.Any(w => w.Name == name))
@@ -532,7 +532,7 @@ public class WorkflowCollection
         Console.Write("Name            : ");
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine(_agent.Name);
-        
+
         // System Scoped
         Console.Write("  ");
         Console.ForegroundColor = ConsoleColor.Yellow;

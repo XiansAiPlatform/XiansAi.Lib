@@ -1,12 +1,13 @@
 using WireMock.Server;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using Xians.Lib.Common.Usage;
+using Xians.Lib.Agents.Metrics.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Http;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
+using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Common;
 
@@ -93,11 +94,11 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "user123",
+            ParticipantId = "user123",
             Model = "gpt-4",
             WorkflowId = "workflow-123",
             RequestId = "req-456",
-            Source = "IntegrationTest",
+            WorkflowType = "IntegrationTest",
             Metadata = new Dictionary<string, string>
             {
                 ["test_key"] = "test_value"
@@ -113,7 +114,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent!.Metrics.ReportAsync(request);
 
         // Wait a bit for async operation
         await Task.Delay(100);
@@ -154,11 +155,11 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var request = new UsageReportRequest
         {
             TenantId = "my-special-tenant",
-            UserId = "user123",
+            ParticipantId = "user123",
             Model = "gpt-4",
             WorkflowId = "workflow-1",
             RequestId = "req-1",
-            Source = "Test",
+            WorkflowType = "Test",
             Metrics = new List<MetricValue>
             {
                 new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
@@ -166,7 +167,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent!.Metrics.ReportAsync(request);
         await Task.Delay(100);
 
         // Assert
@@ -188,7 +189,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "user123",
+            ParticipantId = "user123",
             Model = "gpt-4",
             Metrics = new List<MetricValue>
             {
@@ -199,7 +200,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         // Act & Assert - Should not throw
         var exception = await Record.ExceptionAsync(async () =>
         {
-            await UsageEventsClient.Instance.ReportAsync(request);
+            await _agent!.Metrics.ReportAsync(request);
             await Task.Delay(100);
         });
 
@@ -221,7 +222,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "user123",
+            ParticipantId = "user123",
             Model = "gpt-4",
             Metrics = new List<MetricValue>
             {
@@ -232,7 +233,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         // Act & Assert
         var exception = await Record.ExceptionAsync(async () =>
         {
-            await UsageEventsClient.Instance.ReportAsync(request);
+            await _agent!.Metrics.ReportAsync(request);
             await Task.Delay(100);
         });
 

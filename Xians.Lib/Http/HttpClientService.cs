@@ -42,7 +42,7 @@ public class HttpClientService : IHttpClientService
         {
             CreateClient();
             _isInitialized = true;
-            _logger.LogInformation("HTTP client service initialized successfully for {ServerUrl}", _config.ServerUrl);
+            _logger.LogInformation("Setting up HTTP client service for {ServerUrl}", _config.ServerUrl);
         }
         catch (Exception ex)
         {
