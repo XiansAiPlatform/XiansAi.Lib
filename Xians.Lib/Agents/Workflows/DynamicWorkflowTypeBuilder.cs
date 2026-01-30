@@ -10,6 +10,11 @@ namespace Xians.Lib.Agents.Workflows;
 /// </summary>
 internal static class DynamicWorkflowTypeBuilder
 {
+    /// <summary>
+    /// Prefix used for dynamic assembly names. Used to identify built-in workflow types.
+    /// </summary>
+    public const string DynamicAssemblyPrefix = "DynamicWorkflows_";
+    
     // Cache for dynamically created workflow types to avoid recreating the same type multiple times
     private static readonly Dictionary<string, Type> _typeCache = new();
     private static readonly object _cacheLock = new();
@@ -62,7 +67,7 @@ internal static class DynamicWorkflowTypeBuilder
     /// </summary>
     private static AssemblyBuilder CreateAssembly()
     {
-        var assemblyName = new AssemblyName($"DynamicWorkflows_{Guid.NewGuid():N}");
+        var assemblyName = new AssemblyName($"{DynamicAssemblyPrefix}{Guid.NewGuid():N}");
         return AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
     }
 

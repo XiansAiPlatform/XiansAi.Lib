@@ -2,7 +2,6 @@ using System.Reflection;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
-using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows;
 using Microsoft.Extensions.Logging;
@@ -230,9 +229,6 @@ public class WorkflowCollection
             
             // Only set Source if we actually found source code
             var sourceToUpload = !string.IsNullOrWhiteSpace(source) ? source : null;
-            
-            var parameters = ExtractWorkflowParameters(workflow);
-            var activities = ExtractActivityDefinitions(workflow);
 
             // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
             var workflowName = workflow.Name;
@@ -258,139 +254,13 @@ public class WorkflowCollection
                 ParameterDefinitions = ExtractWorkflowParameters(workflow),
                 Source = sourceToUpload
             };
-            
-            _logger.LogInformation(
-                "📤 Uploading workflow definition: WorkflowType={WorkflowType}, Name={WorkflowName}, Parameters={ParameterCount}, Activities={ActivityCount}, HasSource={HasSource}, Activities=[{ActivityNames}]",
-                workflow.WorkflowType,
-                workflowName ?? "(null - THIS WILL CAUSE SG_InputParameters TO BE DISCONNECTED!)",
-                parameters.Count,
-                activities.Length,
-                !string.IsNullOrWhiteSpace(sourceToUpload),
-                string.Join(", ", activities.Select(a => a.ActivityName)));
-            
-            // Warn if Name is missing for BuiltinWorkflow subclasses - this causes visualization issues
-            if (workflowName == null && workflowClassType != null && typeof(BuiltinWorkflow).IsAssignableFrom(workflowClassType))
-            {
-                _logger.LogWarning(
-                    "⚠️ WARNING: Name field is NULL for BuiltinWorkflow subclass '{WorkflowType}'. " +
-                    "This will cause SG_InputParameters to appear disconnected in the visualization. " +
-                    "Expected format: 'AgentName:WorkflowName'",
-                    workflow.WorkflowType);
-            }
 
-            await _uploader.UploadWorkflowDefinitionAsync(definition);
-            
-            _logger.LogInformation(
-                "✅ Successfully uploaded workflow definition for {WorkflowType} with Name={WorkflowName}",
-                workflow.WorkflowType,
-                workflowName ?? "(null - SG_InputParameters may be disconnected)");
+            await _uploader!.UploadWorkflowDefinitionAsync(definition);
         }
         catch (Exception ex)
         {
-            // Log the error but don't throw - allow the agent to continue running
-            _logger.LogWarning(ex, "Failed to upload workflow definition for workflow type {WorkflowType}, but continuing. The visualize button may not work until this is resolved.", workflow.WorkflowType);
-            
-            // Optionally, can uncomment the line below to throw and stop the agent if upload fails
-            // throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
+            throw new InvalidOperationException($"Failed to upload workflow definition for workflow type {workflow.WorkflowType}: {ex.Message}", ex);
         }
-    }
-
-    /// <summary>
-    /// Extracts activity definitions from the workflow.
-    /// </summary>
-    private static ActivityDefinition[] ExtractActivityDefinitions(XiansWorkflow workflow)
-    {
-        var activities = new List<ActivityDefinition>();
-
-        // Extract activities from user-added activity instances
-        foreach (var activityInstance in workflow.GetActivityInstances())
-        {
-            activities.AddRange(ExtractActivitiesFromType(activityInstance.GetType()));
-        }
-
-        // Extract activities from user-added activity types
-        foreach (var activityType in workflow.GetActivityTypes())
-        {
-            activities.AddRange(ExtractActivitiesFromType(activityType));
-        }
-
-        // Extract activities from the workflow class itself (if it has activity methods)
-        var workflowClassType = workflow.GetWorkflowClassType();
-        if (workflowClassType != null)
-        {
-            activities.AddRange(ExtractActivitiesFromType(workflowClassType));
-        }
-
-        return activities.ToArray();
-    }
-
-    /// <summary>
-    /// Extracts activity definitions from a type by finding methods with [Activity] attributes.
-    /// </summary>
-    private static List<ActivityDefinition> ExtractActivitiesFromType(Type type)
-    {
-        var activities = new List<ActivityDefinition>();
-
-        // Find all methods with [Activity] attribute
-        var activityMethods = type.GetMethods()
-            .Where(m => m.GetCustomAttributes(typeof(Temporalio.Activities.ActivityAttribute), true).Any())
-            .ToList();
-
-        foreach (var method in activityMethods)
-        {
-            var activityAttribute = method.GetCustomAttributes(typeof(Temporalio.Activities.ActivityAttribute), true)
-                .FirstOrDefault() as Temporalio.Activities.ActivityAttribute;
-            
-            var activityName = activityAttribute?.Name ?? method.Name;
-
-            // Extract parameters
-            var parameters = method.GetParameters()
-                .Select(p => new ParameterDefinition
-                {
-                    Name = p.Name,
-                    Type = p.ParameterType.Name
-                })
-                .ToList();
-
-            // Extract KnowledgeIds if KnowledgeAttribute is present
-            var knowledgeIds = new List<string>();
-            try
-            {
-                var knowledgeAttribute = method.GetCustomAttributes()
-                    .FirstOrDefault(attr => attr.GetType().Name == "KnowledgeAttribute");
-                
-                if (knowledgeAttribute != null)
-                {
-                    var knowledgeProperty = knowledgeAttribute.GetType().GetProperty("Knowledge");
-                    if (knowledgeProperty != null)
-                    {
-                        var knowledgeValue = knowledgeProperty.GetValue(knowledgeAttribute);
-                        if (knowledgeValue is string[] knowledgeArray)
-                        {
-                            knowledgeIds.AddRange(knowledgeArray);
-                        }
-                        else if (knowledgeValue is IEnumerable<string> knowledgeEnumerable)
-                        {
-                            knowledgeIds.AddRange(knowledgeEnumerable);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // KnowledgeAttribute might not exist in Platform 3, ignore
-            }
-
-            activities.Add(new ActivityDefinition
-            {
-                ActivityName = activityName,
-                ParameterDefinitions = parameters,
-                KnowledgeIds = knowledgeIds,
-                AgentToolNames = new List<string>()
-            });
-        }
-
-        return activities;
     }
 
     /// <summary>
@@ -420,18 +290,21 @@ public class WorkflowCollection
             return [];
         }
 
-        // Extract parameters from [WorkflowRun] method 
-        // This ensures the visualization can properly render SG_InputParameters even for BuiltinWorkflow subclasses
+        // Check if this is a built-in workflow (extends BuiltinWorkflow)
+        if (workflowType.IsSubclassOf(typeof(BuiltinWorkflow)) || workflowType == typeof(BuiltinWorkflow))
+        {
+            // Built-in workflows (including dynamic ones) don't have custom parameters
+            return [];
+        }
+
         var workflowRunMethod = workflowType.GetMethods()
             .FirstOrDefault(m => m.GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowRunAttribute), true).Any());
 
         if (workflowRunMethod == null)
         {
-            // If no [WorkflowRun] method found, return empty list 
-            return [];
+            throw new InvalidOperationException($"Workflow run method not found for workflow type {workflowType}");
         }
 
-        // Extract parameters from the RunAsync method
         return workflowRunMethod.GetParameters()
             .Select(p =>
             {
@@ -460,9 +333,8 @@ public class WorkflowCollection
         {
             // Check if this is a dynamic type (built-in workflow)
             // Dynamic types are created by DynamicWorkflowTypeBuilder via Reflection.Emit
-            // Dynamic assemblies have names starting with "DynamicWorkflows_"
             var assemblyName = type.Assembly.GetName().Name;
-            var isDynamicAssembly = assemblyName?.StartsWith("DynamicWorkflows_") == true;
+            var isDynamicAssembly = assemblyName?.StartsWith(DynamicWorkflowTypeBuilder.DynamicAssemblyPrefix) == true;
             
             if (isDynamicAssembly)
             {
