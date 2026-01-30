@@ -125,7 +125,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         
         // Verify JSON structure (camelCase)
         Assert.Contains("\"tenantId\":\"test-tenant\"", payload);
-        Assert.Contains("\"userId\":\"user123\"", payload);
+        Assert.Contains("\"participantId\":\"user123\"", payload);
         Assert.Contains("\"model\":\"gpt-4\"", payload);
         Assert.Contains("\"metrics\":", payload);
         Assert.Contains("\"test_key\"", payload);

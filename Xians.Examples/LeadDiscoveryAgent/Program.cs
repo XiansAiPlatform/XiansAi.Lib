@@ -35,7 +35,7 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
     Summary= "Discovers leads from companies using content processing workflows",
     Version= "1.0.0",
     Author= "99x",
-    SystemScoped = true
+    IsTemplate = true
 });
 
 // Upload embedded knowledge resources to the server

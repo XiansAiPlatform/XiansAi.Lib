@@ -25,9 +25,12 @@ public class LoggingServicesTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Ensure any previous logging is shutdown
+        // Ensure any previous logging is shutdown and state is clean
         LoggingServices.Shutdown();
-        await Task.Delay(100);
+        await Task.Delay(1000); // Longer delay to ensure complete shutdown in full suite
+        
+        // Clear any remaining logs from previous test runs
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
         
         // Setup mock HTTP server
         _mockServer = WireMockServer.Start();
@@ -57,6 +60,10 @@ public class LoggingServicesTests : IAsyncLifetime
         // Arrange - ensure clean state
         LoggingServices.Shutdown();
         await Task.Delay(500); // Allow shutdown to complete fully
+        
+        // Clear any remaining logs from previous tests
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+        
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(100); // Allow initialization to complete
         
@@ -191,6 +198,10 @@ public class LoggingServicesTests : IAsyncLifetime
         // Arrange - ensure clean state
         LoggingServices.Shutdown();
         await Task.Delay(500); // Allow shutdown to complete fully
+        
+        // Clear any remaining logs from previous tests
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+        
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(100); // Allow initialization to complete
         
@@ -207,11 +218,15 @@ public class LoggingServicesTests : IAsyncLifetime
     [Fact]
     public async Task EnqueueLog_WithException_AddsToQueue()
     {
-        // Arrange - ensure clean state
+        // Arrange - ensure clean state (already done in InitializeAsync, but double-check)
         LoggingServices.Shutdown();
-        await Task.Delay(500); // Allow shutdown to complete fully
+        await Task.Delay(200);
+        
+        // Clear queue to ensure clean state
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+        
         LoggingServices.Initialize(_httpService!);
-        await Task.Delay(100); // Allow initialization to complete
+        await Task.Delay(50);
         
         var log = CreateTestLog(LogLevel.Error, "Error with exception");
         log.Exception = new InvalidOperationException("Test exception").ToString();
@@ -232,6 +247,10 @@ public class LoggingServicesTests : IAsyncLifetime
         // Arrange - ensure clean state
         LoggingServices.Shutdown();
         await Task.Delay(500); // Allow shutdown to complete fully
+        
+        // Clear any remaining logs from previous tests
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+        
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(100); // Allow initialization to complete
         
@@ -332,8 +351,11 @@ public class LoggingServicesTests : IAsyncLifetime
         // Shutdown logging first to stop background thread
         LoggingServices.Shutdown();
         
-        // Wait a bit for shutdown to complete
-        await Task.Delay(500);
+        // Wait longer for shutdown to complete in full suite context
+        await Task.Delay(1000);
+        
+        // Clear any remaining logs
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
         
         // Now dispose resources
         _httpService?.Dispose();

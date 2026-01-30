@@ -26,7 +26,7 @@ public class ScheduleBuilder
     private object[]? _workflowArgs;
     private Dictionary<string, object>? _workflowMemo;
     private SearchAttributeCollection? _typedSearchAttributes;
-    private Temporalio.Common.RetryPolicy? _retryPolicy;
+    private RetryPolicy? _retryPolicy;
     private TimeSpan? _timeout;
     private SchedulePolicy? _schedulePolicy;
     private ScheduleState? _scheduleState;

@@ -196,7 +196,7 @@ public class UsageTrackingTests : IDisposable
         
         // Verify camelCase serialization
         Assert.Contains("\"tenantId\":", capturedJson);
-        Assert.Contains("\"userId\":", capturedJson);
+        Assert.Contains("\"participantId\":", capturedJson);
         Assert.Contains("\"model\":", capturedJson);
         Assert.Contains("\"metrics\":", capturedJson);
         Assert.Contains("\"gpt-4\"", capturedJson);

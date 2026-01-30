@@ -76,5 +76,17 @@ public class Document
     /// Automatically populated from workflow context.
     /// </summary>
     public string? UpdatedBy { get; set; }
+
+    /// <summary>
+    /// The activation name (workflow type postfix) associated with this document.
+    /// Automatically populated from workflow context via XiansContext.SafeIdPostfix.
+    /// </summary>
+    public string? ActivationName { get; set; }
+
+    /// <summary>
+    /// The participant ID associated with this document.
+    /// Automatically populated from workflow context via XiansContext.SafeParticipantId.
+    /// </summary>
+    public string? ParticipantId { get; set; }
 }
 
