@@ -37,14 +37,19 @@ public class MessageActivities
     [Activity]
     public async Task ProcessAndSendMessageAsync(ProcessMessageActivityRequest request)
     {
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "ProcessAndSendMessage activity started: RequestId={RequestId}, WorkflowType={WorkflowType}, MessageType={MessageType}",
+        ActivityExecutionContext.Current.Logger.LogInformation(
+            "Message processing started: RequestId={RequestId}, WorkflowType={WorkflowType}, MessageType={MessageType}",
             request.RequestId,
             request.WorkflowType,
             request.MessageType);
 
         // Set the participant ID for this async execution context
         XiansContext.SetParticipantId(request.ParticipantId);
+
+        // we need to set following also to async execution context request.Authorization, request.RequestId, request.TenantId.
+        XiansContext.SetAuthorization(request.Authorization);
+        XiansContext.SetRequestId(request.RequestId);
+        XiansContext.SetTenantId(request.TenantId);
 
         try
         {

@@ -30,6 +30,11 @@ public static class LoggingServices
     private static bool _isInitialized = false;
     private static readonly object _initLock = new object();
     
+    /// <summary>
+    /// Gets a value indicating whether the LoggingServices has been initialized.
+    /// </summary>
+    public static bool IsInitialized => _isInitialized;
+    
     // Track pending upload tasks for proper shutdown
     private static readonly List<Task> _pendingUploadTasks = new();
     private static readonly object _tasksLock = new object();
@@ -137,6 +142,7 @@ public static class LoggingServices
                 IsBackground = true,
                 Name = "LogProcessingThread"
             };
+            Console.WriteLine("Starting server log processing thread...");
             _processingThread.Start();
         }
     }

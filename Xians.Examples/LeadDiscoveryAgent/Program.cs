@@ -35,7 +35,8 @@ var agent = xiansPlatform.Agents.Register(new XiansAgentRegistration
     Summary= "Discovers leads from companies using content processing workflows",
     Version= "1.0.0",
     Author= "99x",
-    SystemScoped = true
+    IsTemplate = true,
+    EnableTasks = true
 });
 
 // Upload embedded knowledge resources to the server
@@ -81,8 +82,8 @@ webWorkflow.OnUserChatMessage(async (context) =>
 
 });
 
-// Optional: Enable human-in-the-loop (HITL) tasks
-await agent.Workflows.WithTasks();  // Uses default max concurrent (100)
+// Initialize agent with configured settings (including tasks if enabled)
+await agent.InitializeAsync();  // Uses default workflow options
 
 // Run all workflows
 try

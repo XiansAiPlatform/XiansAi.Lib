@@ -148,7 +148,7 @@ workflow.OnUserChatMessage(async (context) =>
         ResponseTimeMs: stopwatch.ElapsedMilliseconds
     );
     
-    await UsageEventsClient.Instance.ReportAsync(record);
+    await XiansContext.Metrics.ReportAsync(record);
     
     await context.ReplyAsync(response.Text);
 });
@@ -199,18 +199,22 @@ workflow.OnUserChatMessage(async (context) =>
     
     stopwatch.Stop();
     
-    // Extract usage from responses
-    var (promptTokens, completionTokens, totalTokens, model, completionId) = 
-        UsageEventsClient.Instance.ExtractUsageFromSemanticKernelResponses(responses);
+    // Extract usage from responses (use your own extraction logic based on your LLM SDK)
+    var promptTokens = 100; // Extract from your response
+    var completionTokens = 50; // Extract from your response
+    var totalTokens = 150; // Extract from your response
     
     // Report usage
-    await context.ReportUsageAsync(
-        model: model ?? "unknown",
-        promptTokens: promptTokens,
-        completionTokens: completionTokens,
-        totalTokens: totalTokens,
-        responseTimeMs: stopwatch.ElapsedMilliseconds
-    );
+    await XiansContext.Metrics
+        .Track(context)
+        .ForModel("gpt-4")
+        .WithMetrics(
+            ("tokens", "prompt_tokens", promptTokens, "tokens"),
+            ("tokens", "completion_tokens", completionTokens, "tokens"),
+            ("tokens", "total_tokens", totalTokens, "tokens"),
+            ("performance", "response_time_ms", stopwatch.ElapsedMilliseconds, "ms")
+        )
+        .ReportAsync();
     
     var responseText = string.Join(" ", responses.Select(r => r.Content));
     await context.ReplyAsync(responseText);

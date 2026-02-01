@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Temporal.Workflows.Messaging;
+using Xians.Lib.Agents.Metrics;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 namespace Xians.Lib.Agents.Messaging;
@@ -30,6 +30,20 @@ public class UserMessageContext
     /// Gets the optional metadata for the message.
     /// </summary>
     public Dictionary<string, string>? Metadata => _metadata;
+
+    /// <summary>
+    /// Gets a metrics builder for tracking usage metrics, pre-initialized with this message context.
+    /// Automatically populates TenantId, ParticipantId, WorkflowId, RequestId, AgentName, and ActivationName.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// await context.Metrics
+    ///     .ForModel("gpt-4")
+    ///     .WithMetric("tokens", "total", 150, "tokens")
+    ///     .ReportAsync();
+    /// </code>
+    /// </example>
+    public ContextAwareUsageReportBuilder Metrics => XiansContext.CurrentAgent.Metrics.Track(this);
 
     /// <summary>
     /// When set to true, prevents messages from being sent to the user.

@@ -59,23 +59,25 @@ public class XiansPlatform
         options.Validate();
 
         // Configure logging levels if provided in options
-        Common.Infrastructure.LoggerFactory.ConfigureLogLevels(
+        LoggerFactory.ConfigureLogLevels(
             options.ConsoleLogLevel,
             options.ServerLogLevel
         );
 
         // Create HTTP service
-        var httpLogger = Common.Infrastructure.LoggerFactory.CreateLogger<HttpClientService>();
+        var httpLogger = LoggerFactory.CreateLogger<HttpClientService>();
         var httpService = ServiceFactory.CreateHttpClientService(options, httpLogger);
+    
         
-        // Initialize logging services to start background log upload (unless disabled)
-        if (!options.DisableServerLogging)
+        // Fallback: Initialize logging services if ServerLogLevel was set but deferred init wasn't requested
+        // This handles cases where ServerLogLevel might be set via environment variables instead of the property
+        if (!Logging.LoggingServices.IsInitialized && options.ServerLogLevel.HasValue)
         {
             Logging.LoggingServices.Initialize(httpService);
         }
         
         // Create Temporal service
-        var temporalLogger = Common.Infrastructure.LoggerFactory.CreateLogger<TemporalClientService>();
+        var temporalLogger = LoggerFactory.CreateLogger<TemporalClientService>();
         ITemporalClientService temporalService;
         
         if (options.TemporalConfiguration != null)

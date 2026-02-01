@@ -1,6 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Logging;
-using Xians.Lib.Common.Exceptions;
 
 namespace Xians.Lib.Common.Security;
 

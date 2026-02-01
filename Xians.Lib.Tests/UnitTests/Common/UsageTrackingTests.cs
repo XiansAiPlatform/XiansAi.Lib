@@ -4,11 +4,12 @@ using Moq.Protected;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Xians.Lib.Common.Usage;
+using Xians.Lib.Agents.Metrics.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
+using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.UnitTests.Common;
 
@@ -49,11 +50,11 @@ public class UsageTrackingTests : IDisposable
         
         _agent = new XiansAgent(
             "test-agent",
-            false,
+            false, // systemScoped
             null, // description
+            null, // summary
             null, // version
             null, // author
-            null, // summary
             null, // uploader
             null, // temporalService
             _mockHttpService.Object,
@@ -84,11 +85,11 @@ public class UsageTrackingTests : IDisposable
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "test-user",
+            ParticipantId = "test-user",
             Model = "gpt-4",
             WorkflowId = "test-workflow",
             RequestId = "test-request",
-            Source = "TestAgent",
+            WorkflowType = "TestAgent",
             Metrics = new List<MetricValue>
             {
                 new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.PromptTokens, Value = 100.0, Unit = "tokens" },
@@ -98,7 +99,7 @@ public class UsageTrackingTests : IDisposable
         };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent.Metrics.ReportAsync(request);
 
         // Assert
         Assert.NotNull(capturedRequest);
@@ -123,11 +124,11 @@ public class UsageTrackingTests : IDisposable
         var request = new UsageReportRequest
         {
             TenantId = "my-tenant",
-            UserId = "user123",
+            ParticipantId = "user123",
             Model = "gpt-4",
             WorkflowId = "workflow1",
             RequestId = "req1",
-            Source = "Test",
+            WorkflowType = "Test",
             Metrics = new List<MetricValue>
             {
                 new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
@@ -135,7 +136,7 @@ public class UsageTrackingTests : IDisposable
         };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent.Metrics.ReportAsync(request);
 
         // Assert
         Assert.NotNull(capturedRequest);
@@ -171,11 +172,11 @@ public class UsageTrackingTests : IDisposable
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "user123",
+            ParticipantId = "user123",
             Model = "gpt-4",
             WorkflowId = "workflow1",
             RequestId = "req1",
-            Source = "TestSource",
+            WorkflowType = "TestSource",
             Metadata = metadata,
             Metrics = new List<MetricValue>
             {
@@ -188,14 +189,14 @@ public class UsageTrackingTests : IDisposable
         };
 
         // Act
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent.Metrics.ReportAsync(request);
 
         // Assert
         Assert.NotNull(capturedJson);
         
         // Verify camelCase serialization
         Assert.Contains("\"tenantId\":", capturedJson);
-        Assert.Contains("\"userId\":", capturedJson);
+        Assert.Contains("\"participantId\":", capturedJson);
         Assert.Contains("\"model\":", capturedJson);
         Assert.Contains("\"metrics\":", capturedJson);
         Assert.Contains("\"gpt-4\"", capturedJson);
@@ -212,7 +213,7 @@ public class UsageTrackingTests : IDisposable
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "test-user",
+            ParticipantId = "test-user",
             Model = "gpt-4",
             Metrics = new List<MetricValue>
             {
@@ -221,7 +222,7 @@ public class UsageTrackingTests : IDisposable
         };
 
         // Act & Assert - Should not throw
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent.Metrics.ReportAsync(request);
     }
 
     [Fact]
@@ -238,11 +239,11 @@ public class UsageTrackingTests : IDisposable
         var request = new UsageReportRequest
         {
             TenantId = "test-tenant",
-            UserId = "test-user",
+            ParticipantId = "test-user",
             Model = "gpt-4",
             WorkflowId = "test-workflow",
             RequestId = "test-request",
-            Source = "Test",
+            WorkflowType = "Test",
             Metrics = new List<MetricValue>
             {
                 new MetricValue { Category = MetricCategories.Tokens, Type = MetricTypes.TotalTokens, Value = 150.0, Unit = "tokens" }
@@ -250,7 +251,7 @@ public class UsageTrackingTests : IDisposable
         };
 
         // Act & Assert - Should not throw, just log warning
-        await UsageEventsClient.Instance.ReportAsync(request);
+        await _agent.Metrics.ReportAsync(request);
     }
 
     [Fact(Skip = "Requires Temporal workflow context - needs fix for XiansContext")]

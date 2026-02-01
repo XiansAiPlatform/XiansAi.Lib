@@ -1,5 +1,5 @@
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Common.Usage;
+using Xians.Lib.Agents.Metrics.Models;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.Workflows.Models;
 using System.Diagnostics;
@@ -107,9 +107,9 @@ public class UsageTrackingExample
             await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                    ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", response.TotalTokens, "tokens")
                 )
                 .ReportAsync();
             
@@ -129,10 +129,10 @@ public class UsageTrackingExample
             await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens"),
-                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                    ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", response.TotalTokens, "tokens"),
+                    ("performance", "response_time_ms", stopwatch.ElapsedMilliseconds, "ms")
                 )
                 .ReportAsync();
             
@@ -150,9 +150,9 @@ public class UsageTrackingExample
                 .ForModel("gpt-3.5-turbo")
                 .FromSource("SentimentAnalysis")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, sentiment.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, sentiment.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, sentiment.TotalTokens, "tokens")
+                    ("tokens", "prompt_tokens", sentiment.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", sentiment.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", sentiment.TotalTokens, "tokens")
                 )
                 .ReportAsync();
             Console.WriteLine($"Sentiment: {sentiment.Text}");
@@ -163,9 +163,9 @@ public class UsageTrackingExample
                 .ForModel("gpt-4")
                 .FromSource("ResponseGeneration")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                    ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", response.TotalTokens, "tokens")
                 )
                 .ReportAsync();
             await context.ReplyAsync(response.Text);
@@ -189,17 +189,17 @@ public class UsageTrackingExample
                 .ForModel("gpt-4")
                 .WithMetrics(
                     // Standard token metrics
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens"),
+                    ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", response.TotalTokens, "tokens"),
                     // Standard activity metrics
-                    (MetricCategories.Activity, MetricTypes.MessageCount, 1, "count"),
+                    ("activity", "message_count", 1, "count"),
                     // Custom metrics - emails sent by this workflow
                     ("activity", "email_sent", 3, "count"),
                     // Custom metrics - workflow completion
                     ("activity", "workflow_completed", 1, "count"),
                     // Performance metrics
-                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                    ("performance", "response_time_ms", stopwatch.ElapsedMilliseconds, "ms")
                 )
                 .ReportAsync();
             
@@ -217,9 +217,9 @@ public class UsageTrackingExample
             await XiansContext.Metrics.Track(context)
                 .ForModel("gpt-4")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                    ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", response.TotalTokens, "tokens")
                 )
                 .ReportAsync();
             
@@ -238,7 +238,7 @@ public class UsageTrackingExample
             
             // Step 1: LLM call
             var response = await SimulateOpenAICall(context.Message.Text);
-            tracker.WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens");
+            tracker.WithMetric("tokens", "total_tokens", response.TotalTokens, "tokens");
             
             // Step 2: Send emails
             await SendEmailsAsync(3);
@@ -281,11 +281,11 @@ public class UsageTrackingExample
                 .ForModel("gpt-4")
                 .FromSource("UsageTrackingDemo.DetailedTracking")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens"),
-                    (MetricCategories.Activity, MetricTypes.MessageCount, history.Count + 1, "count"),
-                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                    ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                    ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                    ("tokens", "total_tokens", response.TotalTokens, "tokens"),
+                    ("activity", "message_count", history.Count + 1, "count"),
+                    ("performance", "response_time_ms", stopwatch.ElapsedMilliseconds, "ms")
                 )
                 .WithMetadata(metadata)
                 .ReportAsync();
@@ -308,9 +308,9 @@ public class UsageTrackingExample
                     await XiansContext.Metrics.Track(context)
                         .ForModel("gpt-4")
                         .WithMetrics(
-                            (MetricCategories.Tokens, MetricTypes.PromptTokens, response.PromptTokens, "tokens"),
-                            (MetricCategories.Tokens, MetricTypes.CompletionTokens, response.CompletionTokens, "tokens"),
-                            (MetricCategories.Tokens, MetricTypes.TotalTokens, response.TotalTokens, "tokens")
+                            ("tokens", "prompt_tokens", response.PromptTokens, "tokens"),
+                            ("tokens", "completion_tokens", response.CompletionTokens, "tokens"),
+                            ("tokens", "total_tokens", response.TotalTokens, "tokens")
                         )
                         .ReportAsync();
                 }
@@ -364,11 +364,11 @@ public class UsageTrackingExample
                 .ForModel(modelName)
                 .FromSource("MAF Agent")
                 .WithMetrics(
-                    (MetricCategories.Tokens, MetricTypes.PromptTokens, promptTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.CompletionTokens, completionTokens, "tokens"),
-                    (MetricCategories.Tokens, MetricTypes.TotalTokens, totalTokens, "tokens"),
-                    (MetricCategories.Activity, MetricTypes.MessageCount, messageCount, "count"),
-                    (MetricCategories.Performance, MetricTypes.ResponseTimeMs, stopwatch.ElapsedMilliseconds, "ms")
+                    ("tokens", "prompt_tokens", promptTokens, "tokens"),
+                    ("tokens", "completion_tokens", completionTokens, "tokens"),
+                    ("tokens", "total_tokens", totalTokens, "tokens"),
+                    ("activity", "message_count", messageCount, "count"),
+                    ("performance", "response_time_ms", stopwatch.ElapsedMilliseconds, "ms")
                 )
                 .ReportAsync();
             
@@ -451,7 +451,7 @@ public class UsageTrackingExample
         {
             TenantId = XiansContext.TenantId,
             WorkflowId = XiansContext.WorkflowId,
-            Source = "BatchProcessor",
+            WorkflowType = "BatchProcessor",
             Metrics = new List<MetricValue>
             {
                 new() { Category = "batch_processing", Type = "records_processed", Value = 1000, Unit = "count" },

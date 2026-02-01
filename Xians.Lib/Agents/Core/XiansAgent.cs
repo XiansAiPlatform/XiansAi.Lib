@@ -2,8 +2,11 @@ using System.Net;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Knowledge;
 using Xians.Lib.Agents.Workflows;
+using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Documents;
 using Xians.Lib.Agents.Tasks;
+using Xians.Lib.Agents.Metrics;
+using Xians.Lib.Logging;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -32,6 +35,11 @@ public class XiansAgent
     /// Gets the task collection for creating and managing human-in-the-loop tasks.
     /// </summary>
     public TaskCollection Tasks { get; private set; }
+
+    /// <summary>
+    /// Gets the metrics collection for tracking and reporting usage metrics.
+    /// </summary>
+    public MetricsCollection Metrics { get; private set; }
 
     /// <summary>
     /// Gets the name of the agent.
@@ -67,12 +75,17 @@ public class XiansAgent
     internal Http.IHttpClientService? HttpService { get; private set; }
     internal XiansOptions? Options { get; private set; }
 
-    internal Xians.Lib.Common.Caching.CacheService? CacheService { get; private set; }
+    internal Common.Caching.CacheService? CacheService { get; private set; }
+    
+    /// <summary>
+    /// Gets whether task workflows should be automatically enabled for this agent.
+    /// </summary>
+    public bool EnableTasksOnInitialization => Options?.EnableTasks ?? true;
 
     internal XiansAgent(string name, bool systemScoped, string? description, string? summary, string? version, string? author,
         WorkflowDefinitionUploader? uploader, ITemporalClientService? temporalService, 
         Http.IHttpClientService? httpService, XiansOptions? options, 
-        Xians.Lib.Common.Caching.CacheService? cacheService)
+        Common.Caching.CacheService? cacheService)
     {
         Name = name.Trim(); // Trim to handle whitespace variations
 
@@ -94,6 +107,7 @@ public class XiansAgent
         Knowledge = new KnowledgeCollection(this, httpService, cacheService);
         Documents = new DocumentCollection(this, httpService);
         Tasks = new TaskCollection(this);
+        Metrics = new MetricsCollection(this);
         
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);
@@ -128,6 +142,20 @@ public class XiansAgent
     public async Task UploadWorkflowDefinitionsAsync()
     {
         await Workflows.UploadAllDefinitionsAsync();
+    }
+
+    /// <summary>
+    /// Initializes the agent with configured settings from registration.
+    /// This includes automatically enabling tasks if specified during registration.
+    /// </summary>
+    /// <param name="options">Optional workflow options for task configuration.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task InitializeAsync(WorkflowOptions? options = null)
+    {
+        if (EnableTasksOnInitialization)
+        {
+            await Workflows.WithTasks(options);
+        }
     }
 
     /// <summary>
@@ -205,13 +233,20 @@ public class XiansAgent
 
     /// <summary>
     /// Runs all registered workflows for this agent asynchronously.
+    /// Automatically initializes tasks if EnableTasks is configured.
     /// </summary>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RunAllAsync(CancellationToken cancellationToken = default)
     {
+        // Initialize server logging if ServerLogLevel is set
+        InitializeServerLoggingIfConfigured();
+
+        // Initialize tasks if EnableTasks is configured
+        await InitializeTasksIfConfiguredAsync();
+
         // Set up cancellation token if not provided
-        if (cancellationToken == default)
+        if (cancellationToken == CancellationToken.None)
         {
             var tokenSource = new CancellationTokenSource();
             Console.CancelKeyPress += (_, eventArgs) =>
@@ -224,5 +259,30 @@ public class XiansAgent
 
         // Run all workflows
         await Workflows.RunAllAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Initializes server logging if ServerLogLevel is configured.
+    /// </summary>
+    private void InitializeServerLoggingIfConfigured()
+    {
+        // Check if server logging should be initialized
+        if (Options?.ServerLogLevel.HasValue == true && 
+            !LoggingServices.IsInitialized && 
+            HttpService != null)
+        {
+            LoggingServices.Initialize(HttpService);
+        }
+    }
+
+    /// <summary>
+    /// Initializes task workflows if EnableTasks is configured.
+    /// </summary>
+    private async Task InitializeTasksIfConfiguredAsync()
+    {
+        if (EnableTasksOnInitialization)
+        {
+            await Workflows.WithTasks();
+        }
     }
 }

@@ -39,16 +39,15 @@ public abstract class RealServerTestBase : IDisposable
     }
 
     /// <summary>
-    /// Helper method to create XiansOptions for testing with server logging disabled.
-    /// This prevents connection errors to the logging server during tests.
+    /// Helper method to create XiansOptions for testing.
+    /// Server logging is not enabled by default, so no explicit configuration needed.
     /// </summary>
     protected XiansOptions CreateTestOptions()
     {
         return new XiansOptions
         {
             ServerUrl = ServerUrl!,
-            ApiKey = ApiKey!,
-            DisableServerLogging = true  // Disable server logging for tests
+            ApiKey = ApiKey!
         };
     }
 

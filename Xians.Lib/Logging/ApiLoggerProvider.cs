@@ -126,11 +126,12 @@ public class ApiLogger : ILogger
         }
 
         // Extract context from Temporal workflow/activity using XiansContext
-        var workflowId = XiansContext.SafeWorkflowId ?? "Outside Workflows";
-        var agent = XiansContext.SafeAgentName ?? "No Agent Available";
-        var participantId = XiansContext.SafeParticipantId ?? "No Participant Available";
-        var idPostfix = XiansContext.SafeIdPostfix ?? "No IdPostfix Available";
-        var workflowType = XiansContext.SafeWorkflowType ?? "No WorkflowType Available";
+        var workflowId = XiansContext.SafeWorkflowId ?? "startup-context";
+        var workflowRunId = XiansContext.SafeWorkflowRunId;
+        var agent = XiansContext.SafeAgentName ?? string.Empty;
+        var participantId = XiansContext.SafeParticipantId ?? XiansContext.SafeCertificateUser;
+        var idPostfix = XiansContext.SafeIdPostfix;
+        var workflowType = XiansContext.SafeWorkflowType;
 
 
         var log = new Log
@@ -140,6 +141,7 @@ public class ApiLogger : ILogger
             Level = logLevel,
             Message = logMessage,
             WorkflowId = workflowId,
+            WorkflowRunId = workflowRunId,
             WorkflowType = workflowType,
             Agent = agent,
             Activation = idPostfix,

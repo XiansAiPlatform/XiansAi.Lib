@@ -20,7 +20,7 @@ internal class SubWorkflowServiceLogger { }
 /// </summary>
 public static class SubWorkflowService
 {
-    private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<SubWorkflowServiceLogger>();
+    private static readonly ILogger _logger = Common.Infrastructure.LoggerFactory.CreateLogger<SubWorkflowServiceLogger>();
 
 
     /// <summary>
@@ -31,6 +31,7 @@ public static class SubWorkflowService
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
     /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <throws>WorkflowAlreadyStartedException if there is a running workflow with given unique keys</throws>
     /// <param name="args">Arguments to pass to the workflow.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async Task StartAsync(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
@@ -70,6 +71,7 @@ public static class SubWorkflowService
     /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <throws>WorkflowAlreadyStartedException if there is a running workflow with given unique keys</throws>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
     public static async Task StartAsync<TWorkflow>(string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
@@ -85,9 +87,10 @@ public static class SubWorkflowService
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
     /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID uniqueness.</param>
+    /// <param name="uniqueKeys">Optional postfix for workflow ID uniqueness.</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <throws>WorkflowAlreadyStartedException if there is a running workflow with given unique keys</throws>
     /// <returns>The workflow result.</returns>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
     public static async Task<TResult> ExecuteAsync<TWorkflow, TResult>(string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
@@ -103,9 +106,10 @@ public static class SubWorkflowService
     /// </summary>
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="uniqueKey">Optional uniqueKey for workflow ID uniqueness.</param>
+    /// <param name="uniqueKeys">Optional uniqueKeys for workflow ID uniqueness.</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <throws>WorkflowAlreadyStartedException if there is a running workflow with given unique keys</throws>
     /// <returns>The workflow result.</returns>
     public static async Task<TResult> ExecuteAsync<TResult>(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {

@@ -29,10 +29,7 @@ internal class TemporalClientFactory
         {
             Namespace = _config.Namespace,
             Tls = GetTlsConfig(),
-            LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
-                builder
-                    .AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ")
-                    .SetMinimumLevel(LogLevel.Information))
+            LoggerFactory = Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true)
         };
 
         _logger?.LogDebug(

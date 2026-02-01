@@ -9,18 +9,17 @@ public class DocumentOptions
 {
     /// <summary>
     /// Time-to-live in minutes. Document will be automatically deleted after this time.
-    /// Default is 30 days (43,200 minutes).
-    /// Set to null for no expiration.
+    /// Default is null (no expiration).
     /// </summary>
     [JsonPropertyName("ttlMinutes")]
-    public int? TtlMinutes { get; set; } = 60 * 24 * 30; // 30 days
+    public int? TtlMinutes { get; set; } = null;
 
     /// <summary>
     /// Whether to overwrite if a document with the same ID exists.
     /// Default is false (will fail if document exists).
     /// </summary>
     [JsonPropertyName("overwrite")]
-    public bool Overwrite { get; set; } = false;
+    public bool Overwrite { get; set; } = true;
 
     /// <summary>
     /// When true, uses the combination of Type and Key as the unique identifier.
@@ -29,6 +28,6 @@ public class DocumentOptions
     /// Useful for semantic keys like "user-123-preferences".
     /// </summary>
     [JsonPropertyName("useKeyAsIdentifier")]
-    public bool UseKeyAsIdentifier { get; set; } = false;
+    public bool UseKeyAsIdentifier { get; set; } = true;
 }
 

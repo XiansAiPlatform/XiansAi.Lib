@@ -45,7 +45,7 @@ public class DocumentCollection
         // Shared business logic: Populate AgentId and WorkflowId automatically
         PrepareDocumentForSave(document);
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Saving document for agent '{AgentName}', tenant '{TenantId}'",
             _agent.Name,
             tenantId);
@@ -102,6 +102,13 @@ public class DocumentCollection
             AgentId = _agent.Name,
             Limit = 1
         };
+        
+        // Auto-populate context values for more specific queries
+        if (XiansContext.InWorkflowOrActivity)
+        {
+            query.ActivationName = XiansContext.SafeIdPostfix;
+            query.ParticipantId = XiansContext.SafeParticipantId;
+        }
 
         var docs = await _executor.QueryAsync(query, tenantId, cancellationToken);
         return docs?.FirstOrDefault();
@@ -120,6 +127,13 @@ public class DocumentCollection
         
         // Shared business logic: Automatically scope query to current agent
         query.AgentId = _agent.Name;
+        
+        // Auto-populate ActivationName and ParticipantId from XiansContext if available and not already set
+        if (XiansContext.InWorkflowOrActivity)
+        {
+            query.ActivationName ??= XiansContext.SafeIdPostfix;
+            query.ParticipantId ??= XiansContext.SafeParticipantId;
+        }
         
         _logger.LogDebug(
             "Querying documents for agent '{AgentName}': Type='{Type}', Limit={Limit}",
@@ -250,6 +264,10 @@ public class DocumentCollection
         if (XiansContext.InWorkflowOrActivity)
         {
             document.WorkflowId = XiansContext.WorkflowId;
+            
+            // Populate ActivationName and ParticipantId from XiansContext
+            document.ActivationName = XiansContext.SafeIdPostfix;
+            document.ParticipantId = XiansContext.SafeParticipantId;
         }
     }
 

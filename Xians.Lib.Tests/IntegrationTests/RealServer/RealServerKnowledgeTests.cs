@@ -898,9 +898,6 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         });
         templateAgentB.Workflows.DefineBuiltIn("list-template-b");
 
-        await templateAgentA.UploadWorkflowDefinitionsAsync();
-        await templateAgentB.UploadWorkflowDefinitionsAsync();
-
         var knowledgeAName = $"{_testKnowledgePrefix}-template-a";
         var knowledgeBName = $"{_testKnowledgePrefix}-template-b";
 
@@ -908,18 +905,21 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
         try
         {
-            // Attach distinct knowledge to each template
-            await templateAgentA.Knowledge.UpdateAsync(
+            // Attach distinct knowledge to each template BEFORE uploading workflow definitions
+            // This ensures the knowledge is included when deploying the template
+            await templateAgentA.Knowledge.UploadTextResourceAsync(
                 knowledgeAName,
                 "Template A only knowledge",
-                "text",
-                systemScoped: true);
+                "text");
 
-            await templateAgentB.Knowledge.UpdateAsync(
+            await templateAgentB.Knowledge.UploadTextResourceAsync(
                 knowledgeBName,
                 "Template B only knowledge",
-                "text",
-                systemScoped: true);
+                "text");
+
+            // Upload workflow definitions after knowledge is attached
+            await templateAgentA.UploadWorkflowDefinitionsAsync();
+            await templateAgentB.UploadWorkflowDefinitionsAsync();
 
             // Deploy only template A to create a tenant-scoped instance
             await templateAgentA.DeployAsync();
@@ -931,7 +931,12 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
                 IsTemplate = false
             });
 
-            // Listing knowledge on the deployed agent should not include template B's knowledge
+            // First, access the knowledge to trigger tenant-scoped replication
+            // (GetAsync creates tenant-scoped replica from system-scoped template)
+            var knowledgeA = await deployedAgent.Knowledge.GetAsync(knowledgeAName);
+            Assert.NotNull(knowledgeA);
+            
+            // Now listing knowledge on the deployed agent should not include template B's knowledge
             var deployedKnowledgeList = await deployedAgent.Knowledge.ListAsync();
 
             Assert.NotNull(deployedKnowledgeList);

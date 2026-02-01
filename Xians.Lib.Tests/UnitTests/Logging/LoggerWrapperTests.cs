@@ -493,4 +493,122 @@ public class LoggerWrapperTests
     }
 
     #endregion
+
+    #region Type-Based Logger Tests
+
+    [Fact]
+    public void Logger_ForType_ReturnsLoggerInstance()
+    {
+        // Arrange
+        var type = typeof(TestClass1);
+
+        // Act
+        var logger = Xians.Lib.Logging.Logger.For(type);
+
+        // Assert
+        Assert.NotNull(logger);
+        Assert.IsAssignableFrom<Xians.Lib.Logging.IXiansLogger>(logger);
+    }
+
+    [Fact]
+    public void Logger_ForSameType_ReturnsSameInstance()
+    {
+        // Arrange
+        var type = typeof(TestClass1);
+
+        // Act
+        var logger1 = Xians.Lib.Logging.Logger.For(type);
+        var logger2 = Xians.Lib.Logging.Logger.For(type);
+
+        // Assert
+        Assert.Same(logger1, logger2);
+    }
+
+    [Fact]
+    public void Logger_ForDifferentTypes_ReturnsDifferentInstances()
+    {
+        // Arrange
+        var type1 = typeof(TestClass1);
+        var type2 = typeof(TestClass2);
+
+        // Act
+        var logger1 = Xians.Lib.Logging.Logger.For(type1);
+        var logger2 = Xians.Lib.Logging.Logger.For(type2);
+
+        // Assert
+        Assert.NotSame(logger1, logger2);
+    }
+
+    [Fact]
+    public void Logger_ForType_CanLogAllLevels()
+    {
+        // Arrange
+        var type = typeof(TestClass1);
+        var logger = Xians.Lib.Logging.Logger.For(type);
+
+        // Act & Assert
+        logger.LogTrace("Trace message");
+        logger.LogDebug("Debug message");
+        logger.LogInformation("Information message");
+        logger.LogWarning("Warning message");
+        logger.LogError("Error message");
+        logger.LogCritical("Critical message");
+
+        Assert.True(true); // If we got here, all log calls succeeded
+    }
+
+    [Fact]
+    public void Logger_ForType_HandlesExceptions()
+    {
+        // Arrange
+        var type = typeof(TestClass1);
+        var logger = Xians.Lib.Logging.Logger.For(type);
+        var testException = new InvalidOperationException("Test exception");
+
+        // Act & Assert
+        logger.LogError("Error with exception", testException);
+        logger.LogCritical("Critical with exception", testException);
+
+        Assert.True(true); // If we got here, exception handling worked
+    }
+
+    [Fact]
+    public void Logger_ForTypeofUsage_WorksAsExpected()
+    {
+        // Arrange & Act - This is the exact usage pattern requested by the user
+        var logger = Xians.Lib.Logging.Logger.For(typeof(LoggerWrapperTests));
+
+        // Assert
+        Assert.NotNull(logger);
+        
+        // Verify it can log
+        logger.LogInformation("Test message using typeof() syntax");
+        Assert.True(true);
+    }
+
+    [Fact]
+    public async Task Logger_ForType_ThreadSafe()
+    {
+        // Arrange
+        var type = typeof(TestClass1);
+        var loggers = new System.Collections.Concurrent.ConcurrentBag<Xians.Lib.Logging.IXiansLogger>();
+        var tasks = new List<Task>();
+
+        // Act
+        for (int i = 0; i < 10; i++)
+        {
+            tasks.Add(Task.Run(() =>
+            {
+                loggers.Add(Xians.Lib.Logging.Logger.For(type));
+            }));
+        }
+
+        await Task.WhenAll(tasks);
+
+        // Assert
+        var firstLogger = loggers.First();
+        Assert.All(loggers, logger => Assert.Same(firstLogger, logger));
+    }
+
+    #endregion
 }

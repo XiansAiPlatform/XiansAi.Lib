@@ -25,6 +25,15 @@ public static class XiansContext
 
     // AsyncLocal storage for participant ID - isolated per async execution context
     private static readonly AsyncLocal<string?> _asyncLocalParticipantId = new AsyncLocal<string?>();
+    
+    // AsyncLocal storage for authorization - isolated per async execution context
+    private static readonly AsyncLocal<string?> _asyncLocalAuthorization = new AsyncLocal<string?>();
+    
+    // AsyncLocal storage for request ID - isolated per async execution context
+    private static readonly AsyncLocal<string?> _asyncLocalRequestId = new AsyncLocal<string?>();
+    
+    // AsyncLocal storage for tenant ID - isolated per async execution context
+    private static readonly AsyncLocal<string?> _asyncLocalTenantId = new AsyncLocal<string?>();
 
     #region Workflow/Activity Context
 
@@ -35,26 +44,19 @@ public static class XiansContext
     public static string WorkflowId => GetWorkflowId();
 
     /// <summary>
-    /// Gets the current tenant ID extracted from the workflow ID.
+    /// Gets the current tenant ID from async execution context or extracted from the workflow ID.
+    /// Tries in order: async local context → workflow ID extraction.
     /// This is global context information that applies to the entire workflow execution.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
-    public static string TenantId
-    {
-        get
-        {
-            try
-            {
-                return TenantContext.ExtractTenantId(WorkflowId);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to extract tenant ID from workflow ID '{WorkflowId}'. " +
-                    $"Ensure workflow ID follows the expected format. Error: {ex.Message}", ex);
-            }
-        }
-    }
+    public static string TenantId => GetTenantId();
+
+    /// <summary>
+    /// Gets the current certificate user ID from the authorization context.
+    /// Reads the certificate from the current authorization token and extracts the user ID.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when authorization is not available or certificate is invalid.</exception>
+    public static string CertificateUser => GetCertificateUser();
 
     /// <summary>
     /// Gets the current workflow type from Temporal context.
@@ -147,6 +149,13 @@ public static class XiansContext
     /// </summary>
     public static string? SafeIdPostfix => TryGetIdPostfix();
 
+    /// <summary>
+    /// Safely gets the current certificate user ID without throwing exceptions.
+    /// Returns null if authorization is not available or certificate is invalid.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeCertificateUser => TryGetCertificateUser();
+
     #endregion
 
     #region Workflow/Activity Context Helper Methods
@@ -171,6 +180,107 @@ public static class XiansContext
     public static void ClearParticipantId()
     {
         _asyncLocalParticipantId.Value = null;
+    }
+
+    /// <summary>
+    /// Sets the authorization for the current async execution context.
+    /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// </summary>
+    /// <param name="authorization">The authorization token to set for this execution context.</param>
+    public static void SetAuthorization(string? authorization)
+    {
+        _asyncLocalAuthorization.Value = authorization;
+    }
+
+    /// <summary>
+    /// Clears the authorization from the current async execution context.
+    /// Call this in a finally block to clean up after activity execution.
+    /// </summary>
+    public static void ClearAuthorization()
+    {
+        _asyncLocalAuthorization.Value = null;
+    }
+
+    /// <summary>
+    /// Sets the request ID for the current async execution context.
+    /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// </summary>
+    /// <param name="requestId">The request ID to set for this execution context.</param>
+    public static void SetRequestId(string requestId)
+    {
+        _asyncLocalRequestId.Value = requestId;
+    }
+
+    /// <summary>
+    /// Clears the request ID from the current async execution context.
+    /// Call this in a finally block to clean up after activity execution.
+    /// </summary>
+    public static void ClearRequestId()
+    {
+        _asyncLocalRequestId.Value = null;
+    }
+
+    /// <summary>
+    /// Sets the tenant ID for the current async execution context.
+    /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// </summary>
+    /// <param name="tenantId">The tenant ID to set for this execution context.</param>
+    public static void SetTenantId(string tenantId)
+    {
+        _asyncLocalTenantId.Value = tenantId;
+    }
+
+    /// <summary>
+    /// Clears the tenant ID from the current async execution context.
+    /// Call this in a finally block to clean up after activity execution.
+    /// </summary>
+    public static void ClearTenantId()
+    {
+        _asyncLocalTenantId.Value = null;
+    }
+
+    /// <summary>
+    /// Gets the authorization from the current async execution context.
+    /// </summary>
+    /// <returns>The authorization token if set, otherwise null.</returns>
+    public static string? GetAuthorization()
+    {
+        return _asyncLocalAuthorization.Value;
+    }
+
+    /// <summary>
+    /// Gets the request ID from the current async execution context.
+    /// </summary>
+    /// <returns>The request ID if set, otherwise null.</returns>
+    public static string? GetRequestId()
+    {
+        return _asyncLocalRequestId.Value;
+    }
+
+    /// <summary>
+    /// Gets the tenant ID from the current async execution context or workflow ID.
+    /// Tries in order: async local context → workflow ID extraction.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
+    public static string GetTenantId()
+    {
+        // First check if it was set via SetTenantId() in the current async context
+        if (!string.IsNullOrEmpty(_asyncLocalTenantId.Value))
+        {
+            return _asyncLocalTenantId.Value;
+        }
+
+        // Fall back to extracting from workflow ID
+        try
+        {
+            return TenantContext.ExtractTenantId(WorkflowId);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to extract tenant ID from workflow ID '{WorkflowId}'. " +
+                $"Ensure workflow ID follows the expected format. Error: {ex.Message}", ex);
+        }
     }
 
     /// <summary>
@@ -315,13 +425,14 @@ public static class XiansContext
 
     /// <summary>
     /// Tries to get the current tenant ID without throwing an exception.
+    /// Checks async local context first, then falls back to workflow ID extraction.
     /// </summary>
-    /// <returns>The tenant ID if in workflow/activity context, otherwise null.</returns>
+    /// <returns>The tenant ID if available, otherwise null.</returns>
     private static string? TryGetTenantId()
     {
         try
         {
-            return InWorkflowOrActivity ? TenantId : null;
+            return GetTenantId();
         }
         catch
         {
@@ -354,6 +465,45 @@ public static class XiansContext
         try
         {
             return InWorkflowOrActivity ? GetIdPostfix() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current certificate user ID from the platform initialization.
+    /// Accesses the certificate information that was parsed during platform startup.
+    /// </summary>
+    /// <returns>The user ID extracted from the certificate during platform initialization.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in agent context or certificate information is not available.</exception>
+    private static string GetCertificateUser()
+    {
+        try
+        {
+            var userId = CurrentAgent.Options?.CertificateInfo?.UserId;
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new InvalidOperationException("Certificate user ID is not available. Ensure the platform was properly initialized with a valid certificate.");
+            }
+            return userId;
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            throw new InvalidOperationException($"Failed to access certificate user from agent options. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current certificate user ID without throwing an exception.
+    /// </summary>
+    /// <returns>The certificate user ID if available, otherwise null.</returns>
+    private static string? TryGetCertificateUser()
+    {
+        try
+        {
+            return CurrentAgent.Options?.CertificateInfo.UserId;
         }
         catch
         {
@@ -490,8 +640,6 @@ public static class XiansContext
 
     private static readonly Lazy<WorkflowHelper> _workflowHelper = new();
     private static readonly Lazy<MessagingHelper> _messagingHelper = new();
-    private static readonly MetricsHelper _metricsHelper = new();
-
 
     /// <summary>
     /// Gets workflow operations for starting, executing, signaling, and querying workflows.
@@ -507,8 +655,18 @@ public static class XiansContext
     /// <summary>
     /// Gets metrics operations for reporting usage statistics.
     /// Automatically handles workflow vs non-workflow contexts.
+    /// Can be used directly without Track() - all fields auto-populate from XiansContext.
     /// </summary>
-    public static MetricsHelper Metrics => _metricsHelper;
+    /// <example>
+    /// <code>
+    /// // Direct usage without Track()
+    /// await XiansContext.Metrics
+    ///     .ForModel("gpt-4")
+    ///     .WithMetric("tokens", "total", 150, "tokens")
+    ///     .ReportAsync();
+    /// </code>
+    /// </example>
+    public static Metrics.MetricsCollection Metrics => CurrentAgent.Metrics;
 
     #endregion
 

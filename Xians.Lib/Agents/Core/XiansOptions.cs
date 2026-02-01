@@ -34,16 +34,17 @@ public class XiansOptions : ServerConfiguration
     /// <summary>
     /// Gets or sets the server log level (threshold for uploading logs to server).
     /// If not provided, falls back to SERVER_LOG_LEVEL (or legacy API_LOG_LEVEL) environment variable or Error.
+    /// Setting this property automatically initializes server logging when services are available.
     /// </summary>
-    public LogLevel? ServerLogLevel { get; set; }
-    
+    public LogLevel? ServerLogLevel;
+
     /// <summary>
-    /// Gets or sets whether to disable server logging entirely.
-    /// When true, LoggingServices will not be initialized and logs will not be uploaded to the server.
-    /// Useful for testing scenarios where the server is not available.
-    /// Default is false.
+    /// Gets or sets whether to enable task functionality for agents.
+    /// When true, agents will be initialized with task capabilities.
+    /// Default is true.
     /// </summary>
-    public bool DisableServerLogging { get; set; } = false;
+    public bool EnableTasks { get; set; } = true;
+    
     
     /// <summary>
     /// The tenant ID extracted from the API key certificate.
@@ -79,4 +80,5 @@ public class XiansOptions : ServerConfiguration
             return _certificateInfo;
         }
     }
+
 }

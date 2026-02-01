@@ -23,6 +23,18 @@ public class DocumentQuery
     public string? AgentId { get; set; }
 
     /// <summary>
+    /// Filter by activation name.
+    /// Automatically set when available from workflow context.
+    /// </summary>
+    public string? ActivationName { get; set; }
+
+    /// <summary>
+    /// Filter by participant ID.
+    /// Automatically set when available from workflow context.
+    /// </summary>
+    public string? ParticipantId { get; set; }
+
+    /// <summary>
     /// Filter by metadata key-value pairs.
     /// All metadata filters must match for a document to be included.
     /// </summary>
