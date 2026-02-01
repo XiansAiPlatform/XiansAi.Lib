@@ -91,14 +91,8 @@ internal class WorkflowDefinitionUploader
             switch (hashCheckResponse.StatusCode)
             {
                 case HttpStatusCode.OK:
-                    if (string.IsNullOrWhiteSpace(definition.Source))
-                    {
-                        _logger?.LogInformation("Workflow definition for {WorkflowType} already up to date on server", definition.WorkflowType);
-                        return hashCheckResponse;
-                    }
-
-                    _logger?.LogDebug("Workflow definition for {WorkflowType} already up to date but contains embedded source; re-uploading to ensure visualization data", definition.WorkflowType);
-                    break;
+                    _logger?.LogInformation("Workflow definition for {WorkflowType} already up to date on server", definition.WorkflowType);
+                    return hashCheckResponse;
 
                 case HttpStatusCode.NotFound:
                     // Proceed with upload

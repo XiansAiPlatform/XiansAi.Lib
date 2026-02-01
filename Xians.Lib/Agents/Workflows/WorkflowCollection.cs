@@ -230,6 +230,18 @@ public class WorkflowCollection
             // Only set Source if we actually found source code
             var sourceToUpload = !string.IsNullOrWhiteSpace(source) ? source : null;
 
+            if (workflowClassType != null)
+            {
+                var assemblyName = workflowClassType.Assembly.GetName().Name;
+                var isDynamicAssembly = assemblyName?.StartsWith(DynamicWorkflowTypeBuilder.DynamicAssemblyPrefix) == true;
+                if (!isDynamicAssembly && string.IsNullOrWhiteSpace(source))
+                {
+                    throw new InvalidOperationException(
+                        $"Embedded source not found for custom workflow '{workflow.WorkflowType}'. " +
+                        "Ensure the workflow .cs file is embedded as an EmbeddedResource with a LogicalName that matches the class name.");
+                }
+            }
+
             // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
             var workflowName = workflow.Name;
             if (workflowName == null && workflow.WorkflowType.Contains(':'))

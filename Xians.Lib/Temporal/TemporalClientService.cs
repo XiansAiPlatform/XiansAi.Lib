@@ -1,8 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Extensions.Logging;
-using Temporalio.Api.Enums.V1;
-using Temporalio.Api.OperatorService.V1;
 using Temporalio.Client;
 using Xians.Lib.Common;
 using Xians.Lib.Configuration.Models;
@@ -25,17 +21,6 @@ public class TemporalClientService : ITemporalClientService
     private ITemporalClient? _client;
     private bool _isInitialized;
     private bool _disposed;
-    private bool _searchAttributesInitialized;
-
-    private static readonly IReadOnlyDictionary<string, IndexedValueType> RequiredSearchAttributes =
-        new Dictionary<string, IndexedValueType>
-        {
-            { WorkflowConstants.Keys.TenantId, IndexedValueType.Keyword },
-            { WorkflowConstants.Keys.Agent, IndexedValueType.Keyword },
-            { WorkflowConstants.Keys.UserId, IndexedValueType.Keyword },
-            { WorkflowConstants.Keys.idPostfix, IndexedValueType.Keyword }
-        };
-
     public TemporalClientService(TemporalConfiguration config, ILogger<TemporalClientService> logger)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -74,7 +59,6 @@ public class TemporalClientService : ITemporalClientService
                 return _client;
             
             _client = await _retryPolicy.ExecuteAsync(() => _clientFactory.CreateClientAsync());
-            await EnsureRequiredSearchAttributesAsync(_client);
             _isInitialized = true;
             
             _logger.LogInformation(
@@ -91,53 +75,6 @@ public class TemporalClientService : ITemporalClientService
         finally
         {
             _semaphore.Release();
-        }
-    }
-
-    private async Task EnsureRequiredSearchAttributesAsync(ITemporalClient client)
-    {
-        if (_searchAttributesInitialized)
-        {
-            return;
-        }
-
-        try
-        {
-            var listResponse = await client.OperatorService.ListSearchAttributesAsync(
-                new ListSearchAttributesRequest { Namespace = client.Options.Namespace },
-                new RpcOptions());
-
-            var missingAttributes = RequiredSearchAttributes
-                .Where(attribute => !listResponse.CustomAttributes.ContainsKey(attribute.Key))
-                .ToList();
-
-            if (missingAttributes.Count == 0)
-            {
-                _searchAttributesInitialized = true;
-                _logger.LogDebug("Temporal search attributes already registered for namespace '{Namespace}'", client.Options.Namespace);
-                return;
-            }
-
-            var addRequest = new AddSearchAttributesRequest
-            {
-                Namespace = client.Options.Namespace
-            };
-
-            foreach (var attribute in missingAttributes)
-            {
-                addRequest.SearchAttributes[attribute.Key] = attribute.Value;
-            }
-
-            await client.OperatorService.AddSearchAttributesAsync(addRequest, new RpcOptions());
-            _searchAttributesInitialized = true;
-            _logger.LogInformation(
-                "Registered Temporal search attributes for namespace '{Namespace}': {Attributes}",
-                client.Options.Namespace,
-                string.Join(", ", missingAttributes.Select(attribute => attribute.Key)));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to ensure Temporal search attributes for namespace '{Namespace}'", client.Options.Namespace);
         }
     }
 
