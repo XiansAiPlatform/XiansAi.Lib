@@ -27,6 +27,11 @@ public interface IXiansLogger
     void LogInformation(string message);
 
     /// <summary>
+    /// Logs an information message (shorthand for LogInformation).
+    /// </summary>
+    void LogInfo(string message);
+
+    /// <summary>
     /// Logs a warning message.
     /// </summary>
     void LogWarning(string message);
@@ -104,6 +109,7 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
     public void LogTrace(string message) => Log(LogLevel.Trace, message, null);
     public void LogDebug(string message) => Log(LogLevel.Debug, message, null);
     public void LogInformation(string message) => Log(LogLevel.Information, message, null);
+    public void LogInfo(string message) => Log(LogLevel.Information, message, null);
     public void LogWarning(string message) => Log(LogLevel.Warning, message, null);
     public void LogError(string message, Exception? exception = null) => Log(LogLevel.Error, message, exception);
     public void LogCritical(string message, Exception? exception = null) => Log(LogLevel.Critical, message, exception);
@@ -326,6 +332,14 @@ public class Logger<T> : IXiansLogger
     /// Logs an information message.
     /// </summary>
     public void LogInformation(string message)
+    {
+        Log(LogLevel.Information, message, null);
+    }
+
+    /// <summary>
+    /// Logs an information message (shorthand for LogInformation).
+    /// </summary>
+    public void LogInfo(string message)
     {
         Log(LogLevel.Information, message, null);
     }

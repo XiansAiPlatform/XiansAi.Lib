@@ -45,7 +45,7 @@ public class DocumentCollection
         // Shared business logic: Populate AgentId and WorkflowId automatically
         PrepareDocumentForSave(document);
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Saving document for agent '{AgentName}', tenant '{TenantId}'",
             _agent.Name,
             tenantId);

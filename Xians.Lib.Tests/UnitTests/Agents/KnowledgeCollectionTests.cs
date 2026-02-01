@@ -46,13 +46,13 @@ public class KnowledgeCollectionTests : IDisposable
         // Create agent using internal constructor (now accessible via InternalsVisibleTo)
         _agent = new XiansAgent(
             "test-agent",
-            false,
+            false, // systemScoped
             null, // description
+            null, // summary
             null, // version
             null, // author
-            null,
-            null,
-            null,
+            null, // uploader
+            null, // temporalService
             _mockHttpService.Object,
             options,
             null); // No cache for unit tests

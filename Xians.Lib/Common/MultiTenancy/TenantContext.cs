@@ -76,23 +76,35 @@ public static class TenantContext
     public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId)
     {
 
+        string taskQueue;
+
         if (systemScoped)
         {
             // System-scoped agents use workflow type as task queue
             // This allows a single worker pool to handle requests from multiple tenants
-            return workflowType;
+            taskQueue = workflowType;
+        }
+        else
+        {
+            // Non-system-scoped agents use TenantId:WorkflowType format
+            // This ensures tenant isolation at the worker level
+            if (string.IsNullOrWhiteSpace(tenantId))
+            {
+                throw new TenantIsolationException(
+                    "TenantId is required for non-system-scoped workflows.",
+                    tenantId,
+                    null);
+            }
+            taskQueue = $"{tenantId}:{workflowType}";
         }
 
-        // Non-system-scoped agents use TenantId:WorkflowType format
-        // This ensures tenant isolation at the worker level
-        if (string.IsNullOrWhiteSpace(tenantId))
+        // if running Task Workflow, we prefix the que with 'hitl_task:' for identification purposes
+        if (workflowType.EndsWith(":Task Workflow"))
         {
-            throw new TenantIsolationException(
-                "TenantId is required for non-system-scoped workflows.",
-                tenantId,
-                null);
-        }
-        return $"{tenantId}:{workflowType}";
+            taskQueue = $"hitl_task:{taskQueue}";
+        } 
+
+        return taskQueue;
     }
 
     /// <summary>

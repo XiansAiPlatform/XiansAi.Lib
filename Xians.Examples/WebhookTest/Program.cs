@@ -24,7 +24,7 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
     Name = "WebhookTestAgent",
-    SystemScoped = true  // System-scoped agents can handle webhooks across all tenants
+    IsTemplate = true  // System-scoped agents can handle webhooks across all tenants
 });
 
 // Define a built-in conversational workflow
@@ -39,9 +39,6 @@ integratorWorkflow.OnWebhook(async (context) =>
         var webhookName = context.Webhook.Name;
         var payload = context.Webhook.Payload;
         var participantId = context.Webhook.ParticipantId;
-        var scope = context.Webhook.Scope;
-        var authorization = context.Webhook.Authorization;
-        var requestId = context.Webhook.RequestId;
         
         // Process the webhook
         Console.WriteLine($"Received webhook: {webhookName}");

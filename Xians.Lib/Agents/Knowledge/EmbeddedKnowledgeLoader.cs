@@ -63,7 +63,6 @@ public static class EmbeddedKnowledgeLoader
     /// <param name="knowledgeName">The name of the knowledge item.</param>
     /// <param name="content">The text content to upload.</param>
     /// <param name="knowledgeType">Optional knowledge type (e.g., "instruction", "document", "markdown"). Defaults to "text" when null.</param>
-    /// <param name="systemScoped">Optional override for system scoping. If null, uses the agent's SystemScoped setting.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the upload succeeds.</returns>
     public static async Task<bool> UploadTextResourceAsync(
@@ -81,7 +80,7 @@ public static class EmbeddedKnowledgeLoader
             throw new ArgumentNullException(nameof(content));
 
         var type = string.IsNullOrWhiteSpace(knowledgeType) ? "text" : knowledgeType;
-        return await knowledgeCollection.UpdateAsync(knowledgeName, content, type, null, cancellationToken);
+        return await knowledgeCollection.UpdateAsync(knowledgeName, content, type, systemScoped: null, cancellationToken);
     }
 
     private static string LoadEmbeddedResource(string resourcePath)
@@ -94,14 +93,9 @@ public static class EmbeddedKnowledgeLoader
         var entryAssembly = Assembly.GetEntryAssembly();
         if (entryAssembly != null)
         {
-            var resourceName = $"{entryAssembly.GetName().Name}.{normalizedPath}";
-            var stream = entryAssembly.GetManifestResourceStream(resourceName);
-            
-            if (stream != null)
-            {
-                using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
-            }
+            var content = TryLoadFromAssembly(entryAssembly, normalizedPath);
+            if (content != null)
+                return content;
         }
         
         // If not found in entry assembly, search all loaded assemblies
@@ -112,20 +106,21 @@ public static class EmbeddedKnowledgeLoader
             if (assemblyName == null || assemblyName.StartsWith("System.") || assemblyName.StartsWith("Microsoft."))
                 continue;
             
-            var resourceName = $"{assemblyName}.{normalizedPath}";
-            var stream = assembly.GetManifestResourceStream(resourceName);
-            
-            if (stream != null)
-            {
-                using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
-            }
+            var content = TryLoadFromAssembly(assembly, normalizedPath);
+            if (content != null)
+                return content;
         }
         
-        // Resource not found - provide helpful error message
+        // Resource not found - provide helpful error message with detailed search information
         var searchedAssemblies = new List<string>();
+        var allResources = new List<string>();
+        
         if (entryAssembly != null)
+        {
+            var resources = entryAssembly.GetManifestResourceNames();
             searchedAssemblies.Add($"{entryAssembly.GetName().Name} (entry assembly)");
+            allResources.AddRange(resources);
+        }
         
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
@@ -134,14 +129,136 @@ public static class EmbeddedKnowledgeLoader
             {
                 var resources = assembly.GetManifestResourceNames();
                 if (resources.Length > 0)
+                {
                     searchedAssemblies.Add($"{assemblyName} ({resources.Length} resources)");
+                    allResources.AddRange(resources);
+                }
             }
         }
         
-        throw new FileNotFoundException(
-            $"Embedded resource with path '{resourcePath}' not found. " +
-            $"Searched assemblies: {string.Join(", ", searchedAssemblies)}. " +
-            $"Make sure the file is marked as an EmbeddedResource in the .csproj file.");
+        // Find similar resource names to help with debugging
+        var similarResources = allResources
+            .Where(r => r.Contains(normalizedPath) || normalizedPath.Contains(Path.GetFileNameWithoutExtension(r)))
+            .Take(5)
+            .ToList();
+        
+        var errorMessage = $"Embedded resource with path '{resourcePath}' not found. " +
+                          $"Searched assemblies: {string.Join(", ", searchedAssemblies)}. " +
+                          $"Make sure the file is marked as an EmbeddedResource in the .csproj file.";
+        
+        if (similarResources.Any())
+        {
+            errorMessage += $" Similar resources found: {string.Join(", ", similarResources)}.";
+        }
+        
+        throw new FileNotFoundException(errorMessage);
+    }
+
+    /// <summary>
+    /// Attempts to load an embedded resource from the specified assembly using multiple naming strategies.
+    /// </summary>
+    /// <param name="assembly">The assembly to search in.</param>
+    /// <param name="normalizedPath">The normalized resource path (with dots instead of slashes).</param>
+    /// <returns>The resource content if found, otherwise null.</returns>
+    private static string? TryLoadFromAssembly(Assembly assembly, string normalizedPath)
+    {
+        var assemblyName = assembly.GetName().Name;
+        if (assemblyName == null)
+            return null;
+
+        // Strategy 1: Try with assembly name (original approach)
+        var resourceName1 = $"{assemblyName}.{normalizedPath}";
+        var content = TryGetManifestResourceString(assembly, resourceName1);
+        if (content != null)
+            return content;
+
+        // Strategy 2: Try to find the resource by examining all manifest resource names
+        // and looking for ones that end with our normalized path
+        var allResources = assembly.GetManifestResourceNames();
+        var matchingResource = allResources.FirstOrDefault(r => r.EndsWith($".{normalizedPath}"));
+        if (matchingResource != null)
+        {
+            content = TryGetManifestResourceString(assembly, matchingResource);
+            if (content != null)
+                return content;
+        }
+
+        // Strategy 3: Try alternative naming patterns for common assembly/namespace mismatches
+        var alternativeNames = GenerateAlternativeResourceNames(assemblyName, normalizedPath);
+        foreach (var alternativeName in alternativeNames)
+        {
+            content = TryGetManifestResourceString(assembly, alternativeName);
+            if (content != null)
+                return content;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Generates alternative resource names to try when the standard assembly.path approach fails.
+    /// </summary>
+    /// <param name="assemblyName">The assembly name.</param>
+    /// <param name="normalizedPath">The normalized resource path.</param>
+    /// <returns>A list of alternative resource names to try.</returns>
+    private static IEnumerable<string> GenerateAlternativeResourceNames(string assemblyName, string normalizedPath)
+    {
+        var alternatives = new List<string>();
+
+        // Convert hyphens to underscores (common in root namespaces)
+        if (assemblyName.Contains("-"))
+        {
+            var underscoreVersion = assemblyName.Replace("-", "_");
+            alternatives.Add($"{underscoreVersion}.{normalizedPath}");
+        }
+
+        // Convert underscores to hyphens
+        if (assemblyName.Contains("_"))
+        {
+            var hyphenVersion = assemblyName.Replace("_", "-");
+            alternatives.Add($"{hyphenVersion}.{normalizedPath}");
+        }
+
+        // Try without dots (in case assembly name has dots)
+        var noDotVersion = assemblyName.Replace(".", "");
+        if (noDotVersion != assemblyName)
+        {
+            alternatives.Add($"{noDotVersion}.{normalizedPath}");
+        }
+
+        // Try common project name patterns
+        if (assemblyName.Contains("."))
+        {
+            // Try just the last part after the dot
+            var lastPart = assemblyName.Split('.').Last();
+            alternatives.Add($"{lastPart}.{normalizedPath}");
+        }
+
+        return alternatives.Distinct();
+    }
+
+    /// <summary>
+    /// Safely attempts to get a manifest resource stream and read its content.
+    /// </summary>
+    /// <param name="assembly">The assembly to read from.</param>
+    /// <param name="resourceName">The full resource name.</param>
+    /// <returns>The resource content if found, otherwise null.</returns>
+    private static string? TryGetManifestResourceString(Assembly assembly, string resourceName)
+    {
+        try
+        {
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null)
+                return null;
+
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+        catch
+        {
+            // Ignore any exceptions and return null
+            return null;
+        }
     }
 
     /// <summary>

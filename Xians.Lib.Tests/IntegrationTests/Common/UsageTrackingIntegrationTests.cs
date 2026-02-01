@@ -49,11 +49,11 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
         
         _agent = new XiansAgent(
             "integration-test-agent",
-            false,
+            false, // systemScoped
             null, // description
+            null, // summary
             null, // version
             null, // author
-            null, // summary
             null, // uploader
             null, // temporalService
             _httpService,

@@ -52,6 +52,13 @@ public static class XiansContext
     public static string TenantId => GetTenantId();
 
     /// <summary>
+    /// Gets the current certificate user ID from the authorization context.
+    /// Reads the certificate from the current authorization token and extracts the user ID.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when authorization is not available or certificate is invalid.</exception>
+    public static string CertificateUser => GetCertificateUser();
+
+    /// <summary>
     /// Gets the current workflow type from Temporal context.
     /// Internal - for public access, use XiansContext.CurrentWorkflow.WorkflowType
     /// </summary>
@@ -141,6 +148,13 @@ public static class XiansContext
     /// Use this in logging and other scenarios where exceptions are not desired.
     /// </summary>
     public static string? SafeIdPostfix => TryGetIdPostfix();
+
+    /// <summary>
+    /// Safely gets the current certificate user ID without throwing exceptions.
+    /// Returns null if authorization is not available or certificate is invalid.
+    /// Use this in logging and other scenarios where exceptions are not desired.
+    /// </summary>
+    public static string? SafeCertificateUser => TryGetCertificateUser();
 
     #endregion
 
@@ -451,6 +465,45 @@ public static class XiansContext
         try
         {
             return InWorkflowOrActivity ? GetIdPostfix() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current certificate user ID from the platform initialization.
+    /// Accesses the certificate information that was parsed during platform startup.
+    /// </summary>
+    /// <returns>The user ID extracted from the certificate during platform initialization.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in agent context or certificate information is not available.</exception>
+    private static string GetCertificateUser()
+    {
+        try
+        {
+            var userId = CurrentAgent.Options?.CertificateInfo?.UserId;
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new InvalidOperationException("Certificate user ID is not available. Ensure the platform was properly initialized with a valid certificate.");
+            }
+            return userId;
+        }
+        catch (Exception ex) when (!(ex is InvalidOperationException))
+        {
+            throw new InvalidOperationException($"Failed to access certificate user from agent options. Error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Tries to get the current certificate user ID without throwing an exception.
+    /// </summary>
+    /// <returns>The certificate user ID if available, otherwise null.</returns>
+    private static string? TryGetCertificateUser()
+    {
+        try
+        {
+            return CurrentAgent.Options?.CertificateInfo.UserId;
         }
         catch
         {

@@ -50,11 +50,11 @@ public class UsageTrackingTests : IDisposable
         
         _agent = new XiansAgent(
             "test-agent",
-            false,
+            false, // systemScoped
             null, // description
+            null, // summary
             null, // version
             null, // author
-            null, // summary
             null, // uploader
             null, // temporalService
             _mockHttpService.Object,

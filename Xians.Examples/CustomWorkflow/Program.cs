@@ -1,7 +1,8 @@
-﻿using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Workflows.Models;
 using DotNetEnv;
 using Xians.Examples.CustomWorkflow;
+using Microsoft.Extensions.Logging;
 
 Env.Load();
 
@@ -17,7 +18,8 @@ var openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")
 var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 {
     ServerUrl = serverUrl,
-    ApiKey = xiansApiKey
+    ApiKey = xiansApiKey,
+    ServerLogLevel = LogLevel.Debug,
 });
 
 // Register a new agent with Xians
@@ -28,7 +30,7 @@ var xiansAgent = xiansPlatform.Agents.Register(new ()
     Summary = "An intelligent order management agent that automates the complete order lifecycle from submission to fulfillment. ",
     Version = "1.0.0",
     Author = "99x",
-    SystemScoped = true  // See important notes below
+    IsTemplate = true  // See important notes below
 });
 
 // Define a custom workflow

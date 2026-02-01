@@ -303,10 +303,7 @@ public class XiansWorkflow
         var workerOptions = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
             MaxConcurrentWorkflowTasks = Workers,
-            LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
-                builder
-                    .AddSimpleConsole(options => options.TimestampFormat = "[HH:mm:ss] ")
-                    .SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information))
+            LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true)
         };
 
         // Initialize registrars

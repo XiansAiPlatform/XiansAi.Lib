@@ -30,12 +30,17 @@ public class Log
     /// <summary>
     /// The workflow ID associated with this log entry.
     /// </summary>
-    public required string WorkflowId { get; set; }
+    public string? WorkflowId { get; set; }
 
-     /// <summary>
+    /// <summary>
+    /// The workflow run ID associated with this log entry.
+    /// </summary>
+    public string? WorkflowRunId { get; set; }
+
+    /// <summary>
     /// The workflow Type associated with this log entry.
     /// </summary>
-    public required string WorkflowType { get; set; }
+    public string? WorkflowType { get; set; }
     
     /// <summary>
     /// The agent name associated with this log entry.
@@ -45,7 +50,7 @@ public class Log
     /// <summary>
     /// The participant ID (user ID) associated with this log entry.
     /// </summary>
-    public required string ParticipantId { get; set; }
+    public string? ParticipantId { get; set; }
     
     /// <summary>
     /// Additional properties for the log entry.
