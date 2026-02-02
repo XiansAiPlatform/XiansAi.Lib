@@ -21,6 +21,7 @@ public class TemporalClientService : ITemporalClientService
     private ITemporalClient? _client;
     private bool _isInitialized;
     private bool _disposed;
+
     public TemporalClientService(TemporalConfiguration config, ILogger<TemporalClientService> logger)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
