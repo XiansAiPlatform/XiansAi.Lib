@@ -5,7 +5,7 @@ namespace Xians.Lib.Temporal.Workflows.Scheduling.Models;
 /// </summary>
 public class CreateCronScheduleRequest
 {
-    public required string ScheduleId { get; set; }
+    public required string ScheduleName { get; set; }
     public required string CronExpression { get; set; }
     public required object[] WorkflowInput { get; set; }
     public string? Timezone { get; set; }

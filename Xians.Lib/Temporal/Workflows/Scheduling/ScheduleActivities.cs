@@ -42,17 +42,17 @@ public class ScheduleActivities
 
         try
         {
-            if (await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix))
+            if (await workflow.Schedules!.ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
-                _logger.LogInformation("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleId);
+                _logger.LogInformation("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
                 return false;
             }
 
-            _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
+            _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleName);
 
             // Reconstruct search attributes from serializable format
-            var builder = workflow.Schedules!
-                .Create(request.ScheduleId, request.IdPostfix)
+            var builder = workflow.Schedules
+                .Create(request.ScheduleName, request.IdPostfix)
                 .WithCronSchedule(request.CronExpression, request.Timezone)
                 .WithInput(request.WorkflowInput);
 
@@ -67,13 +67,13 @@ public class ScheduleActivities
 
             _logger.LogInformation(
                 "✅ Successfully created schedule '{ScheduleId}' with cron '{CronExpression}'",
-                request.ScheduleId, request.CronExpression);
+                request.ScheduleName, request.CronExpression);
 
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogError(ex, "Failed to create schedule '{ScheduleId}'", request.ScheduleName);
             throw;
         }
     }

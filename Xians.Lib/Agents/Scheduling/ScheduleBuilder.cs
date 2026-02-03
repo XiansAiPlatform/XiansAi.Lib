@@ -329,7 +329,7 @@ public class ScheduleBuilder
             {
                 var request = new CreateCronScheduleRequest
                 {
-                    ScheduleId = _scheduleId,
+                    ScheduleName = _scheduleId,
                     CronExpression = _scheduleSpec.CronExpressions.First(),
                     WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
                     Timezone = _scheduleSpec.TimeZoneName,

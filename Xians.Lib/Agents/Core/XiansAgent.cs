@@ -126,7 +126,7 @@ public class XiansAgent
     /// </summary>
     /// <typeparam name="T">The custom workflow type.</typeparam>
     /// <returns>The custom workflow or null if not found.</returns>
-    public XiansWorkflow? GetCustomWorkflow<T>() where T : class => Workflows.GetCustom<T>();
+    public XiansWorkflow GetCustomWorkflow<T>() where T : class => Workflows.GetCustom<T>();
 
     /// <summary>
     /// Gets all workflows for this agent.
