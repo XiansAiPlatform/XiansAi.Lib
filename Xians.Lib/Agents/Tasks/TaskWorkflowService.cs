@@ -5,7 +5,6 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Temporal.Workflows;
 using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Agents.Tasks;
@@ -16,7 +15,7 @@ namespace Xians.Lib.Agents.Tasks;
 /// </summary>
 public static class TaskWorkflowService
 {
-    private static readonly ILogger _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskWorkflowServiceLogger>();
+    private static readonly ILogger _logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskWorkflowServiceLogger>();
 
     private class TaskWorkflowServiceLogger { }
 
@@ -31,13 +30,7 @@ public static class TaskWorkflowService
 
     private static TaskWorkflowOptions CreateWorkflowOptions(TaskWorkflowRequest request)
     {
-        return new TaskWorkflowOptions(
-            title: request.Title,
-            description: request.Description,
-            participantId: request.ParticipantId,
-            actions: request.Actions,
-            // We will set the workflow to timeout after 1 day from the request timeout
-            executionTimeout: request.Timeout?.Add(TimeSpan.FromDays(1)));
+        return new TaskWorkflowOptions(request);
     }
 
     #endregion

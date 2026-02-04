@@ -329,7 +329,7 @@ public class ScheduleBuilder
             {
                 var request = new CreateCronScheduleRequest
                 {
-                    ScheduleId = _scheduleId,
+                    ScheduleName = _scheduleId,
                     CronExpression = _scheduleSpec.CronExpressions.First(),
                     WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
                     Timezone = _scheduleSpec.TimeZoneName,
@@ -363,7 +363,7 @@ public class ScheduleBuilder
                     "Use cron or interval schedules, or create the schedule outside the workflow.");
             }
 
-            Workflow.Logger.LogInformation(
+            Workflow.Logger.LogDebug(
                 created ? "✅ Schedule '{ScheduleId}' created successfully" : "ℹ️ Schedule '{ScheduleId}' already exists",
                 _scheduleId);
 

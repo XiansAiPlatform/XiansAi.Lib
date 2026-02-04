@@ -1,17 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
 using Xians.Lib.Agents.Scheduling;
-using Xians.Lib.Common;
 using Xians.Lib.Temporal.Workflows;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Common.Caching;
-using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
-using Xians.Lib.Temporal.Workflows.Knowledge;
-using Xians.Lib.Temporal.Workflows.Messaging;
-using Xians.Lib.Temporal.Workflows.Documents;
-using Xians.Lib.Agents.Knowledge.Models;
-using Xians.Lib.Temporal.Workflows.Scheduling;
 using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Agents.Core;

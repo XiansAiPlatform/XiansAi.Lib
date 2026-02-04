@@ -37,7 +37,7 @@ public class MessageActivities
     [Activity]
     public async Task ProcessAndSendMessageAsync(ProcessMessageActivityRequest request)
     {
-        ActivityExecutionContext.Current.Logger.LogInformation(
+        ActivityExecutionContext.Current.Logger.LogDebug(
             "Message processing started: RequestId={RequestId}, WorkflowType={WorkflowType}, MessageType={MessageType}",
             request.RequestId,
             request.WorkflowType,
@@ -95,7 +95,7 @@ public class MessageActivities
             // Invoke the registered handler (which makes agent API calls and sends responses)
             await handler(context);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Message processed and responses sent: RequestId={RequestId}",
                 request.RequestId);
         }
@@ -151,7 +151,7 @@ public class MessageActivities
             // Invoke the registered webhook handler
             await webhookHandler(context);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Webhook handler completed: RequestId={RequestId}, WebhookName={WebhookName}, StatusCode={StatusCode}",
                 request.RequestId,
                 request.MessageText,
@@ -166,14 +166,14 @@ public class MessageActivities
                 ex.Message);
 
             // Set error response
-            context.Response = Xians.Lib.Agents.Messaging.WebhookResponse.InternalServerError(
+            context.Response = WebhookResponse.InternalServerError(
                 $"Webhook handler error: {ex.Message}");
         }
 
         // Always send the webhook response back to the platform (success or error)
         await context.SendWebhookResponseAsync();
 
-        ActivityExecutionContext.Current.Logger.LogInformation(
+        ActivityExecutionContext.Current.Logger.LogDebug(
             "Webhook processed and response sent: RequestId={RequestId}, WebhookName={WebhookName}, StatusCode={StatusCode}",
             request.RequestId,
             request.MessageText,
@@ -199,10 +199,6 @@ public class MessageActivities
             // Delegate to shared A2AService for consistent handler invocation
             var a2aService = new Xians.Lib.Agents.A2A.A2AService(request.WorkflowType);
             var response = await a2aService.ProcessDirectAsync(request);
-
-            ActivityExecutionContext.Current.Logger.LogInformation(
-                "A2A message processed: RequestId={RequestId}",
-                request.RequestId);
 
             return response;
         }
@@ -286,7 +282,7 @@ public class MessageActivities
         {
             await _messageService.SendAsync(request);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Message sent successfully: RequestId={RequestId}",
                 request.RequestId);
         }
@@ -315,7 +311,7 @@ public class MessageActivities
         {
             var result = await _messageService.SendHandoffAsync(request);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
                 request.TargetWorkflowId,
                 request.TargetWorkflowType);

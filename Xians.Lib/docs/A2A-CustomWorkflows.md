@@ -404,14 +404,14 @@ public class CallerWorkflow
             "ProcessDataSync",
             new ProcessRequest { Id = "req-2", Data = "sync data" });
 
-        Workflow.Logger.LogInformation("Result: {Status}", result.Status);
+        Workflow.Logger.LogDebug("Result: {Status}", result.Status);
 
         // Pattern 3: Query status
         var status = await XiansContext.A2A.QueryAsync<WorkflowStatus>(
             dataProcessor,
             "GetStatus");
 
-        Workflow.Logger.LogInformation(
+        Workflow.Logger.LogDebug(
             "Status - Pending: {Pending}, Completed: {Completed}",
             status.PendingRequests,
             status.CompletedRequests);

@@ -47,7 +47,7 @@ public class UsageActivities
             var metricsService = new Agents.Metrics.MetricsService(agent, _logger);
             await metricsService.ReportAsync(request);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Usage metrics reported successfully: TenantId={TenantId}, Source={Source}",
                 request.TenantId,
                 request.WorkflowType);

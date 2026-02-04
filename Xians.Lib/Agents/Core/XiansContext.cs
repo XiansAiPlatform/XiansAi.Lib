@@ -298,7 +298,7 @@ public static class XiansContext
         
         // Fall back to existing logic (search attributes, memo, workflow ID)
         return GetWorkflowMetadata(Common.WorkflowConstants.Keys.UserId) 
-            ?? throw new InvalidOperationException(NotInContextErrorMessage);
+            ?? throw new InvalidOperationException(NotInContextErrorMessage + "Workflow UserId not found. Provide a participant ID explicitly.");
     }
 
     /// <summary>
@@ -307,7 +307,7 @@ public static class XiansContext
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
     public static string GetIdPostfix() => 
-        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? GetIdPostfixFromWorkflowId() ?? throw new InvalidOperationException(NotInContextErrorMessage);
+        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? GetIdPostfixFromWorkflowId() ?? throw new InvalidOperationException(NotInContextErrorMessage + "Workflow idPostfix not found. Provide a idPostfix explicitly.");
 
     /// <summary>
     /// Generic method to retrieve workflow metadata from search attributes, memo, or workflow ID.

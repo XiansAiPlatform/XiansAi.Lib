@@ -1,3 +1,5 @@
+using Temporalio.Common;
+
 namespace Xians.Lib.Agents.Tasks.Models;
 
 public record TaskWorkflowRequest
@@ -21,4 +23,21 @@ public record TaskWorkflowRequest
     /// Timeout duration for the task. If null, task waits indefinitely.
     /// </summary>
     public TimeSpan? Timeout { get; init; }
+
+
+    /// <summary>
+    /// Boolean flag to indicate if the task should be abandoned when the parent workflow closes.
+    /// </summary>
+    public bool? SurviveParentClose { get; init; } = false;
+
+
+    /// <summary>
+    /// Name for the Task Workflow. if already a running workflow exists with the same name, the new workflow will terminate the existing one.
+    /// </summary>
+    public string TaskName { get; init; } = Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// Retry policy for the task. If null, defaults to MaximumAttempts=1.
+    /// </summary>
+    public RetryPolicy? RetryPolicy { get; init; }
 }

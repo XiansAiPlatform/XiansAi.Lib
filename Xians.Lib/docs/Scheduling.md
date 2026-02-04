@@ -389,7 +389,7 @@ public class MyWorkflow
             .WithInput("data")
             .StartAsync();
         
-        Workflow.Logger.LogInformation("Schedule created: {Id}", schedule.Id);
+        Workflow.Logger.LogDebug("Schedule created: {Id}", schedule.Id);
     }
 }
 ```

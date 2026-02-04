@@ -44,6 +44,7 @@ public class SendMessageRequest
     public string? Text { get; set; }
     public string? ThreadId { get; set; }
     public string? Hint { get; set; }
+    public string? TaskId { get; set; }
     public string? Origin { get; set; }
     public required string Type { get; set; }
     /// <summary>

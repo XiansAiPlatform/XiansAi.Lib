@@ -31,7 +31,7 @@ public class A2ASignalQueryActivities
         {
             await _service.SendSignalAsync(request.WorkflowId, request.SignalName, request.Args);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Signal sent successfully: WorkflowId={WorkflowId}, SignalName={SignalName}",
                 request.WorkflowId,
                 request.SignalName);
@@ -66,7 +66,7 @@ public class A2ASignalQueryActivities
                 request.QueryName,
                 request.Args);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Query executed successfully: WorkflowId={WorkflowId}, QueryName={QueryName}",
                 request.WorkflowId,
                 request.QueryName);
@@ -103,7 +103,7 @@ public class A2ASignalQueryActivities
                 request.UpdateName,
                 request.Args);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Update executed successfully: WorkflowId={WorkflowId}, UpdateName={UpdateName}",
                 request.WorkflowId,
                 request.UpdateName);

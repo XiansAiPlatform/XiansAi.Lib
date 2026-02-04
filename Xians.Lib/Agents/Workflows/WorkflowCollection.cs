@@ -406,10 +406,17 @@ public class WorkflowCollection
     /// </summary>
     /// <typeparam name="T">The custom workflow type.</typeparam>
     /// <returns>The custom workflow or null if not found.</returns>
-    public XiansWorkflow? GetCustom<T>() where T : class
+    public XiansWorkflow GetCustom<T>() where T : class
     {
-        var workflowType = typeof(T).Name;
-        return _workflows.FirstOrDefault(w => w.WorkflowType == workflowType);
+        // Get workflow type from [Workflow] attribute if present, otherwise use class name
+        // This matches the logic in DefineCustomInternal to ensure consistency
+        var workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix: false) ?? typeof(T).Name;
+        var workflow = _workflows.FirstOrDefault(w => w.WorkflowType == workflowType);
+        if (workflow is null)
+        {
+            throw new InvalidOperationException($"Custom workflow of type '{workflowType}' not found.");
+        }
+        return workflow;
     }
 
     /// <summary>
@@ -508,6 +515,11 @@ public class WorkflowCollection
             try
             {
                 await w.RunAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during graceful shutdown - no need to log as error
+                throw;
             }
             catch (Exception ex)
             {

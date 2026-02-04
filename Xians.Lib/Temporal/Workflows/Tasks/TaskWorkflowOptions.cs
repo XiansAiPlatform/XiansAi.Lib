@@ -1,6 +1,7 @@
 using Temporalio.Common;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Tasks.Models;
 using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
@@ -16,25 +17,12 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
     /// <summary>
     /// Creates options for a task child workflow.
     /// </summary>
-    /// <param name="taskId">Unique identifier for the task (used as workflow ID postfix).</param>
-    /// <param name="title">Task title (added to memo for display purposes).</param>
-    /// <param name="description">Task description (added to memo for detailed information).</param>
-    /// <param name="participantId">User ID of the task participant. If null, inherits from parent workflow's UserId.</param>
-    /// <param name="actions">Available actions for this task. If null/empty, defaults to ["approve", "reject"].</param>
-    /// <param name="retryPolicy">Optional retry policy. Defaults to MaximumAttempts=1.</param>
-    /// <param name="executionTimeout">Optional execution timeout.</param>
-    public TaskWorkflowOptions(
-        string title,
-        string description,
-        string? participantId,
-        string[]? actions = null,
-        TimeSpan? executionTimeout = null,
-        RetryPolicy? retryPolicy = null)
+    /// <param name="request">Request containing task details.</param>
+    public TaskWorkflowOptions(TaskWorkflowRequest request)
     {
-
-        if (string.IsNullOrWhiteSpace(title))
+        if (string.IsNullOrWhiteSpace(request.Title))
         {
-            throw new ArgumentException("Task title cannot be null or empty.", nameof(title));
+            throw new ArgumentException("Task title cannot be null or empty.", nameof(request.Title));
         }
 
         // Always inherit system-scoped setting from parent workflow
@@ -48,7 +36,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
             ?? throw new InvalidOperationException("Agent name not available in workflow context");
         
         // If participantId not provided, inherit from parent workflow's UserId
-        var effectiveParticipantId = participantId ?? GetUserIdFromParent();
+        var effectiveParticipantId = request.ParticipantId ?? GetUserIdFromParent();
         
         var taskWorkflowType = WorkflowConstants.WorkflowTypes.GetTaskWorkflowType(agentName);
 
@@ -56,30 +44,30 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         TaskQueue = TenantContext.GetTaskQueueName(taskWorkflowType, isSystemScoped, tenantId);
 
         var idPostfix = XiansContext.GetIdPostfix();
-        var idSuffix = new [] { idPostfix, Guid.NewGuid().ToString() };
         // Generate workflow ID with task ID as postfix
-        Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, idSuffix);
+        Id = TenantContext.BuildWorkflowId(taskWorkflowType, tenantId, idPostfix) + "--" + request.TaskName;
 
         // Default actions if not provided
-        var effectiveActions = actions is { Length: > 0 } ? actions : new[] { "approve", "reject" };
+        var effectiveActions = request.Actions is { Length: > 0 } ? request.Actions : ["OK"];
         
         // Inherit all parent workflow's memo and search attributes, then add task-specific attributes
-        Memo = BuildInheritedMemo(tenantId, agentName, isSystemScoped, title, description, effectiveParticipantId, effectiveActions);
+        Memo = BuildInheritedMemo(tenantId, agentName, isSystemScoped, request.Title, request.Description, effectiveParticipantId, effectiveActions);
         TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName, effectiveParticipantId);
 
         // Set workflow summary for debugging
-        StaticSummary = $"Task workflow '{title}' in '{XiansContext.WorkflowId}'";
+        StaticSummary = $"Task workflow '{request.Title}' in '{XiansContext.WorkflowId}'";
 
         // Default retry policy: single attempt (fail fast)
-        RetryPolicy = retryPolicy ?? new RetryPolicy { MaximumAttempts = 1 };
+        RetryPolicy =  request.RetryPolicy ?? new RetryPolicy { MaximumAttempts = 1 };
 
         // Task workflow should be abandoned when parent closes
-        ParentClosePolicy = ParentClosePolicy.Terminate;
+        ParentClosePolicy = request.SurviveParentClose ?? true ? ParentClosePolicy.Abandon : ParentClosePolicy.Terminate;
 
-        if (executionTimeout.HasValue)
-        {
-            ExecutionTimeout = executionTimeout;
-        }
+        // Set execution timeout to 1 day from the request timeout
+        ExecutionTimeout = request.Timeout?.Add(TimeSpan.FromDays(1));
+
+        // If a workflow with the same ID is already running, terminate it
+        IdReusePolicy = Temporalio.Api.Enums.V1.WorkflowIdReusePolicy.TerminateIfRunning;
 
     }
 
