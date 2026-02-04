@@ -131,13 +131,39 @@ public class MessageActivities
                 $"Use OnWebhook() to register a handler.");
         }
 
+        // Convert payload to string - webhook payloads are typically JSON strings
+        // Handle JsonElement specially to avoid double-quoting string values
+        string? payloadString = null;
+        if (request.Data != null)
+        {
+            if (request.Data is System.Text.Json.JsonElement jsonElement)
+            {
+                // Extract value based on JSON type to avoid extra quotes on strings
+                payloadString = jsonElement.ValueKind switch
+                {
+                    System.Text.Json.JsonValueKind.String => jsonElement.GetString(),
+                    System.Text.Json.JsonValueKind.Null => null,
+                    _ => jsonElement.GetRawText() // For objects/arrays, get the raw JSON
+                };
+            }
+            else if (request.Data is string str)
+            {
+                payloadString = str;
+            }
+            else
+            {
+                // Fallback: serialize to JSON for other types
+                payloadString = System.Text.Json.JsonSerializer.Serialize(request.Data);
+            }
+        }
+
         // Create a webhook context
         var context = new ActivityWebhookContext(
             _httpClient,
             request.ParticipantId,
             request.Scope,
             request.MessageText,  // Name is transferred in Text field
-            request.Data,         // Payload is transferred in Data field
+            payloadString,        // Payload is transferred in Data field as string
             request.Authorization,
             request.RequestId,
             request.TenantId,
@@ -555,7 +581,7 @@ public class ActivityWebhookContext : WebhookContext
         string participantId,
         string? scope,
         string name,
-        object? payload,
+        string? payload,
         string? authorization,
         string requestId,
         string tenantId,
