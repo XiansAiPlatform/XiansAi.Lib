@@ -23,7 +23,7 @@ public class OrderProcessingWorkflow
         [Description("The total amount for the order in USD")]
         decimal amount)
     {
-        Workflow.Logger.LogInformation(
+        Workflow.Logger.LogDebug(
             "Processing order {OrderId} for customer {CustomerId} with amount {Amount}",
             orderId, customerId, amount);
 

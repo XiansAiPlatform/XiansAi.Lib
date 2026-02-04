@@ -363,7 +363,7 @@ public class ScheduleBuilder
                     "Use cron or interval schedules, or create the schedule outside the workflow.");
             }
 
-            Workflow.Logger.LogInformation(
+            Workflow.Logger.LogDebug(
                 created ? "✅ Schedule '{ScheduleId}' created successfully" : "ℹ️ Schedule '{ScheduleId}' already exists",
                 _scheduleId);
 

@@ -86,7 +86,7 @@ internal class A2AService
                 $"Ensure the handler calls context.ReplyAsync() or context.ReplyWithDataAsync().");
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "A2A message processed directly: Target={TargetWorkflow}",
             _targetWorkflowType);
 

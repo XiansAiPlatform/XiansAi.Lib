@@ -46,7 +46,7 @@ public class BuiltinWorkflow
     [WorkflowSignal("HandleInboundChatOrData")]
     public Task HandleInboundChatOrData(InboundMessage message)
     {
-        Workflow.Logger.LogInformation(
+        Workflow.Logger.LogDebug(
             "Signal received: Type={Type}, ParticipantId={ParticipantId}, RequestId={RequestId}, SourceWorkflowId={SourceWorkflowId}, QueueDepth={QueueDepth}",
             message.Payload.Type,
             message.Payload.ParticipantId,
@@ -218,7 +218,7 @@ public class BuiltinWorkflow
     {
         if (ShouldContinueAsNew)
         {
-            Workflow.Logger.LogInformation(
+            Workflow.Logger.LogDebug(
                 "Continuing as new: HistoryLength={HistoryLength}, Suggested={Suggested}",
                 Workflow.CurrentHistoryLength,
                 Workflow.ContinueAsNewSuggested);
@@ -231,9 +231,7 @@ public class BuiltinWorkflow
     /// This is the top-level event loop where exceptions are caught to prevent workflow crashes.
     /// </summary>
     private async Task ProcessMessagesLoopAsync()
-    {
-        Workflow.Logger.LogInformation("Message processing loop started");
-        
+    {        
         while (true)
         {
             // Wait for a message to arrive in the queue or ContinueAsNew condition

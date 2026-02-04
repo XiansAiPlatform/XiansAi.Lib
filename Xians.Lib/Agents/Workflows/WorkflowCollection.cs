@@ -323,7 +323,9 @@ public class WorkflowCollection
     /// <returns>The custom workflow or null if not found.</returns>
     public XiansWorkflow GetCustom<T>() where T : class
     {
-        var workflowType = typeof(T).Name;
+        // Get workflow type from [Workflow] attribute if present, otherwise use class name
+        // This matches the logic in DefineCustomInternal to ensure consistency
+        var workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix: false) ?? typeof(T).Name;
         var workflow = _workflows.FirstOrDefault(w => w.WorkflowType == workflowType);
         if (workflow is null)
         {

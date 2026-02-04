@@ -42,7 +42,7 @@ public class TaskActivities
             
             var taskInfo = await taskService.QueryTaskInfoAsync(taskId);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Task info queried successfully: TaskId={TaskId}",
                 taskId);
 
@@ -81,7 +81,7 @@ public class TaskActivities
             
             await taskService.UpdateDraftAsync(taskId, updatedDraft);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Draft updated successfully: TaskId={TaskId}",
                 taskId);
         }
@@ -119,7 +119,7 @@ public class TaskActivities
             
             await taskService.PerformActionAsync(taskId, action, comment);
 
-            ActivityExecutionContext.Current.Logger.LogInformation(
+            ActivityExecutionContext.Current.Logger.LogDebug(
                 "Action performed successfully: TaskId={TaskId}, Action={Action}",
                 taskId,
                 action);

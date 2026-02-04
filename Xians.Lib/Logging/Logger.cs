@@ -159,7 +159,7 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
                     Workflow.Logger.LogDebug(fullMessage);
                     break;
                 case LogLevel.Information:
-                    Workflow.Logger.LogInformation(fullMessage);
+                    Workflow.Logger.LogDebug(fullMessage);
                     break;
                 case LogLevel.Warning:
                     Workflow.Logger.LogWarning(fullMessage);
@@ -171,7 +171,7 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
                     Workflow.Logger.LogCritical(fullMessage);
                     break;
                 default:
-                    Workflow.Logger.LogInformation(fullMessage);
+                    Workflow.Logger.LogDebug(fullMessage);
                     break;
             }
         }
@@ -413,7 +413,7 @@ public class Logger<T> : IXiansLogger
                     Workflow.Logger.LogDebug(fullMessage);
                     break;
                 case LogLevel.Information:
-                    Workflow.Logger.LogInformation(fullMessage);
+                    Workflow.Logger.LogDebug(fullMessage);
                     break;
                 case LogLevel.Warning:
                     Workflow.Logger.LogWarning(fullMessage);
@@ -425,7 +425,7 @@ public class Logger<T> : IXiansLogger
                     Workflow.Logger.LogCritical(fullMessage);
                     break;
                 default:
-                    Workflow.Logger.LogInformation(fullMessage);
+                    Workflow.Logger.LogDebug(fullMessage);
                     break;
             }
         }
