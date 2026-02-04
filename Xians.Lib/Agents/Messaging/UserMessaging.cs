@@ -37,6 +37,7 @@ internal static class UserMessaging
     /// <param name="data">Optional data object to include with the message.</param>
     /// <param name="scope">Optional scope for the message (e.g., "notifications", "alerts").</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     public static async Task SendChatAsync(
@@ -44,9 +45,10 @@ internal static class UserMessaging
         string text,
         object? data = null,
         string? scope = null,
-        string? hint = null)
+        string? hint = null,
+        string? taskId = null)
     {
-        await SendMessageAsync(participantId, text, data, scope, hint, "chat");
+        await SendMessageAsync(participantId, text, data, scope, hint, taskId, "chat");
     }
 
     /// <summary>
@@ -59,6 +61,7 @@ internal static class UserMessaging
     /// <param name="data">Optional data object to include with the message.</param>
     /// <param name="scope">Optional scope for the message (e.g., "notifications", "alerts").</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     /// <example>
@@ -71,9 +74,10 @@ internal static class UserMessaging
         string text,
         object? data = null,
         string? scope = null,
-        string? hint = null)
+        string? hint = null,
+        string? taskId = null)
     {
-        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, "chat");
+        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, taskId, "chat");
     }
 
     /// <summary>
@@ -85,6 +89,7 @@ internal static class UserMessaging
     /// <param name="data">The data object to send.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     public static async Task SendDataAsync(
@@ -92,9 +97,10 @@ internal static class UserMessaging
         string text,
         object data,
         string? scope = null,
-        string? hint = null)
+        string? hint = null,
+        string? taskId = null)
     {
-        await SendMessageAsync(participantId, text, data, scope, hint, "data");
+        await SendMessageAsync(participantId, text, data, scope, hint, taskId, "data");
     }
 
     /// <summary>
@@ -166,6 +172,7 @@ internal static class UserMessaging
     /// <param name="data">The data object to send.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     public static async Task SendDataAsWorkflowAsync(
@@ -174,9 +181,10 @@ internal static class UserMessaging
         string text,
         object data,
         string? scope = null,
-        string? hint = null)
+        string? hint = null,
+        string? taskId = null)
     {
-        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, "data");
+        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, taskId, "data");
     }
 
     /// <summary>
@@ -189,6 +197,7 @@ internal static class UserMessaging
         object? data,
         string? scope,
         string? hint,
+        string? taskId,
         string messageType)
     {
         if (string.IsNullOrWhiteSpace(participantId))
@@ -202,7 +211,7 @@ internal static class UserMessaging
         
         await SendMessageInternalAsync(
             workflowId, workflowType, tenantId,
-            participantId, text, data, scope, hint, messageType);
+            participantId, text, data, scope, hint, taskId, messageType);
     }
 
     /// <summary>
@@ -217,6 +226,7 @@ internal static class UserMessaging
         object? data,
         string? scope,
         string? hint,
+        string? taskId,
         string messageType)
     {
         if (string.IsNullOrWhiteSpace(builtInworkflowName))
@@ -239,7 +249,7 @@ internal static class UserMessaging
         
         await SendMessageInternalAsync( 
             workflowId, workflowType, tenantId,
-            participantId, text, data, scope, hint, messageType);
+            participantId, text, data, scope, hint, taskId, messageType);
     }
 
     /// <summary>
@@ -254,6 +264,7 @@ internal static class UserMessaging
         object? data,
         string? scope,
         string? hint,
+        string? taskId,
         string messageType)
     {
 
@@ -267,6 +278,7 @@ internal static class UserMessaging
             RequestId = Guid.NewGuid().ToString(),
             Scope = scope,
             Hint = hint,
+            TaskId = taskId,
             Origin = "agent-initiated",
             Type = messageType,
             TenantId = tenantId

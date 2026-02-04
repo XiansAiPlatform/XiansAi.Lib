@@ -19,6 +19,7 @@ public class MessagingHelper
     /// <param name="data">Optional data object to send with the message.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
@@ -27,10 +28,11 @@ public class MessagingHelper
         object? data = null, 
         string? scope = null, 
         string? hint = null,
+        string? taskId = null,
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendChatAsync(participantId, text, data, scope, hint);
+        await UserMessaging.SendChatAsync(participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
@@ -42,6 +44,7 @@ public class MessagingHelper
     /// <param name="data">The data object to send.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <param name="participantId">Optional participant (user) ID to send the data to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
@@ -50,10 +53,11 @@ public class MessagingHelper
         object data, 
         string? scope = null, 
         string? hint = null,
+        string? taskId = null,
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendDataAsync(participantId, text, data, scope, hint);
+        await UserMessaging.SendDataAsync(participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
@@ -66,6 +70,7 @@ public class MessagingHelper
     /// <param name="data">Optional data object to send with the message.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
@@ -75,10 +80,11 @@ public class MessagingHelper
         object? data = null, 
         string? scope = null, 
         string? hint = null,
+        string? taskId = null,
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendChatAsWorkflowAsync(builtinWorkflowName, participantId, text, data, scope, hint);
+        await UserMessaging.SendChatAsWorkflowAsync(builtinWorkflowName, participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
@@ -91,6 +97,7 @@ public class MessagingHelper
     /// <param name="data">The data object to send.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <param name="participantId">Optional participant (user) ID to send the data to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
@@ -100,10 +107,11 @@ public class MessagingHelper
         object data, 
         string? scope = null, 
         string? hint = null,
+        string? taskId = null,
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendDataAsWorkflowAsync(builtinWorkflowName, participantId, text, data, scope, hint);
+        await UserMessaging.SendDataAsWorkflowAsync(builtinWorkflowName, participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
@@ -115,6 +123,7 @@ public class MessagingHelper
     /// <param name="data">Optional data object to send with the message.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
@@ -123,10 +132,11 @@ public class MessagingHelper
         object? data = null, 
         string? scope = null, 
         string? hint = null,
+        string? taskId = null,
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendChatAsWorkflowAsync(WorkflowConstants.WorkflowTypes.Supervisor, participantId, text, data, scope, hint);
+        await UserMessaging.SendChatAsWorkflowAsync(WorkflowConstants.WorkflowTypes.Supervisor, participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
@@ -138,6 +148,7 @@ public class MessagingHelper
     /// <param name="data">The data object to send.</param>
     /// <param name="scope">Optional scope for the message.</param>
     /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <param name="participantId">Optional participant (user) ID to send the data to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
@@ -146,10 +157,11 @@ public class MessagingHelper
         object data, 
         string? scope = null, 
         string? hint = null,
+        string? taskId = null,
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendDataAsWorkflowAsync(WorkflowConstants.WorkflowTypes.Supervisor, participantId, text, data, scope, hint);
+        await UserMessaging.SendDataAsWorkflowAsync(WorkflowConstants.WorkflowTypes.Supervisor, participantId, text, data, scope, hint, taskId);
     }
 }
 

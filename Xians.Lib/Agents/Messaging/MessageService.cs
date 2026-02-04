@@ -144,7 +144,7 @@ internal class MessageService
             {
                 await SendMessageInternalAsync(
                     request.ParticipantId, request.WorkflowId, request.WorkflowType, request.RequestId, request.Scope ?? string.Empty, 
-                    request.Text ?? string.Empty, request.Data, request.TenantId, request.Authorization, request.ThreadId, request.Hint ?? string.Empty, request.Origin, 
+                    request.Text ?? string.Empty, request.Data, request.TenantId, request.Authorization, request.ThreadId, request.Hint ?? string.Empty, request.TaskId, request.Origin, 
                     type, cancellationToken);
                 
                 _logger.LogInformation("Message sent successfully: RequestId={RequestId}, WorkflowId={WorkflowId}", request.RequestId,request.WorkflowId);
@@ -189,6 +189,7 @@ internal class MessageService
         string? authorization,
         string? threadId,
         string hint,
+        string? taskId,
         string? origin,
         string type,
         CancellationToken cancellationToken)
@@ -206,6 +207,7 @@ internal class MessageService
             text,
             threadId,
             hint,
+            taskId,
             origin
         };
 
