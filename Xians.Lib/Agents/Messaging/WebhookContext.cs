@@ -40,7 +40,7 @@ public class WebhookContext
         string participantId,
         string? scope,
         string name,
-        object? payload,
+        string? payload,
         string? authorization,
         string requestId,
         string tenantId,

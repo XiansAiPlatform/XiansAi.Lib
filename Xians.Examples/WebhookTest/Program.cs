@@ -1,4 +1,4 @@
-﻿using DotNetEnv;
+using DotNetEnv;
 using System.Net;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
@@ -37,7 +37,7 @@ integratorWorkflow.OnWebhook(async (context) =>
     {
         // Access webhook properties
         var webhookName = context.Webhook.Name;
-        var payload = context.Webhook.Payload;
+        var payload = context.Webhook.Payload; // Now a string
         var participantId = context.Webhook.ParticipantId;
         
         // Process the webhook

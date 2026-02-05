@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Agents.A2A;
@@ -40,11 +41,6 @@ public class A2AContextOperations
     /// <exception cref="InvalidOperationException">Thrown when the request fails.</exception>
     public async Task<A2AMessage> SendChatAsync(XiansWorkflow targetWorkflow, A2AMessage message)
     {
-        if (targetWorkflow == null)
-        {
-            throw new ArgumentNullException(nameof(targetWorkflow));
-        }
-
         var client = new A2AClient(targetWorkflow);
         return await client.SendMessageAsync(message);
     }
@@ -65,6 +61,88 @@ public class A2AContextOperations
 
         var targetWorkflow = XiansContext.GetBuiltInWorkflow(builtInWorkflowName);
         return await SendChatAsync(targetWorkflow, message);
+    }
+
+
+    /// <summary>
+    /// Sends a chat message to the Supervisor workflow.
+    /// </summary>
+    /// <param name="message">The message to send.</param>
+    /// <param name="participantId">The participant ID to send the message to.</param>
+    /// <param name="scope">The scope of the message.</param>
+    /// <param name="hint">The hint for the message.</param>
+    /// <returns>The response message from the Supervisor workflow.</returns>
+    public async Task<A2AMessage> SendChatToSupervisorAsync(string message, string? participantId = null, string? scope = null, string? hint = null)
+    {
+        var targetWorkflow = XiansContext.GetBuiltInWorkflow(WorkflowConstants.WorkflowTypes.Supervisor);
+        return await SendChatAsync(targetWorkflow, new A2AMessage { Text = message, ParticipantId = participantId, Scope = scope, Hint = hint });
+    }
+
+    /// <summary>
+    /// Sends a chat message to the Supervisor workflow with message history fetched from the server.
+    /// The history is included in the message Data property for the supervisor to utilize.
+    /// </summary>
+    /// <param name="message">The message to send.</param>
+    /// <param name="participantId">The participant ID to send the message to. If not provided, uses the current participant ID from context.</param>
+    /// <param name="scope">The scope of the message.</param>
+    /// <param name="hint">The hint for the message.</param>
+    /// <param name="historyPageSize">The number of historical messages to fetch (default: 10).</param>
+    /// <param name="historyPage">The page number for message history (default: 1).</param>
+    /// <returns>The response message from the Supervisor workflow.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow/activity context or history fetch fails.</exception>
+    public async Task<A2AMessage> SendChatToSupervisorWithHistoryAsync(
+        string message, 
+        string? participantId = null, 
+        string? scope = null, 
+        string? hint = null,
+        int historyPageSize = 10,
+        int historyPage = 1)
+    {
+        // Use provided participantId or fall back to current context
+        var effectiveParticipantId = participantId ?? XiansContext.GetParticipantId();
+        var effectiveScope = scope ?? string.Empty;
+
+        // Fetch message history from the server
+        var historyRequest = new Xians.Lib.Temporal.Workflows.Messaging.Models.GetMessageHistoryRequest
+        {
+            WorkflowId = XiansContext.WorkflowId,
+            WorkflowType = XiansContext.WorkflowType,
+            ParticipantId = effectiveParticipantId,
+            Scope = effectiveScope,
+            TenantId = XiansContext.TenantId,
+            Page = historyPage,
+            PageSize = historyPageSize
+        };
+
+        // Get current agent and create message activity executor
+        var agent = XiansContext.CurrentAgent;
+        var executorLogger = Common.Infrastructure.LoggerFactory.CreateLogger<Messaging.MessageActivityExecutor>();
+        var historyExecutor = new Messaging.MessageActivityExecutor(agent, executorLogger);
+        
+        // Execute the history fetch via activity executor to respect workflow/activity context
+        var history = await historyExecutor.GetHistoryAsync(historyRequest);
+
+        _logger.LogInformation(
+            "Fetched {HistoryCount} messages for supervisor chat with history",
+            history.Count);
+
+        // Create message data with history included
+        var messageData = new Dictionary<string, object>
+        {
+            { "messageHistory", history },
+            { "historyPageSize", historyPageSize },
+            { "historyPage", historyPage }
+        };
+
+        var targetWorkflow = XiansContext.GetBuiltInWorkflow(WorkflowConstants.WorkflowTypes.Supervisor);
+        return await SendChatAsync(targetWorkflow, new A2AMessage 
+        { 
+            Text = message, 
+            ParticipantId = effectiveParticipantId, 
+            Scope = effectiveScope, 
+            Hint = hint,
+            Data = messageData
+        });
     }
 
     /// <summary>

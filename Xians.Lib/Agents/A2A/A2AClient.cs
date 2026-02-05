@@ -108,23 +108,13 @@ public class A2AClient
         string sourceAgentName;
         string tenantId;
         string sourceWorkflowId;
-        
-        try
-        {
-            sourceAgentName = XiansContext.AgentName;
-            tenantId = XiansContext.TenantId;
-            sourceWorkflowId = XiansContext.WorkflowId;
-        }
-        catch (InvalidOperationException)
-        {
-            // Not in workflow/activity context - extract from target workflow type
-            var parts = _targetWorkflow.WorkflowType.Split(':', 2);
-            sourceAgentName = parts.Length > 0 ? parts[0] : "unknown";
-            tenantId = "system"; // Default for non-workflow context calls
-            sourceWorkflowId = Guid.NewGuid().ToString("N"); // Generate fallback ID
-        }
 
-        _logger.LogInformation(
+        sourceAgentName = XiansContext.AgentName;
+        tenantId = XiansContext.TenantId;
+        sourceWorkflowId = XiansContext.WorkflowId;
+
+
+        _logger.LogDebug(
             "Sending A2A message: Target={TargetWorkflow}, SourceAgent={SourceAgent}",
             _targetWorkflow.WorkflowType,
             sourceAgentName);

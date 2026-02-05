@@ -16,7 +16,7 @@ public class WebhookMessage
     public string Name { get; }
 
     /// <summary>Gets the webhook payload (transferred from the Data field).</summary>
-    public object? Payload { get; }
+    public string? Payload { get; }
 
     /// <summary>Gets the authorization token for this webhook, if any.</summary>
     public string? Authorization { get; }
@@ -31,7 +31,7 @@ public class WebhookMessage
         string participantId,
         string? scope,
         string name,
-        object? payload,
+        string? payload,
         string? authorization,
         string requestId,
         string tenantId)

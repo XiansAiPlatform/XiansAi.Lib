@@ -383,7 +383,7 @@ public class RealServerWebhookTests : RealServerTestBase, IAsyncLifetime
         workflow.OnWebhook(async (context) =>
         {
             // Validate and return custom error - check for empty or null payload
-            var payloadStr = context.Webhook.Payload?.ToString() ?? "";
+            var payloadStr = context.Webhook.Payload ?? "";
             if (string.IsNullOrWhiteSpace(payloadStr))
             {
                 context.Response = WebhookResponse.BadRequest("Payload is required");
