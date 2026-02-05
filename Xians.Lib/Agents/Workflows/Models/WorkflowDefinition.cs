@@ -32,6 +32,7 @@ public class WorkflowDefinition
     public bool SystemScoped { get; set; } = false;
     
     [JsonPropertyName("workers")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Always)]
     public int Workers { get; set; } = 1;
     
     [JsonPropertyName("activable")]

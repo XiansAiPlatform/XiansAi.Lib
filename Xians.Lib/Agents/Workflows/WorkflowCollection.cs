@@ -4,6 +4,8 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows;
+using Microsoft.Extensions.Logging;
+
 
 namespace Xians.Lib.Agents.Workflows;
 
@@ -14,12 +16,14 @@ public class WorkflowCollection
 {
     private readonly XiansAgent _agent;
     private readonly WorkflowDefinitionUploader? _uploader;
+    private readonly ILogger<WorkflowCollection> _logger;
     private readonly List<XiansWorkflow> _workflows = new();
 
     internal WorkflowCollection(XiansAgent agent, WorkflowDefinitionUploader? uploader)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _uploader = uploader;
+        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<WorkflowCollection>();
     }
 
     /// <summary>
@@ -213,8 +217,31 @@ public class WorkflowCollection
     /// </summary>
     private async Task UploadWorkflowDefinitionAsync(XiansWorkflow workflow)
     {
+        if (_uploader == null)
+        {
+            return; // No uploader configured, skip
+        }
+
         try
         {
+            var workflowClassType = workflow.GetWorkflowClassType();
+            var source = workflowClassType != null ? ReadSource(workflowClassType) : null;
+            
+            // Only set Source if we actually found source code
+            var sourceToUpload = !string.IsNullOrWhiteSpace(source) ? source : null;
+
+            if (workflowClassType != null)
+            {
+                var assemblyName = workflowClassType.Assembly.GetName().Name;
+                var isDynamicAssembly = assemblyName?.StartsWith(DynamicWorkflowTypeBuilder.DynamicAssemblyPrefix) == true;
+                if (!isDynamicAssembly && string.IsNullOrWhiteSpace(source))
+                {
+                    throw new InvalidOperationException(
+                        $"Embedded source not found for custom workflow '{workflow.WorkflowType}'. " +
+                        "Ensure the workflow .cs file is embedded as an EmbeddedResource with a LogicalName that matches the class name.");
+                }
+            }
+
             // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
             var workflowName = workflow.Name;
             if (workflowName == null && workflow.WorkflowType.Contains(':'))
@@ -236,7 +263,8 @@ public class WorkflowCollection
                 Workers = workflow.Workers,
                 Activable = workflow.Activable,
                 ActivityDefinitions = [],
-                ParameterDefinitions = ExtractWorkflowParameters(workflow)
+                ParameterDefinitions = ExtractWorkflowParameters(workflow),
+                Source = sourceToUpload
             };
 
             await _uploader!.UploadWorkflowDefinitionAsync(definition);
@@ -302,6 +330,63 @@ public class WorkflowCollection
                 };
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Attempts to read the source code of a type from embedded resources.
+    /// Only custom workflows with embedded source files will have source code.
+    /// Built-in workflows (dynamic types) do not have real source code.
+    /// </summary>
+    /// <param name="type">The type to read source for</param>
+    /// <returns>The source code, or null if not found</returns>
+    private string? ReadSource(Type type)
+    {
+        try
+        {
+            // Check if this is a dynamic type (built-in workflow)
+            // Dynamic types are created by DynamicWorkflowTypeBuilder via Reflection.Emit
+            var assemblyName = type.Assembly.GetName().Name;
+            var isDynamicAssembly = assemblyName?.StartsWith(DynamicWorkflowTypeBuilder.DynamicAssemblyPrefix) == true;
+            
+            if (isDynamicAssembly)
+            {
+                // Built-in workflows: no real source code exists, return null
+                // The Visualize button will be disabled for built-in workflows
+                _logger.LogDebug("Skipping source code for built-in workflow {TypeName} (dynamic type)", type.FullName);
+                return null;
+            }
+            else
+            {
+                // Custom workflows: try to read source from embedded resources (e.g. <EmbeddedResource Include="ConversationalWorkflow.cs" LogicalName="%(Filename)%(Extension)" />)
+                var assembly = type.Assembly;
+                var candidateName = type.Name + ".cs";
+                var resourceName = assembly.GetManifestResourceNames()
+                    .FirstOrDefault(n => n.Equals(candidateName, StringComparison.OrdinalIgnoreCase) || n.EndsWith("." + candidateName, StringComparison.OrdinalIgnoreCase));
+                if (resourceName != null)
+                {
+                    using (var stream = assembly.GetManifestResourceStream(resourceName))
+                    {
+                        if (stream != null)
+                        {
+                            using var reader = new System.IO.StreamReader(stream);
+                            var embeddedSource = reader.ReadToEnd();
+                            if (!string.IsNullOrWhiteSpace(embeddedSource))
+                            {
+                                _logger.LogDebug("Found embedded source code for custom workflow {TypeName} from resource {ResourceName}", type.FullName, resourceName);
+                                return embeddedSource;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading embedded source for {TypeName}", type.FullName);
+            return null;
+        }
     }
 
     /// <summary>

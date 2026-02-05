@@ -73,8 +73,15 @@ internal class WorkflowDefinitionUploader
         {
             var client = await _httpService.GetHealthyClientAsync();
             
-            // Serialize and compute hash
-            var serializedDefinition = JsonSerializer.Serialize(definition);
+            // Use consistent serialization options for both hash computation and upload
+            var jsonOptions = new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = false
+            };
+            
+            // Serialize and compute hash (using same options as upload for consistency)
+            var serializedDefinition = JsonSerializer.Serialize(definition, jsonOptions);
             var hash = ComputeHash(serializedDefinition);
 
             // Check if definition is already up to date
@@ -97,9 +104,8 @@ internal class WorkflowDefinitionUploader
                     _logger?.LogError("Hash check failed with status {StatusCode}: {Error}", hashCheckResponse.StatusCode, error);
                     throw new InvalidOperationException($"Hash check failed: {error}");
             }
-
             // Upload the definition
-            var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition));
+            var uploadResponse = await client.PostAsync(WorkflowConstants.ApiEndpoints.AgentDefinitions, JsonContent.Create(definition, options: jsonOptions));
             
             if (!uploadResponse.IsSuccessStatusCode)
             {
@@ -107,7 +113,6 @@ internal class WorkflowDefinitionUploader
                 _logger?.LogError("Server returned error {StatusCode}: {Error}", uploadResponse.StatusCode, errorMessage);
                 throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
             }
-            
             return uploadResponse;
         });
     }
