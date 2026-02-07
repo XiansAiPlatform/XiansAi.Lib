@@ -225,22 +225,11 @@ public class WorkflowCollection
         try
         {
             var workflowClassType = workflow.GetWorkflowClassType();
+            // ReadSource handles all logging for missing/found source code
             var source = workflowClassType != null ? ReadSource(workflowClassType) : null;
             
             // Only set Source if we actually found source code
             var sourceToUpload = !string.IsNullOrWhiteSpace(source) ? source : null;
-
-            if (workflowClassType != null)
-            {
-                var assemblyName = workflowClassType.Assembly.GetName().Name;
-                var isDynamicAssembly = assemblyName?.StartsWith(DynamicWorkflowTypeBuilder.DynamicAssemblyPrefix) == true;
-                if (!isDynamicAssembly && string.IsNullOrWhiteSpace(source))
-                {
-                    throw new InvalidOperationException(
-                        $"Embedded source not found for custom workflow '{workflow.WorkflowType}'. " +
-                        "Ensure the workflow .cs file is embedded as an EmbeddedResource with a LogicalName that matches the class name.");
-                }
-            }
 
             // For custom workflows, extract name from WorkflowType (2nd part after splitting by ':')
             var workflowName = workflow.Name;
@@ -378,6 +367,13 @@ public class WorkflowCollection
                         }
                     }
                 }
+                
+                // Log when custom workflow doesn't have embedded source
+                _logger.LogDebug(
+                    "Embedded source not found for custom workflow {TypeName}. " +
+                    "Workflow will be uploaded without source code. " +
+                    "To include source code, ensure the workflow .cs file is embedded as an EmbeddedResource with a LogicalName that matches the class name.",
+                    type.FullName);
             }
 
             return null;
