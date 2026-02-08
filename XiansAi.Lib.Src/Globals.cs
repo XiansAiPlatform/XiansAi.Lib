@@ -37,4 +37,6 @@ public static class Globals
                    .AddFilter("System", consoleLogLevel)
                    .AddFilter((category, level) => level >= consoleLogLevel);
         });
+
+    public static ILoggerProvider[] AdditionalLoggerProviders = Array.Empty<ILoggerProvider>();
 }
