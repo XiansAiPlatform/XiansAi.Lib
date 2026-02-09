@@ -178,9 +178,6 @@ internal class ActivityRegistrar
             }
 
             workerOptions.AddAllActivities(activityType, instance);
-            _logger.LogDebug(
-                "Registered activity '{ActivityName}' for workflow '{WorkflowType}'",
-                activityName, workflowType);
             return 1;
         }
         catch (Exception ex)

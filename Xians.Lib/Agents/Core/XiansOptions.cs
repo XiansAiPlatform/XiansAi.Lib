@@ -36,7 +36,7 @@ public class XiansOptions : ServerConfiguration
     /// If not provided, falls back to SERVER_LOG_LEVEL (or legacy API_LOG_LEVEL) environment variable or Error.
     /// Setting this property automatically initializes server logging when services are available.
     /// </summary>
-    public LogLevel? ServerLogLevel;
+    public LogLevel? ServerLogLevel { get; set; }
 
     /// <summary>
     /// Gets or sets whether to enable task functionality for agents.

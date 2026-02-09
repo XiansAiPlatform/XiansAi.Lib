@@ -192,7 +192,7 @@ public static class TaskWorkflowService
         {
             var handle = GetTaskHandle(taskId);
             await handle.SignalAsync("UpdateDraft", new object[] { updatedDraft });
-            _logger.LogInformation("Draft updated for task: TaskId={TaskId}", taskId);
+            _logger.LogDebug("Draft updated for task: TaskId={TaskId}", taskId);
         }
         else
         {
@@ -218,7 +218,7 @@ public static class TaskWorkflowService
         {
             var handle = GetTaskHandle(taskId);
             await handle.SignalAsync("PerformAction", new object[] { actionRequest });
-            _logger.LogInformation("Action performed on task: TaskId={TaskId}, Action={Action}", taskId, action);
+            _logger.LogDebug("Action performed on task: TaskId={TaskId}, Action={Action}", taskId, action);
         }
         else
         {
@@ -295,7 +295,7 @@ public static class TaskWorkflowService
         var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
         await handle.SignalAsync("UpdateDraft", new object[] { updatedDraft });
         
-        _logger.LogInformation("Draft updated for task via client: TaskId={TaskId}", taskId);
+        _logger.LogDebug("Draft updated for task via client: TaskId={TaskId}", taskId);
     }
 
     /// <summary>
@@ -313,7 +313,7 @@ public static class TaskWorkflowService
         var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
         await handle.SignalAsync("PerformAction", new object[] { actionRequest });
         
-        _logger.LogInformation("Action performed on task via client: TaskId={TaskId}, Action={Action}", taskId, action);
+        _logger.LogDebug("Action performed on task via client: TaskId={TaskId}, Action={Action}", taskId, action);
     }
 
     #endregion

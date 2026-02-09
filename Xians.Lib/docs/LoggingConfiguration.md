@@ -102,7 +102,7 @@ var logger = Logger<MyClass>.For();
 
 logger.LogTrace("Trace");              // ❌ Console  ❌ Server
 logger.LogDebug("Debug");              // ❌ Console  ❌ Server
-logger.LogInformation("Info");         // ✅ Console  ❌ Server
+logger.LogDebug("Info");         // ✅ Console  ❌ Server
 logger.LogWarning("Warning");          // ✅ Console  ❌ Server
 logger.LogError("Error");              // ✅ Console  ✅ Server
 logger.LogCritical("Critical");        // ✅ Console  ✅ Server

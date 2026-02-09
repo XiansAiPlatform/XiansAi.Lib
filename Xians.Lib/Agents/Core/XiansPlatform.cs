@@ -2,6 +2,7 @@ using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
 using Xians.Lib.Common.Caching;
+using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -69,11 +70,15 @@ public class XiansPlatform
         var httpService = ServiceFactory.CreateHttpClientService(options, httpLogger);
     
         
-        // Fallback: Initialize logging services if ServerLogLevel was set but deferred init wasn't requested
-        // This handles cases where ServerLogLevel might be set via environment variables instead of the property
-        if (!Logging.LoggingServices.IsInitialized && options.ServerLogLevel.HasValue)
+        // Initialize logging services if ServerLogLevel was set
+        // This enables server-side log uploads
+        if (!Logging.LoggingServices.IsInitialized)
         {
-            Logging.LoggingServices.Initialize(httpService);
+            var serverLogLevel = options.ServerLogLevel ?? LoggerFactory.GetServerLogLevel();
+            if (serverLogLevel != MsLogLevel.None)
+            {
+                Logging.LoggingServices.Initialize(httpService);
+            }
         }
         
         // Create Temporal service

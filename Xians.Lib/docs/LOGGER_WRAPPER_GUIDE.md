@@ -30,7 +30,7 @@ public class MyAgent
     
     public async Task ProcessAsync(string data)
     {
-        _logger.LogInformation("Processing started");
+        _logger.LogDebug("Processing started");
         
         try
         {
@@ -60,7 +60,7 @@ public class MyWorkflow
     
     public void DoWork()
     {
-        _logger.LogInformation("Workflow started");
+        _logger.LogDebug("Workflow started");
         // Context automatically captured!
     }
 }
@@ -78,7 +78,7 @@ public class MyWorkflow
 | `For<T>()` | Get cached logger for specified type | `Logger<MyClass>.For<OtherClass>()` |
 | `LogTrace(message)` | Log trace message | `logger.LogTrace("Details")` |
 | `LogDebug(message)` | Log debug message | `logger.LogDebug("Debug info")` |
-| `LogInformation(message)` | Log information | `logger.LogInformation("Started")` |
+| `LogInformation(message)` | Log information | `logger.LogDebug("Started")` |
 | `LogWarning(message)` | Log warning | `logger.LogWarning("Warning")` |
 | `LogError(message, ex?)` | Log error with optional exception | `logger.LogError("Failed", ex)` |
 | `LogCritical(message, ex?)` | Log critical with optional exception | `logger.LogCritical("Fatal", ex)` |
@@ -98,12 +98,12 @@ public class MyService
     
     public void Method1()
     {
-        _logger.LogInformation("Method1 called");
+        _logger.LogDebug("Method1 called");
     }
     
     public void Method2()
     {
-        _logger.LogInformation("Method2 called");
+        _logger.LogDebug("Method2 called");
     }
 }
 ```
@@ -124,7 +124,7 @@ public class MyActivity
     
     public async Task ExecuteAsync()
     {
-        Logger.LogInformation("Activity executing");
+        Logger.LogDebug("Activity executing");
     }
 }
 ```
@@ -137,7 +137,7 @@ For one-off logging:
 public void ProcessOrder(Order order)
 {
     var logger = Logger<OrderProcessor>.For();
-    logger.LogInformation("Processing order {OrderId}", order.Id);
+    logger.LogDebug("Processing order {OrderId}", order.Id);
 }
 ```
 
@@ -164,7 +164,7 @@ public class MyWorkflow
         // - WorkflowType: "MyAgent:MyWorkflow"
         // - WorkflowRunId: "abc-123-def-456"
         // - ParticipantId: "user-456"
-        _logger.LogInformation("Workflow started");
+        _logger.LogDebug("Workflow started");
     }
 }
 ```
@@ -195,7 +195,7 @@ public class Program
         // This log will have:
         // - WorkflowId: "Outside Workflows"
         // - Agent: "No Agent Available"
-        _logger.LogInformation("Application starting");
+        _logger.LogDebug("Application starting");
     }
 }
 ```
@@ -220,7 +220,7 @@ public void Method()
     
     using (_logger.BeginScope(contextData))
     {
-        _logger.LogInformation("Message");
+        _logger.LogDebug("Message");
     }
 }
 ```
@@ -238,7 +238,7 @@ private static readonly Logger<MyClass> _logger = Logger<MyClass>.For();
 public void Method()
 {
     // Context automatically captured!
-    _logger.LogInformation("Message");
+    _logger.LogDebug("Message");
 }
 ```
 
@@ -265,7 +265,7 @@ public class MyWorkflow
     public async Task RunAsync()
     {
         // Internally uses Workflow.Logger (required by Temporal)
-        _logger.LogInformation("Workflow started");
+        _logger.LogDebug("Workflow started");
         
         // With context scope automatically created
     }
@@ -285,7 +285,7 @@ public class MyActivity
     public async Task ExecuteAsync()
     {
         // Uses standard logger with workflow context
-        _logger.LogInformation("Activity executing");
+        _logger.LogDebug("Activity executing");
     }
 }
 ```
@@ -307,11 +307,11 @@ private static readonly Logger<PaymentProcessor> _paymentLogger = Logger<Payment
 
 public void ProcessOrder(Order order)
 {
-    _orderLogger.LogInformation("Processing order {OrderId}", order.Id);
+    _orderLogger.LogDebug("Processing order {OrderId}", order.Id);
     
     if (order.RequiresPayment)
     {
-        _paymentLogger.LogInformation("Processing payment for order {OrderId}", order.Id);
+        _paymentLogger.LogDebug("Processing payment for order {OrderId}", order.Id);
     }
 }
 ```
@@ -362,7 +362,7 @@ Example with `CONSOLE_LOG_LEVEL=INFO` and `API_LOG_LEVEL=ERROR`:
 
 ```csharp
 _logger.LogDebug("Debug info");        // Not shown in console, not sent to API
-_logger.LogInformation("Info");         // Shown in console, not sent to API
+_logger.LogDebug("Info");         // Shown in console, not sent to API
 _logger.LogError("Error occurred");     // Shown in console, sent to API
 ```
 
@@ -379,7 +379,7 @@ using XiansAi.Logging;
 
 private static readonly Logger<MyClass> _logger = Logger<MyClass>.For();
 
-_logger.LogInformation("Message");
+_logger.LogDebug("Message");
 ```
 
 ### v3 Code (Same!)
@@ -389,7 +389,7 @@ using Xians.Lib.Logging;
 
 private static readonly Logger<MyClass> _logger = Logger<MyClass>.For();
 
-_logger.LogInformation("Message");
+_logger.LogDebug("Message");
 ```
 
 **Key Differences:**
@@ -484,7 +484,7 @@ The `Logger<T>` wrapper provides the easiest way to add comprehensive logging to
 private static readonly Logger<MyClass> _logger = Logger<MyClass>.For();
 
 // 2. Use it
-_logger.LogInformation("Processing started");
+_logger.LogDebug("Processing started");
 _logger.LogError("Failed", exception);
 
 // 3. That's it! Context is automatic, logs go to console and API.

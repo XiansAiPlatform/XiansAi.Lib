@@ -44,7 +44,7 @@ internal class TaskService
         var handle = GetTaskHandle(taskId);
         var taskInfo = await handle.QueryAsync(wf => wf.GetTaskInfo());
         
-        _logger.LogInformation("Task info queried: TaskId={TaskId}, IsCompleted={IsCompleted}", taskId, taskInfo.IsCompleted);
+        _logger.LogDebug("Task info queried: TaskId={TaskId}, IsCompleted={IsCompleted}", taskId, taskInfo.IsCompleted);
         return taskInfo;
     }
 
@@ -58,7 +58,7 @@ internal class TaskService
         var handle = GetTaskHandle(taskId);
         await handle.SignalAsync(wf => wf.UpdateDraft(updatedDraft));
         
-        _logger.LogInformation("Draft updated: TaskId={TaskId}", taskId);
+        _logger.LogDebug("Draft updated: TaskId={TaskId}", taskId);
     }
 
     /// <summary>
@@ -73,6 +73,6 @@ internal class TaskService
         var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
         await handle.SignalAsync(wf => wf.PerformAction(actionRequest));
         
-        _logger.LogInformation("Action performed: TaskId={TaskId}, Action={Action}", taskId, action);
+        _logger.LogDebug("Action performed: TaskId={TaskId}, Action={Action}", taskId, action);
     }
 }

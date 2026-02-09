@@ -91,7 +91,7 @@ internal class WorkflowDefinitionUploader
             switch (hashCheckResponse.StatusCode)
             {
                 case HttpStatusCode.OK:
-                    _logger?.LogInformation("Workflow definition for {WorkflowType} already up to date on server", definition.WorkflowType);
+                    _logger?.LogDebug("Workflow definition for {WorkflowType} already up to date on server", definition.WorkflowType);
                     return hashCheckResponse;
 
                 case HttpStatusCode.NotFound:
@@ -165,7 +165,7 @@ internal class WorkflowDefinitionUploader
                     throw new InvalidOperationException($"Server returned {uploadResponse.StatusCode}: {errorMessage}");
                 }
                 
-                _logger?.LogInformation("Agent {AgentName} uploaded successfully", agentName);
+                _logger?.LogDebug("Agent {AgentName} uploaded successfully", agentName);
                 return uploadResponse;
             });
             

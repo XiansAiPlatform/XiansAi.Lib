@@ -83,7 +83,7 @@ internal class KnowledgeService
         // Handle 404 as knowledge not found
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Knowledge not found: Name={Name}, Agent={Agent}",
                 knowledgeName,
                 agentName);
@@ -115,7 +115,7 @@ internal class KnowledgeService
         // Cache the result
         _cacheService?.SetKnowledge(cacheKey, knowledge);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Knowledge fetched successfully: Name={Name}",
             knowledgeName);
 
@@ -163,7 +163,7 @@ internal class KnowledgeService
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "System knowledge not found: Name={Name}, Agent={Agent}",
                 knowledgeName,
                 agentName);
@@ -194,7 +194,7 @@ internal class KnowledgeService
 
         _cacheService?.SetKnowledge(cacheKey, knowledge);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "System knowledge fetched successfully: Name={Name}",
             knowledgeName);
 
@@ -282,7 +282,7 @@ internal class KnowledgeService
         var cacheKey = GetCacheKey(tenantId, agentName, activationName, knowledgeName);
         _cacheService?.RemoveKnowledge(cacheKey);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Knowledge updated successfully: Name={Name}",
             knowledgeName);
         
@@ -330,7 +330,7 @@ internal class KnowledgeService
         // Handle 404 as already deleted
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Knowledge not found (already deleted?): Name={Name}, Agent={Agent}",
                 knowledgeName,
                 agentName);
@@ -352,7 +352,7 @@ internal class KnowledgeService
         var cacheKey = GetCacheKey(tenantId, agentName, activationName, knowledgeName);
         _cacheService?.RemoveKnowledge(cacheKey);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Knowledge deleted successfully: Name={Name}",
             knowledgeName);
 
@@ -414,7 +414,7 @@ internal class KnowledgeService
             return new List<Models.Knowledge>();
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Knowledge list fetched successfully: Count={Count}",
             knowledgeList.Count);
 

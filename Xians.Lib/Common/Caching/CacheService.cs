@@ -28,7 +28,7 @@ public class CacheService : ICacheService
         _cache = new MemoryCache(new MemoryCacheOptions());
         _logger = logger ?? Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<CacheService>();
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Cache service initialized: Enabled={Enabled}, DefaultTTL={DefaultTtl}min, Knowledge={KnowledgeTtl}min",
             _options.Enabled,
             _options.DefaultTtlMinutes,
@@ -168,7 +168,7 @@ public class CacheService : ICacheService
         if (_cache is MemoryCache memoryCache)
         {
             memoryCache.Compact(1.0); // Remove 100% of entries
-            _logger.LogInformation("Cache cleared");
+            _logger.LogDebug("Cache cleared");
         }
     }
 

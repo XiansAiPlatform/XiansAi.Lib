@@ -593,7 +593,7 @@ public async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation)
             {
                 var delay = TimeSpan.FromMilliseconds(
                     _baseDelay * Math.Pow(2, attempt - 2));
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Retrying operation (attempt {Attempt}/{MaxAttempts}) after {Delay}ms",
                     attempt, _maxRetries, delay.TotalMilliseconds);
                 await Task.Delay(delay);

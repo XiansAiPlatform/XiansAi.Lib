@@ -39,7 +39,7 @@ public static class SubWorkflowService
         if (Workflow.InWorkflow)
         {
             // Within a workflow - start as child workflow
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Starting child workflow '{WorkflowType}' from parent '{ParentWorkflowId}'",
                 workflowType,
                 XiansContext.WorkflowId);
@@ -54,7 +54,7 @@ public static class SubWorkflowService
         else
         {
             // Outside a workflow - start as new workflow via client
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Starting workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
@@ -116,7 +116,7 @@ public static class SubWorkflowService
         if (Workflow.InWorkflow)
         {
             // Within a workflow - execute as child workflow
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Executing child workflow '{WorkflowType}' from parent '{ParentWorkflowId}'",
                 workflowType,
                 XiansContext.WorkflowId);
@@ -131,7 +131,7 @@ public static class SubWorkflowService
         else
         {
             // Outside a workflow - execute via client
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Executing workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
@@ -184,7 +184,7 @@ public static class SubWorkflowService
 
         await client.StartWorkflowAsync(workflowType, args, options);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Started workflow via client: WorkflowId='{WorkflowId}', TaskQueue='{TaskQueue}'",
             workflowId,
             taskQueue);
@@ -220,7 +220,7 @@ public static class SubWorkflowService
 
         var result = await client.ExecuteWorkflowAsync<TResult>(workflowType, args, options);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Executed workflow via client: WorkflowId='{WorkflowId}', TaskQueue='{TaskQueue}'",
             workflowId,
             taskQueue);

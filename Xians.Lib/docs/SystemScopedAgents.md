@@ -309,7 +309,7 @@ workflow.OnUserMessage(async (context) =>
 ```csharp
 workflow.OnUserMessage(async (context) =>
 {
-    _logger.LogInformation(
+    _logger.LogDebug(
         "Processing message for tenant {TenantId}, user {UserId}",
         context.Message.TenantId,
         context.Message.ParticipantId

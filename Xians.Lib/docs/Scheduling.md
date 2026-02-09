@@ -562,7 +562,7 @@ public class ContentDiscoveryWorkflow
     [WorkflowRun]
     public async Task RunAsync(string contentUrl, int intervalHours)
     {
-        _logger.LogInformation("Starting content discovery for {Url}", contentUrl);
+        _logger.LogDebug("Starting content discovery for {Url}", contentUrl);
 
         // Process content...
         await ProcessContent(contentUrl);
@@ -579,11 +579,11 @@ public class ContentDiscoveryWorkflow
                 .WithInput(contentUrl, intervalHours)
                 .StartAsync();
             
-            _logger.LogInformation("✅ Recurring schedule created: {ScheduleId}", schedule.Id);
+            _logger.LogDebug("✅ Recurring schedule created: {ScheduleId}", schedule.Id);
         }
         catch (ScheduleAlreadyExistsException ex)
         {
-            _logger.LogInformation("Schedule {ScheduleId} already exists", ex.ScheduleId);
+            _logger.LogDebug("Schedule {ScheduleId} already exists", ex.ScheduleId);
         }
         catch (InvalidScheduleSpecException ex)
         {

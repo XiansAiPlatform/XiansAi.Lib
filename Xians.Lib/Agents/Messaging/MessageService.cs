@@ -53,7 +53,7 @@ internal class MessageService
                       $"&pageSize={fetchSize}" +
                       $"&scope={Uri.EscapeDataString(request.Scope ?? string.Empty)}";
 
-        _logger.LogInformation("Fetching message history from {Endpoint}", endpoint);
+        _logger.LogDebug("Fetching message history from {Endpoint}", endpoint);
 
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -90,13 +90,13 @@ internal class MessageService
             var latestMessage = messages.OrderByDescending(m => m.CreatedAt).First();
             messages = messages.Where(m => m.RequestId != latestMessage.RequestId).ToList();
             
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Message history fetched - (page 1): {Count} messages (dropped latest message)",
                 messages.Count);
         }
         else
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Message history fetched - (page {Page}): {Count} messages",
                 request.Page,
                 messages.Count);
@@ -147,7 +147,7 @@ internal class MessageService
                     request.Text ?? string.Empty, request.Data, request.TenantId, request.Authorization, request.ThreadId, request.Hint ?? string.Empty, request.TaskId, request.Origin, 
                     type, cancellationToken);
                 
-                _logger.LogInformation("Message sent successfully: RequestId={RequestId}, WorkflowId={WorkflowId}", request.RequestId,request.WorkflowId);
+                _logger.LogDebug("Message sent successfully: RequestId={RequestId}, WorkflowId={WorkflowId}", request.RequestId,request.WorkflowId);
                 return;
             }
             catch (RateLimitException ex) when (attempt < maxRetries)
@@ -296,7 +296,7 @@ internal class MessageService
             var rawContent = await response.Content.ReadAsStringAsync(cancellationToken);
             if (string.IsNullOrWhiteSpace(rawContent))
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "No hint available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
                     request.WorkflowType,
                     request.ParticipantId);
@@ -318,7 +318,7 @@ internal class MessageService
             return null;
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Last hint fetched: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Found={Found}",
             request.WorkflowType,
             request.ParticipantId,
@@ -399,7 +399,7 @@ internal class MessageService
 
         var result = await response.Content.ReadAsStringAsync(cancellationToken);
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
             request.TargetWorkflowId,
             request.TargetWorkflowType);

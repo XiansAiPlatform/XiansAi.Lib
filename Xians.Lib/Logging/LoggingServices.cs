@@ -43,12 +43,18 @@ public static class LoggingServices
     private static IHttpClientService? _httpClientService;
     private static readonly string _logApiEndpoint = WorkflowConstants.ApiEndpoints.Logs;
     private static int _batchSize = 100;
-    private static int _processingIntervalMs = 60000; // 60 seconds
+    private static int _processingIntervalMs = 30000; // 30 seconds - how often to upload logs
     
     // Retry tracking to prevent infinite loops
     private static readonly ConcurrentDictionary<string, int> _logRetryCount = new();
     private const int MAX_RETRIES = 3;
+    
+    // Diagnostics
+    private static bool _verboseDiagnostics = false;
 
+    // Track first log enqueued for diagnostics
+    private static bool _firstLogEnqueued = false;
+    
     /// <summary>
     /// Enqueues a log to the global queue for processing.
     /// Only enqueues if LoggingServices has been initialized.
@@ -60,10 +66,24 @@ public static class LoggingServices
         // This prevents logs from accumulating when server logging is disabled
         if (!_isInitialized)
         {
+            if (_verboseDiagnostics)
+            {
+                Console.WriteLine("[LoggingServices] WARNING: Attempted to enqueue log but service not initialized");
+            }
             return;
         }
         
         _globalLogQueue.Enqueue(log);
+        
+        if (!_firstLogEnqueued)
+        {
+            _firstLogEnqueued = true;
+            Console.WriteLine($"[LoggingServices] First log enqueued. Logs will be uploaded every {_processingIntervalMs/1000}s");
+        }
+        else if (_verboseDiagnostics)
+        {
+            Console.WriteLine($"[LoggingServices] Log enqueued. Queue size: {_globalLogQueue.Count}");
+        }
     }
 
     /// <summary>
@@ -78,7 +98,14 @@ public static class LoggingServices
     /// <param name="applicationLifetime">Optional hosting lifetime for shutdown handling.</param>
     public static void Initialize(IHttpClientService httpClientService, IHostApplicationLifetime? applicationLifetime = null)
     {
-        if (_isInitialized) return;
+        if (_isInitialized)
+        {
+            if (_verboseDiagnostics)
+            {
+                Console.WriteLine("[LoggingServices] Already initialized, skipping");
+            }
+            return;
+        }
 
         lock (_initLock)
         {
@@ -96,6 +123,8 @@ public static class LoggingServices
             }
             
             _isInitialized = true;
+            
+            Console.WriteLine($"[LoggingServices] Initialized - Upload interval: {_processingIntervalMs/1000}s, max batch size: {_batchSize}");
         }
     }
 
@@ -142,7 +171,7 @@ public static class LoggingServices
                 IsBackground = true,
                 Name = "LogProcessingThread"
             };
-            Console.WriteLine("Starting server log processing thread...");
+            Console.WriteLine($"[LoggingServices] Starting server log processing thread (interval: {_processingIntervalMs/1000}s, batch size: {_batchSize})...");
             _processingThread.Start();
         }
     }
@@ -173,12 +202,24 @@ public static class LoggingServices
 
     /// <summary>
     /// Processes a batch of logs from the queue.
+    /// Uploads all queued logs (up to batch size) every interval.
     /// </summary>
     private static void ProcessLogBatch()
     {
-        if (_globalLogQueue.IsEmpty) return;
+        if (_globalLogQueue.IsEmpty)
+        {
+            if (_verboseDiagnostics)
+            {
+                Console.WriteLine("[LoggingServices] Queue is empty, no logs to process");
+            }
+            return;
+        }
         
-        if (_httpClientService == null) return;
+        if (_httpClientService == null)
+        {
+            Console.WriteLine("[LoggingServices] WARNING: HTTP client service is null, cannot upload logs");
+            return;
+        }
 
         List<Log> batchToSend = new();
         
@@ -188,7 +229,17 @@ public static class LoggingServices
             batchToSend.Add(log);
         }
         
-        if (batchToSend.Count == 0) return;
+        if (batchToSend.Count == 0)
+        {
+            if (_verboseDiagnostics)
+            {
+                Console.WriteLine("[LoggingServices] No logs dequeued from batch");
+            }
+            return;
+        }
+        
+        // Show upload message
+        Console.WriteLine($"[LoggingServices] Uploading batch of {batchToSend.Count} logs, {_globalLogQueue.Count} remaining in queue");
         
         // Track the upload task instead of fire-and-forget
         var uploadTask = SendLogBatchAsync(batchToSend);
@@ -208,23 +259,33 @@ public static class LoggingServices
     {
         if (_httpClientService == null)
         {
-            Console.Error.WriteLine("HTTP client service is not available, log upload failed");
+            Console.Error.WriteLine("[LoggingServices] ERROR: HTTP client service is not available, log upload failed");
             RequeueLogBatch(logs);
             return;
         }
 
         try
         {
+            if (_verboseDiagnostics)
+            {
+                Console.WriteLine($"[LoggingServices] Uploading {logs.Count} logs to {_logApiEndpoint}");
+            }
+            
             var client = await _httpClientService.GetHealthyClientAsync();
             var response = await client.PostAsync(_logApiEndpoint, JsonContent.Create(logs));
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.Error.WriteLine($"Logger API failed with status {response.StatusCode}");
+                var responseBody = await response.Content.ReadAsStringAsync();
+                Console.Error.WriteLine($"[LoggingServices] ERROR: Logger API failed with status {response.StatusCode}");
+                Console.Error.WriteLine($"[LoggingServices] Response: {responseBody}");
                 RequeueLogBatch(logs);
             }
             else
             {
+                // Always show successful upload (not just in verbose mode)
+                Console.WriteLine($"[LoggingServices] ✓ Successfully uploaded {logs.Count} logs to server");
+                
                 // Successful upload - remove retry tracking for these logs
                 foreach (var log in logs)
                 {
@@ -239,11 +300,15 @@ public static class LoggingServices
         {
             // HTTP client was disposed - this can happen during shutdown
             // Don't requeue as we're shutting down anyway
-            Console.Error.WriteLine("HTTP client disposed, skipping log batch");
+            Console.Error.WriteLine("[LoggingServices] HTTP client disposed, skipping log batch");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Logger exception: {ex.Message}");
+            Console.Error.WriteLine($"[LoggingServices] ERROR: Logger exception: {ex.Message}");
+            if (_verboseDiagnostics)
+            {
+                Console.Error.WriteLine($"[LoggingServices] Stack trace: {ex.StackTrace}");
+            }
             RequeueLogBatch(logs);
         }
     }
@@ -351,8 +416,8 @@ public static class LoggingServices
     /// <summary>
     /// Configures logging batch settings.
     /// </summary>
-    /// <param name="batchSize">Number of logs to send in each batch.</param>
-    /// <param name="processingIntervalMs">Interval in milliseconds between batch processing.</param>
+    /// <param name="batchSize">Maximum number of logs to send in each batch (default: 100).</param>
+    /// <param name="processingIntervalMs">Interval in milliseconds between uploads (default: 30000).</param>
     public static void ConfigureBatchSettings(int batchSize, int processingIntervalMs)
     {
         if (batchSize <= 0)
@@ -363,6 +428,18 @@ public static class LoggingServices
 
         _batchSize = batchSize;
         _processingIntervalMs = processingIntervalMs;
+        
+        Console.WriteLine($"[LoggingServices] Settings updated - Upload interval: {_processingIntervalMs/1000}s, max batch size: {_batchSize}");
+    }
+    
+    /// <summary>
+    /// Enables or disables verbose diagnostic logging.
+    /// </summary>
+    /// <param name="enabled">Whether to enable verbose diagnostics.</param>
+    public static void EnableVerboseDiagnostics(bool enabled = true)
+    {
+        _verboseDiagnostics = enabled;
+        Console.WriteLine($"[LoggingServices] Verbose diagnostics {(enabled ? "enabled" : "disabled")}");
     }
     
     /// <summary>
