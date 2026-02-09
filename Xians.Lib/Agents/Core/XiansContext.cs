@@ -166,9 +166,10 @@ public static class XiansContext
     /// <summary>
     /// Sets the participant ID for the current async execution context.
     /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
     /// <param name="participantId">The participant ID to set for this execution context.</param>
-    public static void SetParticipantId(string participantId)
+    internal static void SetParticipantId(string participantId)
     {
         _asyncLocalParticipantId.Value = participantId;
     }
@@ -176,8 +177,9 @@ public static class XiansContext
     /// <summary>
     /// Clears the participant ID from the current async execution context.
     /// Call this in a finally block to clean up after activity execution.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
-    public static void ClearParticipantId()
+    internal static void ClearParticipantId()
     {
         _asyncLocalParticipantId.Value = null;
     }
@@ -185,9 +187,10 @@ public static class XiansContext
     /// <summary>
     /// Sets the authorization for the current async execution context.
     /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
     /// <param name="authorization">The authorization token to set for this execution context.</param>
-    public static void SetAuthorization(string? authorization)
+    internal static void SetAuthorization(string? authorization)
     {
         _asyncLocalAuthorization.Value = authorization;
     }
@@ -195,8 +198,9 @@ public static class XiansContext
     /// <summary>
     /// Clears the authorization from the current async execution context.
     /// Call this in a finally block to clean up after activity execution.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
-    public static void ClearAuthorization()
+    internal static void ClearAuthorization()
     {
         _asyncLocalAuthorization.Value = null;
     }
@@ -204,9 +208,10 @@ public static class XiansContext
     /// <summary>
     /// Sets the request ID for the current async execution context.
     /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
     /// <param name="requestId">The request ID to set for this execution context.</param>
-    public static void SetRequestId(string requestId)
+    internal static void SetRequestId(string requestId)
     {
         _asyncLocalRequestId.Value = requestId;
     }
@@ -214,8 +219,9 @@ public static class XiansContext
     /// <summary>
     /// Clears the request ID from the current async execution context.
     /// Call this in a finally block to clean up after activity execution.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
-    public static void ClearRequestId()
+    internal static void ClearRequestId()
     {
         _asyncLocalRequestId.Value = null;
     }
@@ -223,9 +229,10 @@ public static class XiansContext
     /// <summary>
     /// Sets the tenant ID for the current async execution context.
     /// This value is isolated per thread/async flow and won't affect other concurrent operations.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
     /// <param name="tenantId">The tenant ID to set for this execution context.</param>
-    public static void SetTenantId(string tenantId)
+    internal static void SetTenantId(string tenantId)
     {
         _asyncLocalTenantId.Value = tenantId;
     }
@@ -233,8 +240,9 @@ public static class XiansContext
     /// <summary>
     /// Clears the tenant ID from the current async execution context.
     /// Call this in a finally block to clean up after activity execution.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
     /// </summary>
-    public static void ClearTenantId()
+    internal static void ClearTenantId()
     {
         _asyncLocalTenantId.Value = null;
     }

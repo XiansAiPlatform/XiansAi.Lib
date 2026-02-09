@@ -24,8 +24,8 @@ public class OrderExtractionWorkflow
             urls);
 
         // Create the schedule if not existing
-        await XiansContext.CurrentWorkflow.Schedules
-            .Create($"custom-schedule")
+        await XiansContext.CurrentAgent.Schedules
+            .Create<OrderExtractionWorkflow>($"custom-schedule")
             .WithIntervalSchedule(TimeSpan.FromSeconds(frequency))
             .WithInput(new object[] { frequency, urls })
             .CreateIfNotExistsAsync();

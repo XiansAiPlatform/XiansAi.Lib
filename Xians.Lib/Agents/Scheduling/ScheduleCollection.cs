@@ -1,12 +1,7 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Activities;
-using Temporalio.Client.Schedules;
-using Temporalio.Workflows;
 using Xians.Lib.Agents.Scheduling.Models;
-using Xians.Lib.Common;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Agents.Scheduling;
 
@@ -17,66 +12,58 @@ namespace Xians.Lib.Agents.Scheduling;
 public class ScheduleCollection
 {
     private readonly XiansAgent _agent;
-    private readonly string _workflowType;
     private readonly ITemporalClientService _temporalService;
     private readonly ILogger<ScheduleCollection> _logger;
 
     internal ScheduleCollection(
         XiansAgent agent,
-        string workflowType,
         ITemporalClientService temporalService)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
-        _workflowType = workflowType ?? throw new ArgumentNullException(nameof(workflowType));
         _temporalService = temporalService ?? throw new ArgumentNullException(nameof(temporalService));
-        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleCollection>();
+        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleCollection>();
     }
 
     /// <summary>
     /// Creates a new schedule with the specified ID.
     /// Returns a builder for configuring the schedule.
     /// </summary>
-    /// <param name="scheduleId">Unique identifier for the schedule.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule. Must be stable across workflow executions.</param>
+    /// <param name="scheduleName">Unique identifier for the schedule.</param>
     /// <returns>A ScheduleBuilder for configuring the schedule.</returns>
-    public ScheduleBuilder Create(string scheduleId, string? idPostfix = null)
+    public ScheduleBuilder Create<TWorkflow>(string scheduleName)
     {
-        if (string.IsNullOrWhiteSpace(scheduleId))
-            throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
-        
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();   
-
-        return new ScheduleBuilder(scheduleId, _workflowType, _agent, idPostfix, _temporalService);
+        var workflowType = WorkflowHelper.GetWorkflowTypeFromClass<TWorkflow>();    
+        return Create(scheduleName, workflowType);
     }
+    public ScheduleBuilder Create(string scheduleName, string workflowType, string? idPostfix = null)
+    {
+        if (string.IsNullOrWhiteSpace(scheduleName) || string.IsNullOrWhiteSpace(workflowType))
+            throw new ArgumentException("Schedule name and workflow type cannot be null or empty", nameof(scheduleName));
+        
+        return new ScheduleBuilder(scheduleName, _agent, workflowType, _temporalService, idPostfix);
+    }
+
+
 
     /// <summary>
     /// Gets an existing schedule by ID.
-    /// </summary>
-    /// <param name="scheduleId">The schedule identifier.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    /// </summary>  
+    /// <param name="scheduleName">The schedule identifier.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public async Task<XiansSchedule> GetAsync(string scheduleId, string? idPostfix = null)
+    public async Task<XiansSchedule> GetAsync(string scheduleName, string? idPostfix = null)
     {
-        if (string.IsNullOrWhiteSpace(scheduleId))
-            throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        if (string.IsNullOrWhiteSpace(scheduleName))
+            throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleName));
         
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();
-
         try
         {
             var client = await _temporalService.GetClientAsync();
-            
-            // Determine tenant ID - ALL schedules must have a tenant
-            string tenantId = _agent.SystemScoped 
-                ? XiansContext.TenantId  // Will throw if not in workflow/activity context
-                : _agent.Options?.CertificateTenantId 
-                    ?? throw new InvalidOperationException(
-                        "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
+            string tenantId = XiansContext.TenantId;
+            idPostfix ??= XiansContext.GetIdPostfix();
             
             // Full schedule ID pattern: tenantId:agentName:idPostfix:scheduleId
-            var fullScheduleId = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, idPostfix, scheduleId);
+            var fullScheduleId = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, idPostfix, scheduleName);
             var handle = client.GetScheduleHandle(fullScheduleId);
             
             // Verify the schedule exists by attempting to describe it
@@ -87,54 +74,39 @@ public class ScheduleCollection
         catch (Temporalio.Exceptions.RpcException ex) when (
             ex.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
         {
-            _logger.LogWarning("Schedule '{ScheduleId}' not found", scheduleId);
-            throw new ScheduleNotFoundException(scheduleId, ex);
+            _logger.LogWarning("Schedule '{ScheduleName}' not found", scheduleName);
+            throw new ScheduleNotFoundException(scheduleName, ex);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get schedule '{ScheduleId}'", scheduleId);
+            _logger.LogError(ex, "Failed to get schedule '{ScheduleName}'", scheduleName);
             throw;
         }
     }
-
-    /// <summary>
-    /// Gets an existing schedule by ID (convenience method).
-    /// </summary>
-    /// <param name="scheduleId">The schedule identifier.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
-    /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public XiansSchedule Get(string scheduleId, string? idPostfix = null)
-    {
-        return GetAsync(scheduleId, idPostfix).GetAwaiter().GetResult();
-    }
-
 
     /// <summary>
     /// Deletes a schedule by ID.
     /// </summary>
-    /// <param name="scheduleId">The schedule identifier to delete.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
-    public async Task DeleteAsync(string scheduleId, string? idPostfix = null)
+    /// <param name="scheduleName">The schedule identifier to delete.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
+    public async Task DeleteAsync(string scheduleName, string? idPostfix = null)
     {
-        if (string.IsNullOrWhiteSpace(scheduleId))
-            throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
-        
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();
+        if (string.IsNullOrWhiteSpace(scheduleName))
+            throw new ArgumentException("Schedule name cannot be null or empty", nameof(scheduleName));
 
         try
         {
-            var schedule = await GetAsync(scheduleId, idPostfix);
+            var schedule = await GetAsync(scheduleName, idPostfix);
             await schedule.DeleteAsync();
         }
         catch (ScheduleNotFoundException)
         {
-            _logger.LogWarning("Schedule '{ScheduleId}' not found for deletion", scheduleId);
+            _logger.LogWarning("Schedule '{scheduleName}' not found for deletion", scheduleName);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete schedule '{ScheduleId}'", scheduleId);
+            _logger.LogError(ex, "Failed to delete schedule '{scheduleName}'", scheduleName);
             throw;
         }
     }
@@ -142,20 +114,17 @@ public class ScheduleCollection
     /// <summary>
     /// Checks if a schedule with the specified ID exists.
     /// </summary>
-    /// <param name="scheduleId">The schedule identifier to check.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    /// <param name="scheduleName">The schedule identifier to check.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
-    public async Task<bool> ExistsAsync(string scheduleId, string? idPostfix = null)
+    public async Task<bool> ExistsAsync(string scheduleName, string? idPostfix = null)
     {
-        if (string.IsNullOrWhiteSpace(scheduleId))
-            throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleId));
+        if (string.IsNullOrWhiteSpace(scheduleName))
+            throw new ArgumentException("Schedule name cannot be null or empty", nameof(scheduleName));
         
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();
-
         try
         {
-            await GetAsync(scheduleId, idPostfix);
+            await GetAsync(scheduleName, idPostfix);
             return true;
         }
         catch (ScheduleNotFoundException)
@@ -167,44 +136,35 @@ public class ScheduleCollection
     /// <summary>
     /// Pauses a schedule by ID.
     /// </summary>
-    /// <param name="scheduleId">The schedule identifier to pause.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    /// <param name="scheduleName">The schedule identifier to pause.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <param name="note">Optional note explaining why the schedule is paused.</param>
-    public async Task PauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
+    public async Task PauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
     {
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();
-            
-        var schedule = await GetAsync(scheduleId, idPostfix);
+        var schedule = await GetAsync(scheduleName, idPostfix);
         await schedule.PauseAsync(note);
     }
 
     /// <summary>
     /// Unpauses a schedule by ID.
     /// </summary>
-    /// <param name="scheduleId">The schedule identifier to unpause.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
+    /// <param name="scheduleName">The schedule identifier to unpause.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <param name="note">Optional note explaining why the schedule is unpaused.</param>
-    public async Task UnpauseAsync(string scheduleId, string? idPostfix = null, string? note = null)
+    public async Task UnpauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
     {
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();
-            
-        var schedule = await GetAsync(scheduleId, idPostfix);
+        var schedule = await GetAsync(scheduleName, idPostfix);
         await schedule.UnpauseAsync(note);
     }
 
     /// <summary>
     /// Triggers an immediate execution of a schedule by ID.
     /// </summary>
-    /// <param name="scheduleId">The schedule identifier to trigger.</param>
-    /// <param name="idPostfix">Optional idPostfix to use. If not provided, uses current workflow context.</param>
-    public async Task TriggerAsync(string scheduleId, string? idPostfix = null)
+    /// <param name="scheduleName">The schedule identifier to trigger.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
+    public async Task TriggerAsync(string scheduleName, string? idPostfix = null)
     {
-        if (idPostfix is null)
-            idPostfix = XiansContext.GetIdPostfix();
-            
-        var schedule = await GetAsync(scheduleId, idPostfix);
+        var schedule = await GetAsync(scheduleName, idPostfix);
         await schedule.TriggerAsync();
     }
 

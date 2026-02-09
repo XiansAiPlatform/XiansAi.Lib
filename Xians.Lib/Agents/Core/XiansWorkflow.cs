@@ -29,14 +29,15 @@ public class XiansWorkflow
         
         if (string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentNullException(nameof(workflowType));
-            var expectedPrefix = agent.Name + ":";
-            if (!workflowType.StartsWith(expectedPrefix))
-            {
-                throw new ArgumentException(
-                    $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
-                    $"Expected format: '{expectedPrefix}WorkflowName'",
-                    nameof(workflowType));
-            }
+        
+        var expectedPrefix = agent.Name + ":";
+        if (!workflowType.StartsWith(expectedPrefix))
+        {
+            throw new ArgumentException(
+                $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +
+                $"Expected format: '{expectedPrefix}WorkflowName'",
+                nameof(workflowType));
+        }
         _agent = agent;
         WorkflowType = workflowType;
         Name = name;
@@ -45,7 +46,7 @@ public class XiansWorkflow
         _isBuiltIn = isBuiltIn;
         _workflowClassType = workflowClassType;
         _activable = options.Activable;
-        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
+        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<XiansWorkflow>();
 
         // Register workflow options for built-in workflows
         if (_isBuiltIn)
@@ -58,8 +59,6 @@ public class XiansWorkflow
         {
             throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules.");
         }
-
-        Schedules = new ScheduleCollection(_agent, WorkflowType, _agent.TemporalService ?? throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules."));
 
         // Register this workflow in XiansContext so it can be accessed via CurrentWorkflow
         XiansContext.RegisterWorkflow(workflowType, this);
@@ -89,11 +88,6 @@ public class XiansWorkflow
     /// Gets whether this workflow is activable.
     /// </summary>
     public bool Activable => _activable;
-
-    /// <summary>
-    /// Gets the schedule collection for managing scheduled executions of this workflow.
-    /// </summary>
-    public ScheduleCollection Schedules { get; private set; }
 
     /// <summary>
     /// Gets the task queue name for this workflow.
