@@ -322,7 +322,7 @@ public class WorkflowHelper
     /// <summary>
     /// Extracts the workflow type from a workflow class using the WorkflowAttribute.
     /// </summary>
-    private static string GetWorkflowTypeFromClass<TWorkflow>()
+    public static string GetWorkflowTypeFromClass<TWorkflow>()
     {
         var workflowAttr = typeof(TWorkflow).GetCustomAttribute<WorkflowAttribute>();
         if (workflowAttr?.Name == null)

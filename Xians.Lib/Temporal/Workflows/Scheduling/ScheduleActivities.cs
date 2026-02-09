@@ -2,8 +2,6 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Temporalio.Common;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Scheduling;
-using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Temporal.Workflows.Scheduling.Models;
 
 namespace Xians.Lib.Temporal.Workflows.Scheduling;
@@ -18,16 +16,16 @@ public class ScheduleActivities
 
     public ScheduleActivities()
     {
-        _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleActivities>();
+        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleActivities>();
     }
 
     /// <summary>
     /// Gets the workflow for the current activity execution context.
     /// Uses XiansContext which maintains the central workflow registry.
     /// </summary>
-    private XiansWorkflow GetCurrentWorkflow()
+    private XiansAgent GetCurrentAgent()
     {
-        return XiansContext.CurrentWorkflow;
+        return XiansContext.CurrentAgent;
     }
 
     /// <summary>
@@ -38,11 +36,11 @@ public class ScheduleActivities
     [Activity]
     public async Task<bool> CreateScheduleIfNotExists(CreateCronScheduleRequest request)
     {
-        var workflow = GetCurrentWorkflow();
+        var agent = GetCurrentAgent();
 
         try
         {
-            if (await workflow.Schedules!.ExistsAsync(request.ScheduleName, request.IdPostfix))
+            if (await agent.Schedules!.ExistsAsync(request.ScheduleName))
             {
                 _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -51,8 +49,8 @@ public class ScheduleActivities
             _logger.LogDebug("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleName);
 
             // Reconstruct search attributes from serializable format
-            var builder = workflow.Schedules
-                .Create(request.ScheduleName, request.IdPostfix)
+            var builder = agent.Schedules
+                .Create(request.ScheduleName, request.WorkflowType, request.IdPostfix)
                 .WithCronSchedule(request.CronExpression, request.Timezone)
                 .WithInput(request.WorkflowInput);
 
@@ -86,21 +84,21 @@ public class ScheduleActivities
     [Activity]
     public async Task<bool> CreateIntervalScheduleIfNotExists(CreateIntervalScheduleRequest request)
     {
-        var workflow = GetCurrentWorkflow();
+        var agent = GetCurrentAgent();
 
         try
         {
-            if (await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix))
+            if (await agent.Schedules.ExistsAsync(request.ScheduleName))
             {
-                _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleId);
+                _logger.LogDebug("Schedule '{ScheduleName}' already exists, skipping creation", request.ScheduleName);
                 return false;
             }
 
-            _logger.LogDebug("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
+            _logger.LogDebug("Schedule '{ScheduleName}' does not exist, creating it", request.ScheduleName);
 
             // Reconstruct search attributes from serializable format
-            var builder = workflow.Schedules!
-                .Create(request.ScheduleId, request.IdPostfix)
+            var builder = agent.Schedules
+                .Create(request.ScheduleName, request.WorkflowType)
                 .WithIntervalSchedule(request.Interval)
                 .WithInput(request.WorkflowInput);
 
@@ -114,14 +112,14 @@ public class ScheduleActivities
             await builder.CreateIfNotExistsAsync();
 
             _logger.LogDebug(
-                "✅ Successfully created interval schedule '{ScheduleId}' with interval '{Interval}'",
-                request.ScheduleId, request.Interval);
+                "Successfully created interval schedule '{ScheduleName}' with interval '{Interval}'",
+                request.ScheduleName, request.Interval);
 
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create interval schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogError(ex, "Failed to create interval schedule '{ScheduleName}'", request.ScheduleName);
             throw;
         }
     }
@@ -129,13 +127,13 @@ public class ScheduleActivities
     /// <summary>
     /// Checks if a schedule exists using the Xians Schedule SDK.
     /// </summary>
-    /// <param name="request">The schedule exists request containing the schedule ID and idPostfix.</param>
+    /// <param name="request">The schedule exists request containing the schedule name.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
     [Activity]
     public async Task<bool> ScheduleExists(ScheduleExistsRequest request)
     {
-        var workflow = GetCurrentWorkflow();
-        return await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix);
+        var agent = GetCurrentAgent();
+        return await agent.Schedules.ExistsAsync(request.ScheduleName, request.IdPostfix);
     }
 
     /// <summary>
@@ -146,22 +144,22 @@ public class ScheduleActivities
     [Activity]
     public async Task<bool> DeleteSchedule(DeleteScheduleRequest request)
     {
-        var workflow = GetCurrentWorkflow();
+        var agent = GetCurrentAgent();
 
         try
         {
-            await workflow.Schedules!.DeleteAsync(request.ScheduleId, request.IdPostfix);
-            _logger.LogDebug("✅ Successfully deleted schedule '{ScheduleId}'", request.ScheduleId);
+            await agent.Schedules.DeleteAsync(request.ScheduleName, request.IdPostfix);
+            _logger.LogDebug("Successfully deleted schedule '{ScheduleName}'", request.ScheduleName);
             return true;
         }
         catch (Xians.Lib.Agents.Scheduling.Models.ScheduleNotFoundException)
         {
-            _logger.LogWarning("⚠️ Schedule '{ScheduleId}' not found for deletion", request.ScheduleId);
+            _logger.LogWarning("Schedule '{ScheduleName}' not found for deletion", request.ScheduleName);
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogError(ex, "Failed to delete schedule '{ScheduleName}'", request.ScheduleName);
             throw;
         }
     }
@@ -173,16 +171,16 @@ public class ScheduleActivities
     [Activity]
     public async Task PauseSchedule(PauseScheduleRequest request)
     {
-        var workflow = GetCurrentWorkflow();
+        var agent = GetCurrentAgent();
 
         try
         {
-            await workflow.Schedules!.PauseAsync(request.ScheduleId, request.IdPostfix, request.Note);
-            _logger.LogDebug("⏸️ Successfully paused schedule '{ScheduleId}'", request.ScheduleId);
+            await agent.Schedules.PauseAsync(request.ScheduleName, request.IdPostfix, request.Note);
+            _logger.LogDebug("Successfully paused schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to pause schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogError(ex, "Failed to pause schedule '{ScheduleName}'", request.ScheduleName);
             throw;
         }
     }
@@ -194,16 +192,16 @@ public class ScheduleActivities
     [Activity]
     public async Task ResumeSchedule(ResumeScheduleRequest request)
     {
-        var workflow = GetCurrentWorkflow();
+        var agent = GetCurrentAgent();
 
         try
         {
-            await workflow.Schedules!.UnpauseAsync(request.ScheduleId, request.IdPostfix, request.Note);
-            _logger.LogDebug("▶️ Successfully resumed schedule '{ScheduleId}'", request.ScheduleId);
+            await agent.Schedules.UnpauseAsync(request.ScheduleName, request.IdPostfix, request.Note);
+            _logger.LogDebug("Successfully resumed schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resume schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogError(ex, "Failed to resume schedule '{ScheduleName}'", request.ScheduleName);
             throw;
         }
     }
@@ -215,16 +213,16 @@ public class ScheduleActivities
     [Activity]
     public async Task TriggerSchedule(TriggerScheduleRequest request)
     {
-        var workflow = GetCurrentWorkflow();
+        var agent = GetCurrentAgent();
 
         try
         {
-            await workflow.Schedules!.TriggerAsync(request.ScheduleId, request.IdPostfix);
-            _logger.LogDebug("🚀 Successfully triggered schedule '{ScheduleId}'", request.ScheduleId);
+            await agent.Schedules.TriggerAsync(request.ScheduleName, request.IdPostfix);
+            _logger.LogDebug("Successfully triggered schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to trigger schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogError(ex, "Failed to trigger schedule '{ScheduleName}'", request.ScheduleName);
             throw;
         }
     }

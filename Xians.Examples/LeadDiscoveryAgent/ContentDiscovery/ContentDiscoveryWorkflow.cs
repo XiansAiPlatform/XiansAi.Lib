@@ -177,16 +177,11 @@ public class ContentDiscoveryWorkflow
     private async Task EnsureScheduleExists()
     {
         // CreateIfNotExistsAsync is idempotent - no try-catch needed
-        var schedule = await XiansContext.CurrentWorkflow.Schedules!
-            .Create($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
+        var schedule = await XiansContext.CurrentAgent.Schedules
+            .Create<ContentDiscoveryWorkflow>($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
             .WithIntervalSchedule(TimeSpan.FromHours(_intervalHours))
             .WithInput(new object[] { _contentSiteURL, _intervalHours, _reportingUserID })
-            .CreateIfNotExistsAsync();
-
-        _logger.LogInformation(
-            "Schedule '{ScheduleId}' ensured - will run every {IntervalHours} hours",
-            schedule.Id,
-            _intervalHours);
+            .CreateIfNotExistsAsync();   
     }
 }
 

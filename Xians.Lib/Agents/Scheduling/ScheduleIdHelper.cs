@@ -11,10 +11,15 @@ internal static class ScheduleIdHelper
     /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="agentName">The agent name.</param>
     /// <param name="idPostfix">The ID postfix.</param>
-    /// <param name="scheduleId">The schedule identifier.</param>
+    /// <param name="scheduleName">The schedule identifier.</param>
     /// <returns>The fully qualified schedule ID.</returns>
-    public static string BuildFullScheduleId(string tenantId, string agentName, string idPostfix, string scheduleId)
+    public static string BuildFullScheduleId(string tenantId, string agentName, string idPostfix, string scheduleName)
     {
-        return $"{tenantId}:{agentName}:{idPostfix}:{scheduleId}";
+        return $"{tenantId}:{agentName}:{idPostfix}:{scheduleName}";
+    }
+
+    public static string BuildFullWorkflowId(string tenantId, string workflowType, string idPostfix)
+    {
+        return $"{tenantId}:{workflowType}:{idPostfix}";
     }
 }

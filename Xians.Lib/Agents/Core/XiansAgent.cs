@@ -7,6 +7,7 @@ using Xians.Lib.Agents.Documents;
 using Xians.Lib.Agents.Tasks;
 using Xians.Lib.Agents.Metrics;
 using Xians.Lib.Logging;
+using Xians.Lib.Agents.Scheduling;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -15,6 +16,11 @@ namespace Xians.Lib.Agents.Core;
 /// </summary>
 public class XiansAgent
 {
+    /// <summary>
+    /// Gets the schedule collection for managing scheduled executions of this workflow.
+    /// </summary>
+    public ScheduleCollection Schedules { get; private set; }
+        
     /// <summary>
     /// Gets the workflows collection for managing agent workflows.
     /// </summary>
@@ -108,7 +114,8 @@ public class XiansAgent
         Documents = new DocumentCollection(this, httpService);
         Tasks = new TaskCollection(this);
         Metrics = new MetricsCollection(this);
-        
+        Schedules = new ScheduleCollection(this, TemporalService ?? throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules."));
+
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);
     }
