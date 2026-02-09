@@ -265,10 +265,14 @@ internal class SemanticRouterHubImpl : IDisposable
         var builder = ConfigureKernelBuilder(options);
 
         // Configure logging
-        builder.Services.AddLogging(configure => 
+        builder.Services.AddLogging(configure =>
         {
             configure.AddConsole();
             configure.SetMinimumLevel(LogLevel.Information);
+
+            // Add any additional logger providers registered by consumers
+            foreach (var provider in Globals.AdditionalLoggerProviders)
+                configure.AddProvider(provider);
         });
 
         // To avoid infinite loops, we need to add the termination filter as a scoped service.
