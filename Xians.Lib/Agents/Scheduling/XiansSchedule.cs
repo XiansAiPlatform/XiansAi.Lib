@@ -51,7 +51,7 @@ public class XiansSchedule
         try
         {
             await _handle.PauseAsync(note);
-            _logger.LogInformation("Schedule '{ScheduleId}' paused. Note: {Note}", Id, note ?? "None");
+            _logger.LogDebug("Schedule '{ScheduleId}' paused. Note: {Note}", Id, note ?? "None");
         }
         catch (Exception ex)
         {
@@ -69,7 +69,7 @@ public class XiansSchedule
         try
         {
             await _handle.UnpauseAsync(note);
-            _logger.LogInformation("Schedule '{ScheduleId}' unpaused. Note: {Note}", Id, note ?? "None");
+            _logger.LogDebug("Schedule '{ScheduleId}' unpaused. Note: {Note}", Id, note ?? "None");
         }
         catch (Exception ex)
         {
@@ -86,7 +86,7 @@ public class XiansSchedule
         try
         {
             await _handle.TriggerAsync();
-            _logger.LogInformation("Schedule '{ScheduleId}' triggered manually", Id);
+            _logger.LogDebug("Schedule '{ScheduleId}' triggered manually", Id);
         }
         catch (Exception ex)
         {
@@ -104,7 +104,7 @@ public class XiansSchedule
         try
         {
             await _handle.UpdateAsync(updater);
-            _logger.LogInformation("Schedule '{ScheduleId}' updated successfully", Id);
+            _logger.LogDebug("Schedule '{ScheduleId}' updated successfully", Id);
         }
         catch (Exception ex)
         {
@@ -121,7 +121,7 @@ public class XiansSchedule
         try
         {
             await _handle.DeleteAsync();
-            _logger.LogInformation("Schedule '{ScheduleId}' deleted successfully", Id);
+            _logger.LogDebug("Schedule '{ScheduleId}' deleted successfully", Id);
         }
         catch (Exception ex)
         {
@@ -139,7 +139,7 @@ public class XiansSchedule
         try
         {
             await _handle.BackfillAsync(backfills);
-            _logger.LogInformation("Schedule '{ScheduleId}' backfilled for {Count} time ranges", Id, backfills.Count);
+            _logger.LogDebug("Schedule '{ScheduleId}' backfilled for {Count} time ranges", Id, backfills.Count);
         }
         catch (Exception ex)
         {

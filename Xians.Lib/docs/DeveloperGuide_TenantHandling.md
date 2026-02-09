@@ -362,7 +362,7 @@ workflow.OnUserMessage(async (context) =>
 workflow.OnUserMessage(async (context) =>
 {
     // Include tenant ID in all logs
-    _logger.LogInformation(
+    _logger.LogDebug(
         "Processing request for tenant {TenantId}, user {UserId}, request {RequestId}",
         context.Message.TenantId,
         context.Message.ParticipantId,
@@ -823,7 +823,7 @@ public class MultiTenantSaasAgent
     
     private async Task HandleNotification(UserMessageContext context)
     {
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Processing notification for tenant {TenantId}",
             context.Message.TenantId
         );
@@ -856,7 +856,7 @@ public class MultiTenantSaasAgent
     
     private async Task HandleCustomerSupport(UserMessageContext context)
     {
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Processing support request for tenant {TenantId}, user {UserId}",
             context.Message.TenantId,
             context.Message.ParticipantId

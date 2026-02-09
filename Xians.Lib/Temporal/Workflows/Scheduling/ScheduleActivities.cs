@@ -44,11 +44,11 @@ public class ScheduleActivities
         {
             if (await workflow.Schedules!.ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
-                _logger.LogInformation("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
+                _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
                 return false;
             }
 
-            _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleName);
+            _logger.LogDebug("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleName);
 
             // Reconstruct search attributes from serializable format
             var builder = workflow.Schedules
@@ -65,7 +65,7 @@ public class ScheduleActivities
 
             await builder.CreateIfNotExistsAsync();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "✅ Successfully created schedule '{ScheduleId}' with cron '{CronExpression}'",
                 request.ScheduleName, request.CronExpression);
 
@@ -92,11 +92,11 @@ public class ScheduleActivities
         {
             if (await workflow.Schedules!.ExistsAsync(request.ScheduleId, request.IdPostfix))
             {
-                _logger.LogInformation("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleId);
+                _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleId);
                 return false;
             }
 
-            _logger.LogInformation("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
+            _logger.LogDebug("Schedule '{ScheduleId}' does not exist, creating it", request.ScheduleId);
 
             // Reconstruct search attributes from serializable format
             var builder = workflow.Schedules!
@@ -113,7 +113,7 @@ public class ScheduleActivities
 
             await builder.CreateIfNotExistsAsync();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "✅ Successfully created interval schedule '{ScheduleId}' with interval '{Interval}'",
                 request.ScheduleId, request.Interval);
 
@@ -151,7 +151,7 @@ public class ScheduleActivities
         try
         {
             await workflow.Schedules!.DeleteAsync(request.ScheduleId, request.IdPostfix);
-            _logger.LogInformation("✅ Successfully deleted schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogDebug("✅ Successfully deleted schedule '{ScheduleId}'", request.ScheduleId);
             return true;
         }
         catch (Xians.Lib.Agents.Scheduling.Models.ScheduleNotFoundException)
@@ -178,7 +178,7 @@ public class ScheduleActivities
         try
         {
             await workflow.Schedules!.PauseAsync(request.ScheduleId, request.IdPostfix, request.Note);
-            _logger.LogInformation("⏸️ Successfully paused schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogDebug("⏸️ Successfully paused schedule '{ScheduleId}'", request.ScheduleId);
         }
         catch (Exception ex)
         {
@@ -199,7 +199,7 @@ public class ScheduleActivities
         try
         {
             await workflow.Schedules!.UnpauseAsync(request.ScheduleId, request.IdPostfix, request.Note);
-            _logger.LogInformation("▶️ Successfully resumed schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogDebug("▶️ Successfully resumed schedule '{ScheduleId}'", request.ScheduleId);
         }
         catch (Exception ex)
         {
@@ -220,7 +220,7 @@ public class ScheduleActivities
         try
         {
             await workflow.Schedules!.TriggerAsync(request.ScheduleId, request.IdPostfix);
-            _logger.LogInformation("🚀 Successfully triggered schedule '{ScheduleId}'", request.ScheduleId);
+            _logger.LogDebug("🚀 Successfully triggered schedule '{ScheduleId}'", request.ScheduleId);
         }
         catch (Exception ex)
         {

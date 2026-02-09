@@ -81,7 +81,7 @@ internal class DocumentService
             throw new InvalidOperationException("Failed to deserialize saved document");
         }
 
-        _logger.LogInformation("Document saved successfully with ID: {Id}", savedDocument.Id);
+        _logger.LogDebug("Document saved successfully with ID: {Id}", savedDocument.Id);
         return savedDocument;
     }
 
@@ -132,7 +132,7 @@ internal class DocumentService
         }
         
         var document = await response.Content.ReadFromJsonAsync<Document>();
-        _logger.LogInformation("Document retrieved successfully with ID: {Id}", request.Id);
+        _logger.LogDebug("Document retrieved successfully with ID: {Id}", request.Id);
         return document;
     }
 
@@ -178,7 +178,7 @@ internal class DocumentService
         }
         
         var document = await response.Content.ReadFromJsonAsync<Document>();
-        _logger.LogInformation("Document retrieved successfully with Type: {Type} and Key: {Key}", type, key);
+        _logger.LogDebug("Document retrieved successfully with Type: {Type} and Key: {Key}", type, key);
         return document;
     }
 
@@ -218,7 +218,7 @@ internal class DocumentService
 
         var documents = await response.Content.ReadFromJsonAsync<List<Document>>();
         
-        _logger.LogInformation("Query returned {Count} documents", documents?.Count ?? 0);
+        _logger.LogDebug("Query returned {Count} documents", documents?.Count ?? 0);
         return documents ?? new List<Document>();
     }
 
@@ -273,7 +273,7 @@ internal class DocumentService
                 $"Failed to update document. Status: {response.StatusCode}");
         }
 
-        _logger.LogInformation("Document updated successfully with ID: {Id}", request.Document.Id);
+        _logger.LogDebug("Document updated successfully with ID: {Id}", request.Document.Id);
         return true;
     }
 
@@ -323,7 +323,7 @@ internal class DocumentService
                 $"Failed to delete document. Status: {response.StatusCode}");
         }
 
-        _logger.LogInformation("Document deleted successfully with ID: {Id}", request.Id);
+        _logger.LogDebug("Document deleted successfully with ID: {Id}", request.Id);
         return true;
     }
 
@@ -364,7 +364,7 @@ internal class DocumentService
         var result = await response.Content.ReadFromJsonAsync<BulkDeleteResult>();
         var deletedCount = result?.DeletedCount ?? 0;
         
-        _logger.LogInformation("Deleted {DeletedCount} out of {RequestedCount} documents", 
+        _logger.LogDebug("Deleted {DeletedCount} out of {RequestedCount} documents", 
             deletedCount, idList.Count);
         return deletedCount;
     }

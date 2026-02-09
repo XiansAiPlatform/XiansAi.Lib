@@ -159,7 +159,7 @@ public class DocumentCollection
         // Shared business logic: Ensure AgentId and WorkflowId are set
         PrepareDocumentForSave(document);
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Updating document '{Id}' for agent '{AgentName}'",
             document.Id,
             _agent.Name);
@@ -178,7 +178,7 @@ public class DocumentCollection
     {
         var tenantId = GetTenantId();
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Deleting document '{Id}' for agent '{AgentName}'",
             id,
             _agent.Name);
@@ -208,7 +208,7 @@ public class DocumentCollection
     {
         var idList = ids.ToList();
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Deleting {Count} documents for agent '{AgentName}'",
             idList.Count,
             _agent.Name);

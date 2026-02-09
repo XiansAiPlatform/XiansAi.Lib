@@ -42,7 +42,7 @@ public class HttpClientService : IHttpClientService
         {
             CreateClient();
             _isInitialized = true;
-            _logger.LogInformation("Setting up HTTP client service for {ServerUrl}", _config.ServerUrl);
+            _logger.LogDebug("Setting up HTTP client service for {ServerUrl}", _config.ServerUrl);
         }
         catch (Exception ex)
         {
@@ -99,7 +99,7 @@ public class HttpClientService : IHttpClientService
             await RecreateClientWithRetryAsync();
             _isInitialized = true;
             _connectionHealth.MarkHealthy();
-            _logger.LogInformation("HTTP client recreated successfully after connection recovery");
+            _logger.LogDebug("HTTP client recreated successfully after connection recovery");
             return _client!;
         }
         catch (Exception ex)
@@ -174,7 +174,7 @@ public class HttpClientService : IHttpClientService
         await _semaphore.WaitAsync();
         try
         {
-            _logger.LogInformation("Forcing HTTP client reconnection");
+            _logger.LogDebug("Forcing HTTP client reconnection");
             _client?.Dispose();
             _client = null;
             _isInitialized = false;
@@ -190,7 +190,7 @@ public class HttpClientService : IHttpClientService
     {
         await _retryPolicy.ExecuteAsync(() =>
         {
-            _logger.LogInformation("Attempting to recreate HTTP client");
+            _logger.LogDebug("Attempting to recreate HTTP client");
 
             // Dispose old resources before recreating
             _client?.Dispose();
@@ -202,7 +202,7 @@ public class HttpClientService : IHttpClientService
             // Recreate client
             CreateClient();
             
-            _logger.LogInformation("HTTP client recreation succeeded");
+            _logger.LogDebug("HTTP client recreation succeeded");
             return Task.CompletedTask;
         });
     }
@@ -246,7 +246,7 @@ public class HttpClientService : IHttpClientService
                 
                 _semaphore?.Dispose();
                 
-                _logger.LogInformation("HTTP client service disposed successfully");
+                _logger.LogDebug("HTTP client service disposed successfully");
             }
             catch (Exception ex)
             {

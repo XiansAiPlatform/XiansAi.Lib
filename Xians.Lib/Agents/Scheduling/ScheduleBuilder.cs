@@ -295,7 +295,7 @@ public class ScheduleBuilder
             await handle.DeleteAsync();
             
             var logger = Workflow.InWorkflow ? Workflow.Logger : _logger;
-            logger.LogInformation("🗑️ Deleted existing schedule '{ScheduleId}' for recreation", _scheduleId);
+            logger.LogDebug("🗑️ Deleted existing schedule '{ScheduleId}' for recreation", _scheduleId);
         }
         catch (Temporalio.Exceptions.RpcException ex) when (
             ex.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
@@ -547,7 +547,7 @@ public class ScheduleBuilder
                     await existingHandle.DescribeAsync();
                     
                     // Schedule exists, return it
-                    logger.LogInformation("ℹ️ Schedule '{ScheduleId}' already exists, returning existing schedule", _scheduleId);
+                    logger.LogDebug("ℹ️ Schedule '{ScheduleId}' already exists, returning existing schedule", _scheduleId);
                     return new XiansSchedule(existingHandle);
                 }
                 catch (Temporalio.Exceptions.RpcException ex) when (
@@ -589,7 +589,7 @@ public class ScheduleBuilder
                 State = _scheduleState ?? new ScheduleState()
             };
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "Creating schedule '{ScheduleId}' for workflow '{WorkflowType}' on task queue '{TaskQueue}'",
                 fullScheduleId, _workflowType, taskQueue);
 
@@ -603,7 +603,7 @@ public class ScheduleBuilder
                     TypedSearchAttributes: searchAttributes);
             });
 
-            logger.LogInformation(
+            logger.LogDebug(
                 "✅ Schedule '{ScheduleId}' created successfully. Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
                 fullScheduleId, _agent.Name, _agent.SystemScoped, tenantId);
 

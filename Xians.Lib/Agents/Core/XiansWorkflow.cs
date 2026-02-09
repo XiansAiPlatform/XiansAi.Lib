@@ -331,7 +331,7 @@ public class XiansWorkflow
 
         try
         {
-            _logger.LogInformation("✓ Worker listening on queue '{TaskQueue}' (max concurrent: {MaxConcurrent})", 
+            _logger.LogDebug("✓ Worker listening on queue '{TaskQueue}' (max concurrent: {MaxConcurrent})", 
                 taskQueue, Workers);
 
             // Run the worker until cancellation

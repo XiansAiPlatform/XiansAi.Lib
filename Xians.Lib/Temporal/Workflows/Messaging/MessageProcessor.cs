@@ -168,7 +168,7 @@ internal static class MessageProcessor
         }
 
         // All validations passed - process message and send responses via activity
-        logger.LogInformation(
+        logger.LogDebug(
             "Processing {MessageType} via activity: WorkflowType={WorkflowType}, Agent={Agent}, Tenant={Tenant}, SystemScoped={SystemScoped}",
             messageType,
             workflowType,
@@ -197,7 +197,7 @@ internal static class MessageProcessor
             (MessageActivities act) => act.ProcessAndSendMessageAsync(activityRequest),
             MessageActivityOptions.GetStandardOptions());
 
-        logger.LogInformation(
+        logger.LogDebug(
             "{MessageType} processed and responses sent: RequestId={RequestId}",
             messageType,
             message.Payload.RequestId);

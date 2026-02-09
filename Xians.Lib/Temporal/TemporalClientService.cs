@@ -62,7 +62,7 @@ public class TemporalClientService : ITemporalClientService
             _client = await _retryPolicy.ExecuteAsync(() => _clientFactory.CreateClientAsync());
             _isInitialized = true;
             
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Temporal client connection established to namespace '{Namespace}' successfully", 
                 _client.Options.Namespace);
             
@@ -122,7 +122,7 @@ public class TemporalClientService : ITemporalClientService
         await _semaphore.WaitAsync();
         try
         {
-            _logger.LogInformation("Forcing Temporal client reconnection");
+            _logger.LogDebug("Forcing Temporal client reconnection");
             _client = null;
             _isInitialized = false;
         }
@@ -147,7 +147,7 @@ public class TemporalClientService : ITemporalClientService
             {
                 if (_client != null && !_disposed)
                 {
-                    _logger.LogInformation("Disconnecting from Temporal server");
+                    _logger.LogDebug("Disconnecting from Temporal server");
                     _client = null;
                     _isInitialized = false;
                 }
@@ -202,7 +202,7 @@ public class TemporalClientService : ITemporalClientService
                 _logger.LogWarning(ex, "Error disposing semaphore");
             }
             
-            _logger.LogInformation("Temporal client service disposed successfully");
+            _logger.LogDebug("Temporal client service disposed successfully");
         }
 
         _disposed = true;

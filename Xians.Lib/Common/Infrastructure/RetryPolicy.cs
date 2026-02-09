@@ -42,7 +42,7 @@ public class RetryPolicy
                 if (attempt > 1)
                 {
                     var delay = CalculateBackoffDelay(attempt);
-                    _logger?.LogInformation(
+                    _logger?.LogDebug(
                         "Retrying operation (attempt {Attempt}/{MaxAttempts}) after {Delay}ms", 
                         attempt, _maxRetryAttempts, delay.TotalMilliseconds);
                     await Task.Delay(delay);
@@ -52,7 +52,7 @@ public class RetryPolicy
                 
                 if (attempt > 1)
                 {
-                    _logger?.LogInformation("Operation succeeded on attempt {Attempt}", attempt);
+                    _logger?.LogDebug("Operation succeeded on attempt {Attempt}", attempt);
                 }
                 
                 return result;

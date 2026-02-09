@@ -88,7 +88,7 @@ public class HitlTask
     /// </summary>
     public async Task UpdateDraftAsync(string updatedDraft)
     {
-        _logger.LogInformation("Updating draft for task: TaskId={TaskId}", _taskId);
+        _logger.LogDebug("Updating draft for task: TaskId={TaskId}", _taskId);
         await TaskWorkflowService.SignalUpdateDraftAsync(_client, _agentName, _tenantId, _taskId, updatedDraft);
     }
 
@@ -97,7 +97,7 @@ public class HitlTask
     /// </summary>
     public async Task PerformActionAsync(string action, string? comment = null)
     {
-        _logger.LogInformation("Performing action on task: TaskId={TaskId}, Action={Action}", _taskId, action);
+        _logger.LogDebug("Performing action on task: TaskId={TaskId}, Action={Action}", _taskId, action);
         await TaskWorkflowService.SignalPerformActionAsync(_client, _agentName, _tenantId, _taskId, action, comment);
     }
 

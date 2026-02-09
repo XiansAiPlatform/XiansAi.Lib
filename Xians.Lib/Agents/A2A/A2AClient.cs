@@ -175,7 +175,7 @@ public class A2AClient
             var executor = new A2AActivityExecutor(_targetWorkflow, _logger);
             var response = await executor.ProcessA2AMessageAsync(activityRequest);
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "A2A response received from {TargetWorkflow}",
                 _targetWorkflow.WorkflowType);
 

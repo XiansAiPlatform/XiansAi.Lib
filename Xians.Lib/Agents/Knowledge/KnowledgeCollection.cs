@@ -44,7 +44,7 @@ public class KnowledgeCollection
         var tenantId = GetTenantId();
         var idPostfix = XiansContext.TryGetIdPostfix();
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Getting knowledge '{Name}' for agent '{AgentName}' with tenantId '{TenantId}' and idPostfix '{IdPostfix}'",
             knowledgeName,
             _agent.Name,
@@ -114,7 +114,7 @@ public class KnowledgeCollection
         // If systemScoped is not explicitly set, use the agent's SystemScoped setting
         var isSystemScoped = systemScoped ?? _agent.SystemScoped;
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Updating knowledge '{Name}' for agent '{AgentName}', type '{Type}', systemScoped '{SystemScoped}'",
             knowledgeName,
             _agent.Name,
@@ -169,7 +169,7 @@ public class KnowledgeCollection
         var tenantId = GetTenantId();
         var idPostfix = XiansContext.TryGetIdPostfix();
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Deleting knowledge '{Name}' for agent '{AgentName}'",
             knowledgeName,
             _agent.Name);

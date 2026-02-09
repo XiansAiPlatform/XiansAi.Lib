@@ -122,7 +122,7 @@ public class A2AContextOperations
         // Execute the history fetch via activity executor to respect workflow/activity context
         var history = await historyExecutor.GetHistoryAsync(historyRequest);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Fetched {HistoryCount} messages for supervisor chat with history",
             history.Count);
 

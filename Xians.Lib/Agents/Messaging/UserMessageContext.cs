@@ -124,7 +124,7 @@ public class UserMessageContext
     {
         
         Console.WriteLine($"***** Fetching chat history: WorkflowId={_cachedWorkflowId}, ParticipantId={Message.ParticipantId}, Page={page}, PageSize={pageSize}, Tenant={Message.TenantId}");
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Fetching chat history: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
             _cachedWorkflowId,
             Message.ParticipantId,
@@ -142,7 +142,7 @@ public class UserMessageContext
         }
         var messages = await _executor.GetHistoryAsync(request);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Chat history retrieved: {Count} messages, Tenant={Tenant}",
             messages.Count,
             Message.TenantId);
@@ -160,7 +160,7 @@ public class UserMessageContext
     {
         var workflowType = XiansContext.WorkflowType;
         
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Fetching last hint: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
             workflowType,
             Message.ParticipantId,
@@ -176,7 +176,7 @@ public class UserMessageContext
         }
         var hint = await _executor.GetLastHintAsync(request);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Last hint retrieved: Found={Found}, Tenant={Tenant}",
             hint != null,
             Message.TenantId);
@@ -243,7 +243,7 @@ public class UserMessageContext
         }
         await _executor.SendMessageAsync(request);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Message sent successfully: ParticipantId={ParticipantId}, RequestId={RequestId}",
             Message.ParticipantId,
             Message.RequestId);
@@ -267,7 +267,7 @@ public class UserMessageContext
             throw new InvalidOperationException("Message text is required for handoff");
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Preparing to send handoff: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}, Tenant={Tenant}",
             targetWorkflowId,
             targetWorkflowType,
@@ -283,7 +283,7 @@ public class UserMessageContext
         }
         var result = await _executor.SendHandoffAsync(request);
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
             targetWorkflowId,
             targetWorkflowType);

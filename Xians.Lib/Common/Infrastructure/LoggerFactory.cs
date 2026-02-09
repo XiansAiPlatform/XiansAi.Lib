@@ -67,12 +67,22 @@ public static class LoggerFactory
     }
 
     /// <summary>
-    /// Creates a default logger factory with console logging.
+    /// Creates a default logger factory with console logging and optionally API logging.
+    /// API logging is enabled if ServerLogLevel has been configured via ConfigureLogLevels.
     /// </summary>
     /// <param name="minLevel">Minimum log level. Defaults to Information.</param>
     /// <returns>A configured logger factory.</returns>
     public static ILoggerFactory CreateDefaultLoggerFactory(LogLevel minLevel = LogLevel.Information)
     {
+        // If ServerLogLevel was explicitly configured via ConfigureLogLevels, enable API logging
+        // This ensures all loggers (including HttpClientService, CacheService, etc.) send logs to server
+        if (_serverLogLevelOverride.HasValue && _serverLogLevelOverride.Value != LogLevel.None)
+        {
+            Console.WriteLine($"[LoggerFactory] Creating logger factory with API logging enabled (ServerLogLevel: {_serverLogLevelOverride.Value})");
+            return CreateLoggerFactoryWithApiLogging(enableApiLogging: true);
+        }
+        
+        // Otherwise, just console logging
         return Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
         {
             builder

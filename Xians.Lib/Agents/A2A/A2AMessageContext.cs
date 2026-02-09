@@ -113,7 +113,7 @@ public class A2AMessageContext : UserMessageContext
     /// <param name="data">The data object to send.</param>
     public override Task ReplyAsync(string text, object? data)
     {
-        _logger.LogInformation("A2A response: {Text}, {Data}", text, data);
+        _logger.LogDebug("A2A response: {Text}, {Data}", text, data);
         CaptureResponse(text, data);
         return Task.CompletedTask;
     }
@@ -179,7 +179,7 @@ public class A2AMessageContext : UserMessageContext
         _responseCapture.Data = data;
         _responseSent = true;
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "A2A response captured from {Agent}",
             XiansContext.AgentName);
     }
