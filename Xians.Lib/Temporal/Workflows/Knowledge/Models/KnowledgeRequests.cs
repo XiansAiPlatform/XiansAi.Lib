@@ -23,6 +23,8 @@ public class UpdateKnowledgeRequest
     public string? TenantId { get; set; }
     public bool SystemScoped { get; set; }
     public string? ActivationName { get; set; }
+    public string? Description { get; set; }
+    public bool Visible { get; set; } = true;
 }
 
 /// <summary>
