@@ -52,5 +52,15 @@ public class Knowledge
     /// System-scoped knowledge is shared across all tenants.
     /// </summary>
     public bool SystemScoped { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional description of the knowledge item.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this knowledge item is visible. Defaults to true.
+    /// </summary>
+    public bool Visible { get; set; } = true;
 }
 

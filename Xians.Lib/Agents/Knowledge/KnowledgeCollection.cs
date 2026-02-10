@@ -64,6 +64,8 @@ public class KnowledgeCollection
                 knowledge.Content,
                 knowledge.Type,
                 systemScoped: false,
+                description: knowledge.Description,
+                visible: knowledge.Visible,
                 cancellationToken);
 
             knowledge = await _executor.GetAsync(knowledgeName, _agent.Name, tenantId, idPostfix, cancellationToken);
@@ -98,11 +100,13 @@ public class KnowledgeCollection
     /// <param name="content">The knowledge content.</param>
     /// <param name="type">Optional knowledge type (e.g., "instruction", "document", "json", "markdown").</param>
     /// <param name="systemScoped">Whether this knowledge is system-scoped. If null, uses the agent's SystemScoped setting.</param>
+    /// <param name="description">Optional description of the knowledge item.</param>
+    /// <param name="visible">Whether the knowledge item is visible. Defaults to true.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the operation succeeds.</returns>
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
     /// <exception cref="HttpRequestException">Thrown when the HTTP request fails.</exception>
-    internal async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null, bool? systemScoped = null, CancellationToken cancellationToken = default)
+    internal async Task<bool> UpdateAsync(string knowledgeName, string content, string? type = null, bool? systemScoped = null, string? description = null, bool visible = true, CancellationToken cancellationToken = default)
     {
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
@@ -122,7 +126,7 @@ public class KnowledgeCollection
             isSystemScoped);
 
         // Context-aware execution via executor
-        var result = await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, idPostfix, cancellationToken);
+        var result = await _executor.UpdateAsync(knowledgeName, content, type, _agent.Name, tenantId, isSystemScoped, idPostfix, description, visible, cancellationToken);
         
         // Track locally
         if (result)
@@ -134,6 +138,8 @@ public class KnowledgeCollection
                 existingKnowledge.Content = content;
                 existingKnowledge.Type = type;
                 existingKnowledge.SystemScoped = isSystemScoped;
+                existingKnowledge.Description = description;
+                existingKnowledge.Visible = visible;
             }
             else
             {
@@ -145,7 +151,9 @@ public class KnowledgeCollection
                     Type = type,
                     SystemScoped = isSystemScoped,
                     Agent = _agent.Name,
-                    TenantId = tenantId
+                    TenantId = tenantId,
+                    Description = description,
+                    Visible = visible
                 });
             }
         }

@@ -16,6 +16,8 @@ public static class EmbeddedKnowledgeLoader
     /// <param name="knowledgeName">Optional custom name for the knowledge item. If null, uses the file name.</param>
     /// <param name="knowledgeType">Optional knowledge type (e.g., "instruction", "document", "markdown"). If null, inferred from file extension.</param>
     /// <param name="systemScoped">Optional override for system scoping. If null, uses the agent's SystemScoped setting.</param>
+    /// <param name="description">Optional description of the knowledge item.</param>
+    /// <param name="visible">Whether the knowledge item is visible. Defaults to true.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the upload succeeds.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the embedded resource is not found.</exception>
@@ -40,6 +42,8 @@ public static class EmbeddedKnowledgeLoader
         string? knowledgeName = null,
         string? knowledgeType = null,
         bool? systemScoped = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default)
     {
         // Load the embedded resource content from the calling assembly
@@ -53,7 +57,7 @@ public static class EmbeddedKnowledgeLoader
         
         // Upload to the knowledge collection
         // If systemScoped is not provided, the UpdateAsync method will use the agent's SystemScoped setting
-        return await knowledgeCollection.UpdateAsync(name, content, type, systemScoped, cancellationToken);
+        return await knowledgeCollection.UpdateAsync(name, content, type, systemScoped, description, visible, cancellationToken);
     }
 
     /// <summary>
@@ -80,7 +84,7 @@ public static class EmbeddedKnowledgeLoader
             throw new ArgumentNullException(nameof(content));
 
         var type = string.IsNullOrWhiteSpace(knowledgeType) ? "text" : knowledgeType;
-        return await knowledgeCollection.UpdateAsync(knowledgeName, content, type, systemScoped: null, cancellationToken);
+        return await knowledgeCollection.UpdateAsync(knowledgeName, content, type, systemScoped: null, description: null, visible: true, cancellationToken);
     }
 
     private static string LoadEmbeddedResource(string resourcePath)

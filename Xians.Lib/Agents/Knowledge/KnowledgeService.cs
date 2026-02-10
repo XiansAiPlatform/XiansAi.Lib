@@ -211,6 +211,8 @@ internal class KnowledgeService
     /// <param name="tenantId">The tenant ID for isolation.</param>
     /// <param name="systemScoped">Whether this knowledge is system-scoped (shared across tenants).</param>
     /// <param name="activationName">The activation name (ID postfix).</param>
+    /// <param name="description">Optional description of the knowledge item.</param>
+    /// <param name="visible">Whether the knowledge item is visible. Defaults to true.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the operation succeeds.</returns>
     /// <exception cref="ArgumentException">Thrown when validation fails.</exception>
@@ -223,6 +225,8 @@ internal class KnowledgeService
         string? tenantId,
         bool systemScoped = false,
         string? activationName = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default)
     {
         // Validate inputs
@@ -241,7 +245,9 @@ internal class KnowledgeService
             Content = content,
             Type = type,
             Agent = agentName,
-            SystemScoped = systemScoped
+            SystemScoped = systemScoped,
+            Description = description,
+            Visible = visible
         };
 
         _logger.LogDebug(
