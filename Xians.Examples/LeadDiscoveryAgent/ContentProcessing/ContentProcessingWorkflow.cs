@@ -17,35 +17,30 @@ public class ContentProcessingWorkflow
     }
 
     [WorkflowRun]
-    public async Task<string?> RunAsync(string contentURL, string reportingUserID)
+    public async Task<string?> RunAsync(string contentURL)
     {
-        _logger.LogInformation("Processing content: {ContentURL}, Reporting user ID: {ReportingUserID}", contentURL, reportingUserID);
+        _logger.LogInformation("Processing content: {ContentURL}", contentURL);
 
-        if (string.IsNullOrEmpty(reportingUserID))
-        {
-            throw new ApplicationFailureException("Reporting user ID is required");
-        }
         if (string.IsNullOrEmpty(contentURL) || !Uri.TryCreate(contentURL, UriKind.Absolute, out _))
         {
             throw new ApplicationFailureException("Content URL is required and must be a valid URL: " + contentURL);
         }
 
-        await XiansContext.Messaging.SendChatAsWorkflowAsync(Constants.ConversationalWorkflowName, reportingUserID, $"A new article found: {contentURL}", scope: contentURL);
+        await XiansContext.Messaging.SendChatAsWorkflowAsync(Constants.ConversationalWorkflowName, $"A new article found: {contentURL}", scope: contentURL);
 
         var taskHandle = await TaskWorkflowService.StartTaskAsync(
             new TaskWorkflowRequest
             {
                 Title = "Approve Content",
                 Description = "Approve the content before it is published",
-                ParticipantId = reportingUserID,
                 DraftWork = contentURL,
                 Actions = ["publish", "reject", "revise"]
             }
         );
 
-        await XiansContext.Messaging.SendChatAsWorkflowAsync(Constants.ConversationalWorkflowName, reportingUserID, $"This article is ready to be published: {contentURL}", scope: contentURL, hint: taskHandle.Id);
+        await XiansContext.Messaging.SendChatAsWorkflowAsync(Constants.ConversationalWorkflowName, $"This article is ready to be published: {contentURL}", scope: contentURL, taskId: taskHandle.Id);
 
-        await XiansContext.Messaging.SendChatAsWorkflowAsync(Constants.ConversationalWorkflowName, reportingUserID, $"Please review. Should I publish this article?", scope: contentURL);
+        await XiansContext.Messaging.SendChatAsWorkflowAsync(Constants.ConversationalWorkflowName, $"Please review. Should I publish this article?", scope: contentURL);
 
         var result = await TaskWorkflowService.GetResultAsync(taskHandle);
 

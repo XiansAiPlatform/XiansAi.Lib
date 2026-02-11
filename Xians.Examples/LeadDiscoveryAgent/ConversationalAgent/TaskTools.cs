@@ -32,6 +32,7 @@ internal class TaskTools
             var taskWorkflowId = await _context.GetLastTaskIdAsync();
             if (string.IsNullOrWhiteSpace(taskWorkflowId))
             {
+                _logger.LogWarning("No task workflow ID found in context.");
                 return "No task workflow ID found in context.";
             }
 

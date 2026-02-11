@@ -4,7 +4,6 @@ using Temporalio.Workflows;
 using Xians.Agent.Sample;
 using Xians.Lib.Agents.A2A;
 using Xians.Lib.Agents.Core;
-using Xians.Lib.Agents.Scheduling.Models;
 using Xians.Lib.Agents.Workflows;
 
 [Workflow(Constants.AgentName + ":Content Discovery Workflow")]
@@ -15,18 +14,16 @@ public class ContentDiscoveryWorkflow
 
     private int _intervalHours;
     private string _contentSiteURL = string.Empty;
-    private string _reportingUserID = string.Empty;
     public ContentDiscoveryWorkflow()
     {
         _logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<ContentDiscoveryWorkflow>();
     }
 
     [WorkflowRun]
-    public async Task<List<string>> RunAsync(string contentSiteURL, int intervalHours, string reportingUserID)
+    public async Task<List<string>> RunAsync(string contentSiteURL, int intervalHours)
     {
         _intervalHours = ValidateInterval(intervalHours);
         _contentSiteURL = ValidateAndNormalizeUrl(contentSiteURL);
-        _reportingUserID = reportingUserID;
 
         _logger.LogInformation("Content site URL: {ContentSiteURL}, Interval hours: {IntervalHours}", _contentSiteURL, _intervalHours);
 
@@ -56,6 +53,7 @@ public class ContentDiscoveryWorkflow
                 {
                     _logger.LogInformation("Content URL previously processed: {ContentURL}", contentURL);
                 }
+                await Workflow.DelayAsync(TimeSpan.FromSeconds(1));
             }
             catch (Exception ex)
             {
@@ -97,7 +95,7 @@ public class ContentDiscoveryWorkflow
 
     private async Task<bool> IsContentProcessedAsync(string contentURL)
     {
-        var type = "processed-content-url-for-user-" + _reportingUserID;
+        var type = "processed-content-url";
         
         // Check if the url is already processed (automatically uses activity when in workflow)
         var doc = await XiansContext.CurrentAgent.Documents.GetByKeyAsync(type, contentURL);
@@ -115,7 +113,6 @@ public class ContentDiscoveryWorkflow
             Content = System.Text.Json.JsonSerializer.SerializeToElement(new 
             {
                 processedBy = XiansContext.WorkflowId,
-                reportingUserID = _reportingUserID
             })
         });
         
@@ -126,7 +123,7 @@ public class ContentDiscoveryWorkflow
     {
         try
         {
-            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>([contentURL], null, contentURL, _reportingUserID);
+            await SubWorkflowService.StartAsync<ContentProcessingWorkflow>([contentURL], null, contentURL);
         }
         catch (WorkflowAlreadyStartedException)
         {
@@ -180,7 +177,7 @@ public class ContentDiscoveryWorkflow
         var schedule = await XiansContext.CurrentAgent.Schedules
             .Create<ContentDiscoveryWorkflow>($"content-discovery-scheduler-{_contentSiteURL}-{_intervalHours}")
             .WithIntervalSchedule(TimeSpan.FromHours(_intervalHours))
-            .WithInput(new object[] { _contentSiteURL, _intervalHours, _reportingUserID })
+            .WithInput(new object[] { _contentSiteURL, _intervalHours })
             .CreateIfNotExistsAsync();   
     }
 }

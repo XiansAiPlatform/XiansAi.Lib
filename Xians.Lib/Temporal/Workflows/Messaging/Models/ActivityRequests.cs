@@ -73,7 +73,7 @@ public class GetMessageHistoryRequest
 /// </summary>
 public class GetLastTaskIdRequest
 {
-    public required string WorkflowType { get; set; }
+    public required string WorkflowId { get; set; }
     public required string ParticipantId { get; set; }
     public string? Scope { get; set; }
     public required string TenantId { get; set; }

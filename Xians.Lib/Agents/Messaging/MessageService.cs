@@ -6,6 +6,7 @@ using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.Models;
+using Xians.Lib.Agents.Core;
 
 namespace Xians.Lib.Agents.Messaging;
 
@@ -260,13 +261,13 @@ internal class MessageService
         CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateNotNull(request, nameof(request));
-        ValidationHelper.ValidateRequired(request.WorkflowType, nameof(request.WorkflowType));
+        ValidationHelper.ValidateRequired(request.WorkflowId, nameof(request.WorkflowId));
         ValidationHelper.ValidateRequired(request.ParticipantId, nameof(request.ParticipantId));
         ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
-        
+
         // Build query string with proper URL encoding
         var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationLastTaskId}?" +
-                      $"workflowType={Uri.EscapeDataString(request.WorkflowType ?? string.Empty)}" +
+                      $"workflowId={Uri.EscapeDataString(request.WorkflowId ?? string.Empty)}" +
                       $"&participantId={Uri.EscapeDataString(request.ParticipantId ?? string.Empty)}" +
                       $"&scope={Uri.EscapeDataString(request.Scope ?? string.Empty)}";
 
@@ -297,8 +298,8 @@ internal class MessageService
             if (string.IsNullOrWhiteSpace(rawContent))
             {
                 _logger.LogDebug(
-                    "No task ID available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
-                    request.WorkflowType,
+                    "No task ID available: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}",
+                    request.WorkflowId,
                     request.ParticipantId);
                 return null;
             }
@@ -312,15 +313,15 @@ internal class MessageService
         catch (System.Text.Json.JsonException ex)
         {
             _logger.LogWarning(ex, 
-                "Failed to parse task ID JSON, treating as no task ID available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
-                request.WorkflowType,
+                "Failed to parse task ID JSON, treating as no task ID available: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}",
+                request.WorkflowId,
                 request.ParticipantId);
             return null;
         }
 
         _logger.LogDebug(
-            "Last task ID fetched: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Found={Found}",
-            request.WorkflowType,
+            "Last task ID fetched: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}, Found={Found}",
+            request.WorkflowId,
             request.ParticipantId,
             taskId != null);
 

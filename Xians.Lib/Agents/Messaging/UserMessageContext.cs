@@ -158,16 +158,15 @@ public class UserMessageContext
     /// <returns>The last task ID string, or null if not found.</returns>
     public virtual async Task<string?> GetLastTaskIdAsync()
     {
-        var workflowType = XiansContext.WorkflowType;
         
         _logger.LogDebug(
-            "Fetching last task ID: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
-            workflowType,
+            "Fetching last task ID: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}, Tenant={Tenant}",
+            XiansContext.WorkflowId,
             Message.ParticipantId,
             Message.TenantId);
 
         // Shared business logic: Build request
-        var request = BuildLastTaskIdRequest(workflowType);
+        var request = BuildLastTaskIdRequest();
 
         // Context-aware execution via executor
         if (_executor == null)
@@ -315,11 +314,11 @@ public class UserMessageContext
     /// Builds a last task ID request.
     /// Shared business logic used by GetLastTaskIdAsync.
     /// </summary>
-    private GetLastTaskIdRequest BuildLastTaskIdRequest(string workflowType)
+    private GetLastTaskIdRequest BuildLastTaskIdRequest()
     {
         return new GetLastTaskIdRequest
         {
-            WorkflowType = workflowType,
+            WorkflowId = _cachedWorkflowId ?? string.Empty,
             ParticipantId = Message.ParticipantId,
             Scope = Message.Scope,
             TenantId = Message.TenantId

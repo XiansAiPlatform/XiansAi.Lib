@@ -3,6 +3,7 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge;
 using Xians.Agent.Sample;
 using Xians.Agent.Sample.WebAgent;
+using Xians.Lib.Agents.Workflows.Models;
 
 Env.Load();
 
@@ -47,7 +48,12 @@ await agent.Knowledge.UploadEmbeddedResourceAsync(
 );
 
 // Define a content processing workflow to handle content processing
-var contentProcessingWorkflow = agent.Workflows.DefineCustom<ContentProcessingWorkflow>();
+var contentProcessingWorkflow = agent.Workflows.DefineCustom<ContentProcessingWorkflow>(
+    new WorkflowOptions
+    {
+        Activable = false
+    }
+);
  
 // Define a content discovery workflow to handle content discovery
 var contentDiscoveryWorkflow = agent.Workflows.DefineCustom<ContentDiscoveryWorkflow>();
@@ -83,18 +89,8 @@ webWorkflow.OnUserChatMessage(async (context) =>
 });
 
 // Initialize agent with configured settings (including tasks if enabled)
-await agent.InitializeAsync();  // Uses default workflow options
+//await agent.InitializeAsync();  // Uses default workflow options
 
 // Run all workflows
-try
-{
-    await agent.RunAllAsync();
-}
-catch (TaskCanceledException)
-{
-    // Graceful shutdown - no need to log exception
-}
-catch (OperationCanceledException)
-{
-    // Graceful shutdown - no need to log exception
-}
+
+await agent.RunAllAsync();

@@ -271,7 +271,7 @@ public class MessageActivities
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
             "GetLastTaskId activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
-            request.WorkflowType,
+            request.WorkflowId,
             request.ParticipantId);
         
         try
@@ -282,7 +282,7 @@ public class MessageActivities
         {
             ActivityExecutionContext.Current.Logger.LogError(ex,
                 "Error fetching last task ID for WorkflowType={WorkflowType}",
-                request.WorkflowType);
+                request.WorkflowId);
             throw;
         }
     }
@@ -459,7 +459,7 @@ public class ActivityUserMessageContext : UserMessageContext
     {
         var request = new GetLastTaskIdRequest
         {
-            WorkflowType = _workflowType,
+            WorkflowId = _workflowId,
             ParticipantId = _participantId,
             Scope = _scope,
             TenantId = _tenantId

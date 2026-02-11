@@ -121,12 +121,12 @@ internal static class UserMessaging
             throw new ArgumentException("Participant ID cannot be null or empty.", nameof(participantId));
         }
 
-        var workflowType = XiansContext.WorkflowType;
+        var workflowId = XiansContext.WorkflowId;
         var tenantId = XiansContext.TenantId;
         
         var request = new GetLastTaskIdRequest
         {
-            WorkflowType = workflowType,
+            WorkflowId = workflowId,
             ParticipantId = participantId,
             Scope = scope ?? string.Empty,
             TenantId = tenantId

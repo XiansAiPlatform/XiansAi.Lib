@@ -5,7 +5,7 @@ public static class Constants
     public const string AgentName = "Company Research Agent";
 
     public const string WebWorkflowName = "Web";
-    public const string ConversationalWorkflowName = "Conversational";
+    public const string ConversationalWorkflowName = "Supervisor Workflow";
 
 }
 
