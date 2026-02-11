@@ -453,7 +453,7 @@ public class UsageTrackingTests : IDisposable
             return Task.FromResult(new List<DbMessage>());
         }
 
-        public override Task<string?> GetLastHintAsync()
+        public override Task<string?> GetLastTaskIdAsync()
         {
             return Task.FromResult<string?>(null);
         }

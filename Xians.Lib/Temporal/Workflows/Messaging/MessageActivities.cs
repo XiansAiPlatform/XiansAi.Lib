@@ -262,26 +262,26 @@ public class MessageActivities
     }
 
     /// <summary>
-    /// Retrieves the last hint for a conversation from the server.
+    /// Retrieves the last task ID for a conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Delegates to shared MessageService.
     /// </summary>
     [Activity]
-    public async Task<string?> GetLastHintAsync(GetLastHintRequest request)
+    public async Task<string?> GetLastTaskIdAsync(GetLastTaskIdRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "GetLastHint activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+            "GetLastTaskId activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
             request.WorkflowType,
             request.ParticipantId);
         
         try
         {
-            return await _messageService.GetLastHintAsync(request);
+            return await _messageService.GetLastTaskIdAsync(request);
         }
         catch (Exception ex)
         {
             ActivityExecutionContext.Current.Logger.LogError(ex,
-                "Error fetching last hint for WorkflowType={WorkflowType}",
+                "Error fetching last task ID for WorkflowType={WorkflowType}",
                 request.WorkflowType);
             throw;
         }
@@ -451,20 +451,20 @@ public class ActivityUserMessageContext : UserMessageContext
     }
 
     /// <summary>
-    /// Retrieves the last hint via HTTP instead of workflow activity.
+    /// Retrieves the last task ID via HTTP instead of workflow activity.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Delegates to shared MessageService.
     /// </summary>
-    public override async Task<string?> GetLastHintAsync()
+    public override async Task<string?> GetLastTaskIdAsync()
     {
-        var request = new GetLastHintRequest
+        var request = new GetLastTaskIdRequest
         {
             WorkflowType = _workflowType,
             ParticipantId = _participantId,
             Scope = _scope,
             TenantId = _tenantId
         };
-        return await _messageService.GetLastHintAsync(request);
+        return await _messageService.GetLastTaskIdAsync(request);
     }
 
 

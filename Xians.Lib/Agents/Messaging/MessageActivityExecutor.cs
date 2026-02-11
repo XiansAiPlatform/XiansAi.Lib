@@ -56,14 +56,14 @@ internal class MessageActivityExecutor : ContextAwareActivityExecutor<MessageAct
     }
 
     /// <summary>
-    /// Gets the last hint using context-aware execution.
+    /// Gets the last task ID using context-aware execution.
     /// </summary>
-    public async Task<string?> GetLastHintAsync(GetLastHintRequest request)
+    public async Task<string?> GetLastTaskIdAsync(GetLastTaskIdRequest request)
     {
         return await ExecuteAsync(
-            act => act.GetLastHintAsync(request),
-            svc => svc.GetLastHintAsync(request),
-            operationName: "GetLastHint");
+            act => act.GetLastTaskIdAsync(request),
+            svc => svc.GetLastTaskIdAsync(request),
+            operationName: "GetLastTaskId");
     }
 
     /// <summary>

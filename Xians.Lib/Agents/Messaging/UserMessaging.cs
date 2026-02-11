@@ -104,15 +104,15 @@ internal static class UserMessaging
     }
 
     /// <summary>
-    /// Retrieves the last hint for a conversation from the server.
+    /// Retrieves the last task ID for a conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Works in both workflow and activity contexts.
     /// </summary>
     /// <param name="participantId">The ID of the participant (user).</param>
     /// <param name="scope">Optional scope for the conversation.</param>
-    /// <returns>The last hint string, or null if not found.</returns>
+    /// <returns>The last task ID string, or null if not found.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
-    public static async Task<string?> GetLastHintAsync(
+    public static async Task<string?> GetLastTaskIdAsync(
         string participantId,
         string? scope = null)
     {
@@ -124,7 +124,7 @@ internal static class UserMessaging
         var workflowType = XiansContext.WorkflowType;
         var tenantId = XiansContext.TenantId;
         
-        var request = new GetLastHintRequest
+        var request = new GetLastTaskIdRequest
         {
             WorkflowType = workflowType,
             ParticipantId = participantId,
@@ -136,7 +136,7 @@ internal static class UserMessaging
         {
             // Execute via Temporal activity for proper determinism and retry handling
             return await Workflow.ExecuteActivityAsync(
-                (MessageActivities act) => act.GetLastHintAsync(request),
+                (MessageActivities act) => act.GetLastTaskIdAsync(request),
                 Xians.Lib.Temporal.Workflows.Messaging.MessageActivityOptions.GetStandardOptions());
         }
         else if (XiansContext.InActivity)
@@ -152,7 +152,7 @@ internal static class UserMessaging
             var logger = Common.Infrastructure.LoggerFactory.CreateLogger<MessageService>();
             var messageService = new MessageService(agent.HttpService.Client, logger);
 
-            return await messageService.GetLastHintAsync(request);
+            return await messageService.GetLastTaskIdAsync(request);
         }
         else
         {

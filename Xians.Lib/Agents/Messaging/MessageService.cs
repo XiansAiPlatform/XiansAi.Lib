@@ -250,13 +250,13 @@ internal class MessageService
     }
 
     /// <summary>
-    /// Retrieves the last hint for a conversation from the server.
+    /// Retrieves the last task ID for a conversation from the server.
     /// </summary>
-    /// <param name="request">The get last hint request containing workflow type, participant ID, scope, and tenant ID.</param>
+    /// <param name="request">The get last task ID request containing workflow type, participant ID, scope, and tenant ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The last hint string, or null if not found.</returns>
-    public async Task<string?> GetLastHintAsync(
-        GetLastHintRequest request,
+    /// <returns>The last task ID string, or null if not found.</returns>
+    public async Task<string?> GetLastTaskIdAsync(
+        GetLastTaskIdRequest request,
         CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateNotNull(request, nameof(request));
@@ -265,12 +265,12 @@ internal class MessageService
         ValidationHelper.ValidateRequired(request.TenantId, nameof(request.TenantId));
         
         // Build query string with proper URL encoding
-        var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationLastHint}?" +
+        var endpoint = $"{WorkflowConstants.ApiEndpoints.ConversationLastTaskId}?" +
                       $"workflowType={Uri.EscapeDataString(request.WorkflowType ?? string.Empty)}" +
                       $"&participantId={Uri.EscapeDataString(request.ParticipantId ?? string.Empty)}" +
                       $"&scope={Uri.EscapeDataString(request.Scope ?? string.Empty)}";
 
-        _logger.LogTrace("Fetching last hint from {Endpoint}", endpoint);
+        _logger.LogTrace("Fetching last task ID from {Endpoint}", endpoint);
 
         // Create HTTP request with tenant header
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -282,14 +282,14 @@ internal class MessageService
         {
             var error = await response.Content.ReadAsStringAsync();
             _logger.LogError(
-                "Failed to fetch last hint: StatusCode={StatusCode}, Error={Error}",
+                "Failed to fetch last task ID: StatusCode={StatusCode}, Error={Error}",
                 response.StatusCode,
                 error);
             throw new HttpRequestException(
-                $"Failed to fetch last hint. Status: {response.StatusCode}");
+                $"Failed to fetch last task ID. Status: {response.StatusCode}");
         }
 
-        // Handle empty response (no hint available)
+        // Handle empty response (no task ID available)
         var contentLength = response.Content.Headers.ContentLength;
         if (contentLength == 0 || contentLength == null)
         {
@@ -297,34 +297,34 @@ internal class MessageService
             if (string.IsNullOrWhiteSpace(rawContent))
             {
                 _logger.LogDebug(
-                    "No hint available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+                    "No task ID available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
                     request.WorkflowType,
                     request.ParticipantId);
                 return null;
             }
         }
 
-        string? hint = null;
+        string? taskId = null;
         try
         {
-            hint = await response.Content.ReadFromJsonAsync<string?>(cancellationToken);
+            taskId = await response.Content.ReadFromJsonAsync<string?>(cancellationToken);
         }
         catch (System.Text.Json.JsonException ex)
         {
             _logger.LogWarning(ex, 
-                "Failed to parse hint JSON, treating as no hint available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+                "Failed to parse task ID JSON, treating as no task ID available: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
                 request.WorkflowType,
                 request.ParticipantId);
             return null;
         }
 
         _logger.LogDebug(
-            "Last hint fetched: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Found={Found}",
+            "Last task ID fetched: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Found={Found}",
             request.WorkflowType,
             request.ParticipantId,
-            hint != null);
+            taskId != null);
 
-        return hint;
+        return taskId;
     }
 
     /// <summary>
