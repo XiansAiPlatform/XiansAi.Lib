@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
+using Xians.Lib.Agents.Knowledge.Providers;
 using Xians.Lib.Temporal;
 using Xians.Lib.Temporal.Workflows.Knowledge;
 using Xians.Lib.Temporal.Workflows.Knowledge.Models;
@@ -25,16 +26,23 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
 
     protected override KnowledgeService CreateService()
     {
-        if (_agent.HttpService == null)
+        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<KnowledgeService>();
+        
+        // Ensure options is not null (should never be null from a properly initialized agent)
+        if (_agent.Options == null)
         {
             throw new InvalidOperationException(
-                "Knowledge service is not available. Ensure HTTP service is configured for the agent.");
+                "Agent options are not set. Ensure the agent was properly initialized.");
         }
+        
+        // Create provider based on agent options (supports local mode)
+        var provider = KnowledgeProviderFactory.Create(
+            _agent.Options,
+            _agent.HttpService?.Client,
+            _agent.CacheService,
+            logger);
 
-        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<KnowledgeService>();
-        // Use the agent's cache service instead of static one to respect per-platform cache settings
-        var cacheService = _agent.CacheService;
-        return new KnowledgeService(_agent.HttpService.Client, cacheService, logger);
+        return new KnowledgeService(provider);
     }
 
     /// <summary>

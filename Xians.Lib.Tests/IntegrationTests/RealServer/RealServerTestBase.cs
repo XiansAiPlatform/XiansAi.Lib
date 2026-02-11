@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
 using DotNetEnv;
 using Xians.Lib.Common.Testing;
 using Xians.Lib.Agents.Core;
@@ -14,6 +17,12 @@ public abstract class RealServerTestBase : IDisposable
     protected readonly string? ServerUrl;
     protected readonly string? ApiKey;
     private bool _disposed;
+
+    /// <summary>
+    /// Set to true when server connection fails during InitializeAsync.
+    /// Tests should check this and return early to skip gracefully.
+    /// </summary>
+    protected bool SkipDueToServerUnavailable { get; set; }
 
     protected RealServerTestBase()
     {
@@ -36,6 +45,33 @@ public abstract class RealServerTestBase : IDisposable
         // Only run if we have valid credentials
         RunRealServerTests = !string.IsNullOrEmpty(ServerUrl) && 
                              !string.IsNullOrEmpty(ApiKey);
+    }
+
+    /// <summary>
+    /// Wraps async initialization and catches server connection failures.
+    /// When the server is unreachable, sets SkipDueToServerUnavailable and returns false.
+    /// </summary>
+    protected async Task<bool> TryInitializeAsync(Func<Task> initialize)
+    {
+        try
+        {
+            await initialize();
+            return true;
+        }
+        catch (HttpRequestException ex) when (
+            ex.InnerException is SocketException { SocketErrorCode: SocketError.ConnectionRefused })
+        {
+            SkipDueToServerUnavailable = true;
+            Console.WriteLine($"⚠ Skipping RealServer tests: Server unreachable ({ServerUrl})");
+            return false;
+        }
+        catch (HttpRequestException ex) when (
+            ex.Message.Contains("Connection refused", StringComparison.OrdinalIgnoreCase))
+        {
+            SkipDueToServerUnavailable = true;
+            Console.WriteLine($"⚠ Skipping RealServer tests: Server unreachable ({ServerUrl})");
+            return false;
+        }
     }
 
     /// <summary>

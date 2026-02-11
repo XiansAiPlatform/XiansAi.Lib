@@ -3,6 +3,7 @@ using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Security.Models;
 using Xians.Lib.Common.Security;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -44,6 +45,30 @@ public class XiansOptions : ServerConfiguration
     /// Default is true.
     /// </summary>
     public bool EnableTasks { get; set; } = true;
+
+    /// <summary>
+    /// Enables local/mock mode for unit testing.
+    /// When true, operations resolve from embedded resources instead of making server calls.
+    /// This allows running tests without a real Xians server.
+    /// </summary>
+    /// <remarks>
+    /// In LocalMode:
+    /// - Knowledge methods load from embedded resources (convention: {AgentName}.Knowledge.{Name}.{ext})
+    /// - No HTTP calls are made to the server
+    /// - Updates/creates are stored in-memory only
+    /// - Temporal workflows are not executed
+    /// </remarks>
+    public bool LocalMode { get; set; } = false;
+
+    /// <summary>
+    /// Optional assemblies to search for embedded resources in local mode.
+    /// If not provided, searches all loaded non-system assemblies.
+    /// </summary>
+    /// <remarks>
+    /// Specify this to improve performance and avoid searching unnecessary assemblies.
+    /// Example: new[] { typeof(MyTests).Assembly, typeof(MyAgent).Assembly }
+    /// </remarks>
+    public Assembly[]? LocalModeAssemblies { get; set; }
     
     
     /// <summary>

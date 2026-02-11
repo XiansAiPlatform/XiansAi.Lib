@@ -366,8 +366,8 @@ public class TenantContextTests
             systemScoped: true,
             tenantId: "hasith");
 
-        // Assert - Platform should be replaced with agent name
-        Assert.Equal("Platform:Task Workflow", taskQueue);
+        // Assert - Platform should be replaced with agent name; Task Workflow gets hitl_task: prefix
+        Assert.Equal("hitl_task:Platform:Task Workflow", taskQueue);
     }
 
     [Fact]
@@ -399,8 +399,8 @@ public class TenantContextTests
             systemScoped: true,
             tenantId: null);
 
-        // Assert - Should keep "Platform" when no agent name provided
-        Assert.Equal("MyAgent:Task Workflow", taskQueue);
+        // Assert - Should keep workflow type; Task Workflow gets hitl_task: prefix
+        Assert.Equal("hitl_task:MyAgent:Task Workflow", taskQueue);
     }
 
     [Fact]
@@ -464,8 +464,8 @@ public class TenantContextTests
             systemScoped: true,
             tenantId: null);
 
-        // Assert - Only Builtin Workflow type should append name, not Task Workflow
-        Assert.Equal("Platform:Task Workflow", taskQueue);
+        // Assert - Only Builtin Workflow type should append name, not Task Workflow; Task Workflow gets hitl_task: prefix
+        Assert.Equal("hitl_task:Platform:Task Workflow", taskQueue);
     }
 }
 

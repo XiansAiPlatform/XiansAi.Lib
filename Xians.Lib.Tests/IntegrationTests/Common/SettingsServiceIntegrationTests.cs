@@ -15,6 +15,7 @@ namespace Xians.Lib.Tests.IntegrationTests.Common;
 /// These tests verify the settings parsing and conversion logic.
 /// Note: We use SetManualSettings to bypass HTTP client creation since
 /// SettingsService.GetSettingsAsync() uses a static Lazy that doesn't accept the httpService parameter.
+/// dotnet test --filter "FullyQualifiedName~SettingsServiceIntegrationTests&Category=Integration" --logger "console;verbosity=detailed"
 /// </summary>
 [Trait("Category", "Integration")]
 public class SettingsServiceIntegrationTests

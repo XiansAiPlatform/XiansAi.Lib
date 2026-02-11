@@ -706,6 +706,7 @@ public class RealServerDocumentTests : RealServerTestBase, IDisposable
 
             var options = new DocumentOptions
             {
+                UseKeyAsIdentifier = false, // use server-generated ID
                 TtlMinutes = 60 // 1 hour
             };
 

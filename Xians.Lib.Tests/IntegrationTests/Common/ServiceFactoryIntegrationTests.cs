@@ -8,6 +8,7 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.Common;
 
+/// dotnet test --filter "FullyQualifiedName~ServiceFactoryIntegrationTests&Category=Integration" --logger "console;verbosity=detailed"
 [Trait("Category", "Integration")]
 public class ServiceFactoryIntegrationTests
 {

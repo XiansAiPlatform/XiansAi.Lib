@@ -2,9 +2,6 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
-using Xians.Lib.Agents.Knowledge;
-
-using Xians.Lib.Temporal.Workflows.Knowledge;
 using Xians.Lib.Temporal.Workflows.Models;
 using Xians.Lib.Agents.Core;
 
@@ -381,7 +378,7 @@ public class MessageActivities
 public class ActivityUserMessageContext : UserMessageContext
 {
     private readonly MessageService _messageService;
-    private readonly KnowledgeService _knowledgeService;
+    // private readonly KnowledgeService _knowledgeService;
     private readonly string _workflowId;
     private readonly string _workflowType;
     private readonly string _participantId;
@@ -422,10 +419,6 @@ public class ActivityUserMessageContext : UserMessageContext
         var messageLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Messaging.MessageService>();
         _messageService = new Xians.Lib.Agents.Messaging.MessageService(httpClient, messageLogger);
         
-        // Get cache service from KnowledgeActivities static cache
-        var cacheService = KnowledgeActivities.GetStaticCacheService();
-        var knowledgeLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Knowledge.KnowledgeService>();
-        _knowledgeService = new Xians.Lib.Agents.Knowledge.KnowledgeService(httpClient, cacheService, knowledgeLogger);
     }
 
     /// <summary>
@@ -474,57 +467,6 @@ public class ActivityUserMessageContext : UserMessageContext
         return await _messageService.GetLastHintAsync(request);
     }
 
-    /// <summary>
-    /// Retrieves knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
-    {
-        return await _knowledgeService.GetAsync(
-            knowledgeName,
-            GetAgentNameFromWorkflowType(),
-            _tenantId,
-            activationName: null);
-    }
-
-    /// <summary>
-    /// Updates knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string content, string? type = null)
-    {
-        return await _knowledgeService.UpdateAsync(
-            knowledgeName,
-            content,
-            type,
-            GetAgentNameFromWorkflowType(),
-            _tenantId);
-    }
-
-    /// <summary>
-    /// Deletes knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
-    {
-        return await _knowledgeService.DeleteAsync(
-            knowledgeName,
-            GetAgentNameFromWorkflowType(),
-            _tenantId,
-            activationName: null);
-    }
-
-    /// <summary>
-    /// Lists knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListKnowledgeAsync()
-    {
-        return await _knowledgeService.ListAsync(
-            GetAgentNameFromWorkflowType(),
-            _tenantId,
-            activationName: null);
-    }
 
     /// <summary>
     /// Extracts agent name from workflow type.
