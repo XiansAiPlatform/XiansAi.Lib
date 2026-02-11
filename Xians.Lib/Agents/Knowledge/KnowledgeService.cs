@@ -45,6 +45,17 @@ internal class KnowledgeService
     /// <summary>
     /// Updates or creates knowledge (delegates to provider).
     /// </summary>
+    /// <param name="knowledgeName">The name of the knowledge.</param>
+    /// <param name="content">The knowledge content.</param>
+    /// <param name="type">Optional knowledge type (e.g., "instruction", "document").</param>
+    /// <param name="agentName">The agent name.</param>
+    /// <param name="tenantId">The tenant ID for isolation.</param>
+    /// <param name="systemScoped">Whether this knowledge is system-scoped (shared across tenants).</param>
+    /// <param name="activationName">The activation name (ID postfix).</param>
+    /// <param name="description">Optional description of the knowledge item.</param>
+    /// <param name="visible">Whether the knowledge item is visible. Defaults to true.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the operation succeeds.</returns>
     public Task<bool> UpdateAsync(
         string knowledgeName,
         string content,
@@ -53,6 +64,8 @@ internal class KnowledgeService
         string? tenantId,
         bool systemScoped = false,
         string? activationName = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default)
     {
         return _provider.UpdateAsync(

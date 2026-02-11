@@ -195,7 +195,9 @@ public class KnowledgeActivities
                 request.AgentName,
                 request.TenantId,
                 request.SystemScoped,
-                request.ActivationName);
+                request.ActivationName,
+                request.Description,
+                request.Visible);
         }
         catch (Exception ex)
         {

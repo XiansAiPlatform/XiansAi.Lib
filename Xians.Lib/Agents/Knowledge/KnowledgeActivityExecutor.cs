@@ -103,6 +103,8 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
         string? tenantId,
         bool systemScoped = false,
         string? activationName = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default)
     {
         var request = new UpdateKnowledgeRequest
@@ -113,12 +115,14 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
             AgentName = agentName,
             TenantId = tenantId,
             SystemScoped = systemScoped,
-            ActivationName = activationName
+            ActivationName = activationName,
+            Description = description,
+            Visible = visible
         };
 
         return await ExecuteAsync(
             act => act.UpdateKnowledgeAsync(request),
-            svc => svc.UpdateAsync(knowledgeName, content, type, agentName, tenantId, systemScoped, activationName, cancellationToken),
+            svc => svc.UpdateAsync(knowledgeName, content, type, agentName, tenantId, systemScoped, activationName, description, visible, cancellationToken),
             operationName: "UpdateKnowledge");
     }
 
