@@ -79,7 +79,7 @@ public static class WorkflowConstants
         public const string KnowledgeList = "api/agent/knowledge/list";
         public const string ConversationHistory = "api/agent/conversation/history";
         public const string ConversationOutbound = "api/agent/conversation/outbound";
-        public const string ConversationLastHint = "api/agent/conversation/last-hint";
+        public const string ConversationLastTaskId = "api/agent/conversation/last-task-id";
         public const string Logs = "api/agent/logs";
     }
 

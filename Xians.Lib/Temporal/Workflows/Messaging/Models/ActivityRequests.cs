@@ -69,11 +69,11 @@ public class GetMessageHistoryRequest
 }
 
 /// <summary>
-/// Request object for retrieving the last hint via activity.
+/// Request object for retrieving the last task ID via activity.
 /// </summary>
-public class GetLastHintRequest
+public class GetLastTaskIdRequest
 {
-    public required string WorkflowType { get; set; }
+    public required string WorkflowId { get; set; }
     public required string ParticipantId { get; set; }
     public string? Scope { get; set; }
     public required string TenantId { get; set; }

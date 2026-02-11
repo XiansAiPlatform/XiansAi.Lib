@@ -1,13 +1,11 @@
-using Xunit;
 using Moq;
 using Moq.Protected;
 using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using Xians.Lib.Agents.Metrics.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Http;
+using Xians.Lib.Temporal;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 using Xians.Lib.Tests.TestUtilities;
 
@@ -16,6 +14,8 @@ namespace Xians.Lib.Tests.UnitTests.Common;
 /// <summary>
 /// Unit tests for usage tracking functionality.
 /// Tests the UsageEventsClient and UsageTracker in isolation with mocked dependencies.
+/// 
+/// dotnet test --filter "FullyQualifiedName~UsageTrackingTests"
 /// </summary>
 [Collection("Sequential")]
 public class UsageTrackingTests : IDisposable
@@ -23,6 +23,7 @@ public class UsageTrackingTests : IDisposable
     private readonly Mock<HttpMessageHandler> _httpMessageHandler;
     private readonly HttpClient _httpClient;
     private readonly Mock<IHttpClientService> _mockHttpService;
+    private readonly Mock<ITemporalClientService> _mockTemporalService;
     private readonly XiansAgent _agent;
 
     public UsageTrackingTests()
@@ -41,6 +42,10 @@ public class UsageTrackingTests : IDisposable
         _mockHttpService = new Mock<IHttpClientService>();
         _mockHttpService.Setup(x => x.Client).Returns(_httpClient);
         
+        // Mock ITemporalClientService (required by XiansAgent for ScheduleCollection)
+        _mockTemporalService = new Mock<ITemporalClientService>();
+        _mockTemporalService.Setup(x => x.IsConnectionHealthy()).Returns(true);
+        
         // Create test agent
         var options = new XiansOptions
         {
@@ -56,7 +61,7 @@ public class UsageTrackingTests : IDisposable
             null, // version
             null, // author
             null, // uploader
-            null, // temporalService
+            _mockTemporalService.Object,
             _mockHttpService.Object,
             options,
             null); // cacheService
@@ -254,7 +259,7 @@ public class UsageTrackingTests : IDisposable
         await _agent.Metrics.ReportAsync(request);
     }
 
-    [Fact(Skip = "Requires Temporal workflow context - needs fix for XiansContext")]
+    [Fact]
     public async Task FluentBuilder_MeasuresElapsedTime()
     {
         // Arrange
@@ -274,14 +279,13 @@ public class UsageTrackingTests : IDisposable
             })
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
-        var context = CreateTestMessageContext();
-
-        // Act
+        // Act - use _agent.Metrics.Track(null) to avoid UserMessageContext which requires XiansContext.CurrentAgent
         var startTime = DateTime.UtcNow;
         await Task.Delay(100); // Simulate LLM call time
         var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
         
-        await XiansContext.Metrics.Track(context)
+        await _agent.Metrics.Track(null)
+            .WithTenantId("test-tenant")
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
@@ -295,7 +299,7 @@ public class UsageTrackingTests : IDisposable
         Assert.Contains("\"metrics\":", capturedJson);
     }
 
-    [Fact(Skip = "Requires Temporal workflow context - needs fix for XiansContext")]
+    [Fact]
     public async Task FluentBuilder_WithMessageCount_IncludesInReport()
     {
         // Arrange
@@ -315,10 +319,9 @@ public class UsageTrackingTests : IDisposable
             })
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
-        var context = CreateTestMessageContext();
-
-        // Act
-        await XiansContext.Metrics.Track(context)
+        // Act - use _agent.Metrics.Track(null) to avoid UserMessageContext which requires XiansContext.CurrentAgent
+        await _agent.Metrics.Track(null)
+            .WithTenantId("test-tenant")
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 100.0, "tokens"),
@@ -332,7 +335,7 @@ public class UsageTrackingTests : IDisposable
         Assert.Contains("\"metrics\":", capturedJson);
     }
 
-    [Fact(Skip = "Requires Temporal workflow context - needs fix for XiansContext")]
+    [Fact]
     public async Task FluentBuilder_WithMultipleMetrics_IncludesAllInReport()
     {
         // Arrange
@@ -352,10 +355,9 @@ public class UsageTrackingTests : IDisposable
             })
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
-        var context = CreateTestMessageContext();
-
-        // Act
-        await XiansContext.Metrics.Track(context)
+        // Act - use _agent.Metrics.Track(null) to avoid UserMessageContext which requires XiansContext.CurrentAgent
+        await _agent.Metrics.Track(null)
+            .WithTenantId("test-tenant")
             .ForModel("gpt-4")
             .WithMetrics(
                 (MetricCategories.Tokens, MetricTypes.PromptTokens, 200.0, "tokens"),
@@ -371,7 +373,7 @@ public class UsageTrackingTests : IDisposable
         Assert.Contains("\"model\":\"gpt-4\"", capturedJson);
     }
 
-    [Fact(Skip = "Requires Temporal workflow context - needs fix for XiansContext")]
+    [Fact]
     public async Task FluentBuilder_WithMinimalMetrics_Works()
     {
         // Arrange
@@ -391,10 +393,9 @@ public class UsageTrackingTests : IDisposable
             })
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
 
-        var context = CreateTestMessageContext();
-
-        // Act - Minimal usage tracking
-        await XiansContext.Metrics.Track(context)
+        // Act - use _agent.Metrics.Track(null) to avoid UserMessageContext which requires XiansContext.CurrentAgent
+        await _agent.Metrics.Track(null)
+            .WithTenantId("test-tenant")
             .ForModel("gpt-4")
             .WithMetric(MetricCategories.Tokens, MetricTypes.TotalTokens, 150.0, "tokens")
             .ReportAsync();
@@ -452,7 +453,7 @@ public class UsageTrackingTests : IDisposable
             return Task.FromResult(new List<DbMessage>());
         }
 
-        public override Task<string?> GetLastHintAsync()
+        public override Task<string?> GetLastTaskIdAsync()
         {
             return Task.FromResult<string?>(null);
         }

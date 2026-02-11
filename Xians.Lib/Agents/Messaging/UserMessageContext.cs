@@ -151,37 +151,36 @@ public class UserMessageContext
     }
 
     /// <summary>
-    /// Retrieves the last hint for this conversation from the server.
+    /// Retrieves the last task ID for this conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Works in both workflow and activity contexts.
     /// </summary>
-    /// <returns>The last hint string, or null if not found.</returns>
-    public virtual async Task<string?> GetLastHintAsync()
+    /// <returns>The last task ID string, or null if not found.</returns>
+    public virtual async Task<string?> GetLastTaskIdAsync()
     {
-        var workflowType = XiansContext.WorkflowType;
         
         _logger.LogDebug(
-            "Fetching last hint: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}, Tenant={Tenant}",
-            workflowType,
+            "Fetching last task ID: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}, Tenant={Tenant}",
+            XiansContext.WorkflowId,
             Message.ParticipantId,
             Message.TenantId);
 
         // Shared business logic: Build request
-        var request = BuildLastHintRequest(workflowType);
+        var request = BuildLastTaskIdRequest();
 
         // Context-aware execution via executor
         if (_executor == null)
         {
             throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
         }
-        var hint = await _executor.GetLastHintAsync(request);
+        var taskId = await _executor.GetLastTaskIdAsync(request);
 
         _logger.LogDebug(
-            "Last hint retrieved: Found={Found}, Tenant={Tenant}",
-            hint != null,
+            "Last task ID retrieved: Found={Found}, Tenant={Tenant}",
+            taskId != null,
             Message.TenantId);
 
-        return hint;
+        return taskId;
     }
 
 
@@ -312,14 +311,14 @@ public class UserMessageContext
     }
 
     /// <summary>
-    /// Builds a last hint request.
-    /// Shared business logic used by GetLastHintAsync.
+    /// Builds a last task ID request.
+    /// Shared business logic used by GetLastTaskIdAsync.
     /// </summary>
-    private GetLastHintRequest BuildLastHintRequest(string workflowType)
+    private GetLastTaskIdRequest BuildLastTaskIdRequest()
     {
-        return new GetLastHintRequest
+        return new GetLastTaskIdRequest
         {
-            WorkflowType = workflowType,
+            WorkflowId = _cachedWorkflowId ?? string.Empty,
             ParticipantId = Message.ParticipantId,
             Scope = Message.Scope,
             TenantId = Message.TenantId

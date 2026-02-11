@@ -94,12 +94,12 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
                     result.ResponseText = $"Retrieved {history.Count} messages";
                     await context.ReplyAsync(result.ResponseText);
                 }
-                // GetLastHintAsync
+                // GetLastTaskIdAsync
                 else if (message.Contains("get-hint"))
                 {
-                    var hint = await context.GetLastHintAsync();
-                    result.ReceivedHint = hint;
-                    result.ResponseText = $"Hint: {hint ?? "none"}";
+                    var taskId = await context.GetLastTaskIdAsync();
+                    result.ReceivedHint = taskId;
+                    result.ResponseText = $"Hint: {taskId ?? "none"}";
                     await context.ReplyAsync(result.ResponseText);
                 }
                 // SkipResponse
@@ -279,11 +279,11 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetLastHintAsync_RetrievesHint()
+    public async Task GetLastTaskIdAsync_RetrievesTaskId()
     {
         if (!RunRealServerTests) return;
 
-        Console.WriteLine("=== Test: GetLastHintAsync ===");
+        Console.WriteLine("=== Test: GetLastTaskIdAsync ===");
 
         var temporalClient = await _agent!.TemporalService!.GetClientAsync();
         var handle = await TemporalTestUtils.StartOrGetWorkflowAsync(
@@ -303,7 +303,7 @@ public class RealServerReplyTests : RealServerTestBase, IAsyncLifetime
         Assert.NotNull(result);
         Assert.True(result.Success, $"Test failed: {result.Error}");
 
-        Console.WriteLine($"✓ VERIFIED: Last hint retrieved");
+        Console.WriteLine($"✓ VERIFIED: Last task ID retrieved");
     }
 
     [Fact]

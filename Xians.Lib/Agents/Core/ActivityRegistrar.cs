@@ -68,7 +68,7 @@ internal class ActivityRegistrar
                 typeof(TaskActivities));
         }
 
-        // HTTP-dependent activities
+        // HTTP-dependent activities (or local mode activities)
         if (_agent.HttpService != null)
         {
             registeredCount += TryRegisterActivity(
@@ -82,7 +82,7 @@ internal class ActivityRegistrar
                 workerOptions,
                 workflowType,
                 "KnowledgeActivities",
-                () => new KnowledgeActivities(_agent.HttpService.Client, _agent.CacheService),
+                () => new KnowledgeActivities(_agent.HttpService.Client, _agent.CacheService, _agent.Options),
                 typeof(KnowledgeActivities));
 
             registeredCount += TryRegisterActivity(
@@ -91,6 +91,20 @@ internal class ActivityRegistrar
                 "DocumentActivities",
                 () => new DocumentActivities(_agent.HttpService.Client),
                 typeof(DocumentActivities));
+        }
+        else if (_agent.Options?.LocalMode == true)
+        {
+            // In local mode, register activities without HTTP client
+            _logger.LogInformation(
+                "[LocalMode] Registering Knowledge activities for workflow '{WorkflowType}' without HTTP service",
+                workflowType);
+
+            registeredCount += TryRegisterActivity(
+                workerOptions,
+                workflowType,
+                "KnowledgeActivities",
+                () => new KnowledgeActivities(null, _agent.CacheService, _agent.Options),
+                typeof(KnowledgeActivities));
         }
         else
         {

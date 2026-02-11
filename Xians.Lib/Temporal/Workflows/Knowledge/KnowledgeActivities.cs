@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Temporal.Workflows.Models;
 using Xians.Lib.Agents.Knowledge;
+using Xians.Lib.Agents.Knowledge.Providers;
+using Xians.Lib.Agents.Core;
 using Xians.Lib.Common.Caching;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Temporal.Workflows.Knowledge.Models;
@@ -13,6 +15,7 @@ namespace Xians.Lib.Temporal.Workflows.Knowledge;
 /// Activities for managing knowledge in the Xians platform.
 /// Activities can perform non-deterministic operations like HTTP calls.
 /// Delegates to shared KnowledgeService to avoid code duplication.
+/// Supports both server and local mode via provider pattern.
 /// </summary>
 public class KnowledgeActivities
 {
@@ -23,13 +26,17 @@ public class KnowledgeActivities
     /// </summary>
     private static HttpClient? _staticHttpClient;
     private static Xians.Lib.Common.Caching.CacheService? _staticCacheService;
+    private static XiansOptions? _staticOptions;
     private static readonly object _initLock = new();
 
     /// <summary>
     /// Initializes KnowledgeActivities with required dependencies.
     /// The first instance to be constructed will set the static services for all subsequent instances.
     /// </summary>
-    public KnowledgeActivities(HttpClient? httpClient, Xians.Lib.Common.Caching.CacheService? cacheService = null)
+    public KnowledgeActivities(
+        HttpClient? httpClient, 
+        Xians.Lib.Common.Caching.CacheService? cacheService = null,
+        XiansOptions? options = null)
     {
         // Initialize static services on first construction (thread-safe double-check locking)
         if (httpClient != null && _staticHttpClient == null)
@@ -40,6 +47,7 @@ public class KnowledgeActivities
                 {
                     _staticHttpClient = httpClient;
                     _staticCacheService = cacheService;
+                    _staticOptions = options;
                 }
             }
         }
@@ -48,7 +56,7 @@ public class KnowledgeActivities
     /// <summary>
     /// Parameterless constructor for Temporal's activity instantiation.
     /// </summary>
-    public KnowledgeActivities() : this(null, null)
+    public KnowledgeActivities() : this(null, null, null)
     {
     }
     
@@ -69,6 +77,7 @@ public class KnowledgeActivities
         {
             _staticHttpClient = null;
             _staticCacheService = null;
+            _staticOptions = null;
         }
     }
 
@@ -136,16 +145,28 @@ public class KnowledgeActivities
     
     /// <summary>
     /// Creates a KnowledgeService instance using static dependencies.
+    /// Uses provider factory to support both server and local mode.
     /// </summary>
     private Xians.Lib.Agents.Knowledge.KnowledgeService CreateKnowledgeService()
     {
-        if (_staticHttpClient == null)
-        {
-            throw new InvalidOperationException("KnowledgeActivities not properly initialized - HttpClient is null");
-        }
-        
         var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Knowledge.KnowledgeService>();
-        return new Xians.Lib.Agents.Knowledge.KnowledgeService(_staticHttpClient, _staticCacheService, logger);
+        
+        // If options not set, create default (non-local mode)
+        var options = _staticOptions ?? new XiansOptions 
+        { 
+            LocalMode = false,
+            ServerUrl = "http://localhost", // dummy - won't be used if HttpClient is already created
+            ApiKey = "" // dummy
+        };
+        
+        // Create provider based on mode
+        var provider = KnowledgeProviderFactory.Create(
+            options,
+            _staticHttpClient,
+            _staticCacheService,
+            logger);
+
+        return new Xians.Lib.Agents.Knowledge.KnowledgeService(provider);
     }
 
     /// <summary>

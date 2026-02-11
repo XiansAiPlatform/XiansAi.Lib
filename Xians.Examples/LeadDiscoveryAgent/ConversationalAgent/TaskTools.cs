@@ -29,9 +29,10 @@ internal class TaskTools
 
         try
         {
-            var taskWorkflowId = await _context.GetLastHintAsync();
+            var taskWorkflowId = await _context.GetLastTaskIdAsync();
             if (string.IsNullOrWhiteSpace(taskWorkflowId))
             {
+                _logger.LogWarning("No task workflow ID found in context.");
                 return "No task workflow ID found in context.";
             }
 
@@ -75,7 +76,7 @@ internal class TaskTools
 
         try
         {
-            var taskWorkflowId = await _context.GetLastHintAsync();
+            var taskWorkflowId = await _context.GetLastTaskIdAsync();
             if (string.IsNullOrWhiteSpace(taskWorkflowId))
             {
                 return "No task workflow ID found in context.";
@@ -106,7 +107,7 @@ internal class TaskTools
 
         try
         {
-            var taskWorkflowId = await _context.GetLastHintAsync();
+            var taskWorkflowId = await _context.GetLastTaskIdAsync();
             if (string.IsNullOrWhiteSpace(taskWorkflowId))
             {
                 return "No task workflow ID found in context.";
@@ -153,7 +154,7 @@ internal class TaskTools
 
         try
         {
-            var taskWorkflowId = await _context.GetLastHintAsync();
+            var taskWorkflowId = await _context.GetLastTaskIdAsync();
             if (string.IsNullOrWhiteSpace(taskWorkflowId))
             {
                 return "No task workflow ID found in context.";

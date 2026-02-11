@@ -144,14 +144,14 @@ public class A2AMessageContext : UserMessageContext
     }
 
     /// <summary>
-    /// Hints are not available for A2A messages.
+    /// Task IDs are not available for A2A messages.
     /// Returns null since A2A messages are stateless one-off requests.
     /// </summary>
-    public override Task<string?> GetLastHintAsync()
+    public override Task<string?> GetLastTaskIdAsync()
     {
         _logger.LogDebug(
-            "Last hint requested in A2A context - returning null. " +
-            "A2A messages are stateless and don't have hints.");
+            "Last task ID requested in A2A context - returning null. " +
+            "A2A messages are stateless and don't have task IDs.");
         
         return Task.FromResult<string?>(null);
     }

@@ -1,7 +1,9 @@
+using Moq;
 using WireMock.Server;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using Xians.Lib.Agents.Metrics.Models;
+using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Http;
@@ -14,6 +16,7 @@ namespace Xians.Lib.Tests.IntegrationTests.Common;
 /// <summary>
 /// Integration tests for usage tracking using WireMock.
 /// Tests the full HTTP request/response cycle without hitting a real server.
+/// dotnet test --filter "FullyQualifiedName~UsageTrackingIntegrationTests&Category=Integration" --logger "console;verbosity=detailed"
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection("Sequential")]
@@ -46,7 +49,10 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
             ServerUrl = _mockServer.Url!,
             ApiKey = config.ApiKey
         };
-        
+
+        var mockTemporalService = new Mock<ITemporalClientService>();
+        mockTemporalService.Setup(x => x.IsConnectionHealthy()).Returns(true);
+
         _agent = new XiansAgent(
             "integration-test-agent",
             false, // systemScoped
@@ -55,7 +61,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
             null, // version
             null, // author
             null, // uploader
-            null, // temporalService
+            mockTemporalService.Object,
             _httpService,
             options,
             null); // cacheService
@@ -468,7 +474,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
             return Task.FromResult(new List<DbMessage>());
         }
 
-        public override Task<string?> GetLastHintAsync()
+        public override Task<string?> GetLastTaskIdAsync()
         {
             return Task.FromResult<string?>(null);
         }

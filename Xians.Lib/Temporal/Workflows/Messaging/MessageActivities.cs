@@ -2,9 +2,6 @@ using Temporalio.Activities;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
-using Xians.Lib.Agents.Knowledge;
-
-using Xians.Lib.Temporal.Workflows.Knowledge;
 using Xians.Lib.Temporal.Workflows.Models;
 using Xians.Lib.Agents.Core;
 
@@ -265,27 +262,27 @@ public class MessageActivities
     }
 
     /// <summary>
-    /// Retrieves the last hint for a conversation from the server.
+    /// Retrieves the last task ID for a conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Delegates to shared MessageService.
     /// </summary>
     [Activity]
-    public async Task<string?> GetLastHintAsync(GetLastHintRequest request)
+    public async Task<string?> GetLastTaskIdAsync(GetLastTaskIdRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "GetLastHint activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
-            request.WorkflowType,
+            "GetLastTaskId activity started: WorkflowType={WorkflowType}, ParticipantId={ParticipantId}",
+            request.WorkflowId,
             request.ParticipantId);
         
         try
         {
-            return await _messageService.GetLastHintAsync(request);
+            return await _messageService.GetLastTaskIdAsync(request);
         }
         catch (Exception ex)
         {
             ActivityExecutionContext.Current.Logger.LogError(ex,
-                "Error fetching last hint for WorkflowType={WorkflowType}",
-                request.WorkflowType);
+                "Error fetching last task ID for WorkflowType={WorkflowType}",
+                request.WorkflowId);
             throw;
         }
     }
@@ -381,7 +378,7 @@ public class MessageActivities
 public class ActivityUserMessageContext : UserMessageContext
 {
     private readonly MessageService _messageService;
-    private readonly KnowledgeService _knowledgeService;
+    // private readonly KnowledgeService _knowledgeService;
     private readonly string _workflowId;
     private readonly string _workflowType;
     private readonly string _participantId;
@@ -422,10 +419,6 @@ public class ActivityUserMessageContext : UserMessageContext
         var messageLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Messaging.MessageService>();
         _messageService = new Xians.Lib.Agents.Messaging.MessageService(httpClient, messageLogger);
         
-        // Get cache service from KnowledgeActivities static cache
-        var cacheService = KnowledgeActivities.GetStaticCacheService();
-        var knowledgeLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Knowledge.KnowledgeService>();
-        _knowledgeService = new Xians.Lib.Agents.Knowledge.KnowledgeService(httpClient, cacheService, knowledgeLogger);
     }
 
     /// <summary>
@@ -458,73 +451,22 @@ public class ActivityUserMessageContext : UserMessageContext
     }
 
     /// <summary>
-    /// Retrieves the last hint via HTTP instead of workflow activity.
+    /// Retrieves the last task ID via HTTP instead of workflow activity.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Delegates to shared MessageService.
     /// </summary>
-    public override async Task<string?> GetLastHintAsync()
+    public override async Task<string?> GetLastTaskIdAsync()
     {
-        var request = new GetLastHintRequest
+        var request = new GetLastTaskIdRequest
         {
-            WorkflowType = _workflowType,
+            WorkflowId = _workflowId,
             ParticipantId = _participantId,
             Scope = _scope,
             TenantId = _tenantId
         };
-        return await _messageService.GetLastHintAsync(request);
+        return await _messageService.GetLastTaskIdAsync(request);
     }
 
-    /// <summary>
-    /// Retrieves knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetKnowledgeAsync(string knowledgeName)
-    {
-        return await _knowledgeService.GetAsync(
-            knowledgeName,
-            GetAgentNameFromWorkflowType(),
-            _tenantId,
-            activationName: null);
-    }
-
-    /// <summary>
-    /// Updates knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<bool> UpdateKnowledgeAsync(string knowledgeName, string content, string? type = null)
-    {
-        return await _knowledgeService.UpdateAsync(
-            knowledgeName,
-            content,
-            type,
-            GetAgentNameFromWorkflowType(),
-            _tenantId);
-    }
-
-    /// <summary>
-    /// Deletes knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<bool> DeleteKnowledgeAsync(string knowledgeName)
-    {
-        return await _knowledgeService.DeleteAsync(
-            knowledgeName,
-            GetAgentNameFromWorkflowType(),
-            _tenantId,
-            activationName: null);
-    }
-
-    /// <summary>
-    /// Lists knowledge via HTTP instead of workflow activity.
-    /// Delegates to shared KnowledgeService.
-    /// </summary>
-    public async Task<List<Xians.Lib.Agents.Knowledge.Models.Knowledge>> ListKnowledgeAsync()
-    {
-        return await _knowledgeService.ListAsync(
-            GetAgentNameFromWorkflowType(),
-            _tenantId,
-            activationName: null);
-    }
 
     /// <summary>
     /// Extracts agent name from workflow type.

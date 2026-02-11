@@ -38,51 +38,109 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     // Track task IDs for cleanup
     private readonly List<string> _taskIds = new();
 
+    /// <summary>
+    /// Task queue the Platform worker uses for Task Workflow.
+    /// TenantContext.GetTaskQueueName("Platform:Task Workflow", systemScoped: true, null) returns this.
+    /// </summary>
+    private const string PlatformTaskWorkflowTaskQueue = "hitl_task:Platform:Task Workflow";
+
+    /// <summary>
+    /// Tenant ID - must match certificate from server (same as RealServerScheduleTests).
+    /// </summary>
+    private const string TestTenantId = "tests";
+
+    /// <summary>
+    /// Waits for the worker to pick up the workflow and become queryable.
+    /// Retries QueryTaskInfoAsync since real server may have delays in dispatching to the worker.
+    /// </summary>
+    private async Task<TaskInfo> QueryTaskInfoWithRetryAsync(
+        ITemporalClient client,
+        string taskId,
+        int maxAttempts = 15,
+        int delayMs = 5000)
+    {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                return await _platformAgent!.Tasks.QueryTaskInfoAsync(
+                    client, TestTenantId, taskId);
+            }
+            catch (Temporalio.Exceptions.RpcException ex) when (
+                ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("worker could process", StringComparison.OrdinalIgnoreCase))
+            {
+                if (attempt == maxAttempts)
+                    throw;
+                Console.WriteLine($"  Query attempt {attempt}/{maxAttempts} - waiting for worker: {ex.Message}");
+                await Task.Delay(delayMs);
+            }
+        }
+        throw new InvalidOperationException("QueryTaskInfoWithRetryAsync failed - should not reach here");
+    }
+
     public RealServerTaskTests()
     {
     }
 
     public async Task InitializeAsync()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
 
-        // Clear any previous task IDs
-        _taskIds.Clear();
+        var initialized = await TryInitializeAsync(async () =>
+        {
+            // Clear any previous task IDs
+            _taskIds.Clear();
 
-        // Initialize platform
-        var options = CreateTestOptions();
+            // Set tenant context - must match certificate from server
+            XiansContext.SetTenantId(TestTenantId);
 
-        _platform = await XiansPlatform.InitializeAsync(options);
-        
-        // Register Platform agent for task workflows
-        _platformAgent = _platform.Agents.Register(new XiansAgentRegistration 
-        { 
-            Name = "Platform",
-            IsTemplate = true
+            // Initialize platform
+            var options = CreateTestOptions();
+            _platform = await XiansPlatform.InitializeAsync(options);
+            
+            // Register Platform agent - RunAllAsync will enable Task workflow via EnableTasksOnInitialization
+            _platformAgent = _platform.Agents.Register(new XiansAgentRegistration 
+            { 
+                Name = "Platform",
+                IsTemplate = true
+            });
+
+            // Start Platform agent worker - RunAllAsync adds Task workflow and starts polling
+            // Use Task.Run to ensure worker runs on thread pool (avoids sync context blocking)
+            // RunAllAsync blocks until workers are cancelled
+            _workerCts = new CancellationTokenSource();
+            _workerTask = Task.Run(async () =>
+            {
+                await _platformAgent.RunAllAsync(_workerCts.Token);
+            });
+
+            // Give RunAllAsync time to: UploadAllDefinitionsAsync, then start workers polling
+            await Task.Delay(20000);
+
+            // Verify worker started - if it faulted, no worker will be polling the task queue
+            if (_workerTask.IsFaulted)
+            {
+                throw new InvalidOperationException(
+                    "Worker failed to start. Check that Temporal is reachable. Task queue: hitl_task:Platform:Task Workflow",
+                    _workerTask.Exception?.GetBaseException());
+            }
+
+            Console.WriteLine("✓ Test setup complete - Platform agent worker running");
         });
 
-        // Enable task workflow support
-        await _platformAgent.Workflows.WithTasks();
-
-        // Upload workflow definitions (Platform agent has the Task Workflow)
-        await _platformAgent.UploadWorkflowDefinitionsAsync();
-
-        // Start Platform agent worker to handle task workflows
-        _workerCts = new CancellationTokenSource();
-        _workerTask = _platformAgent.RunAllAsync(_workerCts.Token);
-
-        // Wait for worker to be ready
-        await Task.Delay(2000);
-
-        Console.WriteLine("✓ Test setup complete - Platform agent worker running");
+        if (!initialized)
+        {
+            return;
+        }
     }
 
     public async Task DisposeAsync()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable || _platformAgent == null)
         {
             return;
         }
@@ -115,7 +173,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 // Terminate task workflows
                 foreach (var taskId in _taskIds)
                 {
-                    var workflowId = $"test:Platform:Task Workflow:{taskId}";
+                    var workflowId = $"{TestTenantId}:Platform:Task Workflow:{taskId}";
                     await TemporalTestUtils.TerminateWorkflowIfRunningAsync(client, workflowId, "Test cleanup");
                 }
             }
@@ -154,7 +212,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task QueryTaskInfoAsync_ShouldReturnTaskInformation()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
@@ -178,25 +236,23 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 Actions = ["approve", "reject", "hold"]
             };
 
-            // Start the task workflow
+            // Start the task workflow on the same task queue the Platform worker polls
+            // (TenantContext adds "hitl_task:" prefix for Task Workflow)
             await client.StartWorkflowAsync(
                 "Platform:Task Workflow",
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow", // System-scoped, no tenant prefix
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            // Wait for task to be ready
-            await Task.Delay(2000);
+            // Wait for worker to pick up the workflow (allow time for Temporal to dispatch)
+            await Task.Delay(10000);
 
-            // Query the task using TaskCollection API
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(
-                client,
-                TemporalTestUtils.DefaultTestTenantId,
-                taskId);
+            // Query the task (retry until worker processes it)
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
 
             // Verify task info
             Assert.NotNull(taskInfo);
@@ -218,7 +274,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Console.WriteLine($"  Completed: {taskInfo.IsCompleted}");
 
             // Cleanup - complete the task
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, "approve");
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, "approve");
             await Task.Delay(500);
         }
         catch (Exception ex)
@@ -231,21 +287,19 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task UpdateDraftAsync_ShouldUpdateTaskDraft()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
 
         var taskId = $"task-update-{Guid.NewGuid():N}";
         _taskIds.Add(taskId);
-        
-        Console.WriteLine($"\n▶ Test: UpdateDraftAsync (taskId: {taskId})");
 
         try
         {
             var client = await _platformAgent!.TemporalService!.GetClientAsync();
-            
-            // Start a task workflow
+
+            // Start a task workflow with explicit Id (required by Temporal)
             var request = new TaskWorkflowRequest
             {
                 Title = "Test Update Draft",
@@ -259,43 +313,41 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow", // System-scoped, no tenant prefix
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            await Task.Delay(2000);
+            await Task.Delay(5000);
 
-            // Verify initial draft
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            // Verify initial draft (retry until worker processes it)
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
 
             Assert.Equal("Original draft content", taskInfo.FinalWork);
             Console.WriteLine($"✓ Initial draft verified: {taskInfo.FinalWork}");
 
             // Update draft multiple times
-            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
+            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TestTenantId, taskId,
                 "Draft version 1");
 
-            await Task.Delay(500);
+            await Task.Delay(1000);
 
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.Equal("Draft version 1", taskInfo.FinalWork);
             Console.WriteLine($"✓ Draft updated to: {taskInfo.FinalWork}");
 
             // Update again
-            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
+            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TestTenantId, taskId,
                 "Draft version 2 - final");
 
-            await Task.Delay(500);
+            await Task.Delay(1000);
 
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.Equal("Draft version 2 - final", taskInfo.FinalWork);
             Console.WriteLine($"✓ Draft updated to final version: {taskInfo.FinalWork}");
 
             // Cleanup
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, "approve");
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, "approve");
             await Task.Delay(500);
         }
         catch (Exception ex)
@@ -308,7 +360,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task PerformActionAsync_Approve_ShouldCompleteTask()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
@@ -336,29 +388,27 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow",
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            await Task.Delay(2000);
+            await Task.Delay(5000);
 
-            // Verify task is not completed
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            // Verify task is not completed (retry until worker processes it)
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.False(taskInfo.IsCompleted);
             Assert.Null(taskInfo.PerformedAction);
             Console.WriteLine($"✓ Task verified as not completed");
 
             // Approve the task with a comment
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, 
                 "approve", "Looks good to me!");
 
-            await Task.Delay(1000);
+            await Task.Delay(2000);
 
             // Verify task is completed
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.True(taskInfo.IsCompleted);
             Assert.Equal("approve", taskInfo.PerformedAction);
             Assert.Equal("Looks good to me!", taskInfo.Comment);
@@ -377,7 +427,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task PerformActionAsync_Reject_ShouldCompleteTaskWithReason()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
@@ -405,29 +455,27 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow",
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            await Task.Delay(2000);
+            await Task.Delay(5000);
 
-            // Verify task is not completed
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            // Verify task is not completed (retry until worker processes it)
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.False(taskInfo.IsCompleted);
             Console.WriteLine($"✓ Task verified as not completed");
 
             // Reject the task
             var rejectionReason = "Task rejected by automated test - invalid content";
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, 
                 "reject", rejectionReason);
 
-            await Task.Delay(1000);
+            await Task.Delay(2000);
 
             // Verify task is rejected
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.True(taskInfo.IsCompleted);
             Assert.Equal("reject", taskInfo.PerformedAction);
             Assert.Equal(rejectionReason, taskInfo.Comment);
@@ -446,7 +494,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task PerformActionAsync_CustomAction_ShouldCompleteWithCustomAction()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
@@ -475,30 +523,28 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow",
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            await Task.Delay(2000);
+            await Task.Delay(5000);
 
-            // Verify available actions
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            // Verify available actions (retry until worker processes it)
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.NotNull(taskInfo.AvailableActions);
             Assert.Contains("ship", taskInfo.AvailableActions);
             Assert.Contains("hold", taskInfo.AvailableActions);
             Console.WriteLine($"✓ Custom actions verified: {string.Join(", ", taskInfo.AvailableActions)}");
 
             // Perform custom action
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, 
                 "hold", "Waiting for inventory restock");
 
-            await Task.Delay(1000);
+            await Task.Delay(2000);
 
             // Verify task completed with custom action
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.True(taskInfo.IsCompleted);
             Assert.Equal("hold", taskInfo.PerformedAction);
             Assert.Equal("Waiting for inventory restock", taskInfo.Comment);
@@ -516,7 +562,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task TaskLifecycle_FullWorkflow_ShouldHandleCompleteLifecycle()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
@@ -546,17 +592,17 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow",
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            await Task.Delay(2000);
+            await Task.Delay(5000);
             Console.WriteLine($"✓ Step 1: Task created");
 
-            // Step 2: Query initial state
+            // Step 2: Query initial state (retry until worker processes it)
             Console.WriteLine($"Step 2: Querying initial state...");
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
 
             Assert.NotNull(taskInfo);
             Assert.Equal("Initial draft v0", taskInfo.FinalWork);
@@ -567,35 +613,33 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
 
             // Step 3: Update draft multiple times
             Console.WriteLine($"Step 3: Updating draft...");
-            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
+            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TestTenantId, taskId,
                 "Draft version 1");
 
             await Task.Delay(500);
 
-            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
+            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TestTenantId, taskId,
                 "Draft version 2");
 
             await Task.Delay(500);
 
-            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId,
+            await _platformAgent.Tasks.SignalUpdateDraftAsync(client, TestTenantId, taskId,
                 "Draft version 3 - final");
 
-            await Task.Delay(500);
+            await Task.Delay(1000);
 
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.Equal("Draft version 3 - final", taskInfo.FinalWork);
             Console.WriteLine($"✓ Step 3: Draft updated 3 times - Final draft: {taskInfo.FinalWork}");
 
             // Step 4: Complete the task with approve action
             Console.WriteLine($"Step 4: Approving task...");
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, 
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, 
                 "approve", "All revisions look great!");
 
-            await Task.Delay(1000);
+            await Task.Delay(2000);
 
-            taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
-
+            taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
             Assert.True(taskInfo.IsCompleted);
             Assert.Equal("approve", taskInfo.PerformedAction);
             Assert.Equal("All revisions look great!", taskInfo.Comment);
@@ -617,7 +661,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
     [Fact]
     public async Task GetTaskHandleForClient_ShouldReturnValidHandle()
     {
-        if (!RunRealServerTests)
+        if (!RunRealServerTests || SkipDueToServerUnavailable)
         {
             return;
         }
@@ -645,23 +689,23 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
                 new[] { request },
                 new WorkflowOptions
                 {
-                    Id = $"test:Platform:Task Workflow:{taskId}",
-                    TaskQueue = "Platform:Task Workflow",
+                    Id = $"{TestTenantId}:Platform:Task Workflow:{taskId}",
+                    TaskQueue = PlatformTaskWorkflowTaskQueue,
                     IdConflictPolicy = Temporalio.Api.Enums.V1.WorkflowIdConflictPolicy.UseExisting
                 });
 
-            await Task.Delay(2000);
+            await Task.Delay(5000);
 
             // Get handle directly - build workflow ID manually since we're outside workflow context
-            var workflowId = $"{TemporalTestUtils.DefaultTestTenantId}:Platform:Task Workflow:{taskId}";
+            var workflowId = $"{TestTenantId}:Platform:Task Workflow:{taskId}";
             var taskHandle = client.GetWorkflowHandle(workflowId);
 
             Assert.NotNull(taskHandle);
             Console.WriteLine($"✓ Task handle obtained successfully");
             Console.WriteLine($"  Workflow ID: {workflowId}");
             
-            // Use the handle to query task info
-            var taskInfo = await _platformAgent.Tasks.QueryTaskInfoAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId);
+            // Use the handle to query task info (retry until worker processes it)
+            var taskInfo = await QueryTaskInfoWithRetryAsync(client, taskId);
 
             Assert.NotNull(taskInfo);
             Assert.Equal("Test Handle Management", taskInfo.Title);
@@ -669,7 +713,7 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             Console.WriteLine($"  Title: {taskInfo.Title}");
 
             // Clean up
-            await _platformAgent.Tasks.SignalPerformActionAsync(client, TemporalTestUtils.DefaultTestTenantId, taskId, "approve");
+            await _platformAgent.Tasks.SignalPerformActionAsync(client, TestTenantId, taskId, "approve");
             await Task.Delay(500);
         }
         catch (Exception ex)

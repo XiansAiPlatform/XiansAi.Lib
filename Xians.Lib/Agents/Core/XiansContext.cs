@@ -903,6 +903,40 @@ public static class XiansContext
 
     #endregion
 
+    #region Local Mode Initialization
+
+    /// <summary>
+    /// Initializes the Xians platform in local/mock mode for unit testing.
+    /// No server connection is established. All operations use embedded resources.
+    /// </summary>
+    /// <param name="configure">Optional configuration action to customize options.</param>
+    /// <returns>A task that completes when initialization is done.</returns>
+    /// <remarks>
+    /// This is a convenience method that delegates to XiansPlatform.StartLocalAsync.
+    /// The platform instance is created but not stored - use XiansPlatform.StartLocal
+    /// directly if you need to access the platform instance.
+    /// 
+    /// Example usage in tests:
+    /// <code>
+    /// [TestInitialize]
+    /// public async Task Setup()
+    /// {
+    ///     await XiansContext.StartLocalAsync(options =>
+    ///     {
+    ///         options.LocalModeAssemblies = new[] { typeof(MyTests).Assembly };
+    ///     });
+    /// }
+    /// </code>
+    /// </remarks>
+    public static Task StartLocalAsync(Action<XiansOptions>? configure = null)
+    {
+        // Initialize platform in local mode
+        _ = XiansPlatform.StartLocal(configure);
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
     #region Internal Registration
 
     /// <summary>

@@ -36,14 +36,20 @@ internal class TaskService
 
     /// <summary>
     /// Queries the current status of a task workflow.
+    /// Uses extended RPC timeout (90s) to handle cases where the workflow worker
+    /// may take time to pick up the task (e.g., integration tests with real server).
     /// </summary>
     public async Task<TaskInfo> QueryTaskInfoAsync(string taskId)
     {
         _logger.LogDebug("Querying task info: TaskId={TaskId}, TenantId={TenantId}", taskId, _tenantId);
-        
+
         var handle = GetTaskHandle(taskId);
-        var taskInfo = await handle.QueryAsync(wf => wf.GetTaskInfo());
-        
+        var queryOptions = new WorkflowQueryOptions
+        {
+            Rpc = new RpcOptions { Timeout = TimeSpan.FromSeconds(90) }
+        };
+        var taskInfo = await handle.QueryAsync(wf => wf.GetTaskInfo(), queryOptions);
+
         _logger.LogDebug("Task info queried: TaskId={TaskId}, IsCompleted={IsCompleted}", taskId, taskInfo.IsCompleted);
         return taskInfo;
     }
