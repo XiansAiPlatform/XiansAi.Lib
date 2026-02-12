@@ -36,6 +36,8 @@ internal interface IKnowledgeProvider
         string? tenantId,
         bool systemScoped = false,
         string? activationName = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -206,6 +206,8 @@ internal class ServerKnowledgeProvider : IKnowledgeProvider
         string? tenantId,
         bool systemScoped = false,
         string? activationName = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default)
     {
         // Validate inputs
@@ -224,7 +226,9 @@ internal class ServerKnowledgeProvider : IKnowledgeProvider
             Content = content,
             Type = type,
             Agent = agentName,
-            SystemScoped = systemScoped
+            SystemScoped = systemScoped,
+            Description = description,
+            Visible = visible
         };
 
         _logger.LogDebug(
