@@ -1,7 +1,5 @@
-using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
-using Xians.Lib.Common;
 using Xians.Lib.Common.Models;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Http;

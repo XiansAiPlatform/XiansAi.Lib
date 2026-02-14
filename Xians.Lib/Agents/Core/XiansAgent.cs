@@ -88,10 +88,10 @@ public class XiansAgent
     /// </summary>
     public bool EnableTasksOnInitialization => Options?.EnableTasks ?? true;
 
-    internal XiansAgent(string name, bool systemScoped, string? description, string? summary, string? version, string? author,
-        WorkflowDefinitionUploader? uploader, ITemporalClientService? temporalService, 
-        Http.IHttpClientService? httpService, XiansOptions? options, 
-        Common.Caching.CacheService? cacheService)
+    internal XiansAgent(string name, bool systemScoped, string? description = null, string? summary = null, string? version = null, string? author = null,
+        WorkflowDefinitionUploader? uploader = null, ITemporalClientService? temporalService = null, 
+        Http.IHttpClientService? httpService = null, XiansOptions? options = null, 
+        Common.Caching.CacheService? cacheService = null)
     {
         Name = name.Trim(); // Trim to handle whitespace variations
 
@@ -114,7 +114,7 @@ public class XiansAgent
         Documents = new DocumentCollection(this, httpService);
         Tasks = new TaskCollection(this);
         Metrics = new MetricsCollection(this);
-        Schedules = new ScheduleCollection(this, TemporalService ?? throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules."));
+        Schedules = new ScheduleCollection(this, TemporalService);
 
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);

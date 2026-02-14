@@ -12,15 +12,15 @@ namespace Xians.Lib.Agents.Scheduling;
 public class ScheduleCollection
 {
     private readonly XiansAgent _agent;
-    private readonly ITemporalClientService _temporalService;
+    private readonly ITemporalClientService? _temporalService;
     private readonly ILogger<ScheduleCollection> _logger;
 
     internal ScheduleCollection(
         XiansAgent agent,
-        ITemporalClientService temporalService)
+        ITemporalClientService? temporalService)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
-        _temporalService = temporalService ?? throw new ArgumentNullException(nameof(temporalService));
+        _temporalService = temporalService;
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleCollection>();
     }
 
@@ -40,6 +40,9 @@ public class ScheduleCollection
         if (string.IsNullOrWhiteSpace(scheduleName) || string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentException("Schedule name and workflow type cannot be null or empty", nameof(scheduleName));
         
+        if (_temporalService == null)
+            throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules.");
+        
         return new ScheduleBuilder(scheduleName, _agent, workflowType, _temporalService, idPostfix);
     }
 
@@ -58,6 +61,9 @@ public class ScheduleCollection
         
         try
         {
+            if (_temporalService == null)
+                throw new InvalidOperationException("Temporal service is not configured. Cannot get schedules.");
+            
             var client = await _temporalService.GetClientAsync();
             string tenantId = XiansContext.TenantId;
             idPostfix ??= XiansContext.GetIdPostfix();

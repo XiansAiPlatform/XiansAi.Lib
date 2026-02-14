@@ -201,23 +201,34 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
         string agentName,
         bool systemScoped)
     {
-        // Convention: {AgentName}.Knowledge.{KnowledgeName}.{extension}
-        // Try common extensions in order of preference
+        // Convention 1: {AgentName}.Knowledge.{KnowledgeName}.{extension}
+        // Convention 2 (fallback): *.{normalizedKnowledgeName}.{extension} (e.g. *.article-extraction-schema.json)
         var extensions = new[] { "md", "txt", "json", "yaml", "yml" };
 
         foreach (var assembly in _assemblies)
         {
             foreach (var ext in extensions)
             {
+                // Primary: strict convention
                 var resourceName = $"{agentName}.Knowledge.{knowledgeName}.{ext}";
                 var content = TryLoadResource(assembly, resourceName);
+
+                // Fallback: match any resource ending with .{normalizedName}.{ext}
+                if (content == null)
+                {
+                    var normalizedName = knowledgeName
+                        .Replace(" ", "-", StringComparison.Ordinal)
+                        .ToLowerInvariant();
+                    var fallbackSuffix = $".{normalizedName}.{ext}";
+                    content = TryLoadResourceBySuffix(assembly, fallbackSuffix);
+                }
 
                 if (content != null)
                 {
                     var type = InferKnowledgeType($".{ext}");
                     _logger.LogDebug(
-                        "[LocalMode] Loaded knowledge from embedded resource: {ResourceName} in {Assembly}",
-                        resourceName, assembly.GetName().Name);
+                        "[LocalMode] Loaded knowledge from embedded resource: Name={Name} in {Assembly}",
+                        knowledgeName, assembly.GetName().Name);
 
                     return new Models.Knowledge
                     {
@@ -236,6 +247,36 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
             knowledgeName, agentName);
 
         return null;
+    }
+
+    /// <summary>
+    /// Tries to load a resource by matching any manifest resource name that ends with the given suffix.
+    /// </summary>
+    private string? TryLoadResourceBySuffix(Assembly assembly, string suffix)
+    {
+        try
+        {
+            var allResources = assembly.GetManifestResourceNames();
+            var matchingResource = allResources.FirstOrDefault(r =>
+                r.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+
+            if (matchingResource == null)
+                return null;
+
+            using var stream = assembly.GetManifestResourceStream(matchingResource);
+            if (stream == null)
+                return null;
+
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "[LocalMode] Failed to load resource by suffix: {Suffix} from {Assembly}",
+                suffix, assembly.GetName().Name);
+            return null;
+        }
     }
 
     /// <summary>

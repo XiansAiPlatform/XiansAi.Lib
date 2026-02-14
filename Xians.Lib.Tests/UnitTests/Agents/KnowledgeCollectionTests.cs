@@ -8,6 +8,7 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge.Models;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Http;
+using Xians.Lib.Temporal;
 
 namespace Xians.Lib.Tests.UnitTests.Agents;
 
@@ -17,6 +18,7 @@ public class KnowledgeCollectionTests : IDisposable
     private readonly Mock<HttpMessageHandler> _httpMessageHandler;
     private readonly HttpClient _httpClient;
     private readonly Mock<IHttpClientService> _mockHttpService;
+    private readonly Mock<ITemporalClientService> _mockTemporalService;
     private readonly XiansAgent _agent;
     private readonly KnowledgeCollection _knowledgeCollection;
 
@@ -36,6 +38,10 @@ public class KnowledgeCollectionTests : IDisposable
         _mockHttpService = new Mock<IHttpClientService>();
         _mockHttpService.Setup(x => x.Client).Returns(_httpClient);
         
+        // Mock ITemporalClientService (required by XiansAgent for ScheduleCollection)
+        _mockTemporalService = new Mock<ITemporalClientService>();
+        _mockTemporalService.Setup(x => x.IsConnectionHealthy()).Returns(true);
+        
         // Create options with test certificate
         var options = new XiansOptions
         {
@@ -52,7 +58,7 @@ public class KnowledgeCollectionTests : IDisposable
             null, // version
             null, // author
             null, // uploader
-            null, // temporalService
+            _mockTemporalService.Object,
             _mockHttpService.Object,
             options,
             null); // No cache for unit tests
