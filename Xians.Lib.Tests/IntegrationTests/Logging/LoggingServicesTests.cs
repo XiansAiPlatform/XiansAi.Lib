@@ -64,6 +64,8 @@ public class LoggingServicesTests : IAsyncLifetime
         // Clear any remaining logs from previous tests
         while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
         
+        // Use long interval so background thread won't process logs before we assert
+        LoggingServices.ConfigureBatchSettings(100, 60000);
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(100); // Allow initialization to complete
         
@@ -74,7 +76,8 @@ public class LoggingServicesTests : IAsyncLifetime
         LoggingServices.EnqueueLog(log);
 
         // Assert
-        Assert.True(LoggingServices.GlobalLogQueue.Count > initialCount);
+        Assert.True(LoggingServices.GlobalLogQueue.Count > initialCount,
+            $"Expected queue count > {initialCount}, but got {LoggingServices.GlobalLogQueue.Count}. Service initialized: {LoggingServices.IsInitialized}");
     }
 
     [Fact]

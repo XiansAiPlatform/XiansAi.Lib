@@ -14,7 +14,7 @@ namespace Xians.Lib.Agents.Workflows;
 /// <summary>
 /// Service for uploading workflow definitions to the server.
 /// </summary>
-internal class WorkflowDefinitionUploader
+public class WorkflowDefinitionUploader
 {
     private readonly IHttpClientService _httpService;
     private readonly ILogger<WorkflowDefinitionUploader>? _logger;

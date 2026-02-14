@@ -21,7 +21,7 @@ internal class KnowledgeActivityExecutor : ContextAwareActivityExecutor<Knowledg
     public KnowledgeActivityExecutor(XiansAgent agent, ILogger logger)
         : base(logger)
     {
-        _agent = agent ?? throw new ArgumentNullException(nameof(agent));
+        _agent = agent ?? throw new ArgumentNullException( "Agent is required to create a KnowledgeActivityExecutor", nameof(agent));
     }
 
     protected override KnowledgeService CreateService()

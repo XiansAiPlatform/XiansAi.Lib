@@ -52,10 +52,7 @@ public class AgentCollection
         {
             throw new ArgumentException("Agent name is required", nameof(registration));
         }
-        
-        // Create agent-specific options that merge global options with registration settings
-        var agentOptions = CreateAgentSpecificOptions(registration);
-        
+
         return new XiansAgent(
             registration.Name, 
             registration.IsTemplate,
@@ -66,30 +63,8 @@ public class AgentCollection
             _uploader,
             _temporalService,
             _httpService,
-            agentOptions,
+            _options,
             _cacheService);
     }
 
-    /// <summary>
-    /// Creates agent-specific options by merging global options with registration settings.
-    /// </summary>
-    /// <param name="registration">The agent registration with specific settings.</param>
-    /// <returns>XiansOptions configured for the specific agent.</returns>
-    private XiansOptions CreateAgentSpecificOptions(XiansAgentRegistration registration)
-    {
-        // Create a copy of global options for this agent
-        var agentOptions = new XiansOptions
-        {
-            ServerUrl = _options.ServerUrl,
-            ApiKey = _options.ApiKey,
-            TemporalConfiguration = _options.TemporalConfiguration,
-            Cache = _options.Cache,
-            ConsoleLogLevel = _options.ConsoleLogLevel,
-            ServerLogLevel = _options.ServerLogLevel,
-            // Only override global EnableTasks if registration explicitly specifies a value
-            EnableTasks = registration.EnableTasks ?? _options.EnableTasks
-        };
-
-        return agentOptions;
-    }
 }

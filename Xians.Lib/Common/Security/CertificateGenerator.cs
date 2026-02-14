@@ -22,7 +22,7 @@ internal static class CertificateGenerator
         using var rsa = RSA.Create(2048);
         
         var request = new CertificateRequest(
-            $"CN={userId}, O={tenantId}",
+            $"CN={userId}, OU={userId}, O={tenantId}",
             rsa,
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
