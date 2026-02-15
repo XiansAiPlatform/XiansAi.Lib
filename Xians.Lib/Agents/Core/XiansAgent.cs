@@ -118,6 +118,13 @@ public class XiansAgent
 
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);
+
+        // In Local mode (unit tests), automatically set as CurrentAgent so XiansContext.CurrentAgent
+        // works without explicit SetCurrentAgentForTests. Agent already has LocalKnowledgeProvider via options.
+        if (options?.LocalMode == true)
+        {
+            XiansContext.SetCurrentAgentForTests(this);
+        }
     }
 
     /// <summary>
