@@ -35,6 +35,15 @@ public static class XiansContext
     // AsyncLocal storage for tenant ID - isolated per async execution context
     private static readonly AsyncLocal<string?> _asyncLocalTenantId = new AsyncLocal<string?>();
 
+    // AsyncLocal storage for current agent override - for unit tests without Temporal workflow context.
+    // When set, CurrentAgent returns this agent instead of resolving from workflow type.
+    private static readonly AsyncLocal<XiansAgent?> _asyncLocalCurrentAgentOverride = new AsyncLocal<XiansAgent?>();
+
+    // Static fallback for Local mode: when an agent is registered with LocalMode=true, it is stored here.
+    // AsyncLocal does not flow from fixture InitializeAsync to test execution context, so tests need this
+    // static fallback to resolve CurrentAgent without Temporal workflow context.
+    private static XiansAgent? _staticCurrentAgentOverride;
+
     #region Workflow/Activity Context
 
     /// <summary>
@@ -597,12 +606,34 @@ public static class XiansContext
     /// <summary>
     /// Gets the current agent instance based on the workflow context.
     /// Use this to access agent-level operations like Knowledge and Documents.
+    /// When <see cref="SetCurrentAgentForTests"/> has been called (e.g. in unit tests), returns that agent instead,
+    /// enabling use of a mock agent with Local Knowledge provider outside Temporal workflow context.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow/activity context or agent not found.</exception>
     public static XiansAgent CurrentAgent
     {
         get
         {
+            var overrideAgent = _asyncLocalCurrentAgentOverride.Value;
+            if (overrideAgent != null)
+            {
+                return overrideAgent;
+            }
+
+            // When not in workflow/activity (e.g. unit tests), AsyncLocal may be empty due to different
+            // execution context. Use static fallback set when agent is registered with LocalMode=true.
+            if (!InWorkflowOrActivity)
+            {
+                var staticOverride = _staticCurrentAgentOverride;
+                if (staticOverride != null)
+                {
+                    return staticOverride;
+                }
+                throw new InvalidOperationException(
+                    "Not in workflow or activity context. This operation requires Temporal context. " +
+                    "For unit tests, initialize with XiansPlatform.InitializeForTestsAsync() and register an agent.");
+            }
+
             var agentName = AgentName;
             if (_agentRegistry.TryGet(agentName, out var agent))
             {
@@ -947,8 +978,34 @@ public static class XiansContext
     /// <item><description>Certificate cache</description></item>
     /// </list>
     /// </remarks>
+    /// <summary>
+    /// Sets the current agent for unit tests.
+    /// When called, <see cref="CurrentAgent"/> returns this agent instead of resolving from workflow context.
+    /// Use with an agent registered via <see cref="XiansPlatform.InitializeForTestsAsync"/> so it has
+    /// Local Knowledge provider. Call <see cref="ClearCurrentAgentForTests"/> in test cleanup.
+    /// Sets both AsyncLocal (same async context) and static fallback (for fixture init vs test execution context).
+    /// </summary>
+    /// <param name="agent">The agent to use as CurrentAgent (e.g. one with LocalMode options and LocalKnowledgeProvider).</param>
+    internal static void SetCurrentAgentForTests(XiansAgent agent)
+    {
+        var a = agent ?? throw new ArgumentNullException(nameof(agent));
+        _asyncLocalCurrentAgentOverride.Value = a;
+        _staticCurrentAgentOverride = a;
+    }
+
+    /// <summary>
+    /// Clears the current agent override set by <see cref="SetCurrentAgentForTests"/>.
+    /// Call in test cleanup to avoid cross-test contamination.
+    /// </summary>
+    internal static void ClearCurrentAgentForTests()
+    {
+        _asyncLocalCurrentAgentOverride.Value = null;
+        _staticCurrentAgentOverride = null;
+    }
+
     internal static void CleanupForTests()
     {
+        ClearCurrentAgentForTests();
         _agentRegistry.Clear();
         _workflowRegistry.Clear();
         // Clear workflow handlers to prevent test contamination
@@ -972,6 +1029,7 @@ public static class XiansContext
     /// </remarks>
     internal static void Clear()
     {
+        ClearCurrentAgentForTests();
         _agentRegistry.Clear();
         _workflowRegistry.Clear();
     }

@@ -32,7 +32,7 @@ internal static class KnowledgeProviderFactory
 
         if (options.LocalMode)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "[LocalMode] Using LocalKnowledgeProvider with {Count} assemblies",
                 options.LocalModeAssemblies?.Length ?? 0);
             

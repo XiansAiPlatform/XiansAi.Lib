@@ -7,6 +7,19 @@ using Xians.Lib.Agents.Core;
 namespace Xians.Lib.Logging;
 
 /// <summary>
+/// Helper for workflow logging. Workflow.Logger suppresses during replay; dual-logging makes workflow logs visible.
+/// </summary>
+internal static class WorkflowLoggingHelper
+{
+    public static bool ShouldLogWorkflowToConsole()
+    {
+        var val = Environment.GetEnvironmentVariable(Common.WorkflowConstants.EnvironmentVariables.WorkflowLogToConsole);
+        if (string.IsNullOrEmpty(val)) return true;
+        return val.Equals("true", StringComparison.OrdinalIgnoreCase) || val == "1";
+    }
+}
+
+/// <summary>
 /// Interface for logger instances that provides logging methods.
 /// </summary>
 public interface IXiansLogger
@@ -121,10 +134,15 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
     {
         var contextData = GetContextData();
 
-        // If in workflow context, use Workflow.Logger (required by Temporal)
+        // If in workflow context, use Workflow.Logger (required by Temporal).
         if (Workflow.InWorkflow)
         {
             LogToWorkflowLogger(logLevel, message, exception, contextData);
+            // Workflow.Logger suppresses during replay. Dual-log so workflow logs appear in console and server.
+            if (WorkflowLoggingHelper.ShouldLogWorkflowToConsole())
+            {
+                LogToStandardLogger(logLevel, message, exception, contextData);
+            }
             return;
         }
 
@@ -159,7 +177,7 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
                     Workflow.Logger.LogDebug(fullMessage);
                     break;
                 case LogLevel.Information:
-                    Workflow.Logger.LogDebug(fullMessage);
+                    Workflow.Logger.LogInformation(fullMessage);
                     break;
                 case LogLevel.Warning:
                     Workflow.Logger.LogWarning(fullMessage);
@@ -375,10 +393,15 @@ public class Logger<T> : IXiansLogger
     {
         var contextData = GetContextData();
 
-        // If in workflow context, use Workflow.Logger (required by Temporal)
+        // If in workflow context, use Workflow.Logger (required by Temporal).
         if (Workflow.InWorkflow)
         {
             LogToWorkflowLogger(logLevel, message, exception, contextData);
+            // Workflow.Logger suppresses during replay. Dual-log so workflow logs appear in console and server.
+            if (WorkflowLoggingHelper.ShouldLogWorkflowToConsole())
+            {
+                LogToStandardLogger(logLevel, message, exception, contextData);
+            }
             return;
         }
 
@@ -413,7 +436,7 @@ public class Logger<T> : IXiansLogger
                     Workflow.Logger.LogDebug(fullMessage);
                     break;
                 case LogLevel.Information:
-                    Workflow.Logger.LogDebug(fullMessage);
+                    Workflow.Logger.LogInformation(fullMessage);
                     break;
                 case LogLevel.Warning:
                     Workflow.Logger.LogWarning(fullMessage);

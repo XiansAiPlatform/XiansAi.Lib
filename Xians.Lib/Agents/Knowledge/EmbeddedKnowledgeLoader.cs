@@ -46,11 +46,33 @@ public static class EmbeddedKnowledgeLoader
         bool visible = true,
         CancellationToken cancellationToken = default)
     {
+        // Validate or derive the name
+        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(resourcePath);
+        var normalizedFileName = fileNameWithoutExt.Replace(" ", "-").ToLowerInvariant();
+
+        string name;
+        if (!string.IsNullOrWhiteSpace(knowledgeName))
+        {
+            var normalizedName = knowledgeName.Replace(" ", "-").ToLowerInvariant();
+            if (normalizedName != normalizedFileName)
+            {
+                var derivedName = DeriveNameFromFileName(fileNameWithoutExt);
+                throw new ArgumentException(
+                    $"The provided knowledge name '{knowledgeName}' does not match the embedded resource file name. " +
+                    $"When normalized (spaces replaced with hyphens, lowercased), the name becomes '{normalizedName}', " +
+                    $"but the resource file name normalizes to '{normalizedFileName}'. " +
+                    $"Either use a matching name (e.g., '{derivedName}' or '{normalizedFileName}') or omit the name parameter to derive it automatically from the file.",
+                    nameof(knowledgeName));
+            }
+            name = knowledgeName;
+        }
+        else
+        {
+            name = DeriveNameFromFileName(fileNameWithoutExt);
+        }
+
         // Load the embedded resource content from the calling assembly
         var content = LoadEmbeddedResource(resourcePath);
-        
-        // Determine the knowledge name (use filename if not provided)
-        var name = knowledgeName ?? Path.GetFileName(resourcePath);
         
         // Infer knowledge type from file extension if not provided
         var type = knowledgeType ?? InferKnowledgeType(resourcePath);
@@ -263,6 +285,22 @@ public static class EmbeddedKnowledgeLoader
             // Ignore any exceptions and return null
             return null;
         }
+    }
+
+    /// <summary>
+    /// Derives a human-friendly name from a file name (without extension).
+    /// Converts hyphen/underscore-separated segments to Title Case with spaces (e.g., "web-agent-prompt" -> "Web Agent Prompt").
+    /// </summary>
+    /// <param name="fileNameWithoutExt">The file name without extension.</param>
+    /// <returns>A display name with spaces and capital starting letters in words.</returns>
+    private static string DeriveNameFromFileName(string fileNameWithoutExt)
+    {
+        if (string.IsNullOrWhiteSpace(fileNameWithoutExt))
+            return fileNameWithoutExt;
+
+        var words = fileNameWithoutExt.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        var titleCased = words.Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant());
+        return string.Join(" ", titleCased);
     }
 
     /// <summary>

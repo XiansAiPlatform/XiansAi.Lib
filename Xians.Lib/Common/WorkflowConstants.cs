@@ -107,6 +107,13 @@ public static class WorkflowConstants
         /// Maintained for backward compatibility.
         /// </summary>
         public const string ApiLogLevel = "API_LOG_LEVEL";
+
+        /// <summary>
+        /// When "true" or "1" (default), workflow logs are also written to console/server via the standard logger.
+        /// Workflow.Logger suppresses output during replay; dual-logging makes workflow logs visible (may duplicate during replay).
+        /// Set to "false" or "0" to use only Workflow.Logger (no duplicates, but very few workflow logs).
+        /// </summary>
+        public const string WorkflowLogToConsole = "WORKFLOW_LOG_TO_CONSOLE";
     }
 
     /// <summary>

@@ -207,7 +207,11 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
     {
         // Convention 1: {AgentName}.Knowledge.{KnowledgeName}.{extension}
         // Convention 2 (fallback): *.{normalizedKnowledgeName}.{extension} (e.g. *.article-extraction-schema.json)
-        var extensions = new[] { "md", "txt", "json", "yaml", "yml" };
+        var extensions = new[] { "md", "txt", "json"};
+        var normalizedName = knowledgeName
+            .Replace(" ", "-")
+            .ToLowerInvariant();
+        var searchedFileNames = new HashSet<string>();
 
         foreach (var assembly in _assemblies)
         {
@@ -215,14 +219,14 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
             {
                 // Primary: strict convention
                 var resourceName = $"{agentName}.Knowledge.{knowledgeName}.{ext}";
+                searchedFileNames.Add(resourceName);
                 var content = TryLoadResource(assembly, resourceName);
 
                 // Fallback: match any resource ending with .{normalizedName}.{ext}
                 if (content == null)
                 {
-                    var normalizedName = knowledgeName
-                        .Replace(" ", "-", StringComparison.Ordinal)
-                        .ToLowerInvariant();
+                    var fallbackPattern = $"*.{normalizedName}.{ext}";
+                    searchedFileNames.Add(fallbackPattern);
                     var fallbackSuffix = $".{normalizedName}.{ext}";
                     content = TryLoadResourceBySuffix(assembly, fallbackSuffix);
                 }
@@ -246,9 +250,10 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
             }
         }
 
-        _logger.LogDebug(
-            "[LocalMode] Knowledge not found in embedded resources: Name={Name}, Agent={Agent}",
-            knowledgeName, agentName);
+        var searchedList = string.Join(", ", searchedFileNames.Order());
+        _logger.LogWarning(
+            "[LocalMode] Knowledge not found. Name={Name}, Agent={Agent}. Searched for these file names: [{SearchedFileNames}]",
+            knowledgeName, agentName, searchedList);
 
         return null;
     }
