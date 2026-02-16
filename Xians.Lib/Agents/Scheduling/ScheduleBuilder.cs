@@ -290,6 +290,7 @@ public class ScheduleBuilder
 
             bool created;
 
+            var effectiveIdPostfix = GetEffectiveIdPostfixForSchedule();
             if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
             {
                 var request = new CreateCronScheduleRequest
@@ -298,7 +299,7 @@ public class ScheduleBuilder
                     CronExpression = _scheduleSpec.CronExpressions.First(),
                     WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
                     Timezone = _scheduleSpec.TimeZoneName,
-                    IdPostfix = _idPostfix,
+                    IdPostfix = effectiveIdPostfix,
                     SearchAttributes = searchAttrs,
                     WorkflowType = _workflowType
                 };
@@ -314,7 +315,7 @@ public class ScheduleBuilder
                     ScheduleName = _scheduleName,
                     Interval = _scheduleSpec.Intervals.First().Every,
                     WorkflowInput = _workflowArgs ?? Array.Empty<object>(),
-                    IdPostfix = _idPostfix,
+                    IdPostfix = effectiveIdPostfix,
                     SearchAttributes = searchAttrs,
                     WorkflowType = _workflowType
                 };
@@ -412,15 +413,35 @@ public class ScheduleBuilder
     }
 
     /// <summary>
+    /// Gets the effective idPostfix for schedule operations.
+    /// Prefers idPostfix from workflow metadata (search attributes, memo) over workflow ID parsing.
+    /// The metadata has the clean value; the workflow ID gets polluted when Temporal appends
+    /// timestamps for scheduled runs, causing CreateIfNotExists to miss the existing schedule.
+    /// </summary>
+    private string GetEffectiveIdPostfixForSchedule()
+    {
+        // Prefer idPostfix from workflow metadata - the clean value set when the workflow started
+        if (Workflow.InWorkflow)
+        {
+            var fromMetadata = XiansContext.TryGetIdPostfix();
+            if (!string.IsNullOrEmpty(fromMetadata))
+                return fromMetadata;
+        }
+        return _idPostfix;
+    }
+
+    /// <summary>
     /// Builds the full schedule ID using the pattern: tenantId:agentName:idPostfix:scheduleId
-    /// Uses instance variables and effective tenant ID to construct the full schedule identifier.
+    /// Uses effective idPostfix (from TemporalScheduledById when applicable) to ensure
+    /// CreateIfNotExists is idempotent for workflows started by schedules.
     /// </summary>
     /// <returns>The fully qualified schedule ID.</returns>
     private string BuildFullScheduleId()
     {
         var tenantId = GetEffectiveTenantId();
         var agentName = _agent.Name;
-        return ScheduleIdHelper.BuildFullScheduleId(tenantId, agentName, _idPostfix, _scheduleName);
+        var effectiveIdPostfix = GetEffectiveIdPostfixForSchedule();
+        return ScheduleIdHelper.BuildFullScheduleId(tenantId, agentName, effectiveIdPostfix, _scheduleName);
     }
 
     /// <summary>

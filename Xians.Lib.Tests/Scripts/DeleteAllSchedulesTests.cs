@@ -10,7 +10,7 @@ namespace Xians.Lib.Tests.Scripts;
 [Trait("Category", "Script")]
 public class DeleteAllSchedulesTests
 {
-    [Fact (Skip = "This is a script, not a test")]
+    [Fact]
     public async Task DeleteAllSchedules_Run()
     {
         var runIntegrationTests = bool.TryParse(

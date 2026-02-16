@@ -35,7 +35,7 @@ public class ScheduleCollection
         var workflowType = WorkflowHelper.GetWorkflowTypeFromClass<TWorkflow>();    
         return Create(scheduleName, workflowType);
     }
-    public ScheduleBuilder Create(string scheduleName, string workflowType, string? idPostfix = null)
+    internal ScheduleBuilder Create(string scheduleName, string workflowType, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleName) || string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentException("Schedule name and workflow type cannot be null or empty", nameof(scheduleName));
@@ -46,7 +46,15 @@ public class ScheduleCollection
         return new ScheduleBuilder(scheduleName, _agent, workflowType, _temporalService, idPostfix);
     }
 
-
+    /// <summary>
+    /// Gets an existing schedule by ID.
+    /// </summary>  
+    /// <param name="scheduleName">The schedule identifier.</param>
+    /// <returns>A XiansSchedule instance for managing the schedule.</returns>
+    public async Task<XiansSchedule> GetAsync(string scheduleName)
+    {
+        return await GetAsync(scheduleName);
+    }
 
     /// <summary>
     /// Gets an existing schedule by ID.
@@ -54,7 +62,7 @@ public class ScheduleCollection
     /// <param name="scheduleName">The schedule identifier.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public async Task<XiansSchedule> GetAsync(string scheduleName, string? idPostfix = null)
+    internal async Task<XiansSchedule> GetAsync(string scheduleName, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleName))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleName));
@@ -95,7 +103,17 @@ public class ScheduleCollection
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to delete.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
-    public async Task DeleteAsync(string scheduleName, string? idPostfix = null)
+    public async Task DeleteAsync(string scheduleName)
+    {
+        await DeleteAsync(scheduleName, null);
+    }
+
+    /// <summary>
+    /// Deletes a schedule by ID.
+    /// </summary>
+    /// <param name="scheduleName">The schedule identifier to delete.</param>
+    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
+    internal async Task DeleteAsync(string scheduleName, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleName))
             throw new ArgumentException("Schedule name cannot be null or empty", nameof(scheduleName));
@@ -117,13 +135,17 @@ public class ScheduleCollection
         }
     }
 
+    internal async Task<bool> ExistsAsync(string scheduleName)
+    {
+        return await ExistsAsync(scheduleName, null);
+    }
     /// <summary>
     /// Checks if a schedule with the specified ID exists.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to check.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
-    public async Task<bool> ExistsAsync(string scheduleName, string? idPostfix = null)
+    internal async Task<bool> ExistsAsync(string scheduleName, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleName))
             throw new ArgumentException("Schedule name cannot be null or empty", nameof(scheduleName));
@@ -139,36 +161,48 @@ public class ScheduleCollection
         }
     }
 
+    public async Task PauseAsync(string scheduleName, string? note = null)
+    {
+        await PauseAsync(scheduleName, null, note);
+    }   
     /// <summary>
     /// Pauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to pause.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <param name="note">Optional note explaining why the schedule is paused.</param>
-    public async Task PauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
+    internal async Task PauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
     {
         var schedule = await GetAsync(scheduleName, idPostfix);
         await schedule.PauseAsync(note);
     }
 
+    public async Task UnpauseAsync(string scheduleName, string? note = null)
+    {
+        await UnpauseAsync(scheduleName, null, note);
+    }
     /// <summary>
     /// Unpauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to unpause.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <param name="note">Optional note explaining why the schedule is unpaused.</param>
-    public async Task UnpauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
+    internal async Task UnpauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
     {
         var schedule = await GetAsync(scheduleName, idPostfix);
         await schedule.UnpauseAsync(note);
     }
 
+    public async Task TriggerAsync(string scheduleName)
+    {
+        await TriggerAsync(scheduleName, null);
+    }
     /// <summary>
     /// Triggers an immediate execution of a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to trigger.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
-    public async Task TriggerAsync(string scheduleName, string? idPostfix = null)
+    internal async Task TriggerAsync(string scheduleName, string? idPostfix = null)
     {
         var schedule = await GetAsync(scheduleName, idPostfix);
         await schedule.TriggerAsync();

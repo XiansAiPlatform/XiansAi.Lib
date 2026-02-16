@@ -40,7 +40,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await agent.Schedules!.ExistsAsync(request.ScheduleName))
+            if (await agent.Schedules!.ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
                 _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -88,7 +88,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await agent.Schedules.ExistsAsync(request.ScheduleName))
+            if (await agent.Schedules.ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
                 _logger.LogDebug("Schedule '{ScheduleName}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -98,7 +98,7 @@ public class ScheduleActivities
 
             // Reconstruct search attributes from serializable format
             var builder = agent.Schedules
-                .Create(request.ScheduleName, request.WorkflowType)
+                .Create(request.ScheduleName, request.WorkflowType, request.IdPostfix)
                 .WithIntervalSchedule(request.Interval)
                 .WithInput(request.WorkflowInput);
 
