@@ -40,7 +40,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await agent.Schedules!.ExistsAsync(request.ScheduleName))
+            if (await agent.Schedules!.ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
                 _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -88,7 +88,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await agent.Schedules.ExistsAsync(request.ScheduleName))
+            if (await agent.Schedules.ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
                 _logger.LogDebug("Schedule '{ScheduleName}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -96,9 +96,9 @@ public class ScheduleActivities
 
             _logger.LogDebug("Schedule '{ScheduleName}' does not exist, creating it", request.ScheduleName);
 
-            // Reconstruct search attributes from serializable format
+            // Reconstruct search attributes from serializable format (use request.IdPostfix so check and create use same full ID)
             var builder = agent.Schedules
-                .Create(request.ScheduleName, request.WorkflowType)
+                .Create(request.ScheduleName, request.WorkflowType, request.IdPostfix)
                 .WithIntervalSchedule(request.Interval)
                 .WithInput(request.WorkflowInput);
 
