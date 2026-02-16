@@ -460,26 +460,29 @@ catch (ScheduleNotFoundException ex)
 
 ### Idempotent Schedule Creation
 
-Check for existence before creating:
+Use `CreateIfNotExistsAsync()` for idempotent schedule creation - safe to call on every workflow run:
 
 ```csharp
 var workflow = XiansContext.CurrentWorkflow;
-var scheduleId = "my-recurring-task";
 
-if (!await workflow.Schedules!.ExistsAsync(scheduleId))
-{
-    await workflow.Schedules!
-        .Create(scheduleId)
-        .Daily(hour: 9)
-        .WithInput("data")
-        .StartAsync();
-    
-    Console.WriteLine("Schedule created");
-}
-else
-{
-    Console.WriteLine("Schedule already exists");
-}
+// CreateIfNotExistsAsync is idempotent - returns existing schedule if found
+var schedule = await workflow.Schedules!
+    .Create("my-recurring-task")
+    .Daily(hour: 9)
+    .WithInput("data")
+    .CreateIfNotExistsAsync();
+```
+
+When creating schedules from **within a workflow started by that same schedule** (self-scheduling pattern), the SDK uses the `idPostfix` from the workflow's metadata (search attributes or memo) rather than parsing the workflow ID. Because Temporal appends timestamps to workflow IDs for scheduled runs, the workflow ID becomes polluted; the metadata keeps the original clean value so `CreateIfNotExistsAsync` correctly finds the existing schedule.
+
+For **manually started workflows** that create shared schedules, pass an explicit stable `idPostfix`:
+
+```csharp
+await XiansContext.CurrentAgent.Schedules
+    .Create<OrderExtractionWorkflow>("custom-schedule", idPostfix: "custom-schedule")
+    .WithIntervalSchedule(TimeSpan.FromSeconds(10))
+    .WithInput(args)
+    .CreateIfNotExistsAsync();
 ```
 
 ## Complete Examples
