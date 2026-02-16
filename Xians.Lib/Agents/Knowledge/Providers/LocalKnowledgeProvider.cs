@@ -106,6 +106,8 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
         string? tenantId,
         bool systemScoped = false,
         string? activationName = null,
+        string? description = null,
+        bool visible = true,
         CancellationToken cancellationToken = default)
     {
         _logger.LogDebug(
@@ -118,7 +120,9 @@ internal class LocalKnowledgeProvider : IKnowledgeProvider
             Content = content,
             Type = type ?? "text",
             Agent = agentName,
-            SystemScoped = systemScoped
+            SystemScoped = systemScoped,
+            Description = description,
+            Visible = visible
         };
 
         var storeKey = GetStoreKey(tenantId, agentName, activationName, knowledgeName);

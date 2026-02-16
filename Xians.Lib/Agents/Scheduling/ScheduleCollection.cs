@@ -74,8 +74,9 @@ public class ScheduleCollection
             
             var client = await _temporalService.GetClientAsync();
             string tenantId = XiansContext.TenantId;
-            idPostfix ??= XiansContext.GetIdPostfix();
-            
+            // When null, use empty string so we resolve the same shared schedule as Create() with no idPostfix.
+            idPostfix ??= string.Empty;
+
             // Full schedule ID pattern: tenantId:agentName:idPostfix:scheduleId
             var fullScheduleId = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, idPostfix, scheduleName);
             var handle = client.GetScheduleHandle(fullScheduleId);

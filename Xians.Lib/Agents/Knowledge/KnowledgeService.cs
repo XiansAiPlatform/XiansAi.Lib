@@ -76,6 +76,8 @@ internal class KnowledgeService
             tenantId,
             systemScoped,
             activationName,
+            description,
+            visible,
             cancellationToken);
     }
 

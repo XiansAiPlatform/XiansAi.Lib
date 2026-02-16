@@ -96,7 +96,7 @@ public class ScheduleActivities
 
             _logger.LogDebug("Schedule '{ScheduleName}' does not exist, creating it", request.ScheduleName);
 
-            // Reconstruct search attributes from serializable format
+            // Reconstruct search attributes from serializable format (use request.IdPostfix so check and create use same full ID)
             var builder = agent.Schedules
                 .Create(request.ScheduleName, request.WorkflowType, request.IdPostfix)
                 .WithIntervalSchedule(request.Interval)

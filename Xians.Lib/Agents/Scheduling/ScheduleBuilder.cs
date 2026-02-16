@@ -40,7 +40,9 @@ public class ScheduleBuilder
         ITemporalClientService temporalService,
         string? idPostfix = null)
     {
-        _idPostfix = idPostfix ?? XiansContext.GetIdPostfix();   
+        // Use empty string when not specified so CreateIfNotExists yields one schedule per tenant:agent:scheduleName.
+        // Pass an explicit idPostfix when you need run-scoped schedules.
+        _idPostfix = idPostfix ?? string.Empty;   
         _workflowType = workflowType;
         _scheduleName = scheduleName ?? throw new ArgumentNullException(nameof(scheduleName));
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
