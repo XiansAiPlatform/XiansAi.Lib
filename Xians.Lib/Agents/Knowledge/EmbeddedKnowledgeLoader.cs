@@ -89,6 +89,8 @@ public static class EmbeddedKnowledgeLoader
     /// <param name="knowledgeName">The name of the knowledge item.</param>
     /// <param name="content">The text content to upload.</param>
     /// <param name="knowledgeType">Optional knowledge type (e.g., "instruction", "document", "markdown"). Defaults to "text" when null.</param>
+    /// <param name="visible">Whether the knowledge item is visible. Defaults to true.</param>
+    /// <param name="description">Optional description of the knowledge item.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the upload succeeds.</returns>
     public static async Task<bool> UploadTextResourceAsync(
@@ -96,6 +98,8 @@ public static class EmbeddedKnowledgeLoader
         string knowledgeName,
         string content,
         string? knowledgeType = null,
+        bool visible = true,
+        string? description = null,
         CancellationToken cancellationToken = default)
     {
         if (knowledgeCollection is null)
@@ -106,7 +110,7 @@ public static class EmbeddedKnowledgeLoader
             throw new ArgumentNullException(nameof(content));
 
         var type = string.IsNullOrWhiteSpace(knowledgeType) ? "text" : knowledgeType;
-        return await knowledgeCollection.UpdateAsync(knowledgeName, content, type, systemScoped: null, description: null, visible: true, cancellationToken);
+        return await knowledgeCollection.UpdateAsync(knowledgeName, content, type, systemScoped: null, description: description, visible, cancellationToken);
     }
 
     private static string LoadEmbeddedResource(string resourcePath)
