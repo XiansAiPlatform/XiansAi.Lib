@@ -132,11 +132,16 @@ public static class SettingsService
         var temporalServerUrl = Environment.GetEnvironmentVariable("TEMPORAL_SERVER_URL");
         if (!string.IsNullOrWhiteSpace(temporalServerUrl))
         {
-            // Validate that the override URL is a valid URI
-            if (!Uri.TryCreate(temporalServerUrl, UriKind.Absolute, out var uri))
+            // Validate: accept full URLs (grpc://, https://, http://) or host:port (IP or hostname)
+            var toValidate = temporalServerUrl;
+            if (!toValidate.Contains("://", StringComparison.Ordinal))
+            {
+                toValidate = "grpc://" + toValidate; // host:port is valid for Temporal
+            }
+            if (!Uri.TryCreate(toValidate, UriKind.Absolute, out var uri))
             {
                 throw new InvalidOperationException(
-                    $"Invalid TEMPORAL_SERVER_URL environment variable: '{temporalServerUrl}' is not a valid URL");
+                    $"Invalid TEMPORAL_SERVER_URL environment variable: '{temporalServerUrl}' is not a valid URL or host:port");
             }
 
             // Additional validation: ensure it's using expected schemes (if needed)
