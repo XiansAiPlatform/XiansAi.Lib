@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Activities;
 using Temporalio.Workflows;
 using System.Collections.Concurrent;
 using Xians.Lib.Agents.Core;
@@ -62,8 +61,9 @@ public interface IXiansLogger
 
 /// <summary>
 /// Non-generic logger wrapper that works with runtime types.
+/// Implements both IXiansLogger and ILogger for flexibility.
 /// </summary>
-internal class TypeBasedLoggerWrapper : IXiansLogger
+internal class TypeBasedLoggerWrapper : IXiansLogger, ILogger
 {
     private readonly Lazy<ILogger> _lazyLogger;
     private readonly Type _loggerType;
@@ -126,6 +126,19 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
     public void LogWarning(string message) => Log(LogLevel.Warning, message, null);
     public void LogError(string message, Exception? exception = null) => Log(LogLevel.Error, message, exception);
     public void LogCritical(string message, Exception? exception = null) => Log(LogLevel.Critical, message, exception);
+
+    /// <inheritdoc />
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        var message = formatter(state, exception);
+        Log(logLevel, message, exception);
+    }
+
+    /// <inheritdoc />
+    public bool IsEnabled(LogLevel logLevel) => _logger.IsEnabled(logLevel);
+
+    /// <inheritdoc />
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _logger.BeginScope(state);
 
     /// <summary>
     /// Core logging method that handles workflow context and routing.
@@ -234,29 +247,102 @@ internal class TypeBasedLoggerWrapper : IXiansLogger
 /// </summary>
 public static class Logger
 {
-    private static readonly ConcurrentDictionary<Type, IXiansLogger> _typeBasedLoggers = new();
+    private static readonly ConcurrentDictionary<Type, TypeBasedLoggerWrapper> _typeBasedLoggers = new();
 
     /// <summary>
     /// Creates a logger for the specified type.
     /// </summary>
     /// <param name="type">The type to create a logger for.</param>
-    /// <returns>A logger instance for the specified type.</returns>
+    /// <returns>A logger instance (IXiansLogger) for the specified type.</returns>
     public static IXiansLogger For(Type type)
     {
-        return _typeBasedLoggers.GetOrAdd(type, t =>
-        {
-            // Create a logger wrapper that implements IXiansLogger for the specific type
-            return new TypeBasedLoggerWrapper(t);
-        });
+        return _typeBasedLoggers.GetOrAdd(type, t => new TypeBasedLoggerWrapper(t));
+    }
+
+    /// <summary>
+    /// Creates a logger for the specified type as ILogger.
+    /// </summary>
+    /// <param name="type">The type to create a logger for.</param>
+    /// <returns>A logger instance (ILogger) for the specified type.</returns>
+    public static ILogger ForILogger(Type type)
+    {
+        return _typeBasedLoggers.GetOrAdd(type, t => new TypeBasedLoggerWrapper(t));
     }
 }
 
 /// <summary>
-/// Context-aware logger wrapper that automatically captures workflow context and uses appropriate logger.
-/// Provides a simplified logging API with static factory methods.
+/// Unified Xians logging API. Use instead of Microsoft.Extensions.Logging types to avoid confusion.
+/// Provides type-based loggers with workflow context, dual-logging, and IXiansLogger/ILogger support.
+/// </summary>
+public static class XiansLogger
+{
+    /// <summary>
+    /// Creates a logger for the specified type (returns IXiansLogger).
+    /// </summary>
+    public static IXiansLogger For(Type type) => Logger.For(type);
+
+    /// <summary>
+    /// Creates a logger for the specified type (returns ILogger).
+    /// </summary>
+    public static ILogger ForILogger(Type type) => Logger.ForILogger(type);
+
+    /// <summary>
+    /// Creates a context-aware logger for the specified type (returns ILogger).
+    /// Equivalent to ForILogger(typeof(T)) - use for ILogger&lt;T&gt;-style APIs.
+    /// </summary>
+    public static ILogger GetLogger<T>() => Logger.ForILogger(typeof(T));
+}
+
+/// <summary>
+/// Context-aware logger that automatically captures workflow context and routes logs appropriately.
+/// Use this instead of Logger&lt;T&gt; to avoid confusion with Microsoft.Extensions.Logging types.
+/// Equivalent to Logger&lt;T&gt; - use: var logger = XiansLogger&lt;MyService&gt;.For();
 /// </summary>
 /// <typeparam name="T">The type to create a logger for (used for logger category).</typeparam>
-public class Logger<T> : IXiansLogger
+public class XiansLogger<T> : IXiansLogger, ILogger
+{
+    private static readonly ConcurrentDictionary<Type, object> _xiansLoggers = new();
+    private readonly Logger<T> _inner;
+
+    private XiansLogger()
+    {
+        _inner = Logger<T>.For();
+    }
+
+    /// <summary>
+    /// Gets or creates a cached logger instance for the specified type.
+    /// </summary>
+    public static XiansLogger<TLogger> For<TLogger>() =>
+        (XiansLogger<TLogger>)_xiansLoggers.GetOrAdd(typeof(TLogger), _ => new XiansLogger<TLogger>());
+
+    /// <summary>
+    /// Gets or creates a cached logger instance for the current type T.
+    /// </summary>
+    public static XiansLogger<T> For() =>
+        (XiansLogger<T>)_xiansLoggers.GetOrAdd(typeof(T), _ => new XiansLogger<T>());
+
+    // IXiansLogger / ILogger - delegate to inner
+    public void LogTrace(string message) => _inner.LogTrace(message);
+    public void LogDebug(string message) => _inner.LogDebug(message);
+    public void LogInformation(string message) => _inner.LogInformation(message);
+    public void LogInfo(string message) => _inner.LogInfo(message);
+    public void LogWarning(string message) => _inner.LogWarning(message);
+    public void LogError(string message, Exception? exception = null) => _inner.LogError(message, exception);
+    public void LogCritical(string message, Exception? exception = null) => _inner.LogCritical(message, exception);
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        _inner.Log(logLevel, eventId, state, exception, formatter);
+    public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _inner.BeginScope(state);
+}
+
+/// <summary>
+/// Context-aware logger wrapper that automatically captures workflow context and uses appropriate logger.
+/// Prefer XiansLogger&lt;T&gt; to avoid confusion with Microsoft.Extensions.Logging.
+/// Implements both IXiansLogger and ILogger for flexibility.
+/// </summary>
+/// <typeparam name="T">The type to create a logger for (used for logger category).</typeparam>
+public class Logger<T> : IXiansLogger, ILogger
 {
     private readonly Lazy<ILogger> _lazyLogger;
     private static readonly ConcurrentDictionary<Type, object> _loggers = new();
@@ -385,6 +471,19 @@ public class Logger<T> : IXiansLogger
     {
         Log(LogLevel.Critical, message, exception);
     }
+
+    /// <inheritdoc />
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        var message = formatter(state, exception);
+        Log(logLevel, message, exception);
+    }
+
+    /// <inheritdoc />
+    public bool IsEnabled(LogLevel logLevel) => _logger.IsEnabled(logLevel);
+
+    /// <inheritdoc />
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _logger.BeginScope(state);
 
     /// <summary>
     /// Core logging method that handles workflow context and routing.
