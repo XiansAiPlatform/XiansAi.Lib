@@ -1,3 +1,4 @@
+using Temporalio.Api.Enums.V1;
 using Temporalio.Common;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
@@ -60,7 +61,9 @@ public class SubWorkflowOptions : ChildWorkflowOptions
 
         // Child workflow should be abandoned when parent closes
         // This prevents orphaned workflows when parent is terminated
-        ParentClosePolicy = ParentClosePolicy.Abandon;
+        ParentClosePolicy = Temporalio.Workflows.ParentClosePolicy.Abandon;
+
+        IdReusePolicy = WorkflowIdReusePolicy.AllowDuplicate;
     }
 
     /// <summary>
