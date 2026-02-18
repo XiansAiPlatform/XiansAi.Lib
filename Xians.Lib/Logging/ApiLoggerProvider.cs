@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xians.Lib.Logging.Models;
 using Xians.Lib.Common;
 using Xians.Lib.Agents.Core;
+using Temporalio.Workflows;
 
 namespace Xians.Lib.Logging;
 
@@ -136,7 +137,7 @@ public class ApiLogger : ILogger
 
         var log = new Log
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString(),
             CreatedAt = DateTime.UtcNow,
             Level = logLevel,
             Message = logMessage,

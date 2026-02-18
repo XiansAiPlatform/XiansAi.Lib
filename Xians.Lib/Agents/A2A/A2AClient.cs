@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Temporal.Workflows;
@@ -149,12 +150,14 @@ public class A2AClient
             }
         }
 
+        var requestId = Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString();
+
         // Create A2A request
         var activityRequest = new Xians.Lib.Temporal.Workflows.Messaging.Models.ProcessMessageActivityRequest
         {
             MessageText = message.Text,
             ParticipantId = string.IsNullOrEmpty(message.ParticipantId) ? sourceWorkflowId : message.ParticipantId,
-            RequestId = string.IsNullOrEmpty(message.RequestId) ? Guid.NewGuid().ToString("N") : message.RequestId,
+            RequestId = string.IsNullOrEmpty(message.RequestId) ? requestId : message.RequestId,
             Scope = string.IsNullOrEmpty(message.Scope) ? "A2A" : message.Scope,
             Hint = message.Hint ?? string.Empty,  // Hint is for message processing, not agent name
             Data = message.Data ?? new object(),

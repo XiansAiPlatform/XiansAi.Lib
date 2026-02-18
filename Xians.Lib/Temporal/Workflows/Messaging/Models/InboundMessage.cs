@@ -1,3 +1,5 @@
+using Temporalio.Workflows;
+
 namespace Xians.Lib.Temporal.Workflows.Messaging.Models;
 
 /// <summary>
@@ -27,7 +29,8 @@ public class InboundMessagePayload
     private string? _requestId;
     public required string RequestId 
     { 
-        get => string.IsNullOrEmpty(_requestId) ? $"generated-{Guid.NewGuid()}" : _requestId;
+        
+        get => string.IsNullOrEmpty(_requestId) ? $"generated-{ (Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString())}" : _requestId;
         set => _requestId = value;
     }
     

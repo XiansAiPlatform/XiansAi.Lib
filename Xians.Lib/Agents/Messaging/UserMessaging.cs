@@ -275,7 +275,7 @@ internal static class UserMessaging
             WorkflowType = workflowType,
             Text = text,
             Data = data,
-            RequestId = Guid.NewGuid().ToString(),
+            RequestId = Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString(),
             Scope = scope,
             Hint = hint,
             TaskId = taskId,

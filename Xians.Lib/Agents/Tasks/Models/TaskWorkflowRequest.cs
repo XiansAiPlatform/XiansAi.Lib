@@ -1,4 +1,5 @@
 using Temporalio.Common;
+using Temporalio.Workflows;
 
 namespace Xians.Lib.Agents.Tasks.Models;
 
@@ -34,7 +35,8 @@ public record TaskWorkflowRequest
     /// <summary>
     /// Name for the Task Workflow. if already a running workflow exists with the same name, the new workflow will terminate the existing one.
     /// </summary>
-    public string TaskName { get; init; } = Guid.NewGuid().ToString();
+    public string TaskName { get; init; } =  Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString();
+
 
     /// <summary>
     /// Retry policy for the task. If null, defaults to MaximumAttempts=1.
