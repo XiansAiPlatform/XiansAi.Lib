@@ -359,26 +359,12 @@ public static class SubWorkflowService
     /// </summary>
     internal static Temporalio.Common.SearchAttributeCollection? BuildInheritedSearchAttributes(string tenantId, string agentName)
     {
-        // If in workflow context, directly inherit parent's search attributes
         if (Workflow.InWorkflow)
-        {
-            // Directly inherit parent's search attributes (same approach as ScheduleBuilder)
-            // This preserves all custom search attributes from parent to child
             return Workflow.TypedSearchAttributes;
-        }
 
-        // Not in workflow context - build minimal search attributes with available information
-        var builder = new Temporalio.Common.SearchAttributeCollection.Builder()
-            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.TenantId), tenantId)
-            .Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.Agent), agentName);
-        
-        var idPostfix = XiansContext.TryGetIdPostfix();
-        if (idPostfix != null)
-        {
-            builder.Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(Common.WorkflowConstants.Keys.idPostfix), idPostfix);
-        }
-        
-        return builder.ToSearchAttributeCollection();
+        var idPostfix = XiansContext.TryGetIdPostfix() ?? string.Empty;
+        var participantId = XiansContext.TryGetParticipantId() ?? string.Empty;
+        return WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, participantId, idPostfix);
     }
 }
 

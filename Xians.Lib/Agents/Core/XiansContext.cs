@@ -1,5 +1,6 @@
 using System.Reflection;
 using Temporalio.Activities;
+using Temporalio.Client;
 using Temporalio.Workflows;
 using Xians.Lib.Common.MultiTenancy;
 
@@ -324,21 +325,20 @@ public static class XiansContext
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
     public static string GetIdPostfix() => 
-        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? GetIdPostfixFromWorkflowId() ?? throw new InvalidOperationException(NotInContextErrorMessage + "Workflow idPostfix not found. Provide a idPostfix explicitly.");
+        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? throw new InvalidOperationException(NotInContextErrorMessage + "Workflow idPostfix not found. Provide a idPostfix explicitly.");
 
     /// <summary>
     /// Generic method to retrieve workflow metadata from search attributes, memo, or workflow ID.
-    /// Tries in order: search attributes → memo → workflow ID parsing.
+    /// Tries in order: search attributes → memo → workflow ID parsing (for idPostfix only).
     /// </summary>
     private static string? GetWorkflowMetadata(string keyName)
     {
-        var fromSearchAttrs = GetFromSearchAttributes(keyName);
-        if (!string.IsNullOrEmpty(fromSearchAttrs))
-            return fromSearchAttrs;
+        var fromContext = WorkflowMetadataResolver.GetFromWorkflowContext(keyName);
+        if (!string.IsNullOrEmpty(fromContext))
+            return fromContext;
 
-        var fromMemo = GetFromMemo(keyName);
-        if (!string.IsNullOrEmpty(fromMemo))
-            return fromMemo;
+        if (keyName == Common.WorkflowConstants.Keys.idPostfix)
+            return WorkflowMetadataResolver.ParseIdPostfixFromWorkflowId(WorkflowMetadataResolver.GetWorkflowId());
 
         return null;
     }
@@ -348,11 +348,7 @@ public static class XiansContext
     /// Works in both workflow and activity contexts.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    private static string GetWorkflowId() => 
-        GetFromContext(
-            () => Workflow.Info.WorkflowId,
-            () => ActivityExecutionContext.Current.Info.WorkflowId
-        );
+    private static string GetWorkflowId() => WorkflowMetadataResolver.GetWorkflowId();
 
     /// <summary>
     /// Gets the current workflow type.
@@ -370,11 +366,7 @@ public static class XiansContext
     /// Works in both workflow and activity contexts.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    private static string GetWorkflowRunId() => 
-        GetFromContext(
-            () => Workflow.Info.RunId,
-            () => ActivityExecutionContext.Current.Info.WorkflowRunId
-        );
+    private static string GetWorkflowRunId() => WorkflowMetadataResolver.GetWorkflowRunId();
 
     /// <summary>
     /// Gets the current task queue name.
@@ -461,7 +453,7 @@ public static class XiansContext
     /// Tries to get the current participant ID without throwing an exception.
     /// </summary>
     /// <returns>The participant ID if in workflow/activity context, otherwise null.</returns>
-    private static string? TryGetParticipantId()
+    internal static string? TryGetParticipantId()
     {
         try
         {
@@ -488,6 +480,17 @@ public static class XiansContext
             return null;
         }
     }
+
+    /// <summary>
+    /// Tries to get idPostfix, preferring the parent workflow's description when in activity context.
+    /// When in activity and a Temporal client is provided, fetches the workflow description via DescribeAsync
+    /// and extracts idPostfix from TypedSearchAttributes or Memo (more reliable than parsing workflow ID
+    /// which can be polluted by Temporal's timestamp suffix on scheduled workflows).
+    /// </summary>
+    /// <param name="client">Temporal client. When null or not in activity, falls back to sync resolution (search attrs, memo, workflow ID parsing).</param>
+    /// <returns>The idPostfix if found, otherwise null.</returns>
+    public static async Task<string?> TryGetIdPostfixAsync(ITemporalClient? client = null) =>
+        await WorkflowMetadataResolver.ResolveIdPostfixAsync(client);
 
     /// <summary>
     /// Gets the current certificate user ID from the platform initialization.
@@ -526,77 +529,6 @@ public static class XiansContext
         {
             return null;
         }
-    }
-
-    /// <summary>
-    /// Attempts to get idPostfix from search attributes (workflow context only).
-    /// </summary>
-    private static string? GetFromSearchAttributes(string keyName)
-    {
-        try
-        {
-            if (Workflow.InWorkflow)
-            {
-                var searchAttrs = Workflow.TypedSearchAttributes;
-                var key = Temporalio.Common.SearchAttributeKey.CreateKeyword(keyName);
-                return searchAttrs.Get(key);
-                
-            }
-            // Note: Activities don't have direct access to search attributes
-        }
-        catch
-        {
-            // Search attribute doesn't exist or wrong type, continue to next method
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Attempts to get idPostfix from workflow memo.
-    /// Works in workflow context only (activities inherit parent workflow ID).
-    /// </summary>
-    private static string? GetFromMemo(string keyName)
-    {
-        try
-        {
-            if (Workflow.InWorkflow)
-            {
-                if (Workflow.Memo.TryGetValue(keyName, out var value))
-                {
-                    return value.Payload.Data.ToStringUtf8()?.Replace("\"", "");
-                }
-            }
-            // Note: Activities don't have access to memo directly, they use the parent workflow's ID
-        }
-        catch
-        {
-            // Memo doesn't exist or can't be parsed, continue to next method
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Parses idPostfix from workflow ID as fallback.
-    /// Workflow ID format: {tenantId}:{agentName}:{workflowName}:{idPostfix}
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    private static string? GetIdPostfixFromWorkflowId()
-    {
-        try
-        {
-            var workflowId = GetWorkflowId();
-            var parts = workflowId.Split(':');
-            if (parts.Length < 4)
-            {
-                return null;
-            }
-            return parts[3];
-        }
-        catch
-        {
-            // Workflow ID doesn't exist or can't be parsed, continue to next method
-        }
-        return null;
     }
 
     #endregion

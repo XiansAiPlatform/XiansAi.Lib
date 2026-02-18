@@ -9,7 +9,7 @@ public class CreateCronScheduleRequest
     public required string CronExpression { get; set; }
     public required object[] WorkflowInput { get; set; }
     public string? Timezone { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
     public required string WorkflowType { get; set; }
     public Dictionary<string, object>? SearchAttributes { get; set; }
 }
@@ -23,7 +23,7 @@ public class CreateIntervalScheduleRequest
     public required string WorkflowType { get; set; }
     public required TimeSpan Interval { get; set; }
     public required object[] WorkflowInput { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
     public Dictionary<string, object>? SearchAttributes { get; set; }
 }
 

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Activities;
+using Temporalio.Client;
 using Temporalio.Client.Schedules;
 using Temporalio.Common;
 using Temporalio.Workflows;
@@ -31,7 +33,7 @@ public class ScheduleBuilder
     private SchedulePolicy? _schedulePolicy;
     private ScheduleState? _scheduleState;
 
-    private readonly string _idPostfix;
+    private readonly string? _idPostfix;
 
     internal ScheduleBuilder(
         string scheduleName,
@@ -292,7 +294,7 @@ public class ScheduleBuilder
 
             bool created;
 
-            var effectiveIdPostfix = GetEffectiveIdPostfixForSchedule();
+            var effectiveIdPostfix = GetEffectiveIdPostfixForSchedule() ;
             if (isCronSchedule && _scheduleSpec?.CronExpressions?.FirstOrDefault() != null)
             {
                 var request = new CreateCronScheduleRequest
@@ -354,42 +356,9 @@ public class ScheduleBuilder
     /// <summary>
     /// Extracts search attributes to a serializable dictionary format.
     /// Prioritizes explicitly set attributes, falls back to workflow search attributes.
-    /// Extracts common workflow search attributes: TenantId, Agent, UserId, idPostfix.
     /// </summary>
-    private Dictionary<string, object>? ExtractSearchAttributesForSerialization()
-    {
-        var searchAttributes = _typedSearchAttributes ?? Workflow.TypedSearchAttributes;
-        // Extract known search attributes to serializable format
-        var result = new Dictionary<string, object>();
-        
-        // Extract common workflow search attributes
-        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.TenantId, result);
-        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.Agent, result);
-        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.UserId, result);
-        ExtractSearchAttribute(searchAttributes, WorkflowConstants.Keys.idPostfix, result);
-        
-        return result.Count > 0 ? result : null;
-    }
-
-    /// <summary>
-    /// Helper to extract a single search attribute if it exists.
-    /// </summary>
-    private void ExtractSearchAttribute(SearchAttributeCollection searchAttrs, string keyName, Dictionary<string, object> result)
-    {
-        try
-        {
-            var key = SearchAttributeKey.CreateKeyword(keyName);
-            var value = searchAttrs.Get(key);
-            if (value != null)
-            {
-                result[keyName] = value;
-            }
-        }
-        catch
-        {
-            // Attribute doesn't exist or wrong type, skip it
-        }
-    }
+    private Dictionary<string, object>? ExtractSearchAttributesForSerialization() =>
+        WorkflowMetadataResolver.ExtractToSerializableDictionary(_typedSearchAttributes ?? Workflow.TypedSearchAttributes);
 
     /// <summary>
     /// Gets the effective tenant ID based on agent scope and context.
@@ -416,20 +385,23 @@ public class ScheduleBuilder
 
     /// <summary>
     /// Gets the effective idPostfix for schedule operations.
-    /// Prefers idPostfix from workflow metadata (search attributes, memo) over workflow ID parsing.
-    /// The metadata has the clean value; the workflow ID gets polluted when Temporal appends
-    /// timestamps for scheduled runs, causing CreateIfNotExists to miss the existing schedule.
+    /// Prefers explicit _idPostfix, then idPostfix from context (search attributes, memo, or workflow ID parsing).
+    /// Works in both workflow and activity context; activities can obtain idPostfix from the parent workflow ID.
     /// </summary>
-    private string GetEffectiveIdPostfixForSchedule()
+    private string? GetEffectiveIdPostfixForSchedule()
     {
-        // Prefer idPostfix from workflow metadata - the clean value set when the workflow started
-        if (Workflow.InWorkflow)
+        if (!string.IsNullOrEmpty(_idPostfix))
+            return _idPostfix;
+
+        // In workflow or activity: try metadata (search attrs, memo) or workflow ID parsing
+        if (XiansContext.InWorkflowOrActivity)
         {
-            var fromMetadata = XiansContext.TryGetIdPostfix();
-            if (!string.IsNullOrEmpty(fromMetadata))
-                return fromMetadata;
+            var fromContext = XiansContext.TryGetIdPostfix();
+            if (!string.IsNullOrEmpty(fromContext))
+                return fromContext;
         }
-        return _idPostfix;
+
+        return null;
     }
 
     /// <summary>
@@ -451,27 +423,32 @@ public class ScheduleBuilder
     /// Merges system-required metadata (TenantId, AgentName, UserId, SystemScoped) with custom memo.
     /// Values are extracted from search attributes when available for consistency.
     /// </summary>
-    private Dictionary<string, object> GetMemo(string tenantId)
+    /// <param name="tenantId">The tenant ID.</param>
+    /// <param name="resolvedSearchAttributes">Optional pre-resolved search attributes (e.g. from workflow description when in activity).</param>
+    private Dictionary<string, object> GetMemo(string tenantId, SearchAttributeCollection? resolvedSearchAttributes = null)
     {
-        // Get search attributes (explicit or from workflow context)
-        var searchAttributes = _typedSearchAttributes 
+        var searchAttributes = resolvedSearchAttributes 
+            ?? _typedSearchAttributes 
             ?? (Workflow.InWorkflow ? Workflow.TypedSearchAttributes : null);
 
-        // Extract values from search attributes when available, otherwise use defaults
-        var agentName = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.Agent) 
+        // Extract values from search attributes when available, otherwise from context (never from certificate)
+        var agentName = WorkflowMetadataResolver.GetValueFromSearchAttributes(searchAttributes, WorkflowConstants.Keys.Agent) 
             ?? _agent.Name;
-        var userId = GetSearchAttributeValue(searchAttributes, WorkflowConstants.Keys.UserId) 
-            ?? _agent.Options?.CertificateInfo?.UserId 
-            ?? "system";
+        var userId = WorkflowMetadataResolver.GetValueFromSearchAttributes(searchAttributes, WorkflowConstants.Keys.UserId) 
+            ?? XiansContext.TryGetParticipantId() 
+            ?? string.Empty;
 
 
-        // Start with system-required metadata
+        // Start with system-required metadata (memo values cannot be null - Temporal rejects null)
+        var effectiveIdPostfix = WorkflowMetadataResolver.GetValueFromSearchAttributes(searchAttributes, WorkflowConstants.Keys.idPostfix) 
+            ?? GetEffectiveIdPostfixForSchedule() 
+            ?? string.Empty;
         var memo = new Dictionary<string, object>
         {
             { WorkflowConstants.Keys.TenantId, tenantId },
             { WorkflowConstants.Keys.Agent, agentName },
             { WorkflowConstants.Keys.UserId, userId },
-            { WorkflowConstants.Keys.idPostfix, _idPostfix },
+            { WorkflowConstants.Keys.idPostfix, effectiveIdPostfix },
             { WorkflowConstants.Keys.SystemScoped, _agent.SystemScoped }
         };
 
@@ -488,23 +465,35 @@ public class ScheduleBuilder
     }
 
     /// <summary>
-    /// Helper to safely get a search attribute value as string.
+    /// Gets search attributes for scheduled workflow executions.
+    /// When in workflow: uses explicit _typedSearchAttributes or Workflow.TypedSearchAttributes.
+    /// When in activity: fetches parent workflow's search attributes via client API, falling back to context-built attributes.
     /// </summary>
-    private string? GetSearchAttributeValue(SearchAttributeCollection? searchAttrs, string keyName)
+    private async Task<SearchAttributeCollection?> GetEffectiveSearchAttributesForScheduleAsync(
+        string tenantId, ITemporalClient client)
     {
-        if (searchAttrs == null)
-            return null;
+        if (_typedSearchAttributes != null)
+            return _typedSearchAttributes;
 
-        try
-        {
-            var key = SearchAttributeKey.CreateKeyword(keyName);
-            var value = searchAttrs.Get(key);
-            return value?.ToString();
-        }
-        catch
-        {
-            return null;
-        }
+        if (Workflow.InWorkflow)
+            return Workflow.TypedSearchAttributes;
+
+        // Activity context: fetch parent workflow's search attributes via client API
+        var description = await WorkflowMetadataResolver.FetchWorkflowDescriptionAsync(client);
+        if (description?.TypedSearchAttributes != null)
+            return description.TypedSearchAttributes;
+
+        // Fallback: build from context (extract from description when available)
+        _logger.LogDebug(
+            "Could not fetch parent workflow search attributes for schedule, using context-built attributes");
+        var agentName = _agent.Name;
+        var userId = WorkflowMetadataResolver.GetFromDescription(description, WorkflowConstants.Keys.UserId)
+            ?? XiansContext.TryGetParticipantId()
+            ?? string.Empty;
+        var idPostfix = WorkflowMetadataResolver.GetFromDescription(description, WorkflowConstants.Keys.idPostfix)
+            ?? GetEffectiveIdPostfixForSchedule()
+            ?? string.Empty;
+        return WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, userId, idPostfix);
     }
 
     /// <summary>
@@ -549,14 +538,13 @@ public class ScheduleBuilder
 
             // Generate workflow ID prefix for scheduled executions - always includes tenant
             // Temporal will automatically append a unique suffix for each scheduled execution
-            //var workflowId = $"{tenantId}:{_workflowType}:{_scheduleName}";
-            var workflowId = ScheduleIdHelper.BuildFullWorkflowId(tenantId, _workflowType, _idPostfix);
+            // When in activity, prefer workflow description (avoids timestamp pollution in parsed workflow ID)
+            var effectiveIdPostfix = (await XiansContext.TryGetIdPostfixAsync(client)) ?? GetEffectiveIdPostfixForSchedule() ?? string.Empty;
+            var workflowId = ScheduleIdHelper.BuildFullWorkflowId(tenantId, _workflowType, effectiveIdPostfix);
 
             // Create schedule action using Temporal SDK pattern with search attributes and memo for workflow executions
-            // Note: Workflow.TypedSearchAttributes only accessible in workflow context, not in activities
-            var searchAttributes = _typedSearchAttributes 
-                ?? (Workflow.InWorkflow ? Workflow.TypedSearchAttributes : null);
-            
+            var searchAttributes = await GetEffectiveSearchAttributesForScheduleAsync(tenantId, client);
+
             var scheduleAction = ScheduleActionStartWorkflow.Create(
                 _workflowType,
                 _workflowArgs ?? Array.Empty<object>(),
@@ -565,7 +553,7 @@ public class ScheduleBuilder
                     RetryPolicy = _retryPolicy,
                     RunTimeout = _timeout,
                     TypedSearchAttributes = searchAttributes,
-                    Memo = GetMemo(tenantId)
+                    Memo = GetMemo(tenantId, searchAttributes)
                 });
 
             // Create the schedule with all properties in initializer (init-only properties)

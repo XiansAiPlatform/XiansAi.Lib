@@ -230,20 +230,7 @@ public class ScheduleActivities
     /// <summary>
     /// Reconstructs SearchAttributeCollection from serializable dictionary format.
     /// </summary>
-    private SearchAttributeCollection? ReconstructSearchAttributes(Dictionary<string, object>? searchAttrs)
-    {
-        if (searchAttrs == null || !searchAttrs.Any())
-            return null;
-
-        var builder = new SearchAttributeCollection.Builder();
-        foreach (var kvp in searchAttrs)
-        {
-            // Create search attribute key and add to collection
-            // Note: We assume keyword type for simplicity. Could be enhanced to support other types.
-            var key = SearchAttributeKey.CreateKeyword(kvp.Key);
-            builder.Set(key, kvp.Value?.ToString() ?? string.Empty);
-        }
-        return builder.ToSearchAttributeCollection();
-    }
+    private SearchAttributeCollection? ReconstructSearchAttributes(Dictionary<string, object>? searchAttrs) =>
+        Xians.Lib.Agents.Core.WorkflowMetadataResolver.ReconstructFromDictionary(searchAttrs);
 }
 
