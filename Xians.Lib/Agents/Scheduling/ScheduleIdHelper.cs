@@ -13,9 +13,9 @@ internal static class ScheduleIdHelper
     /// <param name="idPostfix">The ID postfix.</param>
     /// <param name="scheduleName">The schedule identifier.</param>
     /// <returns>The fully qualified schedule ID.</returns>
-    public static string BuildFullScheduleId(string tenantId, string agentName, string idPostfix, string scheduleName)
+    public static string BuildFullScheduleId(string tenantId, string agentName, string? idPostfix, string scheduleName)
     {
-        return $"{tenantId}:{agentName}:{idPostfix}:{scheduleName}";
+        return $"{tenantId}:{agentName}{(idPostfix is not null ? $":{idPostfix}" : string.Empty)}:{scheduleName}";
     }
 
     public static string BuildFullWorkflowId(string tenantId, string workflowType, string idPostfix)

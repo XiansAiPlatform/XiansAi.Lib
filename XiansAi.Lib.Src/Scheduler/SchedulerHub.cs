@@ -51,8 +51,9 @@ public class SchedulerHub
             MaximumAttempts = 3
         };
         defaultOptions.RunTimeout = TimeSpan.FromSeconds(10*60);
-        // Add search attributes to workflow executions
+        // Add search attributes and memo to workflow executions for consistency
         defaultOptions.TypedSearchAttributes = GetSearchAttributes();
+        defaultOptions.Memo = GetMemo();
 
         options = options ?? defaultOptions;
 
@@ -233,6 +234,21 @@ public class SchedulerHub
             .Set(SearchAttributeKey.CreateKeyword(Constants.UserIdKey), userId);
 
         return searchAttributesBuilder.ToSearchAttributeCollection();
+    }
+
+    /// <summary>
+    /// Gets memo for scheduled workflow executions.
+    /// Includes TenantId, AgentName, UserId, and SystemScoped for consistency with search attributes.
+    /// </summary>
+    private static Dictionary<string, object> GetMemo()
+    {
+        return new Dictionary<string, object>
+        {
+            { Constants.TenantIdKey, AgentContext.TenantId },
+            { Constants.AgentKey, AgentContext.AgentName },
+            { Constants.UserIdKey, AgentContext.UserId },
+            { Constants.SystemScopedKey, AgentContext.SystemScoped }
+        };
     }
 }
 

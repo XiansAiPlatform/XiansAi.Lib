@@ -149,17 +149,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
     private static SearchAttributeCollection BuildInheritedSearchAttributes(
         string tenantId, 
         string agentName,
-        string participantId)
-    {
-        // Build search attributes with all standard fields plus participantId
-        // Note: We don't inherit custom search attributes from parent because we need to
-        // ensure participantId is always present for task querying capabilities
-        return new SearchAttributeCollection.Builder()
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), XiansContext.GetIdPostfix())
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), participantId)
-            .ToSearchAttributeCollection();
-    }
+        string participantId) =>
+        WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, participantId, XiansContext.GetIdPostfix());
 }
 
