@@ -176,6 +176,37 @@ internal static class WorkflowMetadataResolver
     }
 
     /// <summary>
+    /// Resolves search attributes for a child/sub-workflow to inherit from the parent.
+    /// In workflow context: returns Workflow.TypedSearchAttributes directly.
+    /// In activity context: fetches parent workflow description via client and returns TypedSearchAttributes
+    /// (or builds from mined values if TypedSearchAttributes is empty).
+    /// Outside workflow/activity: returns null (caller should build from context).
+    /// </summary>
+    /// <param name="tenantId">Tenant ID for the child workflow.</param>
+    /// <param name="agentName">Agent name for the child workflow.</param>
+    /// <param name="client">Temporal client. Required when in activity context to fetch parent metadata.</param>
+    /// <returns>Search attributes to use when starting the child workflow, or null.</returns>
+    public static async Task<SearchAttributeCollection?> ResolveSearchAttributesForChildAsync(
+        string tenantId,
+        string agentName,
+        ITemporalClient? client)
+    {
+        if (Workflow.InWorkflow)
+            return Workflow.TypedSearchAttributes;
+
+        if (!ActivityExecutionContext.HasCurrent || client == null)
+            return null;
+
+        var description = await FetchWorkflowDescriptionAsync(client);
+        if (description?.TypedSearchAttributes != null)
+            return description.TypedSearchAttributes;
+
+        var userId = GetFromDescription(description, WorkflowConstants.Keys.UserId) ?? string.Empty;
+        var idPostfix = GetFromDescription(description, WorkflowConstants.Keys.idPostfix) ?? string.Empty;
+        return BuildSearchAttributes(tenantId, agentName, userId, idPostfix);
+    }
+
+    /// <summary>
     /// Resolves idPostfix, preferring workflow description when in activity with client provided.
     /// Falls back to sync resolution (search attrs, memo, workflow ID parsing).
     /// </summary>

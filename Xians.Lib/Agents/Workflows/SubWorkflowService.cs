@@ -3,6 +3,7 @@ using Temporalio.Api.Enums.V1;
 using Temporalio.Client;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using System.Reflection;
 using System.Text.Json;
@@ -167,14 +168,15 @@ public static class SubWorkflowService
         var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
+        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, client);
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
             // Inherit parent workflow metadata (works in both workflow and activity contexts)
-            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped),
-            TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName)
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, searchAttributes),
+            TypedSearchAttributes = searchAttributes
         };
 
         if (executionTimeout.HasValue)
@@ -203,14 +205,15 @@ public static class SubWorkflowService
         var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
+        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, client);
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
             // Inherit parent workflow metadata (works in both workflow and activity contexts)
-            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped),
-            TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName)
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, searchAttributes),
+            TypedSearchAttributes = searchAttributes
         };
 
         if (executionTimeout.HasValue)
@@ -300,9 +303,17 @@ public static class SubWorkflowService
     /// <summary>
     /// Builds memo for child/sub-workflow by inheriting all parent memo entries when in workflow context.
     /// Works both in workflow context (inherits all) and outside workflow context (builds minimal).
-    /// This is a shared method used by both SubWorkflowOptions and client-based workflow starting.
+    /// When searchAttributes is provided (e.g. from client-based start in activity), userId is extracted for memo consistency.
     /// </summary>
-    internal static Dictionary<string, object> BuildInheritedMemo(string tenantId, string agentName, bool systemScoped)
+    /// <param name="tenantId">Tenant ID for the child workflow.</param>
+    /// <param name="agentName">Agent name for the child workflow.</param>
+    /// <param name="systemScoped">Whether the workflow is system-scoped.</param>
+    /// <param name="searchAttributes">Optional search attributes; when provided, userId is extracted for the memo.</param>
+    internal static Dictionary<string, object> BuildInheritedMemo(
+        string tenantId,
+        string agentName,
+        bool systemScoped,
+        Temporalio.Common.SearchAttributeCollection? searchAttributes = null)
     {
         var memo = new Dictionary<string, object>();
 
@@ -338,16 +349,21 @@ public static class SubWorkflowService
         }
 
         // Override/set required system metadata for the child workflow
-        // These values are specific to the child and should not be inherited
-        memo[Common.WorkflowConstants.Keys.TenantId] = tenantId;
-        memo[Common.WorkflowConstants.Keys.Agent] = agentName;
-        memo[Common.WorkflowConstants.Keys.SystemScoped] = systemScoped;
+        memo[WorkflowConstants.Keys.TenantId] = tenantId;
+        memo[WorkflowConstants.Keys.Agent] = agentName;
+        memo[WorkflowConstants.Keys.SystemScoped] = systemScoped;
         
         var idPostfix = XiansContext.TryGetIdPostfix();
         if (idPostfix != null)
         {
-            memo[Common.WorkflowConstants.Keys.idPostfix] = idPostfix;
+            memo[WorkflowConstants.Keys.idPostfix] = idPostfix;
         }
+
+        // Include userId for consistency with search attributes (Temporal memo cannot have null values)
+        var userId = WorkflowMetadataResolver.GetValueFromSearchAttributes(searchAttributes, WorkflowConstants.Keys.UserId)
+            ?? XiansContext.TryGetParticipantId()
+            ?? string.Empty;
+        memo[WorkflowConstants.Keys.UserId] = userId;
 
         return memo;
     }
@@ -365,6 +381,23 @@ public static class SubWorkflowService
         var idPostfix = XiansContext.TryGetIdPostfix() ?? string.Empty;
         var participantId = XiansContext.TryGetParticipantId() ?? string.Empty;
         return WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, participantId, idPostfix);
+    }
+
+    /// <summary>
+    /// Async version that fetches parent workflow's search attributes when in activity context.
+    /// Delegates to <see cref="WorkflowMetadataResolver.ResolveSearchAttributesForChildAsync"/> for activity-context
+    /// resolution; falls back to sync <see cref="BuildInheritedSearchAttributes"/> when outside workflow/activity.
+    /// </summary>
+    internal static async Task<Temporalio.Common.SearchAttributeCollection?> BuildInheritedSearchAttributesAsync(
+        string tenantId,
+        string agentName,
+        ITemporalClient client)
+    {
+        var fromResolver = await WorkflowMetadataResolver.ResolveSearchAttributesForChildAsync(tenantId, agentName, client);
+        if (fromResolver != null)
+            return fromResolver;
+
+        return BuildInheritedSearchAttributes(tenantId, agentName);
     }
 }
 

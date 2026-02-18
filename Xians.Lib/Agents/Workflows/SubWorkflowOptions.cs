@@ -48,9 +48,10 @@ public class SubWorkflowOptions : ChildWorkflowOptions
         Id = SubWorkflowService.BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
 
         // Inherit all parent workflow's memo and search attributes using shared methods
-        // This ensures complete metadata propagation from parent to child
-        Memo = SubWorkflowService.BuildInheritedMemo(tenantId, agentName, isSystemScoped);
-        TypedSearchAttributes = SubWorkflowService.BuildInheritedSearchAttributes(tenantId, agentName);
+        // This ensures complete metadata propagation from parent to child, including userId in memo
+        var searchAttributes = SubWorkflowService.BuildInheritedSearchAttributes(tenantId, agentName);
+        Memo = SubWorkflowService.BuildInheritedMemo(tenantId, agentName, isSystemScoped, searchAttributes);
+        TypedSearchAttributes = searchAttributes;
 
         // Set workflow summary for debugging
         StaticSummary = $"Sub-workflow of '{XiansContext.WorkflowId}' with type '{workflowType}'" +
