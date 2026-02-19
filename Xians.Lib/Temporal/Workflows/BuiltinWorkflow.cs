@@ -231,7 +231,23 @@ public class BuiltinWorkflow
     /// This is the top-level event loop where exceptions are caught to prevent workflow crashes.
     /// </summary>
     private async Task ProcessMessagesLoopAsync()
-    {        
+    {
+        try
+        {
+            await ProcessMessagesLoopCoreAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Workflow was cancelled (e.g. via Temporal UI, API, or eviction).
+            // Exit gracefully - cancellation is expected behavior, not an error.
+            Workflow.Logger.LogWarning(
+                "Workflow cancelled, exiting gracefully. RunId={RunId}",
+                Workflow.Info.RunId);
+        }
+    }
+
+    private async Task ProcessMessagesLoopCoreAsync()
+    {
         while (true)
         {
             // Wait for a message to arrive in the queue or ContinueAsNew condition
