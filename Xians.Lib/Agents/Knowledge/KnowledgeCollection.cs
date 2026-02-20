@@ -36,12 +36,13 @@ public class KnowledgeCollection
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The knowledge object, or null if not found.</returns>
     /// <exception cref="InvalidOperationException">Thrown if HTTP service is not available.</exception>
-    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, CancellationToken cancellationToken = default)
+    public async Task<Xians.Lib.Agents.Knowledge.Models.Knowledge?> GetAsync(string knowledgeName, string? tenantId=null, CancellationToken cancellationToken = default)
     {
+        tenantId = tenantId ?? GetTenantId();
+
         // Validate parameters first
         ValidationHelper.ValidateRequiredWithMaxLength(knowledgeName, nameof(knowledgeName), 256);
 
-        var tenantId = GetTenantId();
         var idPostfix = XiansContext.TryGetIdPostfix();
         
         _logger.LogDebug(

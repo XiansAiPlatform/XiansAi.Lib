@@ -602,7 +602,7 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
 
             // Act & Assert - Operation should be cancelled
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                async () => await _agent!.Knowledge.GetAsync(knowledgeName, cts.Token));
+                async () => await _agent!.Knowledge.GetAsync(knowledgeName, tenantId: null, cancellationToken: cts.Token));
         }
         catch (Exception ex)
         {
