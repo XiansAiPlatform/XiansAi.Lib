@@ -112,9 +112,13 @@ internal class A2AService
 
     private static Func<UserMessageContext, Task> GetHandler(WorkflowHandlerMetadata metadata, string messageType)
     {
-        var handler = messageType?.ToLower() == "data"
-            ? metadata.DataHandler
-            : metadata.ChatHandler;
+        var normalizedType = messageType?.ToLower();
+        var handler = normalizedType switch
+        {
+            "data" => metadata.DataHandler,
+            "file" => metadata.FileUploadHandler,
+            _ => metadata.ChatHandler
+        };
 
         if (handler == null)
         {

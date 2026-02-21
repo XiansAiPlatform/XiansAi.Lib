@@ -60,10 +60,13 @@ public class MessageActivities
                 return;
             }
 
-            // Get the appropriate handler based on message type (chat or data)
-            var handler = messageType == "chat" 
-                ? metadata.ChatHandler 
-                : metadata.DataHandler;
+            // Get the appropriate handler based on message type (chat, data, or file)
+            var handler = messageType switch
+            {
+                "chat" => metadata.ChatHandler,
+                "file" => metadata.FileUploadHandler,
+                _ => metadata.DataHandler  // "data" and other data-like types
+            };
 
             if (handler == null)
             {
@@ -102,9 +105,9 @@ public class MessageActivities
                 "Error processing message: RequestId={RequestId}",
                 request.RequestId);
 
-            // Re-throw to let Temporal handle retry
-            // The workflow will send error response to user after all retries are exhausted
-            throw;
+            // Send error message to user immediately (don't retry - handler errors are typically not transient)
+            var errorMessage = MessageProcessor.GetMeaningfulErrorMessage(ex);
+            await SendErrorToUserAsync(request, $"An error occurred: {errorMessage}");
         }
         finally
         {
@@ -348,6 +351,39 @@ public class MessageActivities
                 request.TargetWorkflowId,
                 request.TargetWorkflowType);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Sends an error message to the user when a handler throws.
+    /// </summary>
+    private async Task SendErrorToUserAsync(ProcessMessageActivityRequest request, string errorText)
+    {
+        try
+        {
+            var sendRequest = new SendMessageRequest
+            {
+                ParticipantId = request.ParticipantId,
+                WorkflowId = request.WorkflowId,
+                WorkflowType = request.WorkflowType,
+                RequestId = request.RequestId,
+                Scope = request.Scope,
+                ThreadId = request.ThreadId,
+                Authorization = request.Authorization,
+                Hint = request.Hint,
+                Text = errorText,
+                Data = null,
+                TenantId = request.TenantId,
+                Type = "Chat"
+            };
+            await _messageService.SendAsync(sendRequest);
+        }
+        catch (Exception sendEx)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(sendEx,
+                "Failed to send error response to user: RequestId={RequestId}, OriginalError={OriginalError}",
+                request.RequestId,
+                errorText);
         }
     }
 

@@ -40,8 +40,8 @@ internal static class MessageProcessor
         // Normalize message type for comparison
         var messageType = message.Payload.Type.ToLower();
         
-        // Only process Chat, Data, and Webhook type messages (skip Handoff and others for now)
-        if (messageType != "chat" && messageType != "data" && messageType != "webhook")
+        // Only process Chat, Data, File, and Webhook type messages (skip Handoff and others for now)
+        if (messageType != "chat" && messageType != "data" && messageType != "file" && messageType != "webhook")
         {
             logger.LogWarning(
                 "Skipping unsupported message type: Type={Type}, RequestId={RequestId}",
@@ -94,10 +94,12 @@ internal static class MessageProcessor
         }
 
         // Check if appropriate handler exists for this message type
+        // File is a first-class message type; routes to OnFileUpload handler
         bool hasHandler = messageType switch
         {
             "chat" => metadata.ChatHandler != null,
             "data" => metadata.DataHandler != null,
+            "file" => metadata.FileUploadHandler != null,
             "webhook" => metadata.WebhookHandler != null,
             _ => false
         };
@@ -108,6 +110,7 @@ internal static class MessageProcessor
             {
                 "chat" => "OnUserChatMessage()",
                 "data" => "OnUserDataMessage()",
+                "file" => "OnFileUpload()",
                 "webhook" => "OnWebhook()",
                 _ => "the appropriate handler method"
             };
@@ -118,10 +121,15 @@ internal static class MessageProcessor
                 workflowType,
                 message.Payload.RequestId);
 
+            // User-friendly message for chat response; file upload gets a specific message
+            var userMessage = messageType == "file"
+                ? "This agent does not support file uploads."
+                : $"No {messageType} handler registered for workflow type '{workflowType}'. " +
+                  $"Use {handlerRegistrationMethod} to register a handler.";
+
             await MessageResponseHelper.SendSimpleMessageAsync(
                 message.Payload.ParticipantId,
-                $"No {messageType} handler registered for workflow type '{workflowType}'. " +
-                $"Use {handlerRegistrationMethod} to register a handler.",
+                userMessage,
                 message.Payload.RequestId,
                 message.Payload.Scope,
                 message.Payload.ThreadId,

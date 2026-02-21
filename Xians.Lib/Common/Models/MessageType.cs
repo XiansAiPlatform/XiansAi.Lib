@@ -23,7 +23,19 @@ public enum MessageType
     /// <summary>
     /// Handoff message type for transferring conversations between agents.
     /// </summary>
-    Handoff
+    Handoff,
+
+    /// <summary>
+    /// Reasoning message type for streaming agent thinking/reasoning steps.
+    /// Used to show intermediate actions until the agent responds.
+    /// </summary>
+    Reasoning,
+
+    /// <summary>
+    /// Tool execution message type for streaming tool call steps.
+    /// Used to show intermediate actions until the agent responds.
+    /// </summary>
+    Tool
 }
 
 /// <summary>

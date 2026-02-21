@@ -222,6 +222,37 @@ public class XiansWorkflow
     }
 
     /// <summary>
+    /// Registers a handler for file upload messages.
+    /// Triggered when a File message is received (type="File") with Data containing the base64 encoded file.
+    /// </summary>
+    /// <param name="handler">The async handler to process file uploads. Access the file via context.Message.Data (base64 string).</param>
+    public void OnFileUpload(Func<UserMessageContext, Task> handler)
+    {
+        if (!_isBuiltIn)
+        {
+            throw new InvalidOperationException(
+                "OnFileUpload is only supported for built-in workflows. Use custom workflow classes for custom workflows.");
+        }
+
+        var tenantId = GetTenantIdOrNull();
+
+        BuiltinWorkflow.RegisterFileUploadHandler(
+            workflowType: WorkflowType,
+            handler: handler,
+            agentName: _agent.Name,
+            tenantId: tenantId,
+            systemScoped: _agent.SystemScoped
+        );
+
+        _logger.LogDebug(
+            "File upload handler registered for workflow '{WorkflowType}', Agent='{AgentName}', SystemScoped={SystemScoped}, TenantId={TenantId}",
+            WorkflowType,
+            _agent.Name,
+            _agent.SystemScoped,
+            tenantId ?? "(system)");
+    }
+
+    /// <summary>
     /// Registers a handler for webhook messages.
     /// </summary>
     /// <param name="handler">The async handler to process webhook messages.</param>

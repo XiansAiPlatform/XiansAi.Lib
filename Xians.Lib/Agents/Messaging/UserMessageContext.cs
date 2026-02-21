@@ -113,6 +113,30 @@ public class UserMessageContext
     }
 
     /// <summary>
+    /// Sends a reasoning message to the user. Used for streaming agent reasoning/thinking steps.
+    /// The frontend can display these intermediate actions until the agent responds.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="data">The reasoning data to send.</param>
+    /// <param name="content">Optional text content to accompany the reasoning.</param>
+    public virtual async Task SendReasoningAsync(object data, string? content = null)
+    {
+        await SendMessageToUserAsync(content ?? string.Empty, data, "reasoning");
+    }
+
+    /// <summary>
+    /// Sends a tool execution message to the user. Used for streaming tool call steps.
+    /// The frontend can display these intermediate actions until the agent responds.
+    /// Works in both workflow and activity contexts.
+    /// </summary>
+    /// <param name="data">The tool execution data to send.</param>
+    /// <param name="content">Optional text content to accompany the tool execution.</param>
+    public virtual async Task SendToolExecAsync(object data, string? content = null)
+    {
+        await SendMessageToUserAsync(content ?? string.Empty, data, "tool");
+    }
+
+    /// <summary>
     /// Retrieves paginated chat history for this conversation from the server.
     /// For system-scoped agents, uses tenant ID from workflow context.
     /// Works in both workflow and activity contexts.
