@@ -29,15 +29,7 @@ public class TaskCollection
                 "Temporal service is not configured. Cannot perform task operations.");
         }
 
-        string tenantId;
-        try
-        {
-            tenantId = XiansContext.TenantId;
-        }
-        catch
-        {
-            tenantId = "default";
-        }
+        var tenantId = XiansContext.GetTenantId();
 
         var client = _agent.TemporalService.GetClientAsync().GetAwaiter().GetResult();
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskActivityExecutor>();

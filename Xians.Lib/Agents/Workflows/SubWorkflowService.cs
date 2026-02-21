@@ -255,23 +255,27 @@ public static class SubWorkflowService
         // Get Temporal client
         var client = await agent.TemporalService.GetClientAsync();
 
-        // Get tenant ID (null for system-scoped agents)
-        if (!agent.SystemScoped)
+        // Get tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
+        string tenantId;
+        if (agent.SystemScoped)
+        {
+            tenantId = XiansContext.GetTenantId();
+        }
+        else
         {
             if (agent.Options == null)
             {
                 throw new InvalidOperationException(
                     $"Agent '{agentName}' is not system-scoped but Options is null. Ensure XiansOptions is configured.");
             }
-            
+
             if (string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
             {
                 throw new InvalidOperationException(
                     $"Agent '{agentName}' is not system-scoped but CertificateTenantId is missing. Ensure API key is properly configured.");
             }
+            tenantId = agent.Options.CertificateTenantId;
         }
-        
-        var tenantId = agent.SystemScoped ? "default" : agent.Options!.CertificateTenantId;
 
         return (client, tenantId, agent.SystemScoped, agentName);
     }

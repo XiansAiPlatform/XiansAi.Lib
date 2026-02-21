@@ -179,11 +179,11 @@ public class WorkflowHelper
         // Get agent
         var agent = XiansContext.GetAgent(agentName);
         
-        // Determine tenant ID
+        // Determine tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
         string tenantId;
         if (agent.SystemScoped)
         {
-            tenantId = "default";
+            tenantId = XiansContext.GetTenantId();
         }
         else
         {
@@ -227,11 +227,11 @@ public class WorkflowHelper
         // Get agent
         var agent = XiansContext.GetAgent(agentName);
         
-        // Determine tenant ID
+        // Determine tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
         string tenantId;
         if (agent.SystemScoped)
         {
-            tenantId = "default";
+            tenantId = XiansContext.GetTenantId();
         }
         else
         {
