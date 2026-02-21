@@ -36,6 +36,9 @@ public static class XiansContext
     // AsyncLocal storage for tenant ID - isolated per async execution context
     private static readonly AsyncLocal<string?> _asyncLocalTenantId = new AsyncLocal<string?>();
 
+    // AsyncLocal storage for idPostfix - isolated per async execution context (for tests/out-of-workflow)
+    private static readonly AsyncLocal<string?> _asyncLocalIdPostfix = new AsyncLocal<string?>();
+
     // AsyncLocal storage for current agent override - for unit tests without Temporal workflow context.
     // When set, CurrentAgent returns this agent instead of resolving from workflow type.
     private static readonly AsyncLocal<XiansAgent?> _asyncLocalCurrentAgentOverride = new AsyncLocal<XiansAgent?>();
@@ -54,8 +57,8 @@ public static class XiansContext
     public static string WorkflowId => GetWorkflowId();
 
     /// <summary>
-    /// Gets the current tenant ID from async execution context or extracted from the workflow ID.
-    /// Tries in order: async local context → workflow ID extraction.
+    /// Gets the current tenant ID from async execution context, workflow metadata, or workflow ID.
+    /// Tries in order: async local context → workflow search attributes/memo → workflow ID extraction → certificate (non-system-scoped agents).
     /// This is global context information that applies to the entire workflow execution.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
@@ -258,6 +261,25 @@ public static class XiansContext
     }
 
     /// <summary>
+    /// Sets the idPostfix for the current async execution context.
+    /// Use when calling schedule/document/knowledge APIs from outside workflow context (e.g. tests).
+    /// Internal - accessible only from tests via InternalsVisibleTo.
+    /// </summary>
+    internal static void SetIdPostfix(string idPostfix)
+    {
+        _asyncLocalIdPostfix.Value = idPostfix;
+    }
+
+    /// <summary>
+    /// Clears the idPostfix from the current async execution context.
+    /// Internal - accessible only from tests via InternalsVisibleTo.
+    /// </summary>
+    internal static void ClearIdPostfix()
+    {
+        _asyncLocalIdPostfix.Value = null;
+    }
+
+    /// <summary>
     /// Gets the authorization from the current async execution context.
     /// </summary>
     /// <returns>The authorization token if set, otherwise null.</returns>
@@ -277,7 +299,8 @@ public static class XiansContext
 
     /// <summary>
     /// Gets the tenant ID from the current async execution context, workflow metadata, or workflow ID.
-    /// Tries in order: async local context → workflow search attributes/memo → workflow ID extraction.
+    /// Tries in order: async local context → workflow search attributes/memo → workflow ID extraction →
+    /// certificate tenant (when agent is not system-scoped).
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
     public static string GetTenantId()
@@ -302,8 +325,20 @@ public static class XiansContext
         }
         catch (Exception ex)
         {
+            // Last resort: if agent is not system-scoped, use tenant from certificate
+            try
+            {
+                var agent = CurrentAgent;
+                if (!agent.SystemScoped && !string.IsNullOrWhiteSpace(agent.Options?.CertificateTenantId))
+                {
+                    return agent.Options!.CertificateTenantId;
+                }
+            }
+            catch { /* ignore - will rethrow below */ }
+
+            var workflowIdForError = SafeWorkflowId ?? "(not in workflow/activity context)";
             throw new InvalidOperationException(
-                $"Failed to extract tenant ID from workflow ID '{WorkflowId}'. " +
+                $"Failed to extract tenant ID from workflow ID '{workflowIdForError}'. " +
                 $"Ensure workflow ID follows the expected format. Error: {ex.Message}", ex);
         }
     }
@@ -327,12 +362,16 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Gets the idPostfix from search attributes, memo, or workflow ID.
-    /// Tries in order: search attributes → memo → workflow ID parsing.
+    /// Gets the idPostfix from async context, search attributes, memo, or workflow ID.
+    /// Tries in order: async local (SetIdPostfix) → search attributes → memo → workflow ID parsing.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string GetIdPostfix() => 
-        GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? throw new InvalidOperationException(NotInContextErrorMessage + "Workflow idPostfix not found. Provide a idPostfix explicitly.");
+    public static string GetIdPostfix()
+    {
+        if (!string.IsNullOrEmpty(_asyncLocalIdPostfix.Value))
+            return _asyncLocalIdPostfix.Value;
+        return GetWorkflowMetadata(Common.WorkflowConstants.Keys.idPostfix) ?? throw new InvalidOperationException(NotInContextErrorMessage + "Workflow idPostfix not found. Provide a idPostfix explicitly.");
+    }
 
     /// <summary>
     /// Generic method to retrieve workflow metadata from search attributes, memo, or workflow ID.
@@ -474,13 +513,16 @@ public static class XiansContext
 
     /// <summary>
     /// Tries to get the current idPostfix without throwing an exception.
+    /// Checks async local (SetIdPostfix) first, then workflow context.
     /// </summary>
-    /// <returns>The idPostfix if in workflow/activity context, otherwise null.</returns>
+    /// <returns>The idPostfix if available, otherwise null.</returns>
     internal static string? TryGetIdPostfix()
     {
+        if (!string.IsNullOrEmpty(_asyncLocalIdPostfix.Value))
+            return _asyncLocalIdPostfix.Value;
         try
         {
-            return InWorkflowOrActivity ? GetIdPostfix() : null;
+            return GetIdPostfix();
         }
         catch
         {

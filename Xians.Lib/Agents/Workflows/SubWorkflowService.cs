@@ -259,7 +259,10 @@ public static class SubWorkflowService
         string tenantId;
         if (agent.SystemScoped)
         {
-            tenantId = XiansContext.GetTenantId();
+            // Try context first; when outside workflow/activity, fall back to certificate tenant if available
+            tenantId = XiansContext.SafeTenantId ?? agent.Options?.CertificateTenantId
+                ?? throw new InvalidOperationException(
+                    $"System-scoped agent '{agentName}' requires workflow/activity context or CertificateTenantId when starting workflows from outside Temporal context.");
         }
         else
         {

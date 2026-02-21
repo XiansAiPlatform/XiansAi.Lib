@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
@@ -19,6 +19,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebhookTest", "Xians.Exampl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomWorkflow", "Xians.Examples\CustomWorkflow\CustomWorkflow.csproj", "{A1B2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KnowledgeAccess", "Xians.Examples\KnowledgeAccess\KnowledgeAccess.csproj", "{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}"
+EndProject
+
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -125,6 +128,18 @@ Global
 		{A1B2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Release|x64.Build.0 = Release|Any CPU
 		{A1B2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Release|x86.ActiveCfg = Release|Any CPU
 		{A1B2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Release|x86.Build.0 = Release|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|x64.Build.0 = Debug|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|x86.Build.0 = Debug|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|x64.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|x64.Build.0 = Release|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|x86.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -567,8 +567,9 @@ public class RealServerScheduleTests : RealServerTestBase, IAsyncLifetime
             return;
         }
 
-        // Set tenant ID for this async context (required when not in workflow/activity)
+        // Set tenant ID and idPostfix for this async context (required when not in workflow/activity)
         XiansContext.SetTenantId(TestTenantId);
+        XiansContext.SetIdPostfix(TestIdPostfix);
 
         var scheduleId = $"test-lifecycle-{Guid.NewGuid():N}";
         _scheduleIdsToCleanup.Add(scheduleId);
