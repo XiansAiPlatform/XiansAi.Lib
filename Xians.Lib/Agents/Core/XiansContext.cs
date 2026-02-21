@@ -276,8 +276,8 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Gets the tenant ID from the current async execution context or workflow ID.
-    /// Tries in order: async local context → workflow ID extraction.
+    /// Gets the tenant ID from the current async execution context, workflow metadata, or workflow ID.
+    /// Tries in order: async local context → workflow search attributes/memo → workflow ID extraction.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context or tenant ID cannot be extracted.</exception>
     public static string GetTenantId()
@@ -286,6 +286,13 @@ public static class XiansContext
         if (!string.IsNullOrEmpty(_asyncLocalTenantId.Value))
         {
             return _asyncLocalTenantId.Value;
+        }
+
+        // Try workflow metadata (search attributes → memo)
+        var fromWorkflowMetadata = GetWorkflowMetadata(Common.WorkflowConstants.Keys.TenantId);
+        if (!string.IsNullOrEmpty(fromWorkflowMetadata))
+        {
+            return fromWorkflowMetadata;
         }
 
         // Fall back to extracting from workflow ID
