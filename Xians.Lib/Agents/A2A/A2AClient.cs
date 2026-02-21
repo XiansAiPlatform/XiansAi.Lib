@@ -130,14 +130,25 @@ public class A2AClient
         }
 
         // Validate the appropriate handler exists for the message type
-        var isDataMessage = messageType.Equals("Data", StringComparison.OrdinalIgnoreCase);
-        if (isDataMessage)
+        var normalizedMessageType = messageType.Equals("Data", StringComparison.OrdinalIgnoreCase) ? "data"
+            : messageType.Equals("File", StringComparison.OrdinalIgnoreCase) ? "file"
+            : "chat";
+        if (normalizedMessageType == "data")
         {
             if (handlerMetadata?.DataHandler == null)
             {
                 throw new InvalidOperationException(
                     $"No data message handler registered for workflow type '{_targetWorkflow.WorkflowType}'. " +
                     $"Ensure the target workflow has called OnUserDataMessage().");
+            }
+        }
+        else if (normalizedMessageType == "file")
+        {
+            if (handlerMetadata?.FileUploadHandler == null)
+            {
+                throw new InvalidOperationException(
+                    $"No file upload handler registered for workflow type '{_targetWorkflow.WorkflowType}'. " +
+                    $"Ensure the target workflow has called OnFileUpload().");
             }
         }
         else

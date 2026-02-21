@@ -60,10 +60,13 @@ public class MessageActivities
                 return;
             }
 
-            // Get the appropriate handler based on message type (chat or data)
-            var handler = messageType == "chat" 
-                ? metadata.ChatHandler 
-                : metadata.DataHandler;
+            // Get the appropriate handler based on message type (chat, data, or file)
+            var handler = messageType switch
+            {
+                "chat" => metadata.ChatHandler,
+                "file" => metadata.FileUploadHandler,
+                _ => metadata.DataHandler  // "data" and other data-like types
+            };
 
             if (handler == null)
             {

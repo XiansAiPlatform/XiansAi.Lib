@@ -10,6 +10,7 @@ internal class WorkflowHandlerMetadata
 {
     public Func<UserMessageContext, Task>? ChatHandler { get; set; }
     public Func<UserMessageContext, Task>? DataHandler { get; set; }
+    public Func<UserMessageContext, Task>? FileUploadHandler { get; set; }
     public Func<WebhookContext, Task>? WebhookHandler { get; set; }
     public required string AgentName { get; set; }
     public string? TenantId { get; set; }
