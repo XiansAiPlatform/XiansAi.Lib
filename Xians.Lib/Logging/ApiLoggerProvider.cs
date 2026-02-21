@@ -133,7 +133,7 @@ public class ApiLogger : ILogger
         var participantId = XiansContext.SafeParticipantId ?? XiansContext.SafeCertificateUser;
         var idPostfix = XiansContext.SafeIdPostfix;
         var workflowType = XiansContext.SafeWorkflowType;
-
+        var tenantId = XiansContext.SafeTenantId;
 
         var log = new Log
         {
@@ -147,6 +147,7 @@ public class ApiLogger : ILogger
             Agent = agent,
             Activation = idPostfix,
             ParticipantId = participantId,
+            TenantId = tenantId,
             Exception = exception?.ToString()
         };
 

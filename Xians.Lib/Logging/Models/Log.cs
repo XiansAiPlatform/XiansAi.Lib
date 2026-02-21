@@ -46,6 +46,13 @@ public class Log
     /// The agent name associated with this log entry.
     /// </summary>
     public required string Agent { get; set; }
+
+    /// <summary>
+    /// The tenant ID from the current workflow/activity context (XiansContext).
+    /// Populated from XiansContext.SafeTenantId when the log is created.
+    /// Used for tenant isolation when storing logs; preferred over certificate-derived tenant.
+    /// </summary>
+    public string? TenantId { get; set; }
     
     /// <summary>
     /// The participant ID (user ID) associated with this log entry.
