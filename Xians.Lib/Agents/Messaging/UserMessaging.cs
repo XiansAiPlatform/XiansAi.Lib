@@ -52,6 +52,52 @@ internal static class UserMessaging
     }
 
     /// <summary>
+    /// Sends a reasoning message to a participant using the current workflow context.
+    /// Reasoning messages are typically used to stream or send agent reasoning/chain-of-thought content.
+    /// </summary>
+    /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
+    /// <param name="text">The reasoning content.</param>
+    /// <param name="data">Optional data object to include with the message.</param>
+    /// <param name="scope">Optional scope for the message.</param>
+    /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
+    /// <returns>A task representing the async operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
+    public static async Task SendReasoningAsync(
+        string participantId,
+        string text,
+        object? data = null,
+        string? scope = null,
+        string? hint = null,
+        string? taskId = null)
+    {
+        await SendMessageAsync(participantId, text, data, scope, hint, taskId, "reasoning");
+    }
+
+    /// <summary>
+    /// Sends a tool message to a participant using the current workflow context.
+    /// Tool messages are typically used to send tool call results or tool-related content.
+    /// </summary>
+    /// <param name="participantId">The ID of the participant (user) to send the message to.</param>
+    /// <param name="text">The tool message content.</param>
+    /// <param name="data">Optional data object to include with the message.</param>
+    /// <param name="scope">Optional scope for the message.</param>
+    /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
+    /// <returns>A task representing the async operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
+    public static async Task SendToolAsync(
+        string participantId,
+        string text,
+        object? data = null,
+        string? scope = null,
+        string? hint = null,
+        string? taskId = null)
+    {
+        await SendMessageAsync(participantId, text, data, scope, hint, taskId, "tool");
+    }
+
+    /// <summary>
     /// Sends a chat message to a participant while impersonating a workflow.
     /// Use <see cref="XiansContext.BuildBuiltInWorkflowType"/> to construct builtin workflow types.
     /// </summary>

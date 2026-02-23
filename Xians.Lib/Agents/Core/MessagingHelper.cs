@@ -140,6 +140,56 @@ public class MessagingHelper
     }
 
     /// <summary>
+    /// Sends a reasoning message to a participant from the current workflow.
+    /// If participantId is not provided, uses the participant ID from the current workflow context.
+    /// Wrapper around UserMessaging.SendReasoningAsync for convenience.
+    /// </summary>
+    /// <param name="text">The reasoning content to send.</param>
+    /// <param name="data">Optional data object to send with the message.</param>
+    /// <param name="scope">Optional scope for the message.</param>
+    /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
+    /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    public async Task SendReasoningAsync(
+        string text,
+        object? data = null,
+        string? scope = null,
+        string? hint = null,
+        string? taskId = null,
+        string? participantId = null)
+    {
+        participantId ??= XiansContext.GetParticipantId();
+        await UserMessaging.SendReasoningAsync(participantId, text, data, scope, hint, taskId);
+    }
+
+    /// <summary>
+    /// Sends a tool message to a participant from the current workflow.
+    /// If participantId is not provided, uses the participant ID from the current workflow context.
+    /// Wrapper around UserMessaging.SendToolAsync for convenience.
+    /// </summary>
+    /// <param name="text">The tool message content to send.</param>
+    /// <param name="data">Optional data object to send with the message.</param>
+    /// <param name="scope">Optional scope for the message.</param>
+    /// <param name="hint">Optional hint for message processing.</param>
+    /// <param name="taskId">Optional task ID to associate with the message.</param>
+    /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
+    public async Task SendToolAsync(
+        string text,
+        object? data = null,
+        string? scope = null,
+        string? hint = null,
+        string? taskId = null,
+        string? participantId = null)
+    {
+        participantId ??= XiansContext.GetParticipantId();
+        await UserMessaging.SendToolAsync(participantId, text, data, scope, hint, taskId);
+    }
+
+    /// <summary>
     /// Sends a data message to a participant while impersonating the Supervisor Workflow.
     /// If participantId is not provided, uses the participant ID from the current workflow context.
     /// Convenience wrapper for SendDataAsWorkflowAsync with WorkflowConstants.WorkflowTypes.Supervisor.
