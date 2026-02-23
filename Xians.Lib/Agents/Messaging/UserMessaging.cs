@@ -64,6 +64,7 @@ internal static class UserMessaging
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
     public static async Task SendReasoningAsync(
+        string builtInworkflowName,
         string participantId,
         string text,
         object? data = null,
@@ -71,7 +72,7 @@ internal static class UserMessaging
         string? hint = null,
         string? taskId = null)
     {
-        await SendMessageAsync(participantId, text, data, scope, hint, taskId, "reasoning");
+        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, taskId, "reasoning");
     }
 
     /// <summary>
@@ -86,7 +87,8 @@ internal static class UserMessaging
     /// <param name="taskId">Optional task ID to associate with the message.</param>
     /// <returns>A task representing the async operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in a workflow or activity context.</exception>
-    public static async Task SendToolAsync(
+    public static async Task SendToolCallAsync(
+        string builtInworkflowName,
         string participantId,
         string text,
         object? data = null,
@@ -94,7 +96,7 @@ internal static class UserMessaging
         string? hint = null,
         string? taskId = null)
     {
-        await SendMessageAsync(participantId, text, data, scope, hint, taskId, "tool");
+        await SendMessageAsWorkflowAsync(builtInworkflowName, participantId, text, data, scope, hint, taskId, "tool");
     }
 
     /// <summary>
