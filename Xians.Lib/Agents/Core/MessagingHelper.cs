@@ -152,7 +152,7 @@ public class MessagingHelper
     /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public async Task SendReasoningAsync(
+    public async Task SendReasoningMessageAsSupervisorAsync(
         string text,
         object? data = null,
         string? scope = null,
@@ -161,7 +161,7 @@ public class MessagingHelper
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendReasoningAsync(participantId, text, data, scope, hint, taskId);
+        await UserMessaging.SendReasoningAsync(WorkflowConstants.WorkflowTypes.Supervisor, participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
@@ -177,7 +177,7 @@ public class MessagingHelper
     /// <param name="participantId">Optional participant (user) ID to send the message to. If null, uses the current workflow context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public async Task SendToolAsync(
+    public async Task SendToolCallMessageAsSupervisorAsync(
         string text,
         object? data = null,
         string? scope = null,
@@ -186,7 +186,7 @@ public class MessagingHelper
         string? participantId = null)
     {
         participantId ??= XiansContext.GetParticipantId();
-        await UserMessaging.SendToolAsync(participantId, text, data, scope, hint, taskId);
+        await UserMessaging.SendToolCallAsync(WorkflowConstants.WorkflowTypes.Supervisor, participantId, text, data, scope, hint, taskId);
     }
 
     /// <summary>
