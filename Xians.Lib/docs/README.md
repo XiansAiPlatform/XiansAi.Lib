@@ -17,6 +17,7 @@ Welcome to the Xians.Lib documentation! This library provides robust HTTP and Te
 - **[HTTP Client Guide](HttpClient.md)** - Comprehensive HTTP client usage and best practices
 - **[Temporal Client Guide](TemporalClient.md)** - Comprehensive Temporal client usage and best practices
 - **[Knowledge Guide](Knowledge.md)** - Store and manage agent knowledge (prompts, configs, docs)
+- **[Secret Vault](SecretVault.md)** - Secure key-value secrets with tenant/agent/user scope (builder pattern, CRUD)
 - **[Agent-to-Agent (A2A) Communication](A2A.md)** - Enable multi-agent collaboration and workflow orchestration
 - **[Caching Guide](Caching.md)** - Improve performance with automatic caching
 - **[System-Scoped Agents](SystemScopedAgents.md)** - Multi-tenant agent architecture and tenant isolation
@@ -114,7 +115,13 @@ var client = await temporalService.GetClientAsync();
    - Real-World Examples
    - Best Practices
 
-9. [Agent-to-Agent Communication (A2A)](A2A.md)
+9. [Secret Vault](SecretVault.md)
+   - Builder pattern (TenantScope, AgentScope, UserScope)
+   - Create, FetchByKey, List, GetById, Update, Delete
+   - Scope semantics and additionalData
+   - Best practices and troubleshooting
+
+10. [Agent-to-Agent Communication (A2A)](A2A.md)
    - Quick Start
    - Core Components (A2AClient, A2AMessage, A2AMessageContext)
    - Usage Patterns
@@ -123,26 +130,26 @@ var client = await temporalService.GetClientAsync();
    - Advanced Scenarios
    - Performance and Security
 
-10. [Caching](Caching.md)
+11. [Caching](Caching.md)
     - How Caching Works
     - Configuration Options
     - Performance Impact
     - Auto-Invalidation
     - Troubleshooting
 
-11. [System-Scoped Agents](SystemScopedAgents.md)
+12. [System-Scoped Agents](SystemScopedAgents.md)
     - Multi-Tenant Architecture
     - Tenant Isolation
     - Usage Examples
     - Security Best Practices
     - Troubleshooting
 
-12. [Worker Registration](WorkerRegistration.md)
+13. [Worker Registration](WorkerRegistration.md)
     - Temporal Worker Setup
     - Task Queue Configuration
     - Worker Lifecycle
 
-13. [Examples](Examples/)
+14. [Examples](Examples/)
    - HTTP Client Examples
    - Temporal Client Examples
 
