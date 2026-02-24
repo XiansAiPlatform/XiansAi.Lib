@@ -8,6 +8,7 @@ using Xians.Lib.Agents.Tasks;
 using Xians.Lib.Agents.Metrics;
 using Xians.Lib.Logging;
 using Xians.Lib.Agents.Scheduling;
+using Xians.Lib.Agents.Secrets;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -46,6 +47,11 @@ public class XiansAgent
     /// Gets the metrics collection for tracking and reporting usage metrics.
     /// </summary>
     public MetricsCollection Metrics { get; private set; }
+
+    /// <summary>
+    /// Gets the Secret Vault collection for scoped CRUD of secrets (tenant/agent/user scope via builder).
+    /// </summary>
+    public SecretVaultCollection Secrets { get; private set; }
 
     /// <summary>
     /// Gets the name of the agent.
@@ -115,6 +121,7 @@ public class XiansAgent
         Tasks = new TaskCollection(this);
         Metrics = new MetricsCollection(this);
         Schedules = new ScheduleCollection(this, TemporalService);
+        Secrets = new SecretVaultCollection(this);
 
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);

@@ -81,6 +81,8 @@ public static class WorkflowConstants
         public const string ConversationOutbound = "api/agent/conversation/outbound";
         public const string ConversationLastTaskId = "api/agent/conversation/last-task-id";
         public const string Logs = "api/agent/logs";
+        /// <summary>Base path for agent Secret Vault API (create, list, fetch, get by id, update, delete).</summary>
+        public const string Secrets = "api/agent/secrets";
     }
 
     /// <summary>
