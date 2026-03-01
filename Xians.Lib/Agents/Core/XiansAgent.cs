@@ -86,12 +86,14 @@ public class XiansAgent
     /// <summary>
     /// Gets whether task workflows should be automatically enabled for this agent.
     /// </summary>
-    public bool EnableTasksOnInitialization => Options?.EnableTasks ?? true;
+    public bool EnableTasksOnInitialization => _enableTasksOverride ?? Options?.EnableTasks ?? false;
+
+    private readonly bool? _enableTasksOverride;
 
     internal XiansAgent(string name, bool systemScoped, string? description = null, string? summary = null, string? version = null, string? author = null,
         WorkflowDefinitionUploader? uploader = null, ITemporalClientService? temporalService = null, 
         Http.IHttpClientService? httpService = null, XiansOptions? options = null, 
-        Common.Caching.CacheService? cacheService = null)
+        Common.Caching.CacheService? cacheService = null, bool? enableTasksOverride = null)
     {
         Name = name.Trim(); // Trim to handle whitespace variations
 
@@ -109,6 +111,7 @@ public class XiansAgent
         HttpService = httpService;
         Options = options;
         CacheService = cacheService;
+        _enableTasksOverride = enableTasksOverride;
         Workflows = new WorkflowCollection(this, uploader);
         Knowledge = new KnowledgeCollection(this, httpService, cacheService);
         Documents = new DocumentCollection(this, httpService);
