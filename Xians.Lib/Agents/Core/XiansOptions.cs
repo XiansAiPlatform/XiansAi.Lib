@@ -42,9 +42,9 @@ public class XiansOptions : ServerConfiguration
     /// <summary>
     /// Gets or sets whether to enable task functionality for agents.
     /// When true, agents will be initialized with task capabilities.
-    /// Default is true.
+    /// Default is false.
     /// </summary>
-    public bool EnableTasks { get; set; } = true;
+    public bool EnableTasks { get; set; } = false;
 
     /// <summary>
     /// Enables local/mock mode for unit testing.

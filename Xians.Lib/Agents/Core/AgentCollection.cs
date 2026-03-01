@@ -64,7 +64,8 @@ public class AgentCollection
             _temporalService,
             _httpService,
             _options,
-            _cacheService);
+            _cacheService,
+            registration.EnableTasks);
     }
 
 }
