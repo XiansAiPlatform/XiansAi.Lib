@@ -124,6 +124,119 @@ public class WorkflowHelper
         return await SubWorkflowService.ExecuteAsync<TResult>(workflowType, uniqueKeys.ToArray(), executionTimeout, args);
     }
 
+    /// <summary>
+    /// Sends a signal to a workflow execution.
+    /// If called from within a workflow, uses the external workflow handle to signal another workflow.
+    /// If called outside a workflow, uses the Temporal client to signal the workflow.
+    /// Workflow ID is built from context only (idPostfix when in workflow/activity); unique keys cannot be passed externally.
+    /// The workflow must already be running; signals cannot be sent to closed workflows.
+    /// </summary>
+    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
+    /// <param name="signalName">The name of the signal to send (must match a handler with <see cref="WorkflowSignalAttribute"/>).</param>
+    /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
+    /// <returns>A task representing the asynchronous operation. Returns when the server accepts the signal.</returns>
+    public async Task SignalAsync<TWorkflow>(string signalName, params object[] signalArgs)
+    {
+        await SubWorkflowService.SignalAsync<TWorkflow>(signalName, signalArgs);
+    }
+
+    /// <summary>
+    /// Sends a signal to a workflow execution.
+    /// If called from within a workflow, uses the external workflow handle to signal another workflow.
+    /// If called outside a workflow, uses the Temporal client to signal the workflow.
+    /// Workflow ID is built from context only (idPostfix when in workflow/activity); unique keys cannot be passed externally.
+    /// The workflow must already be running; signals cannot be sent to closed workflows.
+    /// </summary>
+    /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
+    /// <param name="signalName">The name of the signal to send (must match a handler with <see cref="WorkflowSignalAttribute"/>).</param>
+    /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
+    /// <returns>A task representing the asynchronous operation. Returns when the server accepts the signal.</returns>
+    public async Task SignalAsync(string workflowType, string signalName, params object[] signalArgs)
+    {
+        _ = workflowType.Length;
+        await SubWorkflowService.SignalAsync(workflowType, signalName, signalArgs);
+    }
+
+    /// <summary>
+    /// Sends a signal to a workflow, starting it if it does not already exist (signal-with-start).
+    /// Client-only operation; throws when called from within a workflow.
+    /// If a workflow with the given ID exists, it will be signaled. If not, a new workflow is started and immediately signaled.
+    /// Parent's idPostfix is automatically included from context.
+    /// </summary>
+    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
+    /// <param name="workflowArgs">Arguments to pass when starting the workflow (used only if workflow does not exist).</param>
+    /// <param name="signalName">The name of the signal to send.</param>
+    /// <param name="uniqueKey">Optional unique key for workflow ID (appended after parent's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when called from within a workflow.</exception>
+    public async Task SignalWithStartAsync<TWorkflow>(
+        object[] workflowArgs,
+        string signalName,
+        string? uniqueKey = null,
+        TimeSpan? executionTimeout = null,
+        params object[] signalArgs)
+    {
+        var idPostfix = XiansContext.TryGetIdPostfix();
+        var uniqueKeys = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+            uniqueKeys.Add(idPostfix);
+
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+            uniqueKeys.Add(uniqueKey);
+
+        await SubWorkflowService.SignalWithStartAsync<TWorkflow>(
+            uniqueKeys.ToArray(),
+            workflowArgs,
+            signalName,
+            signalArgs,
+            executionTimeout);
+    }
+
+    /// <summary>
+    /// Sends a signal to a workflow, starting it if it does not already exist (signal-with-start).
+    /// Client-only operation; throws when called from within a workflow.
+    /// If a workflow with the given ID exists, it will be signaled. If not, a new workflow is started and immediately signaled.
+    /// Parent's idPostfix is automatically included from context.
+    /// </summary>
+    /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
+    /// <param name="workflowArgs">Arguments to pass when starting the workflow (used only if workflow does not exist).</param>
+    /// <param name="signalName">The name of the signal to send.</param>
+    /// <param name="uniqueKey">Optional unique key for workflow ID (appended after parent's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when called from within a workflow.</exception>
+    public async Task SignalWithStartAsync(
+        string workflowType,
+        object[] workflowArgs,
+        string signalName,
+        string? uniqueKey = null,
+        TimeSpan? executionTimeout = null,
+        params object[] signalArgs)
+    {
+        _ = workflowType.Length;
+
+        var idPostfix = XiansContext.TryGetIdPostfix();
+        var uniqueKeys = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(idPostfix))
+            uniqueKeys.Add(idPostfix);
+
+        if (!string.IsNullOrWhiteSpace(uniqueKey))
+            uniqueKeys.Add(uniqueKey);
+
+        await SubWorkflowService.SignalWithStartAsync(
+            workflowType,
+            uniqueKeys.ToArray(),
+            workflowArgs,
+            signalName,
+            signalArgs,
+            executionTimeout);
+    }
+
     #region Temporal Client Access
 
     /// <summary>

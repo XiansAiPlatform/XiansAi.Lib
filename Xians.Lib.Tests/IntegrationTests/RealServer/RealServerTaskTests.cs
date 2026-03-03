@@ -106,7 +106,8 @@ public class RealServerTaskTests : RealServerTestBase, IAsyncLifetime
             _platformAgent = _platform.Agents.Register(new XiansAgentRegistration 
             { 
                 Name = "Platform",
-                IsTemplate = true
+                IsTemplate = true,
+                EnableTasks = true
             });
 
             // Start Platform agent worker - RunAllAsync adds Task workflow and starts polling

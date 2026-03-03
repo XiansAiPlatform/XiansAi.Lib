@@ -109,10 +109,17 @@ public class WorkflowCollection
     /// <summary>
     /// Defines a custom workflow for the agent.
     /// </summary>
-    /// <typeparam name="T">The custom workflow type.</typeparam>
+    /// <typeparam name="T">The custom workflow type. Must be decorated with <c>[Workflow("AgentName:WorkflowName")]</c>.</typeparam>
     /// <param name="options">Workflow configuration options. If null, uses default options.</param>
     /// <returns>A new custom XiansWorkflow instance.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when a workflow of the same type already exists.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when: (1) the workflow class lacks <c>[Workflow("AgentName:WorkflowName")]</c> with an explicit Name,
+    /// or (2) a workflow of the same type has already been registered.
+    /// </exception>
+    /// <remarks>
+    /// Your workflow class must have <c>[Workflow("AgentName:WorkflowName")]</c>. The format requires exactly one colon.
+    /// Example: <c>[Workflow("My Agent:My Workflow")]</c>. Using <c>[Workflow]</c> without parameters will fail.
+    /// </remarks>
     public XiansWorkflow DefineCustom<T>(WorkflowOptions? options = null) where T : class
     {
         return DefineCustomInternal<T>(options, validateAgentPrefix: true);
@@ -432,7 +439,11 @@ public class WorkflowCollection
         var workflowAttribute = typeof(T).GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
             .FirstOrDefault() as Temporalio.Workflows.WorkflowAttribute;
 
-        var workflowType = workflowAttribute?.Name ?? throw new InvalidOperationException($"Workflow type not found for workflow class {typeof(T).Name}");
+        var workflowType = workflowAttribute?.Name ?? throw new InvalidOperationException(
+            $"Workflow type not found for workflow class '{typeof(T).Name}'. " +
+            "Custom workflows must have the [Workflow] attribute with an explicit Name in the format 'AgentName:WorkflowName'. " +
+            $"Example: [Workflow(\"{_agent.Name}:{typeof(T).Name}\")]. " +
+            "The attribute cannot be [Workflow] without parameters; you must specify the workflow type name.");
         
         // Validate that workflow type follows the naming convention (unless it's a platform workflow)
         if (validateAgentPrefix)
