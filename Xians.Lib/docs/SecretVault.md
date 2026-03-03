@@ -1,6 +1,6 @@
 # Secret Vault
 
-> **TL;DR**: Secret Vault is a secure key-value store for secrets (API keys, tokens, webhook secrets). Use a **builder pattern** to set scope (tenant, agent, user) then perform CRUD. Values are encrypted at rest on the server.
+> **TL;DR**: Secret Vault is a secure key-value store for secrets (API keys, tokens, webhook secrets). Use a **builder pattern** to set scope (tenant, agent, user, activation) then perform CRUD. Values are encrypted at rest on the server.
 
 ## What Is Secret Vault?
 
@@ -8,18 +8,19 @@ Secret Vault stores sensitive key-value pairs with optional scoping:
 
 - **Key** – Unique name (e.g. `api-key`, `webhook-secret`)
 - **Value** – The secret (encrypted at rest with AES-256-GCM on the server)
-- **Scope** – Optional tenant, agent, and user for access control
+- **Scope** – Optional tenant, agent, user, and activation for access control
 - **AdditionalData** – Optional flat metadata (string/number/boolean only; not for secrets)
 
 ### Scope Semantics
 
-| Scope     | Meaning when set        | Meaning when null        |
-|----------|--------------------------|--------------------------|
-| TenantId | Secret only for that tenant | Cross-tenant (any tenant) |
-| AgentId  | Secret only for that agent  | Across all agents          |
-| UserId   | Only that user can access   | Any user may access       |
+| Scope          | Meaning when set                    | Meaning when null                    |
+|----------------|-------------------------------------|--------------------------------------|
+| TenantId       | Secret only for that tenant         | Cross-tenant (any tenant)             |
+| AgentId        | Secret only for that agent          | Across all agents                     |
+| UserId         | Only that user can access           | Any user may access                   |
+| ActivationName | Only that agent activation can access | Any activation of the agent can access |
 
-**Fetch-by-key** uses **strict** scope matching: the request must send the same scope values as stored. For example, a secret stored with `tenantId = "acme"` will not be returned if you fetch without `tenantId` or with a different tenant.
+**Fetch-by-key** uses **strict** scope matching for all scopes (tenant, agent, user, activation): the request must send the same scope values as stored. If you omit a scope (e.g. no `activationName`), only secrets with that scope null are returned; if you send a scope value, the document must have that exact value.
 
 ## Quick Start
 
@@ -27,11 +28,12 @@ Secret Vault stores sensitive key-value pairs with optional scoping:
 using Xians.Lib.Agents.Secrets;
 using Xians.Lib.Agents.Secrets.Models;
 
-// 1. Get a scoped builder (tenant + agent + user)
+// 1. Get a scoped builder (tenant + agent + user + optional activation)
 var secrets = agent.Secrets.Scope()
     .TenantScope("tenant-1")
     .AgentScope("my-agent")
-    .UserScope("user-1");
+    .UserScope("user-1")
+    .ActivationScope("my-activation");  // optional: null = any activation can access
 
 // 2. Create a secret
 var created = await secrets.CreateAsync("api-key", "sk-xxx");
@@ -40,17 +42,17 @@ var created = await secrets.CreateAsync("api-key", "sk-xxx");
 var fetched = await secrets.FetchByKeyAsync("api-key");
 Console.WriteLine(fetched?.Value); // "sk-xxx"
 
-// 4. List, update, delete
+// 4. List (filtered by scope including activationName), update, delete
 var list = await secrets.ListAsync();
-await secrets.UpdateAsync(created.Id, value: "sk-new");
+await secrets.UpdateAsync(created.Id, value: "sk-new", activationName: "my-activation");
 await secrets.DeleteAsync(created.Id);
 ```
 
 ## Key Features
 
-- **Builder pattern** – Chain `TenantScope()`, `AgentScope()`, `UserScope()` then CRUD
+- **Builder pattern** – Chain `TenantScope()`, `AgentScope()`, `UserScope()`, `ActivationScope()` then CRUD
 - **Full CRUD** – Create, fetch by key, list, get by id, update, delete
-- **Strict scope** – Fetch-by-key matches scope exactly (tenant/agent/user)
+- **Strict scope** – Fetch-by-key matches scope exactly for all dimensions (tenant, agent, user, activation)
 - **Encrypted at rest** – Server encrypts values; lib only sends/receives plaintext over TLS
 - **Optional metadata** – `additionalData` for flat key-value (env, service name, etc.); not for sensitive data
 
@@ -79,7 +81,7 @@ Start from `agent.Secrets`, then either use the generic builder or a convenience
 var builder = agent.Secrets.Scope();
 
 // Set scope fluently
-builder.TenantScope("tenant-1").AgentScope("agent-1").UserScope("user-1");
+builder.TenantScope("tenant-1").AgentScope("agent-1").UserScope("user-1").ActivationScope("activation-1");
 
 // Convenience: tenant only
 var byTenant = agent.Secrets.TenantScope("tenant-1");
@@ -142,7 +144,7 @@ var items = await scoped.ListAsync();
 foreach (var item in items)
 {
     Console.WriteLine($"{item.Key} ({item.Id})");
-    // item has: Id, Key, TenantId, AgentId, UserId, AdditionalData, CreatedAt, CreatedBy
+    // item has: Id, Key, TenantId, AgentId, UserId, ActivationName, AdditionalData, CreatedAt, CreatedBy
 }
 ```
 
@@ -173,8 +175,8 @@ await scoped.UpdateAsync(id, value: "new-secret-value");
 // Update value and metadata
 await scoped.UpdateAsync(id, value: "new-value", additionalData: new { rev = 2 });
 
-// Update scope (pass explicit tenant/agent/user to change scope)
-await scoped.UpdateAsync(id, tenantId: "t2", agentId: "a2", userId: "u2");
+// Update scope (pass explicit tenant/agent/user/activationName to change scope)
+await scoped.UpdateAsync(id, tenantId: "t2", agentId: "a2", userId: "u2", activationName: "activation-2");
 ```
 
 ### 7. Delete
@@ -209,6 +211,18 @@ await scoped.CreateAsync("user-token", token);
 var token = await scoped.FetchByKeyAsync("user-token");
 ```
 
+### Per-activation secret (one activation of an agent only)
+
+```csharp
+// Secret only for this activation (e.g. from XiansContext.SafeIdPostfix in a workflow)
+var scoped = agent.Secrets.Scope()
+    .TenantScope(tenantId)
+    .AgentScope(agent.Name)
+    .ActivationScope("my-activation");
+await scoped.CreateAsync("activation-api-key", key);
+var key = await scoped.FetchByKeyAsync("activation-api-key");
+```
+
 ### List then get value for one
 
 ```csharp
@@ -226,11 +240,11 @@ if (first != null)
 
 ### Request/response types (lib)
 
-- **SecretVaultCreateRequest** – Key, Value, TenantId?, AgentId?, UserId?, AdditionalData?
-- **SecretVaultUpdateRequest** – Value?, TenantId?, AgentId?, UserId?, AdditionalData?
-- **SecretVaultGetResponse** – Id, Key, Value, TenantId, AgentId, UserId, AdditionalData, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy
+- **SecretVaultCreateRequest** – Key, Value, TenantId?, AgentId?, UserId?, ActivationName?, AdditionalData?
+- **SecretVaultUpdateRequest** – Value?, TenantId?, AgentId?, UserId?, ActivationName?, AdditionalData?
+- **SecretVaultGetResponse** – Id, Key, Value, TenantId, AgentId, UserId, ActivationName, AdditionalData, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy
 - **SecretVaultFetchResponse** – Value, AdditionalData (fetch-by-key only)
-- **SecretVaultListItem** – Id, Key, TenantId, AgentId, UserId, AdditionalData, CreatedAt, CreatedBy (no Value)
+- **SecretVaultListItem** – Id, Key, TenantId, AgentId, UserId, ActivationName, AdditionalData, CreatedAt, CreatedBy (no Value)
 
 ### AdditionalData rules (server)
 
@@ -280,11 +294,12 @@ After `agent.Secrets.Scope()` or `TenantScope(...)` / `WithScope(...)`:
 | `TenantScope(tenantId)` | Set tenant scope (null = cross-tenant). Returns builder. |
 | `AgentScope(agentId)` | Set agent scope (null = all agents). Returns builder. |
 | `UserScope(userId)` | Set user scope (null = any user). Returns builder. |
+| `ActivationScope(activationName)` | Set activation scope (null = any activation of the agent). Returns builder. |
 | `CreateAsync(key, value, additionalData?, ct)` | Create secret. Returns `SecretVaultGetResponse`. |
 | `FetchByKeyAsync(key, ct)` | Fetch by key (strict scope). Returns `SecretVaultFetchResponse?`. |
-| `ListAsync(ct)` | List secrets (filtered by current tenant/agent). Returns `List<SecretVaultListItem>`. |
+| `ListAsync(ct)` | List secrets (filtered by current tenant/agent/activationName). Returns `List<SecretVaultListItem>`. |
 | `GetByIdAsync(id, ct)` | Get full secret by id. Returns `SecretVaultGetResponse?`. |
-| `UpdateAsync(id, value?, additionalData?, tenantId?, agentId?, userId?, ct)` | Update by id. Returns `SecretVaultGetResponse`. |
+| `UpdateAsync(id, value?, additionalData?, tenantId?, agentId?, userId?, activationName?, ct)` | Update by id. Returns `SecretVaultGetResponse`. |
 | `DeleteAsync(id, ct)` | Delete by id. Returns `bool`. |
 
 ## Summary
@@ -292,7 +307,7 @@ After `agent.Secrets.Scope()` or `TenantScope(...)` / `WithScope(...)`:
 - **Builder pattern** – `agent.Secrets.Scope().TenantScope(...).AgentScope(...).UserScope(...)` then CRUD.
 - **Scopes** – `TenantScope()`, `AgentScope()`, `UserScope()`; null means “any” for that dimension.
 - **CRUD** – Create (key + value), FetchByKey (value + additionalData), List, GetById, Update, Delete.
-- **Strict scope** – Fetch-by-key matches tenant/agent/user exactly.
+- **Strict scope** – Fetch-by-key matches tenant/agent/user/activation exactly (same as other scopes).
 - **Server** – Values encrypted at rest; Agent API at `api/agent/secrets` with client certificate.
 
-Use Secret Vault for API keys, webhook secrets, and other sensitive key-value data scoped by tenant, agent, or user.
+Use Secret Vault for API keys, webhook secrets, and other sensitive key-value data scoped by tenant, agent, user, or activation.

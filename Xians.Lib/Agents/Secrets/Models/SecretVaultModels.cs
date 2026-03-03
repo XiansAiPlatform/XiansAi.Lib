@@ -22,6 +22,10 @@ public class SecretVaultCreateRequest
     [JsonPropertyName("userId")]
     public string? UserId { get; set; }
 
+    /// <summary>When set, only this agent activation can access the secret; null = any activation of the agent can access.</summary>
+    [JsonPropertyName("activationName")]
+    public string? ActivationName { get; set; }
+
     /// <summary>Optional. Flat key-value metadata; values must be string, number, or boolean only.</summary>
     [JsonPropertyName("additionalData")]
     public object? AdditionalData { get; set; }
@@ -43,6 +47,10 @@ public class SecretVaultUpdateRequest
 
     [JsonPropertyName("userId")]
     public string? UserId { get; set; }
+
+    /// <summary>When set, only this agent activation can access the secret; null = any activation of the agent can access.</summary>
+    [JsonPropertyName("activationName")]
+    public string? ActivationName { get; set; }
 
     [JsonPropertyName("additionalData")]
     public object? AdditionalData { get; set; }
@@ -70,6 +78,10 @@ public class SecretVaultGetResponse
 
     [JsonPropertyName("userId")]
     public string? UserId { get; set; }
+
+    /// <summary>When set, only this agent activation can access the secret; null = any activation of the agent can access.</summary>
+    [JsonPropertyName("activationName")]
+    public string? ActivationName { get; set; }
 
     [JsonPropertyName("additionalData")]
     public object? AdditionalData { get; set; }
@@ -118,6 +130,10 @@ public class SecretVaultListItem
 
     [JsonPropertyName("userId")]
     public string? UserId { get; set; }
+
+    /// <summary>When set, only this agent activation can access the secret; null = any activation of the agent can access.</summary>
+    [JsonPropertyName("activationName")]
+    public string? ActivationName { get; set; }
 
     [JsonPropertyName("additionalData")]
     public object? AdditionalData { get; set; }

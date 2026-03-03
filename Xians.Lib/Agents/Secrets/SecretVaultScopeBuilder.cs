@@ -11,7 +11,7 @@ namespace Xians.Lib.Agents.Secrets;
 
 /// <summary>
 /// Fluent scope builder for Secret Vault operations.
-/// Set tenant, agent, and user scope via <see cref="TenantScope"/>, <see cref="AgentScope"/>, and <see cref="UserScope"/>,
+/// Set tenant, agent, user, and activation scope via <see cref="TenantScope"/>, <see cref="AgentScope"/>, <see cref="UserScope"/>, and <see cref="ActivationScope"/>,
 /// then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>, <see cref="ListAsync"/>,
 /// <see cref="GetByIdAsync"/>, <see cref="UpdateAsync"/>, <see cref="DeleteAsync"/>.
 /// </summary>
@@ -22,13 +22,15 @@ public class SecretVaultScopeBuilder
     private string? _tenantId;
     private string? _agentId;
     private string? _userId;
+    private string? _activationName;
 
-    internal SecretVaultScopeBuilder(XiansAgent agent, string? tenantId, string? agentId, string? userId)
+    internal SecretVaultScopeBuilder(XiansAgent agent, string? tenantId, string? agentId, string? userId, string? activationName = null)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _tenantId = tenantId;
         _agentId = agentId;
         _userId = userId;
+        _activationName = activationName;
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<SecretVaultScopeBuilder>();
     }
 
@@ -60,6 +62,15 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
+    /// Sets the activation scope for subsequent operations. Null = any activation of the agent may access; when set, only that agent activation (by name) may access.
+    /// </summary>
+    public SecretVaultScopeBuilder ActivationScope(string? activationName)
+    {
+        _activationName = activationName;
+        return this;
+    }
+
+    /// <summary>
     /// Creates a secret with the current scope. Key must be unique.
     /// </summary>
     /// <param name="key">Unique secret key.</param>
@@ -84,6 +95,7 @@ public class SecretVaultScopeBuilder
             TenantId = _tenantId,
             AgentId = _agentId,
             UserId = _userId,
+            ActivationName = _activationName,
             AdditionalData = additionalData
         };
 
@@ -118,6 +130,7 @@ public class SecretVaultScopeBuilder
         if (_tenantId != null) query += $"&tenantId={UrlEncoder.Default.Encode(_tenantId)}";
         if (_agentId != null) query += $"&agentId={UrlEncoder.Default.Encode(_agentId)}";
         if (_userId != null) query += $"&userId={UrlEncoder.Default.Encode(_userId)}";
+        if (_activationName != null) query += $"&activationName={UrlEncoder.Default.Encode(_activationName)}";
 
         var client = await _agent.HttpService!.GetHealthyClientAsync();
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WorkflowConstants.ApiEndpoints.Secrets}/fetch?{query}");
@@ -143,6 +156,7 @@ public class SecretVaultScopeBuilder
         var query = new List<string>();
         if (_tenantId != null) query.Add($"tenantId={UrlEncoder.Default.Encode(_tenantId)}");
         if (_agentId != null) query.Add($"agentId={UrlEncoder.Default.Encode(_agentId)}");
+        if (_activationName != null) query.Add($"activationName={UrlEncoder.Default.Encode(_activationName)}");
         var queryString = query.Count > 0 ? "?" + string.Join("&", query) : "";
 
         var client = await _agent.HttpService!.GetHealthyClientAsync();
@@ -188,6 +202,7 @@ public class SecretVaultScopeBuilder
         string? tenantId = null,
         string? agentId = null,
         string? userId = null,
+        string? activationName = null,
         CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
@@ -199,7 +214,8 @@ public class SecretVaultScopeBuilder
             AdditionalData = additionalData,
             TenantId = tenantId ?? _tenantId,
             AgentId = agentId ?? _agentId,
-            UserId = userId ?? _userId
+            UserId = userId ?? _userId,
+            ActivationName = activationName ?? _activationName
         };
 
         var client = await _agent.HttpService!.GetHealthyClientAsync();
