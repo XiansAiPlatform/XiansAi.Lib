@@ -87,6 +87,7 @@ public class SecretVaultScopeBuilder
         ValidationHelper.ValidateRequiredWithMaxLength(key, nameof(key), 512);
         ValidationHelper.ValidateRequired(value, nameof(value));
         EnsureHttpService();
+        ValidateScopeAgainstMessageContext();
 
         var request = new SecretVaultCreateRequest
         {
@@ -125,6 +126,7 @@ public class SecretVaultScopeBuilder
     {
         ValidationHelper.ValidateRequiredWithMaxLength(key, nameof(key), 512);
         EnsureHttpService();
+        ValidateScopeAgainstMessageContext();
 
         var query = $"key={UrlEncoder.Default.Encode(key)}";
         if (_tenantId != null) query += $"&tenantId={UrlEncoder.Default.Encode(_tenantId)}";
@@ -152,6 +154,7 @@ public class SecretVaultScopeBuilder
     public async Task<List<SecretVaultListItem>> ListAsync(CancellationToken cancellationToken = default)
     {
         EnsureHttpService();
+        ValidateScopeAgainstMessageContext();
 
         var query = new List<string>();
         if (_tenantId != null) query.Add($"tenantId={UrlEncoder.Default.Encode(_tenantId)}");
@@ -178,6 +181,7 @@ public class SecretVaultScopeBuilder
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
         EnsureHttpService();
+        ValidateScopeAgainstMessageContext();
 
         var client = await _agent.HttpService!.GetHealthyClientAsync();
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
@@ -207,6 +211,7 @@ public class SecretVaultScopeBuilder
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
         EnsureHttpService();
+        ValidateScopeAgainstMessageContext();
 
         var request = new SecretVaultUpdateRequest
         {
@@ -241,6 +246,7 @@ public class SecretVaultScopeBuilder
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
         EnsureHttpService();
+        ValidateScopeAgainstMessageContext();
 
         var client = await _agent.HttpService!.GetHealthyClientAsync();
         using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
@@ -253,6 +259,50 @@ public class SecretVaultScopeBuilder
             await ThrowForResponseAsync(response, "delete secret");
 
         return true;
+    }
+
+    /// <summary>
+    /// Validates that the current scope (tenantId, userId, agentId, activationName) matches the message/workflow context.
+    /// When in workflow or activity context, if a scope value is set it must equal the corresponding XiansContext value.
+    /// Skips validation when not in workflow/activity (e.g. tests or local mode).
+    /// </summary>
+    private void ValidateScopeAgainstMessageContext()
+    {
+        if (!XiansContext.InWorkflowOrActivity)
+            return;
+
+        var contextTenantId = XiansContext.SafeTenantId;
+        var contextUserId = XiansContext.SafeParticipantId;
+        var contextAgentName = XiansContext.SafeAgentName ?? _agent.Name;
+        var contextActivationName = XiansContext.SafeIdPostfix;
+
+        if (!string.IsNullOrEmpty(_tenantId) && !string.IsNullOrEmpty(contextTenantId) &&
+            !string.Equals(_tenantId, contextTenantId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Secret Vault tenantId scope '{_tenantId}' does not match message context tenant '{contextTenantId}'.");
+        }
+
+        if (!string.IsNullOrEmpty(_agentId) && !string.IsNullOrEmpty(contextAgentName) &&
+            !string.Equals(_agentId, contextAgentName, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Secret Vault agentId scope '{_agentId}' does not match message context agent '{contextAgentName}'.");
+        }
+
+        if (!string.IsNullOrEmpty(_userId) && !string.IsNullOrEmpty(contextUserId) &&
+            !string.Equals(_userId, contextUserId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Secret Vault userId scope '{_userId}' does not match message context user '{contextUserId}'.");
+        }
+
+        if (!string.IsNullOrEmpty(_activationName) && !string.IsNullOrEmpty(contextActivationName) &&
+            !string.Equals(_activationName, contextActivationName, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Secret Vault activationName scope '{_activationName}' does not match message context activation '{contextActivationName}'.");
+        }
     }
 
     private void EnsureHttpService()
