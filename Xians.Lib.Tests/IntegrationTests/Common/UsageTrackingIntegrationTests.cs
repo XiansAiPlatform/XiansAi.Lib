@@ -60,6 +60,7 @@ public class UsageTrackingIntegrationTests : IAsyncLifetime
             null, // summary
             null, // version
             null, // author
+            null, // category
             null, // uploader
             mockTemporalService.Object,
             _httpService,

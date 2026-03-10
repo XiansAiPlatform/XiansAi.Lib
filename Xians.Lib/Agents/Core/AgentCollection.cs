@@ -16,7 +16,7 @@ public class AgentCollection
     private readonly XiansOptions _options;
     private IHttpClientService? _httpService;
     private ITemporalClientService? _temporalService;
-    private Xians.Lib.Common.Caching.CacheService? _cacheService;
+    private CacheService? _cacheService;
     private WorkflowDefinitionUploader? _uploader;
 
     internal AgentCollection(XiansOptions options)
@@ -60,6 +60,7 @@ public class AgentCollection
             registration.Summary,
             registration.Version,
             registration.Author,
+            registration.Category,
             _uploader,
             _temporalService,
             _httpService,
