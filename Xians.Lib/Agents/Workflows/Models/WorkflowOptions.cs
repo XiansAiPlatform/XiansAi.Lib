@@ -25,6 +25,14 @@ public class WorkflowOptions
     public bool Activable { get; set; } = true;
 
     /// <summary>
+    /// Maximum duration of inactivity (no messages) before the workflow completes.
+    /// When set, the timer resets each time a message is processed.
+    /// Null means never timeout (workflow runs indefinitely until cancelled or continued-as-new).
+    /// Default is 12 hours.
+    /// </summary>
+    public TimeSpan? InactivityTimeout { get; set; } = TimeSpan.FromHours(12);
+
+    /// <summary>
     /// Creates a copy of these options.
     /// </summary>
     internal WorkflowOptions Clone()
@@ -33,7 +41,8 @@ public class WorkflowOptions
         {
             MaxConcurrent = MaxConcurrent,
             MaxHistoryLength = MaxHistoryLength,
-            Activable = Activable
+            Activable = Activable,
+            InactivityTimeout = InactivityTimeout
         };
     }
 }

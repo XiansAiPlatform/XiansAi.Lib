@@ -60,6 +60,7 @@ public class UsageTrackingTests : IDisposable
             null, // summary
             null, // version
             null, // author
+            null, // category
             null, // uploader
             _mockTemporalService.Object,
             _mockHttpService.Object,

@@ -48,6 +48,11 @@ public class XiansAgentRegistration
     public string? Author { get; set; }
 
     /// <summary>
+    /// Gets or sets the category of the agent.
+    /// </summary>
+    public string? Category { get; set; }
+
+    /// <summary>
     /// Gets or sets whether task workflows should be automatically enabled for this agent.
     /// When true, the agent will automatically configure task workflow support during registration.
     /// When null, inherits from the global platform setting.

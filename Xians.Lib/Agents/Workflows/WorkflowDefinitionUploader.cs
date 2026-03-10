@@ -121,7 +121,7 @@ public class WorkflowDefinitionUploader
     /// Uploads an agent to the server.
     /// </summary>
     public async Task UploadAgentAsync(string agentName, bool systemScoped, string? description = null, 
-        string? summary = null, string? version = null, string? author = null)
+        string? summary = null, string? version = null, string? author = null, string? category = null)
     {
         var agentKey = $"{agentName}:{systemScoped}";
         
@@ -151,6 +151,7 @@ public class WorkflowDefinitionUploader
                     summary = summary,
                     version = version,
                     author = author,
+                    category = category,
                     onboardingJson = (string?)null
                 };
                 

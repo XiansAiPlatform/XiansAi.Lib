@@ -73,6 +73,11 @@ public class XiansAgent
     public string? Author { get; private set; }
 
     /// <summary>
+    /// Gets the category of the agent.
+    /// </summary>
+    public string? Category { get; private set; }
+
+    /// <summary>
     /// Gets whether the agent is system-scoped.
     /// </summary>
     public bool SystemScoped { get; private set; }
@@ -90,7 +95,7 @@ public class XiansAgent
 
     private readonly bool? _enableTasksOverride;
 
-    internal XiansAgent(string name, bool systemScoped, string? description = null, string? summary = null, string? version = null, string? author = null,
+    internal XiansAgent(string name, bool systemScoped, string? description = null, string? summary = null, string? version = null, string? author = null, string? category = null,
         WorkflowDefinitionUploader? uploader = null, ITemporalClientService? temporalService = null, 
         Http.IHttpClientService? httpService = null, XiansOptions? options = null, 
         Common.Caching.CacheService? cacheService = null, bool? enableTasksOverride = null)
@@ -107,6 +112,7 @@ public class XiansAgent
         Summary = summary;
         Version = version;
         Author = author;
+        Category = category;
         TemporalService = temporalService;
         HttpService = httpService;
         Options = options;

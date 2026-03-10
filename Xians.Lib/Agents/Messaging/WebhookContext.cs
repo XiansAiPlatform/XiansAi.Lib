@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Text.Json.Serialization;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
@@ -16,14 +17,14 @@ namespace Xians.Lib.Agents.Messaging;
 /// </summary>
 public class WebhookContext
 {
-    private readonly Dictionary<string, string>? _metadata;
-    private readonly ILogger<WebhookContext> _logger;
+    private Dictionary<string, string>? _metadata;
+    private ILogger<WebhookContext>? _logger;
 
     /// <summary>
     /// Gets the current webhook with name, payload, and context information.
     /// Use this to access ParticipantId, Scope, Name, Payload, Authorization, RequestId, etc.
     /// </summary>
-    public virtual WebhookMessage Webhook { get; protected set; }
+    public virtual WebhookMessage Webhook { get; set; } = new WebhookMessage();
 
     /// <summary>
     /// Gets or sets the response to send back for the webhook.
@@ -34,7 +35,14 @@ public class WebhookContext
     /// <summary>
     /// Gets the optional metadata for the webhook.
     /// </summary>
-    public Dictionary<string, string>? Metadata => _metadata;
+    public Dictionary<string, string>? Metadata
+    {
+        get => _metadata;
+        set => _metadata = value;
+    }
+
+    [JsonConstructor]
+    protected WebhookContext() { }
 
     internal WebhookContext(
         string participantId,
@@ -74,7 +82,7 @@ public class WebhookContext
             ContentType = "application/json"
         };
 
-        _logger.LogDebug(
+        _logger?.LogDebug(
             "Webhook response set: RequestId={RequestId}, StatusCode={StatusCode}",
             Webhook.RequestId,
             Response.StatusCode);
@@ -90,7 +98,7 @@ public class WebhookContext
     {
         Response = WebhookResponse.Ok(data);
 
-        _logger.LogDebug(
+        _logger?.LogDebug(
             "Webhook response set: RequestId={RequestId}, StatusCode={StatusCode}",
             Webhook.RequestId,
             Response.StatusCode);
@@ -105,7 +113,7 @@ public class WebhookContext
     {
         Response = response;
 
-        _logger.LogDebug(
+        _logger?.LogDebug(
             "Webhook response set: RequestId={RequestId}, StatusCode={StatusCode}",
             Webhook.RequestId,
             Response.StatusCode);

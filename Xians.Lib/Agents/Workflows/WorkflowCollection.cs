@@ -486,7 +486,8 @@ public class WorkflowCollection
             _agent.Description, 
             _agent.Summary,
             _agent.Version, 
-            _agent.Author);
+            _agent.Author,
+            _agent.Category);
 
         // Upload all workflow definitions
         foreach (var workflow in _workflows)
@@ -673,6 +674,16 @@ public class WorkflowCollection
             Console.Write("Author          : ");
             Console.ResetColor();
             Console.WriteLine(_agent.Author);
+        }
+
+        // Category (if available)
+        if (!string.IsNullOrEmpty(_agent.Category))
+        {
+            Console.Write("  ");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("Category        : ");
+            Console.ResetColor();
+            Console.WriteLine(_agent.Category);
         }
         
         Console.ResetColor();

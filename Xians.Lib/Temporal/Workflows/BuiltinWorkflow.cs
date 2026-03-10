@@ -223,6 +223,20 @@ public class BuiltinWorkflow
     }
 
     /// <summary>
+    /// Gets the configured inactivity timeout for the current workflow.
+    /// Null means never timeout.
+    /// </summary>
+    private TimeSpan? GetInactivityTimeout()
+    {
+        var workflowType = Workflow.Info.WorkflowType;
+        if (_workflowOptions.TryGetValue(workflowType, out var options))
+        {
+            return options.InactivityTimeout;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Clears all registered handlers. Intended for testing purposes only.
     /// </summary>
     internal static void ClearHandlersForTests()
@@ -277,11 +291,32 @@ public class BuiltinWorkflow
 
     private async Task ProcessMessagesLoopCoreAsync()
     {
+        var inactivityTimeout = GetInactivityTimeout();
+
         while (true)
         {
-            // Wait for a message to arrive in the queue or ContinueAsNew condition
+            // Wait for a message, ContinueAsNew condition, or inactivity timeout
             Workflow.Logger.LogDebug("Waiting for messages... QueueDepth={QueueDepth}", _messageQueue.Count);
-            await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0 || ShouldContinueAsNew);
+
+            bool conditionMet;
+            if (inactivityTimeout.HasValue)
+            {
+                conditionMet = await Workflow.WaitConditionAsync(
+                    () => _messageQueue.Count > 0 || ShouldContinueAsNew,
+                    inactivityTimeout.Value);
+                if (!conditionMet)
+                {
+                    Workflow.Logger.LogInformation(
+                        "Workflow completed due to inactivity timeout ({Timeout}). No messages received. WorkflowId={WorkflowId}",
+                        inactivityTimeout.Value,
+                        Workflow.Info.WorkflowId);
+                    return;
+                }
+            }
+            else
+            {
+                await Workflow.WaitConditionAsync(() => _messageQueue.Count > 0 || ShouldContinueAsNew);
+            }
 
             // Check if we should continue as new to avoid unbounded history growth
             ContinueAsNewIfNeeded();
