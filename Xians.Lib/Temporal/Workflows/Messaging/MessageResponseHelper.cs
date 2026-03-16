@@ -51,6 +51,44 @@ internal static class MessageResponseHelper
     }
 
     /// <summary>
+    /// Sends a heartbeat response indicating an agent worker is available.
+    /// Used when the frontend sends a heartbeat message type to check worker availability.
+    /// Response is sent as Data type with { available: true } for structured parsing.
+    /// </summary>
+    public static async Task SendHeartbeatResponseAsync(
+        string participantId,
+        string requestId,
+        string scope,
+        string? threadId,
+        string? authorization,
+        string hint,
+        string tenantId,
+        string workflowId,
+        string workflowType)
+    {
+        var request = new SendMessageRequest
+        {
+            ParticipantId = participantId,
+            WorkflowId = workflowId,
+            WorkflowType = workflowType,
+            Text = null,
+            Data = new { available = true },
+            RequestId = requestId,
+            Scope = scope,
+            ThreadId = threadId,
+            Authorization = authorization,
+            Hint = hint,
+            Origin = null,
+            Type = "Data",
+            TenantId = tenantId
+        };
+
+        await Workflow.ExecuteActivityAsync(
+            (MessageActivities act) => act.SendMessageAsync(request),
+            MessageActivityOptions.GetStandardOptions());
+    }
+
+    /// <summary>
     /// Sends an error response back to the user via activity.
     /// </summary>
     public static async Task SendErrorResponseAsync(

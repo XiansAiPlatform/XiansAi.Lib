@@ -37,9 +37,38 @@ internal static class MessageProcessor
             message.Payload.Type,
             textPreview);
 
-        // Normalize message type for comparison
-        var messageType = message.Payload.Type.ToLower();
-        
+        // Normalize message type for comparison (trim and lowercase to handle whitespace/variants)
+        var messageType = (message.Payload.Type ?? string.Empty).Trim().ToLowerInvariant();
+
+        // Heartbeat: immediate response without invoking any handler - signals agent worker is available
+        if (messageType == "heartbeat")
+        {
+            string tenantId;
+            try
+            {
+                tenantId = TenantContext.ExtractTenantId(workflowId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogError(ex,
+                    "Failed to extract tenant ID from WorkflowId for heartbeat: {WorkflowId}",
+                    workflowId);
+                return;
+            }
+            logger.LogDebug("Heartbeat received: RequestId={RequestId}, responding with available=true", message.Payload.RequestId);
+            await MessageResponseHelper.SendHeartbeatResponseAsync(
+                message.Payload.ParticipantId,
+                message.Payload.RequestId,
+                message.Payload.Scope,
+                message.Payload.ThreadId,
+                message.Payload.Authorization,
+                message.Payload.Hint,
+                tenantId,
+                workflowId,
+                workflowType);
+            return;
+        }
+
         // Only process Chat, Data, File, and Webhook type messages (skip Handoff and others for now)
         if (messageType != "chat" && messageType != "data" && messageType != "file" && messageType != "webhook")
         {
