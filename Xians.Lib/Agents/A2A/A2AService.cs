@@ -123,9 +123,13 @@ internal class A2AService
         if (handler == null)
         {
             var type = messageType ?? "Chat";
+            var registrationMethod = normalizedType == "file"
+                ? "OnFileUpload()"
+                : normalizedType == "data"
+                    ? "OnUserDataMessage()"
+                    : "OnUserChatMessage() or OnUserMessage()";
             throw new InvalidOperationException(
-                $"No {type} handler registered. " +
-                $"Use OnUser{type}Message() to register a handler.");
+                $"No {type} handler registered. Use {registrationMethod} to register a handler.");
         }
 
         return handler;

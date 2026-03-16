@@ -70,9 +70,18 @@ public class MessageActivities
 
             if (handler == null)
             {
+                // File upload without listener: send user-friendly response instead of throwing
+                if (messageType == "file")
+                {
+                    await SendErrorToUserAsync(request, "This agent has no capability of handling file uploads.");
+                    return;
+                }
+                var registrationMethod = messageType == "chat"
+                    ? "OnUserChatMessage() or OnUserMessage()"
+                    : "OnUserDataMessage()";
                 throw new InvalidOperationException(
                     $"No {request.MessageType} handler registered for workflow type '{request.WorkflowType}'. " +
-                    $"Use OnUser{request.MessageType}Message() to register a handler.");
+                    $"Use {registrationMethod} to register a handler.");
             }
 
             // Create a context that sends responses via HTTP instead of collecting them

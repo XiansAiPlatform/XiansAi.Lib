@@ -123,7 +123,7 @@ internal static class MessageProcessor
 
             // User-friendly message for chat response; file upload gets a specific message
             var userMessage = messageType == "file"
-                ? "This agent does not support file uploads."
+                ? "This agent has no capability of handling file uploads."
                 : $"No {messageType} handler registered for workflow type '{workflowType}'. " +
                   $"Use {handlerRegistrationMethod} to register a handler.";
 
