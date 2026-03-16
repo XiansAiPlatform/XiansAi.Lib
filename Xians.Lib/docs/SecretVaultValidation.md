@@ -6,7 +6,7 @@ This document describes the **client-side scope validation** in the Xians.Lib Se
 
 When your code runs **inside a Temporal workflow or activity**, the Secret Vault scope builder validates that any scope you set (tenantId, userId, agentId, activationName) matches the current execution context. This prevents a workflow from accidentally or maliciously accessing secrets in another tenant, for another user, or for another agent/activation.
 
-- **When validation runs**: At the start of every Secret Vault operation (Create, FetchByKey, List, GetById, Update, Delete) that uses `SecretVaultScopeBuilder`.
+- **When validation runs**: At the start of every Secret Vault operation (Create, FetchByKey, List, UpdateByKey, DeleteByKey) that uses `SecretVaultScopeBuilder`.
 - **When validation is skipped**: When the code is **not** in a workflow or activity (e.g. unit tests, local mode, or code outside Temporal). In those cases, no scope-vs-context check is performed.
 
 ## What is validated
@@ -35,9 +35,8 @@ So: you cannot use the builder to target a **different** tenant, user, agent, or
   - `CreateAsync`
   - `FetchByKeyAsync`
   - `ListAsync`
-  - `GetByIdAsync`
-  - `UpdateAsync`
-  - `DeleteAsync`
+  - `UpdateByKeyAsync`
+  - `DeleteByKeyAsync`
 
 ### When it runs
 
