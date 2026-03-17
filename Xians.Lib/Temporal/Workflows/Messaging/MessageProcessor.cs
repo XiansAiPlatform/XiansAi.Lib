@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Temporalio.Exceptions;
 using Temporalio.Workflows;
 using Xians.Lib.Common;
+using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Temporal.Workflows.Models;
 using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
@@ -48,11 +49,26 @@ internal static class MessageProcessor
             {
                 tenantId = TenantContext.ExtractTenantId(workflowId);
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is InvalidOperationException or WorkflowException)
             {
                 logger.LogError(ex,
                     "Failed to extract tenant ID from WorkflowId for heartbeat: {WorkflowId}",
                     workflowId);
+                // Send { available: false } so frontend can distinguish configuration error from worker timeout
+                var fallbackTenant = workflowId.Contains(':') ? workflowId.Split(':')[0] : null;
+                if (!string.IsNullOrWhiteSpace(fallbackTenant))
+                {
+                    await MessageResponseHelper.SendHeartbeatUnavailableResponseAsync(
+                        message.Payload.ParticipantId,
+                        message.Payload.RequestId,
+                        message.Payload.Scope,
+                        message.Payload.ThreadId,
+                        message.Payload.Authorization,
+                        message.Payload.Hint,
+                        fallbackTenant,
+                        workflowId,
+                        workflowType);
+                }
                 return;
             }
             logger.LogDebug("Heartbeat received: RequestId={RequestId}, responding with available=true", message.Payload.RequestId);
