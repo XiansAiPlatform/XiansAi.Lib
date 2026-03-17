@@ -193,6 +193,7 @@ public class SecretVaultScopeBuilder
 
         var request = new SecretVaultUpdateRequest
         {
+            Key = key,
             Value = value,
             AdditionalData = additionalData,
             // Scope for update must match the stored secret; server enforces uniqueness on (key + scope).
