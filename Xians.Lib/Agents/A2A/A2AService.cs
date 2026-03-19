@@ -112,7 +112,7 @@ internal class A2AService
 
     private static Func<UserMessageContext, Task> GetHandler(WorkflowHandlerMetadata metadata, string messageType)
     {
-        var normalizedType = messageType?.ToLower();
+        var normalizedType = messageType?.ToLowerInvariant();
         var handler = normalizedType switch
         {
             "data" => metadata.DataHandler,

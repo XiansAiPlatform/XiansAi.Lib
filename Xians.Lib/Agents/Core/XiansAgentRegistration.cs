@@ -58,5 +58,12 @@ public class XiansAgentRegistration
     /// When null, inherits from the global platform setting.
     /// </summary>
     public bool? EnableTasks { get; set; }
+
+    /// <summary>
+    /// Gets or sets the suggested prompts for this agent.
+    /// These prompts are sent to the server when the agent is uploaded and can be used
+    /// to display suggested starting points for users interacting with the agent.
+    /// </summary>
+    public IReadOnlyList<string>? SamplePrompts { get; set; }
 }
 

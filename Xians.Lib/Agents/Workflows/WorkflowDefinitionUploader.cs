@@ -121,7 +121,8 @@ public class WorkflowDefinitionUploader
     /// Uploads an agent to the server.
     /// </summary>
     public async Task UploadAgentAsync(string agentName, bool systemScoped, string? description = null, 
-        string? summary = null, string? version = null, string? author = null, string? category = null)
+        string? summary = null, string? version = null, string? author = null, string? category = null,
+        IReadOnlyList<string>? prompts = null)
     {
         var agentKey = $"{agentName}:{systemScoped}";
         
@@ -152,7 +153,8 @@ public class WorkflowDefinitionUploader
                     version = version,
                     author = author,
                     category = category,
-                    onboardingJson = (string?)null
+                    onboardingJson = (string?)null,
+                    samplePrompts = prompts
                 };
                 
                 var uploadResponse = await client.PostAsync(

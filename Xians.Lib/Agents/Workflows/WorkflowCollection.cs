@@ -487,7 +487,8 @@ public class WorkflowCollection
             _agent.Summary,
             _agent.Version, 
             _agent.Author,
-            _agent.Category);
+            _agent.Category,
+            _agent.Prompts);
 
         // Upload all workflow definitions
         foreach (var workflow in _workflows)

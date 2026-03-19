@@ -1,8 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Workflows;
-using Xians.Lib.Common;
-using Xians.Lib.Temporal.Workflows.Models;
-using Xians.Lib.Common.Infrastructure;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows.Messaging.Models;
 
@@ -16,7 +13,7 @@ internal static class MessageResponseHelper
     /// <summary>
     /// Sends a simple text message via activity.
     /// </summary>
-    public static async Task SendSimpleMessageAsync(
+    internal static async Task SendSimpleMessageAsync(
         string participantId,
         string text,
         string requestId,
@@ -55,7 +52,7 @@ internal static class MessageResponseHelper
     /// Used when the frontend sends a heartbeat message type to check worker availability.
     /// Response is sent as Data type with { available: true } for structured parsing.
     /// </summary>
-    public static async Task SendHeartbeatResponseAsync(
+    internal static async Task SendHeartbeatResponseAsync(
         string participantId,
         string requestId,
         string scope,
@@ -78,7 +75,46 @@ internal static class MessageResponseHelper
             ThreadId = threadId,
             Authorization = authorization,
             Hint = hint,
-            Origin = null,
+            Origin = "heartbeat",
+            Type = "Data",
+            TenantId = tenantId
+        };
+
+        await Workflow.ExecuteActivityAsync(
+            (MessageActivities act) => act.SendMessageAsync(request),
+            MessageActivityOptions.GetStandardOptions());
+    }
+
+    /// <summary>
+    /// Sends a heartbeat response indicating the agent worker is alive but unavailable (e.g. configuration error).
+    /// Used when tenant extraction fails for a heartbeat - allows the frontend to distinguish configuration
+    /// errors from a genuine worker timeout (no response).
+    /// Response is sent as Data type with { available: false, reason: "configuration_error" } for structured parsing.
+    /// </summary>
+    internal static async Task SendHeartbeatUnavailableResponseAsync(
+        string participantId,
+        string requestId,
+        string scope,
+        string? threadId,
+        string? authorization,
+        string hint,
+        string tenantId,
+        string workflowId,
+        string workflowType)
+    {
+        var request = new SendMessageRequest
+        {
+            ParticipantId = participantId,
+            WorkflowId = workflowId,
+            WorkflowType = workflowType,
+            Text = null,
+            Data = new { available = false, reason = "configuration_error" },
+            RequestId = requestId,
+            Scope = scope,
+            ThreadId = threadId,
+            Authorization = authorization,
+            Hint = hint,
+            Origin = "heartbeat",
             Type = "Data",
             TenantId = tenantId
         };
@@ -91,7 +127,7 @@ internal static class MessageResponseHelper
     /// <summary>
     /// Sends an error response back to the user via activity.
     /// </summary>
-    public static async Task SendErrorResponseAsync(
+    internal static async Task SendErrorResponseAsync(
         InboundMessage message,
         string errorMessage,
         string workflowTenantId,
@@ -115,7 +151,7 @@ internal static class MessageResponseHelper
     /// Sends an error response back to the user via activity.
     /// Extracts tenant ID from workflow context.
     /// </summary>
-    public static async Task SendErrorResponseAsync(
+    internal static async Task SendErrorResponseAsync(
         InboundMessage message,
         string errorMessage,
         ILogger logger)

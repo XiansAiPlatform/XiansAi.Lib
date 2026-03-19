@@ -51,7 +51,7 @@ public class MessageActivities
         try
         {
             var metadata = GetHandlerMetadata(request.WorkflowType);
-            var messageType = request.MessageType.ToLower();
+            var messageType = (request.MessageType ?? string.Empty).Trim().ToLowerInvariant();
 
             // Handle webhook messages separately
             if (messageType == "webhook")
