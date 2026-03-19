@@ -28,6 +28,16 @@ var xiansPlatform = await XiansPlatform.InitializeAsync(new ()
 var xiansAgent = xiansPlatform.Agents.Register(new ()
 {
     Name = "My Simple System Agent",
+    SamplePrompts = [
+        "Show me the current time",
+        "Show me the current date",
+        "Show me the current weather",
+        "Show me the current news",
+        "Show me the current stock prices",
+        "Show me the current weather",
+        "Show me the current news",
+        "Show me the current stock prices",
+    ],
     IsTemplate = true  
 });
 

@@ -84,6 +84,12 @@ public class XiansAgent
     public string? Category { get; private set; }
 
     /// <summary>
+    /// Gets the suggested prompts for this agent.
+    /// These prompts are sent to the server when the agent is uploaded.
+    /// </summary>
+    public IReadOnlyList<string>? Prompts { get; private set; }
+
+    /// <summary>
     /// Gets whether the agent is system-scoped.
     /// </summary>
     public bool SystemScoped { get; private set; }
@@ -102,7 +108,7 @@ public class XiansAgent
     private readonly bool? _enableTasksOverride;
 
     internal XiansAgent(string name, bool systemScoped, string? description = null, string? summary = null, string? version = null, string? author = null, string? category = null,
-        WorkflowDefinitionUploader? uploader = null, ITemporalClientService? temporalService = null, 
+        IReadOnlyList<string>? prompts = null, WorkflowDefinitionUploader? uploader = null, ITemporalClientService? temporalService = null, 
         Http.IHttpClientService? httpService = null, XiansOptions? options = null, 
         Common.Caching.CacheService? cacheService = null, bool? enableTasksOverride = null)
     {
@@ -119,6 +125,7 @@ public class XiansAgent
         Version = version;
         Author = author;
         Category = category;
+        Prompts = prompts;
         TemporalService = temporalService;
         HttpService = httpService;
         Options = options;

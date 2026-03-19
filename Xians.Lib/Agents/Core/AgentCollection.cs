@@ -61,6 +61,7 @@ public class AgentCollection
             registration.Version,
             registration.Author,
             registration.Category,
+            registration.SamplePrompts,
             _uploader,
             _temporalService,
             _httpService,
