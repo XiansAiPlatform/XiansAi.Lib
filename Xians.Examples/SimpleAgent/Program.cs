@@ -34,9 +34,6 @@ var xiansAgent = xiansPlatform.Agents.Register(new ()
         "Show me the current weather",
         "Show me the current news",
         "Show me the current stock prices",
-        "Show me the current weather",
-        "Show me the current news",
-        "Show me the current stock prices",
     ],
     IsTemplate = true  
 });

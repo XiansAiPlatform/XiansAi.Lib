@@ -58,30 +58,48 @@ internal static class MessageProcessor
                 var fallbackTenant = workflowId.Contains(':') ? workflowId.Split(':')[0] : null;
                 if (!string.IsNullOrWhiteSpace(fallbackTenant))
                 {
-                    await MessageResponseHelper.SendHeartbeatUnavailableResponseAsync(
-                        message.Payload.ParticipantId,
-                        message.Payload.RequestId,
-                        message.Payload.Scope,
-                        message.Payload.ThreadId,
-                        message.Payload.Authorization,
-                        message.Payload.Hint,
-                        fallbackTenant,
-                        workflowId,
-                        workflowType);
+                    try
+                    {
+                        await MessageResponseHelper.SendHeartbeatUnavailableResponseAsync(
+                            message.Payload.ParticipantId,
+                            message.Payload.RequestId,
+                            message.Payload.Scope,
+                            message.Payload.ThreadId,
+                            message.Payload.Authorization,
+                            message.Payload.Hint,
+                            fallbackTenant,
+                            workflowId,
+                            workflowType);
+                    }
+                    catch (Exception sendEx)
+                    {
+                        logger.LogError(sendEx,
+                            "Failed to send heartbeat unavailable response for WorkflowId={WorkflowId}",
+                            workflowId);
+                    }
                 }
                 return;
             }
             logger.LogDebug("Heartbeat received: RequestId={RequestId}, responding with available=true", message.Payload.RequestId);
-            await MessageResponseHelper.SendHeartbeatResponseAsync(
-                message.Payload.ParticipantId,
-                message.Payload.RequestId,
-                message.Payload.Scope,
-                message.Payload.ThreadId,
-                message.Payload.Authorization,
-                message.Payload.Hint,
-                tenantId,
-                workflowId,
-                workflowType);
+            try
+            {
+                await MessageResponseHelper.SendHeartbeatResponseAsync(
+                    message.Payload.ParticipantId,
+                    message.Payload.RequestId,
+                    message.Payload.Scope,
+                    message.Payload.ThreadId,
+                    message.Payload.Authorization,
+                    message.Payload.Hint,
+                    tenantId,
+                    workflowId,
+                    workflowType);
+            }
+            catch (Exception sendEx)
+            {
+                logger.LogError(sendEx,
+                    "Failed to send heartbeat response for WorkflowId={WorkflowId}",
+                    workflowId);
+            }
             return;
         }
 
