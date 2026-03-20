@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Logging.Models;
 using Xians.Lib.Common;
@@ -135,6 +136,10 @@ public class ApiLogger : ILogger
         var workflowType = XiansContext.SafeWorkflowType;
         var tenantId = XiansContext.SafeTenantId;
 
+        // Capture active OpenTelemetry span IDs for log-trace correlation.
+        // Only read Activity.Current outside Temporal workflow execution to avoid replay issues.
+        var currentActivity = Workflow.InWorkflow ? null : Activity.Current;
+
         var log = new Log
         {
             Id = Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString(),
@@ -148,7 +153,9 @@ public class ApiLogger : ILogger
             Activation = idPostfix,
             ParticipantId = participantId,
             TenantId = tenantId,
-            Exception = exception?.ToString()
+            Exception = exception?.ToString(),
+            TraceId = currentActivity?.TraceId.ToString(),
+            SpanId = currentActivity?.SpanId.ToString()
         };
 
         LoggingServices.EnqueueLog(log);
