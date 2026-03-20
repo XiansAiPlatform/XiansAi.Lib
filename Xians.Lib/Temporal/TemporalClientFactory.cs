@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client;
+using Temporalio.Extensions.OpenTelemetry;
 using Xians.Lib.Configuration.Models;
 using Xians.Lib.Common.Exceptions;
 using Xians.Lib.Common.Infrastructure;
@@ -29,7 +30,10 @@ internal class TemporalClientFactory
         {
             Namespace = _config.Namespace,
             Tls = GetTlsConfig(),
-            LoggerFactory = Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true)
+            LoggerFactory = Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true),
+            // Automatically propagate OpenTelemetry trace context across workflow boundaries.
+            // No-op when no TracerProvider is configured (safe to keep always enabled).
+            Interceptors = [new TracingInterceptor()]
         };
 
         _logger?.LogDebug(
