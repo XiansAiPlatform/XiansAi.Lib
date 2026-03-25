@@ -1,4 +1,5 @@
 using Temporalio.Workflows;
+using Xians.Lib.Agents.Workflows.Models;
 
 namespace Xians.Lib.Temporal.Workflows.Messaging;
 
@@ -12,19 +13,31 @@ internal static class MessageActivityOptions
     /// Standard options for message processing activities.
     /// Updated to handle rate limiting with longer retry intervals.
     /// </summary>
-    public static ActivityOptions GetStandardOptions()
+    public static ActivityOptions GetStandardOptions(string? workflowType = null)
     {
+        var resolved = ResolveExecutionOptions(workflowType);
         return new ActivityOptions
         {
-            StartToCloseTimeout = TimeSpan.FromMinutes(10),
+            StartToCloseTimeout = resolved.StartToCloseTimeout,
             RetryPolicy = new()
             {
-                MaximumAttempts = 5,
-                InitialInterval = TimeSpan.FromSeconds(5),
-                MaximumInterval = TimeSpan.FromMinutes(3), // Allow up to 3 minutes between retries for rate limits
-                BackoffCoefficient = 2
+                MaximumAttempts = resolved.Retry.MaximumAttempts,
+                InitialInterval = resolved.Retry.InitialInterval,
+                MaximumInterval = resolved.Retry.MaximumInterval, // Allow longer intervals for rate limits
+                BackoffCoefficient = resolved.Retry.BackoffCoefficient
             }
         };
+    }
+
+    private static MessageActivityExecutionOptions ResolveExecutionOptions(string? workflowType)
+    {
+        if (!string.IsNullOrWhiteSpace(workflowType) &&
+            BuiltinWorkflow.TryGetWorkflowOptions(workflowType, out var options))
+        {
+            return options.MessageActivityExecution;
+        }
+
+        return new MessageActivityExecutionOptions();
     }
 }
 

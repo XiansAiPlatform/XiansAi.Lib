@@ -114,7 +114,13 @@ public class MessageActivities
                 "Error processing message: RequestId={RequestId}",
                 request.RequestId);
 
-            // Send error message to user immediately (don't retry - handler errors are typically not transient)
+            // Let Temporal retry transient failures (rate limit, timeout, network, 5xx).
+            if (IsTransientFailure(ex, request.WorkflowType))
+            {
+                throw;
+            }
+
+            // For non-transient failures, send error to user and stop retrying.
             var errorMessage = MessageProcessor.GetMeaningfulErrorMessage(ex);
             await SendErrorToUserAsync(request, $"An error occurred: {errorMessage}");
         }
@@ -413,6 +419,122 @@ public class MessageActivities
         }
 
         return metadata;
+    }
+
+    private static bool IsTransientFailure(Exception ex, string workflowType)
+    {
+        // Rule 1: if WorkflowOptions are not registered, keep original behavior (no retry).
+        if (!TryGetTransientOverrides(workflowType, out var typeNames, out var messagePatterns))
+        {
+            ActivityExecutionContext.Current.Logger.LogDebug(
+                "Transient classification: workflow options not found for {WorkflowType}; no retry.",
+                workflowType);
+            return false;
+        }
+
+        // Rule 2: workflow options exist, but no specific type/message filters configured -> retry all exceptions.
+        if (typeNames.Count == 0 && messagePatterns.Count == 0)
+        {
+            ActivityExecutionContext.Current.Logger.LogDebug(
+                "Transient classification: no override patterns configured for {WorkflowType}; retrying all exceptions.",
+                workflowType);
+            return true;
+        }
+
+        // Rule 3: type/message filters configured -> retry only when matched.
+        var root = GetRootException(ex);
+        var isTransient = MatchesConfiguredExceptionType(ex, typeNames) ||
+            MatchesConfiguredMessagePattern(root.Message, messagePatterns);
+
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "Transient classification with configured patterns for {WorkflowType}: {IsTransient}",
+            workflowType,
+            isTransient);
+        return isTransient;
+    }
+
+    private static Exception GetRootException(Exception ex)
+    {
+        var current = ex;
+        while (current.InnerException != null)
+        {
+            current = current.InnerException;
+        }
+
+        return current;
+    }
+
+    private static bool TryGetTransientOverrides(
+        string workflowType,
+        out List<string> typeNames,
+        out List<string> messagePatterns)
+    {
+        typeNames = [];
+        messagePatterns = [];
+
+        if (!BuiltinWorkflow.TryGetWorkflowOptions(workflowType, out var workflowOptions))
+        {
+            return false;
+        }
+
+        // Preserve original behavior unless the agent explicitly provided MessageActivityExecution options.
+        if (!workflowOptions.IsMessageActivityExecutionExplicitlySet)
+        {
+            return false;
+        }
+
+        typeNames = workflowOptions.MessageActivityExecution.TransientExceptionTypeNames;
+        messagePatterns = workflowOptions.MessageActivityExecution.TransientExceptionMessagePatterns;
+
+        return true;
+    }
+
+    private static bool MatchesConfiguredExceptionType(Exception ex, IReadOnlyList<string> configuredNames)
+    {
+        for (var current = ex; current != null; current = current.InnerException!)
+        {
+            var fullName = current.GetType().FullName ?? string.Empty;
+            var name = current.GetType().Name;
+
+            foreach (var configured in configuredNames)
+            {
+                if (string.IsNullOrWhiteSpace(configured))
+                {
+                    continue;
+                }
+
+                if (string.Equals(fullName, configured, StringComparison.Ordinal) ||
+                    string.Equals(name, configured, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool MatchesConfiguredMessagePattern(string? message, IReadOnlyList<string> patterns)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        foreach (var pattern in patterns)
+        {
+            if (string.IsNullOrWhiteSpace(pattern))
+            {
+                continue;
+            }
+
+            if (message.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

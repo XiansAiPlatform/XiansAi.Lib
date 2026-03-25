@@ -209,6 +209,14 @@ public class BuiltinWorkflow
     }
 
     /// <summary>
+    /// Tries to get registered workflow options for a workflow type.
+    /// </summary>
+    internal static bool TryGetWorkflowOptions(string workflowType, out WorkflowOptions options)
+    {
+        return _workflowOptions.TryGetValue(workflowType, out options!);
+    }
+
+    /// <summary>
     /// Gets the configured max history length for the current workflow.
     /// </summary>
     private int GetMaxHistoryLength()
