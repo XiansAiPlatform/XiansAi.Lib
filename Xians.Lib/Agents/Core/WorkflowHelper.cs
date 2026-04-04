@@ -1,7 +1,9 @@
+using System.Net.Http.Json;
 using System.Reflection;
 using Temporalio.Client;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Workflows;
+using Xians.Lib.Common;
 using Xians.Lib.Temporal;
 
 namespace Xians.Lib.Agents.Core;
@@ -156,6 +158,41 @@ public class WorkflowHelper
         _ = workflowType.Length;
         await SubWorkflowService.SignalAsync(workflowType, signalName, signalArgs);
     }
+
+    /// <summary>
+    /// Sends a signal to a workflow, starting it if it does not already exist (signal-with-start).
+    /// Fetches the workflow input arguments from the server activation configuration before starting.
+    /// Client-only operation; throws when called from within a workflow.
+    /// </summary>
+    /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
+    /// <param name="activationName">The name of the activation whose workflow inputs should be retrieved.</param>
+    /// <param name="signalName">The name of the signal to send.</param>
+    /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task SignalWithActivationStartAsync<TWorkflow>(
+        string signalName,
+        params object[] signalArgs)
+    {
+        var activationName = XiansContext.TryGetIdPostfix();
+        if (string.IsNullOrWhiteSpace(activationName))
+        {
+            throw new InvalidOperationException("Activation name is required to signal with activation start.");
+        }
+
+        var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
+        var agent = XiansContext.CurrentAgent;
+        string tenantId = XiansContext.GetTenantId();
+
+        var workflowId = BuildWorkflowId(agent.Name, workflowType, tenantId, activationName);
+        var workflowArgs = await FetchWorkflowArgsFromServerAsync(agent, activationName, agent.Name, workflowType, workflowId);
+
+        await SubWorkflowService.SignalWithStartAsync<TWorkflow>(
+            [activationName],
+            workflowArgs,
+            signalName,
+            signalArgs);
+    }
+
 
     /// <summary>
     /// Sends a signal to a workflow, starting it if it does not already exist (signal-with-start).
@@ -369,6 +406,44 @@ public class WorkflowHelper
     #endregion
 
     #region Private Helper Methods
+
+    /// <summary>
+    /// Fetches ordered workflow input values from the server for a given activation.
+    /// Returns an empty array when the activation has no inputs configured for the workflow type.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when the HTTP service is unavailable or the server returns an error.</exception>
+    private static async Task<object[]> FetchWorkflowArgsFromServerAsync(
+        XiansAgent agent,
+        string activationName,
+        string agentName,
+        string workflowType,
+        string workflowId)
+    {
+        if (agent.HttpService == null)
+        {
+            throw new InvalidOperationException(
+                $"Agent '{agentName}' does not have an HTTP service configured. Cannot fetch workflow inputs for activation '{activationName}'.");
+        }
+
+        var client = await agent.HttpService.GetHealthyClientAsync();
+        var url = $"{WorkflowConstants.ApiEndpoints.ActivationWorkflowInputs}" +
+                  $"?activationName={Uri.EscapeDataString(activationName)}" +
+                  $"&agentName={Uri.EscapeDataString(agentName)}" +
+                  $"&workflowType={Uri.EscapeDataString(workflowType)}" +
+                  $"&workflowId={Uri.EscapeDataString(workflowId)}";
+
+        var response = await client.GetAsync(url);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"Failed to fetch workflow inputs for activation '{activationName}'. " +
+                $"Status: {response.StatusCode}, Error: {errorContent}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<object[]>() ?? [];
+    }
 
     /// <summary>
     /// Gets the appropriate agent for Temporal client access.
