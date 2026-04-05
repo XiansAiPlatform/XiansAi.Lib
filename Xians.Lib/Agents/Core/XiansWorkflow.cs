@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
+using Temporalio.Extensions.OpenTelemetry;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Temporal.Workflows;
 using Xians.Lib.Agents.Messaging;
@@ -320,7 +321,10 @@ public class XiansWorkflow
         var workerOptions = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
             MaxConcurrentWorkflowTasks = Workers,
-            LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true)
+            LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true),
+            // Automatically propagate OpenTelemetry trace context into workflows and activities.
+            // No-op when no TracerProvider is configured (safe to keep always enabled).
+            Interceptors = [new TracingInterceptor()]
         };
 
         // Initialize registrars

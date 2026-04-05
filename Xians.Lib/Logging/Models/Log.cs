@@ -68,4 +68,16 @@ public class Log
     /// Exception details if an exception was logged.
     /// </summary>
     public string? Exception { get; set; }
+
+    /// <summary>
+    /// The OpenTelemetry trace ID active when this log was created.
+    /// Populated from Activity.Current.TraceId when available, enabling log-trace correlation.
+    /// </summary>
+    public string? TraceId { get; set; }
+
+    /// <summary>
+    /// The OpenTelemetry span ID active when this log was created.
+    /// Populated from Activity.Current.SpanId when available, enabling log-trace correlation.
+    /// </summary>
+    public string? SpanId { get; set; }
 }

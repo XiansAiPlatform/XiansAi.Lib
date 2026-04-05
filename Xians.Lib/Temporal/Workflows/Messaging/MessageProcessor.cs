@@ -266,7 +266,7 @@ internal static class MessageProcessor
 
         await Workflow.ExecuteActivityAsync(
             (MessageActivities act) => act.ProcessAndSendMessageAsync(activityRequest),
-            MessageActivityOptions.GetStandardOptions());
+            MessageActivityOptions.GetStandardOptions(workflowType));
 
         logger.LogDebug(
             "{MessageType} processed and responses sent: RequestId={RequestId}",
