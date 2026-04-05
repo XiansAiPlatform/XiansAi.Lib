@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup> 
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>XiansAi.Lib</RootNamespace>
@@ -36,8 +36,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
     <PackageReference Include="Temporalio" Version="1.7.0" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.63.0" />
-    <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.63.0" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.74.0" />
     <PackageReference Include="NCrontab" Version="3.3.3" />
     <PackageReference Include="TimeZoneConverter" Version="7.2.0" />
   </ItemGroup>

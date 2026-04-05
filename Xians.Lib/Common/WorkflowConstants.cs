@@ -83,6 +83,8 @@ public static class WorkflowConstants
         public const string Logs = "api/agent/logs";
         /// <summary>Base path for agent Secret Vault API (create, list, fetch, get by id, update, delete).</summary>
         public const string Secrets = "api/agent/secrets";
+        /// <summary>Endpoint to retrieve ordered workflow input values for a given activation configuration.</summary>
+        public const string ActivationWorkflowInputs = "api/agent/activation/workflow-inputs";
     }
 
     /// <summary>
