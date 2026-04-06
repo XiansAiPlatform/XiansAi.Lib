@@ -188,7 +188,7 @@ public class WorkflowHelper
         string tenantId = XiansContext.GetTenantId();
 
         var workflowId = BuildWorkflowId(agent.Name, workflowType, tenantId, activationName);
-        var workflowArgs = await FetchWorkflowArgsFromServerAsync(agent, activationName, workflowType, workflowId);
+        var workflowArgs = await FetchWorkflowArgsFromServerAsync(agent, activationName, workflowType, workflowId, tenantId);
 
         await SubWorkflowService.SignalWithStartAsync<TWorkflow>(
             [activationName],
@@ -209,7 +209,7 @@ public class WorkflowHelper
     /// <param name="signalName">The name of the signal to send.</param>
     /// <param name="uniqueKey">Optional unique key for workflow ID (appended after parent's idPostfix).</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
-    /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
+    /// <param name="signalArgs">Arguments to passSignalWithActivationStartAsync to the signal handler.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when called from within a workflow.</exception>
     public async Task SignalWithStartAsync<TWorkflow>(
@@ -414,13 +414,16 @@ public class WorkflowHelper
     /// <summary>
     /// Fetches ordered workflow input values from the server for a given activation.
     /// Returns an empty array when the activation has no inputs configured for the workflow type.
+    /// For system-scoped agents, the <paramref name="tenantId"/> is sent as the
+    /// <c>X-Tenant-Id</c> request header so the server can resolve the correct tenant context.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when the HTTP service is unavailable or the server returns an error.</exception>
     private static async Task<object[]> FetchWorkflowArgsFromServerAsync(
         XiansAgent agent,
         string activationName,
         string workflowType,
-        string workflowId)
+        string workflowId,
+        string? tenantId = null)
     {
         var agentName = agent.Name;
 
@@ -437,7 +440,13 @@ public class WorkflowHelper
                   $"&workflowType={Uri.EscapeDataString(workflowType)}" +
                   $"&workflowId={Uri.EscapeDataString(workflowId)}";
 
-        var response = await client.GetAsync(url);
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (agent.SystemScoped && !string.IsNullOrWhiteSpace(tenantId))
+        {
+            request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
+        }
+
+        var response = await client.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
