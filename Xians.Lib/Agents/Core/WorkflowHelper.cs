@@ -165,10 +165,14 @@ public class WorkflowHelper
     /// Client-only operation; throws when called from within a workflow.
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="activationName">The name of the activation whose workflow inputs should be retrieved.</param>
     /// <param name="signalName">The name of the signal to send.</param>
     /// <param name="signalArgs">Arguments to pass to the signal handler.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// The activation name is resolved implicitly from the current execution context via
+    /// <see cref="XiansContext.TryGetIdPostfix"/>. An <see cref="InvalidOperationException"/>
+    /// is thrown when no activation name is available in context.
+    /// </remarks>
     public async Task SignalWithActivationStartAsync<TWorkflow>(
         string signalName,
         params object[] signalArgs)
@@ -184,7 +188,7 @@ public class WorkflowHelper
         string tenantId = XiansContext.GetTenantId();
 
         var workflowId = BuildWorkflowId(agent.Name, workflowType, tenantId, activationName);
-        var workflowArgs = await FetchWorkflowArgsFromServerAsync(agent, activationName, agent.Name, workflowType, workflowId);
+        var workflowArgs = await FetchWorkflowArgsFromServerAsync(agent, activationName, workflowType, workflowId);
 
         await SubWorkflowService.SignalWithStartAsync<TWorkflow>(
             [activationName],
@@ -415,10 +419,11 @@ public class WorkflowHelper
     private static async Task<object[]> FetchWorkflowArgsFromServerAsync(
         XiansAgent agent,
         string activationName,
-        string agentName,
         string workflowType,
         string workflowId)
     {
+        var agentName = agent.Name;
+
         if (agent.HttpService == null)
         {
             throw new InvalidOperationException(
