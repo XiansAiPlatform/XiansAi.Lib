@@ -53,7 +53,7 @@ public class ScheduleCollection
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
     public async Task<XiansSchedule> GetAsync(string scheduleName)
     {
-        return await GetAsync(scheduleName);
+        return await GetAsync(scheduleName, null);
     }
 
     /// <summary>
