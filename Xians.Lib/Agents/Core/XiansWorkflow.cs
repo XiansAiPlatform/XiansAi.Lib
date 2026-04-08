@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Exceptions;
 using Temporalio.Worker;
 using Temporalio.Extensions.OpenTelemetry;
 using Xians.Lib.Agents.Scheduling;
@@ -324,7 +325,10 @@ public class XiansWorkflow
             LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true),
             // Automatically propagate OpenTelemetry trace context into workflows and activities.
             // No-op when no TracerProvider is configured (safe to keep always enabled).
-            Interceptors = [new TracingInterceptor()]
+            Interceptors = [new TracingInterceptor()],
+            // Treat nondeterminism errors as workflow failures (instead of retrying the task forever).
+            // This terminates the stuck run so the next SignalWithStart creates a fresh execution.
+            WorkflowFailureExceptionTypes = [typeof(WorkflowNondeterminismException)]
         };
 
         // Initialize registrars
