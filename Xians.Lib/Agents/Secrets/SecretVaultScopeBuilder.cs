@@ -12,8 +12,8 @@ namespace Xians.Lib.Agents.Secrets;
 /// <summary>
 /// Fluent scope builder for Secret Vault operations.
 /// Set tenant, agent, user, and activation scope via <see cref="TenantScope"/>, <see cref="AgentScope"/>, <see cref="UserScope"/>, and <see cref="ActivationScope"/>,
-/// then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>, <see cref="ListAsync"/>,
-/// <see cref="GetByIdAsync"/>, <see cref="UpdateAsync"/>, <see cref="DeleteAsync"/>.
+    /// then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>, <see cref="ListAsync"/>,
+    /// <see cref="UpdateByKeyAsync"/>, <see cref="DeleteByKeyAsync"/>.
 /// </summary>
 public class SecretVaultScopeBuilder
 {
@@ -175,32 +175,10 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
-    /// Gets a secret by id (full record including decrypted value).
+    /// Updates a secret by key and scope. Omitted properties leave existing values unchanged.
     /// </summary>
-    public async Task<SecretVaultGetResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
-    {
-        ValidationHelper.ValidateRequired(id, nameof(id));
-        EnsureHttpService();
-        ValidateScopeAgainstMessageContext();
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return null;
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "get secret");
-
-        return await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
-    }
-
-    /// <summary>
-    /// Updates a secret by id. Omitted properties leave existing values unchanged.
-    /// </summary>
-    public async Task<SecretVaultGetResponse> UpdateAsync(
-        string id,
+    public async Task<SecretVaultGetResponse> UpdateByKeyAsync(
+        string key,
         string? value = null,
         object? additionalData = null,
         string? tenantId = null,
@@ -209,14 +187,16 @@ public class SecretVaultScopeBuilder
         string? activationName = null,
         CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateRequired(id, nameof(id));
+        ValidationHelper.ValidateRequiredWithMaxLength(key, nameof(key), 512);
         EnsureHttpService();
         ValidateScopeAgainstMessageContext();
 
         var request = new SecretVaultUpdateRequest
         {
+            Key = key,
             Value = value,
             AdditionalData = additionalData,
+            // Scope for update must match the stored secret; server enforces uniqueness on (key + scope).
             TenantId = tenantId ?? _tenantId,
             AgentId = agentId ?? _agentId,
             UserId = userId ?? _userId,
@@ -224,7 +204,7 @@ public class SecretVaultScopeBuilder
         };
 
         var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"{WorkflowConstants.ApiEndpoints.Secrets}");
         httpRequest.Content = JsonContent.Create(request);
         AddTenantHeader(httpRequest);
 
@@ -239,17 +219,23 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
-    /// Deletes a secret by id.
+    /// Deletes a secret by key and scope.
     /// </summary>
     /// <returns>True if deleted, false if not found.</returns>
-    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteByKeyAsync(string key, CancellationToken cancellationToken = default)
     {
-        ValidationHelper.ValidateRequired(id, nameof(id));
+        ValidationHelper.ValidateRequiredWithMaxLength(key, nameof(key), 512);
         EnsureHttpService();
         ValidateScopeAgainstMessageContext();
 
+        var query = $"key={UrlEncoder.Default.Encode(key)}";
+        if (_tenantId != null) query += $"&tenantId={UrlEncoder.Default.Encode(_tenantId)}";
+        if (_agentId != null) query += $"&agentId={UrlEncoder.Default.Encode(_agentId)}";
+        if (_userId != null) query += $"&userId={UrlEncoder.Default.Encode(_userId)}";
+        if (_activationName != null) query += $"&activationName={UrlEncoder.Default.Encode(_activationName)}";
+
         var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, $"{WorkflowConstants.ApiEndpoints.Secrets}?{query}");
         AddTenantHeader(httpRequest);
 
         var response = await client.SendAsync(httpRequest, cancellationToken);

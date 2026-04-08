@@ -36,6 +36,9 @@ public class SecretVaultCreateRequest
 /// </summary>
 public class SecretVaultUpdateRequest
 {
+    [JsonPropertyName("key")]
+    public required string Key { get; set; }
+
     [JsonPropertyName("value")]
     public string? Value { get; set; }
 

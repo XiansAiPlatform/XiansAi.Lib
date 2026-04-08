@@ -15,7 +15,7 @@ Secret Vault stores sensitive key-value pairs with optional scoping:
 
 | Scope          | Meaning when set                    | Meaning when null                    |
 |----------------|-------------------------------------|--------------------------------------|
-| TenantId       | Secret only for that tenant         | Cross-tenant (any tenant)             |
+| TenantId       | Secret only for that tenant         | Cross-tenant (any tenant). When using `Scope()`, if you do not call `TenantScope(...)`, the tenant is taken from `XiansContext.SafeTenantId` or the agent's certificate tenant; system-scoped agents with no tenant in context get `null` (cross-tenant). |
 | AgentId        | Secret only for that agent          | Across all agents                     |
 | UserId         | Only that user can access           | Any user may access                   |
 | ActivationName | Only that agent activation can access | Any activation of the agent can access |
@@ -77,17 +77,27 @@ The lib calls the **Agent API** at `api/agent/secrets` (client certificate auth)
 Start from `agent.Secrets`, then either use the generic builder or a convenience method:
 
 ```csharp
-// Generic: start with no scope (or tenant from context via Scope())
-var builder = agent.Secrets.Scope();
+// 1) Generic: start with no explicit tenant scope.
+//    Scope() will:
+//    - Use XiansContext.SafeTenantId when available (typical in workflows), or
+//    - Fall back to the agent's certificate tenant for non-system-scoped agents, or
+//    - Use null (cross-tenant) for system-scoped agents with no tenant in context.
+var fromContextOrCert = agent.Secrets.Scope();
 
-// Set scope fluently
-builder.TenantScope("tenant-1").AgentScope("agent-1").UserScope("user-1").ActivationScope("activation-1");
+// 2) Explicit tenant scope: secret is only for that tenant.
+var explicitTenant = agent.Secrets.Scope()
+    .TenantScope("tenant-1");
 
-// Convenience: tenant only
-var byTenant = agent.Secrets.TenantScope("tenant-1");
+// 3) Explicit cross-tenant secret: TenantScope(null) sends tenantId: null (no tenant scope).
+var crossTenant = agent.Secrets.Scope()
+    .TenantScope(null);
 
-// Convenience: tenant + agent
-var byTenantAgent = agent.Secrets.TenantScope("tenant-1", "agent-1");
+// Further refine scope:
+var builder = agent.Secrets.Scope()
+    .TenantScope("tenant-1")
+    .AgentScope("agent-1")
+    .UserScope("user-1")
+    .ActivationScope("activation-1");
 
 // Convenience: full scope in one call
 var full = agent.Secrets.WithScope("tenant-1", "agent-1", "user-1");
