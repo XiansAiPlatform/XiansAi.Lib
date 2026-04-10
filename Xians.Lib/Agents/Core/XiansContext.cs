@@ -401,10 +401,12 @@ public static class XiansContext
     /// Works in both workflow and activity contexts.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    private static string GetWorkflowType() => 
+    private static string GetWorkflowType() =>
         GetFromContext(
-            () => Workflow.Info.WorkflowType,
+            () => Workflow.Info.WorkflowType
+                ?? throw new InvalidOperationException("Workflow type is not available from Temporal workflow info."),
             () => ActivityExecutionContext.Current.Info.WorkflowType
+                ?? throw new InvalidOperationException("Workflow type is not available from Temporal activity info.")
         );
 
     /// <summary>

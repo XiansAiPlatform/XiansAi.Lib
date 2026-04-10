@@ -67,7 +67,9 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         ExecutionTimeout = request.Timeout?.Add(TimeSpan.FromDays(1));
 
         // If a workflow with the same ID is already running, terminate it
+#pragma warning disable CS0612 // ChildWorkflowOptions lacks WorkflowIdConflictPolicy (.NET SDK)
         IdReusePolicy = Temporalio.Api.Enums.V1.WorkflowIdReusePolicy.TerminateIfRunning;
+#pragma warning restore CS0612
 
     }
 
