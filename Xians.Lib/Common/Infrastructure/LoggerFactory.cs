@@ -14,32 +14,55 @@ public static class LoggerFactory
     private static LogLevel? _consoleLogLevelOverride;
     private static LogLevel? _serverLogLevelOverride;
 
+    // Bumped whenever the underlying factory is replaced, so DelegatingLogger
+    // instances know to re-resolve their cached ILogger from the new factory.
+    private static int _generation;
+
+    // Stable wrapper returned from Instance. Its loggers transparently follow the
+    // underlying factory across replacement so consumers can cache them safely.
+    private static readonly DelegatingLoggerFactory _stable = new();
+
     /// <summary>
     /// Gets or sets the logger factory instance.
+    /// The getter returns a stable wrapper whose loggers transparently follow the
+    /// underlying factory across replacement (e.g. when <see cref="ConfigureLogLevels"/>
+    /// rebuilds it). Consumers can therefore cache <see cref="ILogger"/> references
+    /// captured at construction time without going stale.
+    /// The setter installs a custom underlying factory; loggers handed out previously
+    /// will switch to the new factory on their next call.
     /// </summary>
     public static ILoggerFactory Instance
     {
-        get
-        {
-            if (_loggerFactory == null)
-            {
-                lock (_lock)
-                {
-                    if (_loggerFactory == null)
-                    {
-                        _loggerFactory = CreateDefaultLoggerFactory();
-                    }
-                }
-            }
-            return _loggerFactory;
-        }
+        get => _stable;
         set
         {
             lock (_lock)
             {
-                _loggerFactory = value;
+                if (!ReferenceEquals(_loggerFactory, value))
+                {
+                    _loggerFactory?.Dispose();
+                    _loggerFactory = value;
+                    Interlocked.Increment(ref _generation);
+                }
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the current underlying <see cref="ILoggerFactory"/>, creating it lazily.
+    /// Used by <see cref="DelegatingLoggerFactory"/>/<see cref="DelegatingLogger"/> to
+    /// delegate operations.
+    /// </summary>
+    private static ILoggerFactory GetUnderlying()
+    {
+        if (_loggerFactory == null)
+        {
+            lock (_lock)
+            {
+                _loggerFactory ??= CreateDefaultLoggerFactory();
+            }
+        }
+        return _loggerFactory;
     }
 
     /// <summary>
@@ -82,7 +105,12 @@ public static class LoggerFactory
             return CreateLoggerFactoryWithApiLogging(enableApiLogging: true);
         }
         
-        // Otherwise, just console logging
+        // Otherwise, just console logging.
+        // The level filter is a callback that consults GetConsoleLogLevel() at log time,
+        // so console-level changes via ConfigureLogLevels take effect without rebuilding
+        // the factory. The supplied minLevel is honoured as a fallback when no override
+        // (XiansOptions.ConsoleLogLevel or env var) has been configured.
+        var fallbackLevel = minLevel;
         return Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
         {
             builder
@@ -91,7 +119,8 @@ public static class LoggerFactory
                     options.TimestampFormat = "[HH:mm:ss] ";
                     options.SingleLine = true;
                 })
-                .SetMinimumLevel(minLevel);
+                .SetMinimumLevel(LogLevel.Trace)
+                .AddFilter((_, level) => level >= (_consoleLogLevelOverride ?? fallbackLevel));
         });
     }
 
@@ -103,8 +132,6 @@ public static class LoggerFactory
     /// <returns>A configured logger factory with console and optionally API logging.</returns>
     public static ILoggerFactory CreateLoggerFactoryWithApiLogging(bool enableApiLogging = true)
     {
-        var consoleLogLevel = GetConsoleLogLevel();
-        
         return Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
         {
             // Add API logger if enabled (sends logs to server)
@@ -113,20 +140,21 @@ public static class LoggerFactory
                 builder.AddProvider(new ApiLoggerProvider());
             }
 
-            // Add console logger with level from environment variable
+            // Add console logger; LogToStandardErrorThreshold is captured at build time
+            // (changing it dynamically would require IOptionsMonitor plumbing).
             builder.AddConsole(options =>
             {
-                options.LogToStandardErrorThreshold = consoleLogLevel;
+                options.LogToStandardErrorThreshold = GetConsoleLogLevel();
             });
 
-            // Set the default minimum level to Trace to ensure API logger gets all logs
-            // Individual providers filter based on their own settings
+            // Set the default minimum level to Trace to ensure API logger gets all logs.
+            // The filters below are evaluated at log time, so console-level changes via
+            // ConfigureLogLevels take effect without rebuilding the factory.
             builder.SetMinimumLevel(LogLevel.Trace);
 
-            // Configure console logger to respect the environment variable level
-            builder.AddFilter("Microsoft", consoleLogLevel)
-                   .AddFilter("System", consoleLogLevel)
-                   .AddFilter((category, level) => level >= consoleLogLevel);
+            builder.AddFilter("Microsoft", level => level >= GetConsoleLogLevel())
+                   .AddFilter("System", level => level >= GetConsoleLogLevel())
+                   .AddFilter((_, level) => level >= GetConsoleLogLevel());
         });
     }
 
@@ -140,15 +168,29 @@ public static class LoggerFactory
     {
         lock (_lock)
         {
+            // Only the API-logger provider topology depends on whether ServerLogLevel is set.
+            // Console-level changes are picked up dynamically by the callback filter at log
+            // time, so we can leave the existing factory in place — preserving any ILogger
+            // instances consumers may have already cached.
+            var hadApiLogger =
+                _serverLogLevelOverride.HasValue && _serverLogLevelOverride.Value != LogLevel.None;
+            var willHaveApiLogger =
+                serverLogLevel.HasValue && serverLogLevel.Value != LogLevel.None;
+
             _consoleLogLevelOverride = consoleLogLevel;
             _serverLogLevelOverride = serverLogLevel;
-            
-            // Reset the factory so it picks up the new configuration
-            if (_loggerFactory != null)
+
+            if (hadApiLogger != willHaveApiLogger && _loggerFactory != null)
             {
                 _loggerFactory.Dispose();
                 _loggerFactory = null;
             }
+
+            // Bump the generation so any DelegatingLogger instances re-resolve their
+            // underlying logger (in case the factory was rebuilt above) and so the new
+            // override is picked up immediately even by loggers that cached IsEnabled
+            // results from the previous filter.
+            Interlocked.Increment(ref _generation);
         }
     }
 
@@ -226,7 +268,71 @@ public static class LoggerFactory
         {
             _loggerFactory?.Dispose();
             _loggerFactory = null;
+            Interlocked.Increment(ref _generation);
         }
+    }
+
+    /// <summary>
+    /// Stable <see cref="ILoggerFactory"/> wrapper. <see cref="CreateLogger"/> returns
+    /// <see cref="DelegatingLogger"/> instances that transparently re-resolve their
+    /// underlying <see cref="ILogger"/> whenever the static generation counter advances
+    /// (which happens whenever the underlying factory is replaced).
+    /// </summary>
+    private sealed class DelegatingLoggerFactory : ILoggerFactory
+    {
+        public ILogger CreateLogger(string categoryName) => new DelegatingLogger(categoryName);
+
+        public void AddProvider(ILoggerProvider provider) => GetUnderlying().AddProvider(provider);
+
+        public void Dispose()
+        {
+            // The stable wrapper is process-lifetime; disposing it would orphan all
+            // delegating loggers handed out to consumers. The underlying factory is
+            // owned and disposed through ConfigureLogLevels/Reset.
+        }
+    }
+
+    /// <summary>
+    /// <see cref="ILogger"/> that re-resolves its underlying logger when the generation
+    /// counter advances, so it survives factory replacement without becoming stale.
+    /// </summary>
+    private sealed class DelegatingLogger : ILogger
+    {
+        private readonly string _category;
+        private ILogger? _cached;
+        private int _cachedGen = -1;
+
+        public DelegatingLogger(string category)
+        {
+            _category = category;
+        }
+
+        private ILogger Current
+        {
+            get
+            {
+                var gen = Volatile.Read(ref _generation);
+                if (_cached is null || _cachedGen != gen)
+                {
+                    _cached = GetUnderlying().CreateLogger(_category);
+                    _cachedGen = gen;
+                }
+                return _cached;
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            => Current.BeginScope(state);
+
+        public bool IsEnabled(LogLevel logLevel) => Current.IsEnabled(logLevel);
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Current.Log(logLevel, eventId, state, exception, formatter);
     }
 }
 
