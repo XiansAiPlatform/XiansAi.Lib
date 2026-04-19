@@ -268,6 +268,8 @@ public static class LoggerFactory
         {
             _loggerFactory?.Dispose();
             _loggerFactory = null;
+            _consoleLogLevelOverride = null;
+            _serverLogLevelOverride = null;
             Interlocked.Increment(ref _generation);
         }
     }
@@ -314,10 +316,39 @@ public static class LoggerFactory
                 var gen = Volatile.Read(ref _generation);
                 if (_cached is null || _cachedGen != gen)
                 {
-                    _cached = GetUnderlying().CreateLogger(_category);
-                    _cachedGen = gen;
+                    _cached = ResolveLogger();
+                    _cachedGen = Volatile.Read(ref _generation);
                 }
                 return _cached;
+            }
+        }
+
+        /// <summary>
+        /// Resolves a fresh underlying logger, recovering from a TOCTOU race where
+        /// another thread disposes the factory between us reading it and calling
+        /// CreateLogger on it.
+        /// </summary>
+        private ILogger ResolveLogger()
+        {
+            try
+            {
+                return GetUnderlying().CreateLogger(_category);
+            }
+            catch (ObjectDisposedException)
+            {
+                lock (_lock)
+                {
+                    // Drop the disposed reference; GetUnderlying() will lazy-create
+                    // a fresh factory on the next call. We bump the generation so
+                    // any sibling DelegatingLogger instances also re-resolve.
+                    if (_loggerFactory != null)
+                    {
+                        try { _loggerFactory.Dispose(); } catch (ObjectDisposedException) { }
+                        _loggerFactory = null;
+                        Interlocked.Increment(ref _generation);
+                    }
+                }
+                return GetUnderlying().CreateLogger(_category);
             }
         }
 
