@@ -104,17 +104,75 @@ public class LoggerFactoryTests : IDisposable
     }
 
     [Fact]
-    public void Instance_GetAndSet_WorksCorrectly()
+    public void Instance_GetAndSet_DelegatesToCustomFactory()
     {
-        // Arrange
+        // Arrange — Critical-only factory: only Critical and above should be enabled.
         var customFactory = XiansLoggerFactory.CreateDefaultLoggerFactory(LogLevel.Critical);
 
-        // Act
+        // Act — install the custom underlying factory.
         XiansLoggerFactory.Instance = customFactory;
-        var retrievedFactory = XiansLoggerFactory.Instance;
 
-        // Assert
-        Assert.Same(customFactory, retrievedFactory);
+        // Assert — Instance returns the stable wrapper (not the same reference as the
+        // installed factory), but loggers built from it delegate to the installed
+        // factory's filter pipeline.
+        var retrievedFactory = XiansLoggerFactory.Instance;
+        Assert.NotNull(retrievedFactory);
+
+        var logger = retrievedFactory.CreateLogger("Test");
+        Assert.True(logger.IsEnabled(LogLevel.Critical));
+        Assert.False(logger.IsEnabled(LogLevel.Information));
+    }
+
+    [Fact]
+    public void ConfigureLogLevels_AfterLoggerCached_AppliesNewLevelToExistingLogger()
+    {
+        // Regression test: in the previous implementation, an ILogger created before
+        // ConfigureLogLevels(...) ran would remain bound to the disposed factory's
+        // filter pipeline, so subsequent LogDebug calls would be silently dropped.
+        // The DelegatingLogger wrapper + dynamic filter must surface the new level
+        // on the next call.
+
+        // Arrange — start at Information (default for CreateDefaultLoggerFactory).
+        XiansLoggerFactory.Reset();
+        Environment.SetEnvironmentVariable(
+            WorkflowConstants.EnvironmentVariables.ConsoleLogLevel, "INFORMATION");
+
+        // Cache a logger via the static Instance (mirrors what consumers do via DI).
+        var cachedLogger = XiansLoggerFactory.Instance.CreateLogger("Test");
+        Assert.False(cachedLogger.IsEnabled(LogLevel.Debug));
+        Assert.True(cachedLogger.IsEnabled(LogLevel.Information));
+
+        // Act — flip console level to Debug after the logger has already been built.
+        XiansLoggerFactory.ConfigureLogLevels(
+            consoleLogLevel: LogLevel.Debug,
+            serverLogLevel: null);
+
+        // Assert — the same cached logger instance now respects Debug.
+        Assert.True(cachedLogger.IsEnabled(LogLevel.Debug));
+    }
+
+    [Fact]
+    public void ConfigureLogLevels_WhenServerLevelToggled_RebuildsFactoryButLoggersStillWork()
+    {
+        // When ServerLogLevel transitions between None/null and a real level, the
+        // underlying factory has to be rebuilt to add/remove the API logger provider.
+        // Cached loggers must transparently re-resolve via the DelegatingLogger.
+
+        XiansLoggerFactory.Reset();
+        XiansLoggerFactory.ConfigureLogLevels(
+            consoleLogLevel: LogLevel.Information,
+            serverLogLevel: null);
+
+        var cachedLogger = XiansLoggerFactory.Instance.CreateLogger("Test");
+        Assert.True(cachedLogger.IsEnabled(LogLevel.Information));
+
+        // Act — toggle ServerLogLevel on, which forces a topology change + rebuild.
+        XiansLoggerFactory.ConfigureLogLevels(
+            consoleLogLevel: LogLevel.Debug,
+            serverLogLevel: LogLevel.Information);
+
+        // Assert — cached logger picks up the new console level via re-resolution.
+        Assert.True(cachedLogger.IsEnabled(LogLevel.Debug));
     }
 
     [Fact]

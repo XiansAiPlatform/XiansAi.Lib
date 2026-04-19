@@ -122,7 +122,8 @@ public class AgentContext
             }
             else if (ActivityExecutionContext.HasCurrent)
             {
-                return ActivityExecutionContext.Current.Info.WorkflowId;
+                return ActivityExecutionContext.Current.Info.WorkflowId
+                    ?? throw new InvalidOperationException("Workflow ID is not available from Temporal activity info.");
             }
             else if (_workflowId != null)
             {
@@ -151,7 +152,8 @@ public class AgentContext
             }
             else if (ActivityExecutionContext.HasCurrent)
             {
-                return ActivityExecutionContext.Current.Info.WorkflowType;
+                return ActivityExecutionContext.Current.Info.WorkflowType
+                    ?? throw new InvalidOperationException("Workflow type is not available from Temporal activity info.");
             }
             else if (WorkflowId != null)
             {

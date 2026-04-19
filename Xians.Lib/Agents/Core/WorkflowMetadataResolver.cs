@@ -91,8 +91,12 @@ internal static class WorkflowMetadataResolver
     /// </summary>
     public static string GetWorkflowId()
     {
-        if (Workflow.InWorkflow) return Workflow.Info.WorkflowId;
-        if (ActivityExecutionContext.HasCurrent) return ActivityExecutionContext.Current.Info.WorkflowId;
+        if (Workflow.InWorkflow)
+            return Workflow.Info.WorkflowId
+                ?? throw new InvalidOperationException("Workflow ID is not available from Temporal workflow info.");
+        if (ActivityExecutionContext.HasCurrent)
+            return ActivityExecutionContext.Current.Info.WorkflowId
+                ?? throw new InvalidOperationException("Workflow ID is not available from Temporal activity info.");
         throw new InvalidOperationException("Not in workflow or activity context.");
     }
 
@@ -101,8 +105,12 @@ internal static class WorkflowMetadataResolver
     /// </summary>
     public static string GetWorkflowRunId()
     {
-        if (Workflow.InWorkflow) return Workflow.Info.RunId;
-        if (ActivityExecutionContext.HasCurrent) return ActivityExecutionContext.Current.Info.WorkflowRunId;
+        if (Workflow.InWorkflow)
+            return Workflow.Info.RunId
+                ?? throw new InvalidOperationException("Run ID is not available from Temporal workflow info.");
+        if (ActivityExecutionContext.HasCurrent)
+            return ActivityExecutionContext.Current.Info.WorkflowRunId
+                ?? throw new InvalidOperationException("Workflow run ID is not available from Temporal activity info.");
         throw new InvalidOperationException("Not in workflow or activity context.");
     }
 
@@ -153,6 +161,8 @@ internal static class WorkflowMetadataResolver
         {
             var workflowId = ActivityExecutionContext.Current.Info.WorkflowId;
             var runId = ActivityExecutionContext.Current.Info.WorkflowRunId;
+            if (string.IsNullOrEmpty(workflowId))
+                return null;
             var handle = client.GetWorkflowHandle(workflowId, runId);
             return await handle.DescribeAsync();
         }
