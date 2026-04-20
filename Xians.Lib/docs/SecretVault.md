@@ -2,6 +2,10 @@
 
 > **TL;DR**: Secret Vault is a secure key-value store for secrets (API keys, tokens, webhook secrets). Use a **builder pattern** to set scope (tenant, agent, user, activation) then perform CRUD. Values are encrypted at rest on the server.
 
+## Security Note
+
+> **Breaking change (key+scope-only operations)**: Id-based methods (`GetByIdAsync`, `UpdateAsync(id, ...)`, `DeleteAsync(id)`) have been **removed**. All secrets are now identified by **key + scope**. Use `UpdateByKeyAsync` and `DeleteByKeyAsync` instead. This eliminates the ability to look up or mutate a secret using only an opaque id, which was a server-side security vulnerability.
+
 ## What Is Secret Vault?
 
 Secret Vault stores sensitive key-value pairs with optional scoping:
@@ -42,16 +46,18 @@ var created = await secrets.CreateAsync("api-key", "sk-xxx");
 var fetched = await secrets.FetchByKeyAsync("api-key");
 Console.WriteLine(fetched?.Value); // "sk-xxx"
 
-// 4. List (filtered by scope including activationName), update, delete
-var list = await secrets.ListAsync();
-await secrets.UpdateAsync(created.Id, value: "sk-new", activationName: "my-activation");
-await secrets.DeleteAsync(created.Id);
+// 4. Update by key (same scope)
+await secrets.UpdateByKeyAsync("api-key", value: "sk-new");
+
+// 5. Delete by key (same scope)
+await secrets.DeleteByKeyAsync("api-key");
 ```
 
 ## Key Features
 
 - **Builder pattern** – Chain `TenantScope()`, `AgentScope()`, `UserScope()`, `ActivationScope()` then CRUD
-- **Full CRUD** – Create, fetch by key, list, get by id, update, delete
+- **Full CRUD** – Create, fetch by key, list, update by key, delete by key
+- **Key+scope identity** – Secrets are uniquely identified by key + scope; no id-based operations are exposed
 - **Strict scope** – Fetch-by-key matches scope exactly for all dimensions (tenant, agent, user, activation)
 - **Encrypted at rest** – Server encrypts values; lib only sends/receives plaintext over TLS
 - **Optional metadata** – `additionalData` for flat key-value (env, service name, etc.); not for sensitive data
@@ -63,12 +69,12 @@ await secrets.DeleteAsync(created.Id);
 | Component | Location | Role |
 |-----------|----------|------|
 | **SecretVaultCollection** | `Agents/Secrets/SecretVaultCollection.cs` | Entry point on `agent.Secrets`; exposes `Scope()` and convenience scope methods |
-| **SecretVaultScopeBuilder** | `Agents/Secrets/SecretVaultScopeBuilder.cs` | Fluent scope + CRUD (Create, FetchByKey, List, GetById, Update, Delete) |
+| **SecretVaultScopeBuilder** | `Agents/Secrets/SecretVaultScopeBuilder.cs` | Fluent scope + CRUD (Create, FetchByKey, List, UpdateByKey, DeleteByKey) |
 | **Models** | `Agents/Secrets/Models/SecretVaultModels.cs` | DTOs: create/update requests, get/fetch/list responses |
 
 ### Server API
 
-The lib calls the **Agent API** at `api/agent/secrets` (client certificate auth). Same backend as the Admin Secret Vault API; see the server’s `SECRET_VAULT.md` for encryption, validation, and database details.
+The lib calls the **Agent API** at `api/agent/secrets` (client certificate auth). Same backend as the Admin Secret Vault API; see the server's `SECRET_VAULT.md` for encryption, validation, and database details.
 
 ## Usage
 
@@ -158,45 +164,35 @@ foreach (var item in items)
 }
 ```
 
-### 5. Get by id
+### 5. Update by key
 
-Returns full record including decrypted value. Use when you already have the secret id (e.g. from create or list).
-
-```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1");
-var secret = await scoped.GetByIdAsync("507f1f77bcf86cd799439011");
-
-if (secret != null)
-{
-    Console.WriteLine($"{secret.Key}: {secret.Value}");
-}
-```
-
-### 6. Update
-
-Updates an existing secret by id. Omitted parameters leave existing values unchanged.
+Updates an existing secret by key and scope. Omitted parameters leave existing values unchanged. The scope in the request must match the scope of the stored secret (the server enforces uniqueness on key + scope).
 
 ```csharp
 var scoped = agent.Secrets.Scope().TenantScope("t1");
 
-// Update value only
-await scoped.UpdateAsync(id, value: "new-secret-value");
+// Update value only (scope is taken from the builder)
+await scoped.UpdateByKeyAsync("my-key", value: "new-secret-value");
 
 // Update value and metadata
-await scoped.UpdateAsync(id, value: "new-value", additionalData: new { rev = 2 });
+await scoped.UpdateByKeyAsync("my-key", value: "new-value", additionalData: new { rev = 2 });
 
-// Update scope (pass explicit tenant/agent/user/activationName to change scope)
-await scoped.UpdateAsync(id, tenantId: "t2", agentId: "a2", userId: "u2", activationName: "activation-2");
+// Override scope for the update call (must match the stored secret's scope)
+await scoped.UpdateByKeyAsync("my-key", tenantId: "t1", agentId: "a1", userId: "u1");
 ```
 
-### 7. Delete
+Throws `InvalidOperationException` if the secret is not found.
 
-Deletes a secret by id. Returns `true` if deleted, `false` if not found.
+### 6. Delete by key
+
+Deletes a secret by key and scope. Returns `true` if deleted, `false` if not found.
 
 ```csharp
 var scoped = agent.Secrets.Scope().TenantScope("t1");
-bool deleted = await scoped.DeleteAsync(id);
+bool deleted = await scoped.DeleteByKeyAsync("my-key");
 ```
+
+The delete request sends the key plus any scope values set on the builder as query parameters. The server resolves the secret by key + scope and deletes it.
 
 ## Common Patterns
 
@@ -233,7 +229,9 @@ await scoped.CreateAsync("activation-api-key", key);
 var key = await scoped.FetchByKeyAsync("activation-api-key");
 ```
 
-### List then get value for one
+### List then fetch the value for one
+
+To get the decrypted value of a specific secret after listing, call `FetchByKeyAsync` with the same scope used when the secret was created:
 
 ```csharp
 var scoped = agent.Secrets.Scope().TenantScope("t1");
@@ -241,8 +239,9 @@ var list = await scoped.ListAsync();
 var first = list.FirstOrDefault();
 if (first != null)
 {
-    var full = await scoped.GetByIdAsync(first.Id);
-    Console.WriteLine(full?.Value);
+    // Use the key (and same scope) to fetch the decrypted value
+    var fetched = await scoped.FetchByKeyAsync(first.Key);
+    Console.WriteLine(fetched?.Value);
 }
 ```
 
@@ -250,8 +249,8 @@ if (first != null)
 
 ### Request/response types (lib)
 
-- **SecretVaultCreateRequest** – Key, Value, TenantId?, AgentId?, UserId?, ActivationName?, AdditionalData?
-- **SecretVaultUpdateRequest** – Value?, TenantId?, AgentId?, UserId?, ActivationName?, AdditionalData?
+- **SecretVaultCreateRequest** – Key (required), Value (required), TenantId?, AgentId?, UserId?, ActivationName?, AdditionalData?
+- **SecretVaultUpdateRequest** – Key (required), Value?, TenantId?, AgentId?, UserId?, ActivationName?, AdditionalData?
 - **SecretVaultGetResponse** – Id, Key, Value, TenantId, AgentId, UserId, ActivationName, AdditionalData, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy
 - **SecretVaultFetchResponse** – Value, AdditionalData (fetch-by-key only)
 - **SecretVaultListItem** – Id, Key, TenantId, AgentId, UserId, ActivationName, AdditionalData, CreatedAt, CreatedBy (no Value)
@@ -270,11 +269,23 @@ if (first != null)
 ## Best Practices
 
 - **Do** use clear, unique keys (e.g. `tenant-{id}-api-key`, `webhook-{service}`).
-- **Do** use the same scope when creating and fetching (strict match).
+- **Do** use the same scope when creating, fetching, updating, and deleting (strict match).
 - **Do** use `additionalData` only for non-sensitive metadata (env, service name).
-- **Do** handle `null` from `FetchByKeyAsync` and `GetByIdAsync` (not found or access denied).
-- **Don’t** store highly sensitive material in `additionalData` (it is not encrypted like the value).
-- **Don’t** forget to set scope when the secret is tenant/agent/user-specific; otherwise you may create or fetch cross-tenant secrets.
+- **Do** handle `null` from `FetchByKeyAsync` (not found or access denied).
+- **Don't** store highly sensitive material in `additionalData` (it is not encrypted like the value).
+- **Don't** forget to set scope when the secret is tenant/agent/user-specific; otherwise you may create or fetch cross-tenant secrets.
+
+## Migration from Id-Based Operations
+
+If you were calling the now-removed id-based methods, migrate as follows:
+
+| Removed method | Replacement |
+|----------------|-------------|
+| `GetByIdAsync(id)` | `FetchByKeyAsync(key)` — if you only need the decrypted value and additionalData. For full record metadata, call `ListAsync()` and match by key. |
+| `UpdateAsync(id, ...)` | `UpdateByKeyAsync(key, ...)` — use the **same scope** as the stored secret. |
+| `DeleteAsync(id)` | `DeleteByKeyAsync(key)` — use the **same scope** as the stored secret. |
+
+The scope passed to `UpdateByKeyAsync` and `DeleteByKeyAsync` must match the scope under which the secret was originally created, because the server resolves the record by (key + scope) rather than by id.
 
 ## Troubleshooting
 
@@ -284,12 +295,16 @@ Agent was not initialized with an HTTP client (e.g. not via `XiansPlatform` with
 
 ### "A secret with this key already exists"
 
-Key is globally unique. Use a different key or update the existing secret by id.
+Key is globally unique within a scope. Use a different key or update the existing secret with `UpdateByKeyAsync`.
 
 ### FetchByKeyAsync returns null
 
 - No secret with that key, or
-- Scope does not match (e.g. secret was created with `tenantId = "t1"` but you called `FetchByKeyAsync` with no tenant or a different tenant). Ensure the builder’s scope matches the secret’s scope.
+- Scope does not match (e.g. secret was created with `tenantId = "t1"` but you called `FetchByKeyAsync` with no tenant or a different tenant). Ensure the builder's scope matches the secret's scope.
+
+### UpdateByKeyAsync throws "Secret not found"
+
+The key + scope combination did not match any stored secret. Verify that the scope (tenantId, agentId, userId, activationName) exactly matches the scope used when the secret was created.
 
 ### 403 / 404 from server
 
@@ -308,15 +323,15 @@ After `agent.Secrets.Scope()` or `TenantScope(...)` / `WithScope(...)`:
 | `CreateAsync(key, value, additionalData?, ct)` | Create secret. Returns `SecretVaultGetResponse`. |
 | `FetchByKeyAsync(key, ct)` | Fetch by key (strict scope). Returns `SecretVaultFetchResponse?`. |
 | `ListAsync(ct)` | List secrets (filtered by current tenant/agent/activationName). Returns `List<SecretVaultListItem>`. |
-| `GetByIdAsync(id, ct)` | Get full secret by id. Returns `SecretVaultGetResponse?`. |
-| `UpdateAsync(id, value?, additionalData?, tenantId?, agentId?, userId?, activationName?, ct)` | Update by id. Returns `SecretVaultGetResponse`. |
-| `DeleteAsync(id, ct)` | Delete by id. Returns `bool`. |
+| `UpdateByKeyAsync(key, value?, additionalData?, tenantId?, agentId?, userId?, activationName?, ct)` | Update by key + scope. Returns `SecretVaultGetResponse`. Throws if not found. |
+| `DeleteByKeyAsync(key, ct)` | Delete by key + scope. Returns `bool` (true = deleted, false = not found). |
 
 ## Summary
 
 - **Builder pattern** – `agent.Secrets.Scope().TenantScope(...).AgentScope(...).UserScope(...)` then CRUD.
-- **Scopes** – `TenantScope()`, `AgentScope()`, `UserScope()`; null means “any” for that dimension.
-- **CRUD** – Create (key + value), FetchByKey (value + additionalData), List, GetById, Update, Delete.
+- **Scopes** – `TenantScope()`, `AgentScope()`, `UserScope()`; null means "any" for that dimension.
+- **CRUD** – Create (key + value), FetchByKey (value + additionalData), List, UpdateByKey, DeleteByKey.
+- **Key+scope identity** – All operations use key + scope; id-based operations are not supported.
 - **Strict scope** – Fetch-by-key matches tenant/agent/user/activation exactly (same as other scopes).
 - **Server** – Values encrypted at rest; Agent API at `api/agent/secrets` with client certificate.
 
