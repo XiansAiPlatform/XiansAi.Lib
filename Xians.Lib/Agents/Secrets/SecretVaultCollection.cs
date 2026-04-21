@@ -3,21 +3,33 @@ using Xians.Lib.Agents.Core;
 namespace Xians.Lib.Agents.Secrets;
 
 /// <summary>
-/// Collection for Secret Vault operations. Use the builder pattern to set scope then perform CRUD.
+/// Collection for Secret Vault operations.
+/// <para>
+/// Secrets are stored under up to four scope dimensions: tenant, agent, participant (user), and activation.
+/// Most secrets are scoped to the **tenant** only; you opt into narrower scopes by chaining setters.
+/// Each chained method has a no-arg overload that auto-resolves the value from <see cref="XiansContext"/>,
+/// and an overload that takes an explicit value.
+/// </para>
 /// </summary>
 /// <example>
 /// <code>
-/// // Scope by tenant, agent, and user then create/fetch/list
-/// var scoped = agent.Secrets.Scope()
-///     .TenantScope("tenant-1")
-///     .AgentScope("my-agent")
-///     .UserScope("user-1");
-/// await scoped.CreateAsync("api-key", "sk-xxx");
-/// var fetched = await scoped.FetchByKeyAsync("api-key");
-/// var list = await scoped.ListAsync();
+/// // Tenant-only (most common). Tenant id auto-resolved from XiansContext / certificate.
+/// var scoped = agent.Secrets.TenantScope();
 ///
-/// // No scope (cross-tenant / any agent / any user)
-/// var all = agent.Secrets.Scope().ListAsync();
+/// // Narrow further: tenant + current agent
+/// var perAgent = agent.Secrets.TenantScope().AgentScope();
+///
+/// // Narrow further: tenant + current agent + current participant
+/// var perUser = agent.Secrets.TenantScope().AgentScope().ParticipantScope();
+///
+/// // Narrow further still: tenant + current agent + current participant + current activation
+/// var perActivation = agent.Secrets.TenantScope().AgentScope().ParticipantScope().ActivationScope();
+///
+/// // Override any dimension with an explicit value
+/// var otherTenant = agent.Secrets.TenantScope("tenant-2").AgentScope("agent-x");
+///
+/// // Admin / cross-tenant flows: no scope at all
+/// var all = await agent.Secrets.ScopeUnbound().ListAsync();
 /// </code>
 /// </example>
 public class SecretVaultCollection
@@ -30,38 +42,56 @@ public class SecretVaultCollection
     }
 
     /// <summary>
-    /// Returns a scope builder. Chain <see cref="SecretVaultScopeBuilder.TenantScope"/>, <see cref="SecretVaultScopeBuilder.AgentScope"/>,
-    /// and <see cref="SecretVaultScopeBuilder.UserScope"/> to set scope, then call CreateAsync, FetchByKeyAsync, ListAsync, GetByIdAsync, UpdateAsync, or DeleteAsync.
+    /// Returns a tenant-scoped builder using the tenant id from <see cref="XiansContext.SafeTenantId"/>
+    /// (falling back to the agent's certificate tenant). This is the recommended starting point for the
+    /// common case where a secret is scoped only to the current tenant; chain
+    /// <see cref="SecretVaultScopeBuilder.AgentScope()"/>,
+    /// <see cref="SecretVaultScopeBuilder.ParticipantScope()"/>, and
+    /// <see cref="SecretVaultScopeBuilder.ActivationScope()"/> to narrow further.
     /// </summary>
-    public SecretVaultScopeBuilder Scope()
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when no tenant id can be resolved from context or agent options. Use
+    /// <see cref="TenantScope(string)"/> with an explicit value or <see cref="ScopeUnbound"/> in that case.
+    /// </exception>
+    public SecretVaultScopeBuilder TenantScope()
     {
         var tenantId = ResolveTenantId();
-        return new SecretVaultScopeBuilder(_agent, tenantId, null, null);
+        if (string.IsNullOrEmpty(tenantId))
+        {
+            throw new InvalidOperationException(
+                "Cannot resolve tenant id from XiansContext or agent options. " +
+                "Call TenantScope(tenantId) with an explicit tenant, or ScopeUnbound() for cross-tenant flows.");
+        }
+        return new SecretVaultScopeBuilder(_agent, tenantId, null, null, null);
     }
 
     /// <summary>
-    /// Convenience: scope with tenant only. Equivalent to Scope().TenantScope(tenantId).
+    /// Returns a tenant-scoped builder with an explicit tenant id (skips context auto-resolution).
     /// </summary>
-    public SecretVaultScopeBuilder TenantScope(string? tenantId)
+    public SecretVaultScopeBuilder TenantScope(string tenantId)
     {
-        return new SecretVaultScopeBuilder(_agent, tenantId, null, null);
+        if (string.IsNullOrEmpty(tenantId))
+            throw new ArgumentException("Tenant id must be non-empty. Use ScopeUnbound() for cross-tenant flows.", nameof(tenantId));
+        return new SecretVaultScopeBuilder(_agent, tenantId, null, null, null);
     }
 
     /// <summary>
-    /// Convenience: scope with tenant and agent. Equivalent to Scope().TenantScope(tenantId).AgentScope(agentId).
+    /// Returns a builder with no scope pre-set (tenant, agent, participant, and activation are all null).
+    /// Use this for admin / cross-tenant flows where you explicitly want to operate across dimensions,
+    /// or for tests where no execution context exists. Prefer <see cref="TenantScope()"/> in ordinary flows.
     /// </summary>
-    public SecretVaultScopeBuilder TenantScope(string? tenantId, string? agentId)
+    public SecretVaultScopeBuilder ScopeUnbound()
     {
-        return new SecretVaultScopeBuilder(_agent, tenantId, agentId, null);
+        return new SecretVaultScopeBuilder(_agent, null, null, null, null);
     }
 
     /// <summary>
-    /// Convenience: full scope. Equivalent to Scope().TenantScope(tenantId).AgentScope(agentId).UserScope(userId).
+    /// Alias for <see cref="TenantScope()"/> — returns a tenant-scoped builder using the tenant from context.
+    /// Kept for backwards compatibility; prefer <see cref="TenantScope()"/> in new code.
     /// </summary>
-    public SecretVaultScopeBuilder WithScope(string? tenantId, string? agentId, string? userId)
-    {
-        return new SecretVaultScopeBuilder(_agent, tenantId, agentId, userId);
-    }
+    public SecretVaultScopeBuilder Scope() => TenantScope();
+
+    internal string? TryResolveTenantId() => ResolveTenantId();
 
     private string? ResolveTenantId()
     {

@@ -11,9 +11,13 @@ namespace Xians.Lib.Agents.Secrets;
 
 /// <summary>
 /// Fluent scope builder for Secret Vault operations.
-/// Set tenant, agent, user, and activation scope via <see cref="TenantScope"/>, <see cref="AgentScope"/>, <see cref="UserScope"/>, and <see cref="ActivationScope"/>,
-/// then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>, <see cref="ListAsync"/>,
-/// <see cref="GetByIdAsync"/>, <see cref="UpdateAsync"/>, <see cref="DeleteAsync"/>.
+/// <para>
+/// Built up by chaining narrowing setters: <see cref="TenantScope"/>, <see cref="AgentScope()"/>,
+/// <see cref="ParticipantScope()"/>, and <see cref="ActivationScope()"/>. Each scope setter has a
+/// **no-arg overload** that auto-resolves the value from <see cref="XiansContext"/>, and an explicit
+/// overload that takes a value. Then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>,
+/// <see cref="ListAsync"/>, <see cref="GetByIdAsync"/>, <see cref="UpdateAsync"/>, <see cref="DeleteAsync"/>.
+/// </para>
 /// </summary>
 public class SecretVaultScopeBuilder
 {
@@ -35,7 +39,7 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
-    /// Sets the tenant scope for subsequent operations. Null = cross-tenant.
+    /// Overrides the tenant scope for subsequent operations. Pass <c>null</c> to broaden to cross-tenant.
     /// </summary>
     public SecretVaultScopeBuilder TenantScope(string? tenantId)
     {
@@ -44,7 +48,18 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
-    /// Sets the agent scope for subsequent operations. Null = across all agents.
+    /// Narrows the scope to the **current agent**, resolved from <see cref="XiansContext.SafeAgentName"/>
+    /// (falling back to the registered agent's <see cref="XiansAgent.Name"/>). Always succeeds because
+    /// the agent name is known at registration time.
+    /// </summary>
+    public SecretVaultScopeBuilder AgentScope()
+    {
+        _agentId = XiansContext.SafeAgentName ?? _agent.Name;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the agent scope to an explicit value. Pass <c>null</c> to broaden to all agents.
     /// </summary>
     public SecretVaultScopeBuilder AgentScope(string? agentId)
     {
@@ -53,7 +68,36 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
-    /// Sets the user scope for subsequent operations. Null = any user may access.
+    /// Narrows the scope to the **current participant**, resolved from
+    /// <see cref="XiansContext.SafeParticipantId"/>. Throws if no participant is in context — call
+    /// <see cref="ParticipantScope(string?)"/> with an explicit value (or <c>null</c> to broaden) instead.
+    /// </summary>
+    public SecretVaultScopeBuilder ParticipantScope()
+    {
+        var participantId = XiansContext.SafeParticipantId;
+        if (string.IsNullOrEmpty(participantId))
+        {
+            throw new InvalidOperationException(
+                "No participant id is available in the current XiansContext. " +
+                "Call ParticipantScope(participantId) with an explicit value, or omit the participant scope.");
+        }
+        _userId = participantId;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the participant (user) scope to an explicit value. Pass <c>null</c> to broaden to any participant.
+    /// </summary>
+    public SecretVaultScopeBuilder ParticipantScope(string? participantId)
+    {
+        _userId = participantId;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the user (participant) scope. Kept for backwards compatibility; new code should prefer
+    /// <see cref="ParticipantScope(string?)"/> / <see cref="ParticipantScope()"/>.
+    /// Null = any user may access.
     /// </summary>
     public SecretVaultScopeBuilder UserScope(string? userId)
     {
@@ -62,7 +106,26 @@ public class SecretVaultScopeBuilder
     }
 
     /// <summary>
-    /// Sets the activation scope for subsequent operations. Null = any activation of the agent may access; when set, only that agent activation (by name) may access.
+    /// Narrows the scope to the **current activation**, resolved from
+    /// <see cref="XiansContext.SafeIdPostfix"/>. Throws if no activation is in context — call
+    /// <see cref="ActivationScope(string?)"/> with an explicit value (or <c>null</c>) instead.
+    /// </summary>
+    public SecretVaultScopeBuilder ActivationScope()
+    {
+        var activationName = XiansContext.SafeIdPostfix;
+        if (string.IsNullOrEmpty(activationName))
+        {
+            throw new InvalidOperationException(
+                "No activation (idPostfix) is available in the current XiansContext. " +
+                "Call ActivationScope(activationName) with an explicit value, or omit the activation scope.");
+        }
+        _activationName = activationName;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the activation scope to an explicit value. Null = any activation of the agent may access;
+    /// when set, only that agent activation (by name) may access.
     /// </summary>
     public SecretVaultScopeBuilder ActivationScope(string? activationName)
     {
