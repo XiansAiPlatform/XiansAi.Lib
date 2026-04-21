@@ -1,6 +1,6 @@
 # Secret Vault
 
-> **TL;DR**: Secret Vault is a secure key-value store for secrets (API keys, tokens, webhook secrets). Use a **builder pattern** to set scope (tenant, agent, user, activation) then perform CRUD. Values are encrypted at rest on the server.
+> **TL;DR**: Secret Vault is a secure key-value store for secrets (API keys, tokens, webhook secrets). Start with `agent.Secrets.TenantScope()` (tenant id auto-resolved), then **narrow** with `.AgentScope()`, `.ParticipantScope()`, `.ActivationScope()` as needed, then perform CRUD. Values are encrypted at rest on the server.
 
 ## What Is Secret Vault?
 
@@ -8,19 +8,35 @@ Secret Vault stores sensitive key-value pairs with optional scoping:
 
 - **Key** – Unique name (e.g. `api-key`, `webhook-secret`)
 - **Value** – The secret (encrypted at rest with AES-256-GCM on the server)
-- **Scope** – Optional tenant, agent, user, and activation for access control
+- **Scope** – Tenant, agent, participant (user), and activation for access control
 - **AdditionalData** – Optional flat metadata (string/number/boolean only; not for secrets)
 
 ### Scope Semantics
 
-| Scope          | Meaning when set                    | Meaning when null                    |
-|----------------|-------------------------------------|--------------------------------------|
-| TenantId       | Secret only for that tenant         | Cross-tenant (any tenant)             |
-| AgentId        | Secret only for that agent          | Across all agents                     |
-| UserId         | Only that user can access           | Any user may access                   |
-| ActivationName | Only that agent activation can access | Any activation of the agent can access |
+| Scope          | Meaning when set                       | Meaning when null                      |
+|----------------|----------------------------------------|----------------------------------------|
+| TenantId       | Secret only for that tenant            | Cross-tenant (any tenant)              |
+| AgentId        | Secret only for that agent             | Across all agents                      |
+| UserId         | Only that participant can access       | Any participant may access             |
+| ActivationName | Only that agent activation can access  | Any activation of the agent can access |
 
-**Fetch-by-key** uses **strict** scope matching for all scopes (tenant, agent, user, activation): the request must send the same scope values as stored. If you omit a scope (e.g. no `activationName`), only secrets with that scope null are returned; if you send a scope value, the document must have that exact value.
+**Fetch-by-key** uses **strict** scope matching for all scopes (tenant, agent, participant, activation): the request must send the same scope values as stored. If you omit a scope (e.g. no `activationName`), only secrets with that scope null are returned; if you send a scope value, the document must have that exact value.
+
+## Mental Model: Start Wide, Narrow As Needed
+
+Most secrets are scoped only to the **tenant**. Some are also scoped to a specific **agent**. A few are scoped further down to a **participant** (user) or even a single agent **activation**. The API mirrors this — you start broad and chain narrower setters:
+
+```text
+TenantScope()                                   ← tenant only (most common)
+   └── .AgentScope()                            ← + this agent
+          └── .ParticipantScope()               ← + this participant
+                 └── .ActivationScope()         ← + this activation
+```
+
+Each narrowing method has **two overloads**:
+
+- **No-arg** – auto-resolves the value from the current `XiansContext` (workflow / activity / message handler).
+- **`(string?)`** – set an explicit value (or pass `null` to broaden that dimension back).
 
 ## Quick Start
 
@@ -28,33 +44,37 @@ Secret Vault stores sensitive key-value pairs with optional scoping:
 using Xians.Lib.Agents.Secrets;
 using Xians.Lib.Agents.Secrets.Models;
 
-// 1. Get a scoped builder (tenant + agent + user + optional activation)
-var secrets = agent.Secrets.Scope()
-    .TenantScope("tenant-1")
-    .AgentScope("my-agent")
-    .UserScope("user-1")
-    .ActivationScope("my-activation");  // optional: null = any activation can access
+// Tenant-scoped secret (most common). Tenant id auto-resolved.
+var secrets = agent.Secrets.TenantScope();
 
-// 2. Create a secret
-var created = await secrets.CreateAsync("api-key", "sk-xxx");
-
-// 3. Fetch by key (same scope)
-var fetched = await secrets.FetchByKeyAsync("api-key");
+var created = await secrets.CreateAsync("external-api-key", "sk-xxx");
+var fetched = await secrets.FetchByKeyAsync("external-api-key");
 Console.WriteLine(fetched?.Value); // "sk-xxx"
 
-// 4. List (filtered by scope including activationName), update, delete
 var list = await secrets.ListAsync();
-await secrets.UpdateAsync(created.Id, value: "sk-new", activationName: "my-activation");
+await secrets.UpdateAsync(created.Id, value: "sk-new");
 await secrets.DeleteAsync(created.Id);
+
+// Narrower scope when a secret belongs to one agent
+var perAgent = agent.Secrets.TenantScope().AgentScope();
+
+// Narrower still: per-participant secret (e.g. user OAuth token)
+var perUser = agent.Secrets.TenantScope().AgentScope().ParticipantScope();
+
+// One activation only
+var perActivation = agent.Secrets.TenantScope().AgentScope().ActivationScope();
 ```
 
 ## Key Features
 
-- **Builder pattern** – Chain `TenantScope()`, `AgentScope()`, `UserScope()`, `ActivationScope()` then CRUD
-- **Full CRUD** – Create, fetch by key, list, get by id, update, delete
-- **Strict scope** – Fetch-by-key matches scope exactly for all dimensions (tenant, agent, user, activation)
-- **Encrypted at rest** – Server encrypts values; lib only sends/receives plaintext over TLS
-- **Optional metadata** – `additionalData` for flat key-value (env, service name, etc.); not for sensitive data
+- **Narrowing builder** – Start with `TenantScope()`, then chain `.AgentScope()` → `.ParticipantScope()` → `.ActivationScope()` to narrow.
+- **Context-aware** – Each narrowing method has a no-arg overload that auto-resolves from `XiansContext`.
+- **Explicit override** – Each narrowing method also has a `(string?)` overload for explicit values; pass `null` to broaden.
+- **Escape hatch** – `ScopeUnbound()` returns a fully unscoped builder for admin / cross-tenant flows.
+- **Full CRUD** – Create, fetch by key, list, get by id, update, delete.
+- **Strict scope** – Fetch-by-key matches scope exactly for all four dimensions.
+- **Encrypted at rest** – Server encrypts values; lib only sends/receives plaintext over TLS.
+- **Optional metadata** – `additionalData` for flat key-value (env, service name, etc.); not for sensitive data.
 
 ## Implementation Overview
 
@@ -62,45 +82,51 @@ await secrets.DeleteAsync(created.Id);
 
 | Component | Location | Role |
 |-----------|----------|------|
-| **SecretVaultCollection** | `Agents/Secrets/SecretVaultCollection.cs` | Entry point on `agent.Secrets`; exposes `Scope()` and convenience scope methods |
-| **SecretVaultScopeBuilder** | `Agents/Secrets/SecretVaultScopeBuilder.cs` | Fluent scope + CRUD (Create, FetchByKey, List, GetById, Update, Delete) |
+| **SecretVaultCollection** | `Agents/Secrets/SecretVaultCollection.cs` | Entry point on `agent.Secrets`; exposes `TenantScope()` / `TenantScope(tenantId)` / `ScopeUnbound()` |
+| **SecretVaultScopeBuilder** | `Agents/Secrets/SecretVaultScopeBuilder.cs` | Fluent narrowing builder + CRUD (Create, FetchByKey, List, GetById, Update, Delete) |
 | **Models** | `Agents/Secrets/Models/SecretVaultModels.cs` | DTOs: create/update requests, get/fetch/list responses |
 
 ### Server API
 
-The lib calls the **Agent API** at `api/agent/secrets` (client certificate auth). Same backend as the Admin Secret Vault API; see the server’s `SECRET_VAULT.md` for encryption, validation, and database details.
+The lib calls the **Agent API** at `api/agent/secrets` (client certificate auth). Same backend as the Admin Secret Vault API; see the server's `SECRET_VAULT.md` for encryption, validation, and database details.
 
 ## Usage
 
 ### 1. Getting a scope builder
 
-Start from `agent.Secrets`, then either use the generic builder or a convenience method:
-
 ```csharp
-// Generic: start with no scope (or tenant from context via Scope())
-var builder = agent.Secrets.Scope();
+// Tenant only (recommended starting point). Tenant id is auto-resolved from
+// XiansContext.SafeTenantId, falling back to the agent's certificate tenant.
+var byTenant = agent.Secrets.TenantScope();
 
-// Set scope fluently
-builder.TenantScope("tenant-1").AgentScope("agent-1").UserScope("user-1").ActivationScope("activation-1");
+// Tenant + this agent (auto-resolved)
+var byAgent = agent.Secrets.TenantScope().AgentScope();
 
-// Convenience: tenant only
-var byTenant = agent.Secrets.TenantScope("tenant-1");
+// Tenant + this agent + this participant (auto-resolved from XiansContext)
+var byUser = agent.Secrets.TenantScope().AgentScope().ParticipantScope();
 
-// Convenience: tenant + agent
-var byTenantAgent = agent.Secrets.TenantScope("tenant-1", "agent-1");
+// Tenant + this agent + this participant + this activation
+var byActivation = agent.Secrets
+    .TenantScope().AgentScope().ParticipantScope().ActivationScope();
 
-// Convenience: full scope in one call
-var full = agent.Secrets.WithScope("tenant-1", "agent-1", "user-1");
+// Explicit overrides — pass a value to override, or null to broaden again.
+var otherTenant   = agent.Secrets.TenantScope("tenant-2");
+var otherAgent    = agent.Secrets.TenantScope().AgentScope("agent-x");
+var explicitUser  = agent.Secrets.TenantScope().AgentScope().ParticipantScope("user-1");
+var anyParticipant = agent.Secrets.TenantScope().AgentScope().ParticipantScope(null);
+
+// Escape hatch: no scope at all (admin / cross-tenant / tests outside a workflow)
+var unbound = agent.Secrets.ScopeUnbound();
 ```
 
-`Scope()` resolves tenant from `XiansContext` when available (e.g. in workflows); otherwise from agent options (e.g. certificate tenant). You can override by chaining `TenantScope(...)`.
+> Inside a workflow / activity / message handler, the no-arg overloads pick up the live tenant, agent, participant, and activation from `XiansContext`. Passing explicit values that conflict with the live context is rejected client-side; see [SecretVaultValidation.md](./SecretVaultValidation.md).
 
 ### 2. Create
 
 Creates a secret. **Key must be unique** in the vault.
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1").AgentScope("a1");
+var scoped = agent.Secrets.TenantScope().AgentScope();
 
 // Minimal
 var created = await scoped.CreateAsync("my-key", "my-secret-value");
@@ -119,7 +145,7 @@ Returns `SecretVaultGetResponse` (Id, Key, Value, scope, audit fields).
 Returns **only** decrypted value and optional additionalData. Use the **same scope** as when the secret was created (strict match).
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1").AgentScope("a1");
+var scoped = agent.Secrets.TenantScope().AgentScope();
 var result = await scoped.FetchByKeyAsync("api-key");
 
 if (result != null)
@@ -135,10 +161,10 @@ else
 
 ### 4. List
 
-Lists secrets with optional tenant/agent filter (from current scope). Does **not** return the secret value.
+Lists secrets filtered by the current scope (tenant / agent / activation). Does **not** return the secret value.
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1");
+var scoped = agent.Secrets.TenantScope();
 var items = await scoped.ListAsync();
 
 foreach (var item in items)
@@ -153,7 +179,7 @@ foreach (var item in items)
 Returns full record including decrypted value. Use when you already have the secret id (e.g. from create or list).
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1");
+var scoped = agent.Secrets.TenantScope();
 var secret = await scoped.GetByIdAsync("507f1f77bcf86cd799439011");
 
 if (secret != null)
@@ -167,7 +193,7 @@ if (secret != null)
 Updates an existing secret by id. Omitted parameters leave existing values unchanged.
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1");
+var scoped = agent.Secrets.TenantScope();
 
 // Update value only
 await scoped.UpdateAsync(id, value: "new-secret-value");
@@ -184,49 +210,54 @@ await scoped.UpdateAsync(id, tenantId: "t2", agentId: "a2", userId: "u2", activa
 Deletes a secret by id. Returns `true` if deleted, `false` if not found.
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1");
+var scoped = agent.Secrets.TenantScope();
 bool deleted = await scoped.DeleteAsync(id);
 ```
 
 ## Common Patterns
 
-### Per-tenant API key
+### Per-tenant API key (shared across agents and participants)
 
 ```csharp
-var tenantScoped = agent.Secrets.TenantScope(tenantId);
+// Tenant-only is the default; nothing extra to chain.
+var tenantScoped = agent.Secrets.TenantScope();
 await tenantScoped.CreateAsync("external-api-key", apiKeyFromConfig);
-// Later, in a request for that tenant:
-var key = await agent.Secrets.TenantScope(tenantId).FetchByKeyAsync("external-api-key");
+
+// Later, in any request for the same tenant:
+var key = await agent.Secrets.TenantScope().FetchByKeyAsync("external-api-key");
 ```
 
-### Per-agent + per-user secret
+### Per-agent secret
 
 ```csharp
-var scoped = agent.Secrets
-    .Scope()
-    .TenantScope("t1")
-    .AgentScope(agent.Name)
-    .UserScope(userId);
+var scoped = agent.Secrets.TenantScope().AgentScope();
+await scoped.CreateAsync("agent-config-token", token);
+var fetched = await scoped.FetchByKeyAsync("agent-config-token");
+```
+
+### Per-participant (user) secret
+
+```csharp
+// e.g. an OAuth token issued for the current participant
+var scoped = agent.Secrets.TenantScope().AgentScope().ParticipantScope();
 await scoped.CreateAsync("user-token", token);
-var token = await scoped.FetchByKeyAsync("user-token");
+var fetched = await scoped.FetchByKeyAsync("user-token");
 ```
 
 ### Per-activation secret (one activation of an agent only)
 
 ```csharp
-// Secret only for this activation (e.g. from XiansContext.SafeIdPostfix in a workflow)
-var scoped = agent.Secrets.Scope()
-    .TenantScope(tenantId)
-    .AgentScope(agent.Name)
-    .ActivationScope("my-activation");
+// Inside a workflow, ActivationScope() picks up the current activation from
+// XiansContext.SafeIdPostfix.
+var scoped = agent.Secrets.TenantScope().AgentScope().ActivationScope();
 await scoped.CreateAsync("activation-api-key", key);
-var key = await scoped.FetchByKeyAsync("activation-api-key");
+var fetched = await scoped.FetchByKeyAsync("activation-api-key");
 ```
 
 ### List then get value for one
 
 ```csharp
-var scoped = agent.Secrets.Scope().TenantScope("t1");
+var scoped = agent.Secrets.TenantScope();
 var list = await scoped.ListAsync();
 var first = list.FirstOrDefault();
 if (first != null)
@@ -246,6 +277,8 @@ if (first != null)
 - **SecretVaultFetchResponse** – Value, AdditionalData (fetch-by-key only)
 - **SecretVaultListItem** – Id, Key, TenantId, AgentId, UserId, ActivationName, AdditionalData, CreatedAt, CreatedBy (no Value)
 
+> Note on naming: `UserId` on the wire / model corresponds to **participant** in the SDK builder (`ParticipantScope`). The legacy `UserScope(string?)` setter is still available as an alias.
+
 ### AdditionalData rules (server)
 
 - Flat object only; values must be **string**, **number**, or **boolean**
@@ -259,18 +292,31 @@ if (first != null)
 
 ## Best Practices
 
-- **Do** use clear, unique keys (e.g. `tenant-{id}-api-key`, `webhook-{service}`).
+- **Do** start with `TenantScope()` and only narrow when a secret truly belongs to a specific agent / participant / activation.
+- **Do** use clear, unique keys (e.g. `external-api-key`, `webhook-{service}`).
 - **Do** use the same scope when creating and fetching (strict match).
 - **Do** use `additionalData` only for non-sensitive metadata (env, service name).
 - **Do** handle `null` from `FetchByKeyAsync` and `GetByIdAsync` (not found or access denied).
-- **Don’t** store highly sensitive material in `additionalData` (it is not encrypted like the value).
-- **Don’t** forget to set scope when the secret is tenant/agent/user-specific; otherwise you may create or fetch cross-tenant secrets.
+- **Don't** store highly sensitive material in `additionalData` (it is not encrypted like the value).
+- **Don't** use `ScopeUnbound()` from regular workflow code; reserve it for admin / cross-tenant flows.
 
 ## Troubleshooting
 
 ### "HTTP service is not configured"
 
 Agent was not initialized with an HTTP client (e.g. not via `XiansPlatform` with ServerUrl/certificate). Use the same setup as for Knowledge/Documents.
+
+### "Cannot resolve tenant id from XiansContext or agent options"
+
+`TenantScope()` (no-arg) needs either an active workflow/activity context or a certificate-tenant configured on the agent. Pass an explicit `TenantScope(tenantId)`, or use `ScopeUnbound()` if you really need cross-tenant.
+
+### "No participant id is available in the current XiansContext"
+
+`ParticipantScope()` (no-arg) was called outside a participant-bearing context. Either pass an explicit `ParticipantScope(participantId)` or omit the call so the secret is not participant-scoped.
+
+### "No activation (idPostfix) is available in the current XiansContext"
+
+Same idea as above for `ActivationScope()` (no-arg). Use the explicit overload or omit it.
 
 ### "A secret with this key already exists"
 
@@ -279,35 +325,54 @@ Key is globally unique. Use a different key or update the existing secret by id.
 ### FetchByKeyAsync returns null
 
 - No secret with that key, or
-- Scope does not match (e.g. secret was created with `tenantId = "t1"` but you called `FetchByKeyAsync` with no tenant or a different tenant). Ensure the builder’s scope matches the secret’s scope.
+- Scope does not match (e.g. secret was created with `tenantId = "t1"` but you called `FetchByKeyAsync` with no tenant or a different tenant). Ensure the builder's scope matches the secret's scope.
 
 ### 403 / 404 from server
 
 Check client certificate and that the agent is registered and allowed to use the Secret Vault API on the server.
 
-## API Reference (Scope Builder)
+## API Reference
 
-After `agent.Secrets.Scope()` or `TenantScope(...)` / `WithScope(...)`:
+### Entry points on `agent.Secrets`
 
 | Method | Description |
 |--------|-------------|
-| `TenantScope(tenantId)` | Set tenant scope (null = cross-tenant). Returns builder. |
-| `AgentScope(agentId)` | Set agent scope (null = all agents). Returns builder. |
-| `UserScope(userId)` | Set user scope (null = any user). Returns builder. |
-| `ActivationScope(activationName)` | Set activation scope (null = any activation of the agent). Returns builder. |
+| `TenantScope()` | **Recommended starting point.** Returns a tenant-scoped builder using the tenant id from `XiansContext` (or the agent's certificate tenant). Throws if no tenant id can be resolved. |
+| `TenantScope(string tenantId)` | Returns a tenant-scoped builder with an explicit tenant id. |
+| `ScopeUnbound()` | Returns a builder with all four scope dimensions set to `null` (admin / cross-tenant flows). |
+| `Scope()` | Alias for `TenantScope()`. Kept for backwards compatibility. |
+
+### Builder narrowing setters
+
+| Method | Description |
+|--------|-------------|
+| `TenantScope(string? tenantId)` | Override the tenant scope (`null` = cross-tenant). |
+| `AgentScope()` | Narrow to the **current agent** (`XiansContext.SafeAgentName` ?? this agent's `Name`). |
+| `AgentScope(string? agentId)` | Set agent scope explicitly (`null` = all agents). |
+| `ParticipantScope()` | Narrow to the **current participant** (`XiansContext.SafeParticipantId`). Throws if not in context. |
+| `ParticipantScope(string? participantId)` | Set participant scope explicitly (`null` = any participant). |
+| `UserScope(string? userId)` | Legacy alias for `ParticipantScope(string?)`. |
+| `ActivationScope()` | Narrow to the **current activation** (`XiansContext.SafeIdPostfix`). Throws if not in context. |
+| `ActivationScope(string? activationName)` | Set activation scope explicitly (`null` = any activation). |
+
+### CRUD methods
+
+| Method | Description |
+|--------|-------------|
 | `CreateAsync(key, value, additionalData?, ct)` | Create secret. Returns `SecretVaultGetResponse`. |
 | `FetchByKeyAsync(key, ct)` | Fetch by key (strict scope). Returns `SecretVaultFetchResponse?`. |
-| `ListAsync(ct)` | List secrets (filtered by current tenant/agent/activationName). Returns `List<SecretVaultListItem>`. |
+| `ListAsync(ct)` | List secrets (filtered by current tenant / agent / activationName). Returns `List<SecretVaultListItem>`. |
 | `GetByIdAsync(id, ct)` | Get full secret by id. Returns `SecretVaultGetResponse?`. |
 | `UpdateAsync(id, value?, additionalData?, tenantId?, agentId?, userId?, activationName?, ct)` | Update by id. Returns `SecretVaultGetResponse`. |
 | `DeleteAsync(id, ct)` | Delete by id. Returns `bool`. |
 
 ## Summary
 
-- **Builder pattern** – `agent.Secrets.Scope().TenantScope(...).AgentScope(...).UserScope(...)` then CRUD.
-- **Scopes** – `TenantScope()`, `AgentScope()`, `UserScope()`; null means “any” for that dimension.
+- **Tenant-first** – `agent.Secrets.TenantScope()` is the natural starting point and covers the most common case.
+- **Narrow as needed** – Chain `.AgentScope()` → `.ParticipantScope()` → `.ActivationScope()`. Each has a no-arg overload (auto from context) and a `(string?)` overload (explicit / `null` to broaden).
+- **Escape hatch** – `agent.Secrets.ScopeUnbound()` for admin / cross-tenant flows.
 - **CRUD** – Create (key + value), FetchByKey (value + additionalData), List, GetById, Update, Delete.
-- **Strict scope** – Fetch-by-key matches tenant/agent/user/activation exactly (same as other scopes).
+- **Strict scope** – Fetch-by-key matches tenant / agent / participant / activation exactly.
 - **Server** – Values encrypted at rest; Agent API at `api/agent/secrets` with client certificate.
 
-Use Secret Vault for API keys, webhook secrets, and other sensitive key-value data scoped by tenant, agent, user, or activation.
+Use Secret Vault for API keys, webhook secrets, and other sensitive key-value data scoped by tenant, agent, participant, or activation.

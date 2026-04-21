@@ -61,19 +61,19 @@ Context values are read via the **Safe** / non-throwing getters so that missing 
 
 ## Example behaviour
 
-**Scenario 1 – In a workflow for tenant `t1`, user `u1`, agent `Secrets Agent`**
+**Scenario 1 – In a workflow for tenant `t1`, participant `u1`, agent `Secrets Agent`**
 
-- `Scope().TenantScope("t1").UserScope("u1")` → matches context → no exception.
-- `Scope().TenantScope("t2")` → context has tenant `t1` → **exception**: tenantId scope does not match message context tenant.
+- `TenantScope().AgentScope().ParticipantScope()` → all auto-resolved from context → matches → no exception.
+- `TenantScope("t2")` → context has tenant `t1` → **exception**: tenantId scope does not match message context tenant.
 
 **Scenario 2 – Unit test (no workflow/activity)**
 
-- `Scope().TenantScope("any")` → `InWorkflowOrActivity` is false → validation skipped → no exception (server may still enforce tenant later).
+- `TenantScope("any")` → `InWorkflowOrActivity` is false → validation skipped → no exception (server may still enforce tenant later).
 
 **Scenario 3 – Activation (idPostfix) set**
 
 - Workflow context has `SafeIdPostfix` = `"activation-1"`.
-- `ActivationScope("activation-1")` → matches.
+- `ActivationScope()` (no-arg) → reads context → `"activation-1"` → matches.
 - `ActivationScope("activation-2")` → **exception**: activationName scope does not match message context activation.
 
 ## Exception messages
