@@ -59,6 +59,11 @@ internal class WorkflowRegistrar
 
     /// <summary>
     /// Registers a custom workflow using its type.
+    /// Uses <see cref="Temporalio.Workflows.WorkflowDefinition.Create(Type, string?, Func{object?[], object}?)"/>
+    /// so the <paramref name="workflowType"/> string is always honoured as the Temporal type name,
+    /// regardless of what the <c>[Workflow]</c> attribute on the class declares.
+    /// This is what makes the runtime <c>typeName</c> override in
+    /// <c>WorkflowCollection.DefineCustom&lt;T&gt;</c> work correctly.
     /// </summary>
     public void RegisterCustomWorkflow(
         TemporalWorkerOptions workerOptions,
@@ -73,18 +78,16 @@ internal class WorkflowRegistrar
 
         try
         {
-            // Use AddWorkflow via reflection (Temporal SDK requires generic method)
-            var addWorkflowMethod = typeof(TemporalWorkerOptions)
-                .GetMethod("AddWorkflow", Type.EmptyTypes);
-            
-            if (addWorkflowMethod == null)
-            {
-                throw new InvalidOperationException(
-                    "Could not find AddWorkflow method on TemporalWorkerOptions");
-            }
+            // Build a WorkflowDefinition whose Temporal type name is explicitly set to
+            // workflowType. This overrides whatever the [Workflow] attribute says, enabling
+            // the "typeName override at registration time" pattern (i.e. an env-var-driven
+            // agent name without recompiling the workflow class).
+            var definition = Temporalio.Workflows.WorkflowDefinition.Create(
+                workflowClassType,
+                nameOverride: workflowType,
+                creatorOverride: null);
 
-            var genericMethod = addWorkflowMethod.MakeGenericMethod(workflowClassType);
-            genericMethod.Invoke(workerOptions, null);
+            workerOptions.AddWorkflow(definition);
 
             _logger.LogDebug(
                 "Registered custom workflow '{WorkflowType}' with type '{WorkflowClass}'",

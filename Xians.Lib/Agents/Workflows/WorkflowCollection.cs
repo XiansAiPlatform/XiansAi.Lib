@@ -2,7 +2,6 @@ using System.Reflection;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
-using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows;
 using Microsoft.Extensions.Logging;
 
@@ -111,18 +110,28 @@ public class WorkflowCollection
     /// </summary>
     /// <typeparam name="T">The custom workflow type. Must be decorated with <c>[Workflow("AgentName:WorkflowName")]</c>.</typeparam>
     /// <param name="options">Workflow configuration options. If null, uses default options.</param>
+    /// <param name="typeName">
+    /// Optional runtime override for the Temporal workflow type name (e.g.
+    /// <c>$"{EnvConfig.AgentName}:Processing Workflow"</c>). When provided this value is used
+    /// as the Temporal type name instead of the name declared in the <c>[Workflow]</c> attribute,
+    /// allowing the same workflow class to be deployed under different agent names without
+    /// recompiling. The format must be <c>"AgentName:WorkflowName"</c> (exactly one colon).
+    /// When <see langword="null"/> the name is read from the <c>[Workflow]</c> attribute as usual.
+    /// </param>
     /// <returns>A new custom XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when: (1) the workflow class lacks <c>[Workflow("AgentName:WorkflowName")]</c> with an explicit Name,
+    /// Thrown when: (1) the workflow class lacks <c>[Workflow("AgentName:WorkflowName")]</c> with an
+    /// explicit Name (and no <paramref name="typeName"/> override is supplied),
     /// or (2) a workflow of the same type has already been registered.
     /// </exception>
     /// <remarks>
-    /// Your workflow class must have <c>[Workflow("AgentName:WorkflowName")]</c>. The format requires exactly one colon.
+    /// When <paramref name="typeName"/> is <see langword="null"/> your workflow class must have
+    /// <c>[Workflow("AgentName:WorkflowName")]</c>. The format requires exactly one colon.
     /// Example: <c>[Workflow("My Agent:My Workflow")]</c>. Using <c>[Workflow]</c> without parameters will fail.
     /// </remarks>
-    public XiansWorkflow DefineCustom<T>(WorkflowOptions? options = null) where T : class
+    public XiansWorkflow DefineCustom<T>(WorkflowOptions? options = null, string? typeName = null) where T : class
     {
-        return DefineCustomInternal<T>(options, validateAgentPrefix: true);
+        return DefineCustomInternal<T>(options, validateAgentPrefix: true, typeNameOverride: typeName);
     }
 
     /// <summary>
@@ -132,7 +141,7 @@ public class WorkflowCollection
     /// <param name="maxConcurrent">Maximum concurrent workflow task executions.</param>
     /// <returns>A new custom XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a workflow of the same type already exists.</exception>
-    [Obsolete("Use DefineCustom<T>(WorkflowOptions? options = null) instead.")]
+    [Obsolete("Use DefineCustom<T>(WorkflowOptions? options = null, string? typeName = null) instead.")]
     public XiansWorkflow DefineCustom<T>(int maxConcurrent) where T : class
     {
         return DefineCustom<T>(new WorkflowOptions { MaxConcurrent = maxConcurrent });
@@ -141,12 +150,36 @@ public class WorkflowCollection
     /// <summary>
     /// Internal method to define a custom workflow with optional agent prefix validation.
     /// </summary>
-    private XiansWorkflow DefineCustomInternal<T>(WorkflowOptions? options, bool validateAgentPrefix) where T : class
+    private XiansWorkflow DefineCustomInternal<T>(WorkflowOptions? options, bool validateAgentPrefix, string? typeNameOverride = null) where T : class
     {
         options ??= new WorkflowOptions();
         
-        // Get workflow type from [Workflow] attribute if present, otherwise use class name
-        var workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix) ?? typeof(T).Name;
+        string workflowType;
+
+        if (typeNameOverride != null)
+        {
+            workflowType = typeNameOverride;
+
+            // Validate the override follows the required "AgentName:WorkflowName" format.
+            if (workflowType.Count(c => c == ':') != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Workflow type name override '{workflowType}' must have exactly one ':' " +
+                    "in the format 'AgentName:WorkflowName'.");
+            }
+
+            if (validateAgentPrefix && !workflowType.StartsWith(_agent.Name + ":"))
+            {
+                throw new InvalidOperationException(
+                    $"Workflow type name override '{workflowType}' must start with the " +
+                    $"agent name prefix '{_agent.Name}:'.");
+            }
+        }
+        else
+        {
+            // Get workflow type from [Workflow] attribute if present, otherwise use class name
+            workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix) ?? typeof(T).Name;
+        }
 
         
         // Check if workflow with same type already exists
@@ -411,13 +444,14 @@ public class WorkflowCollection
     /// <returns>The custom workflow or null if not found.</returns>
     public XiansWorkflow GetCustom<T>() where T : class
     {
-        // Get workflow type from [Workflow] attribute if present, otherwise use class name
-        // This matches the logic in DefineCustomInternal to ensure consistency
-        var workflowType = GetWorkflowTypeFromAttribute<T>(validateAgentPrefix: false) ?? typeof(T).Name;
-        var workflow = _workflows.FirstOrDefault(w => w.WorkflowType == workflowType);
+        // Look up by the C# class type rather than by the Temporal workflow type string.
+        // This correctly handles the typeName-override case where the stored WorkflowType
+        // was supplied at registration time and therefore may differ from the name in the
+        // [Workflow] attribute on the class.
+        var workflow = _workflows.FirstOrDefault(w => w.GetWorkflowClassType() == typeof(T));
         if (workflow is null)
         {
-            throw new InvalidOperationException($"Custom workflow of type '{workflowType}' not found.");
+            throw new InvalidOperationException($"Custom workflow of type '{typeof(T).Name}' not found.");
         }
         return workflow;
     }
