@@ -117,6 +117,12 @@ public class WorkflowCollection
     /// allowing the same workflow class to be deployed under different agent names without
     /// recompiling. The format must be <c>"AgentName:WorkflowName"</c> (exactly one colon).
     /// When <see langword="null"/> the name is read from the <c>[Workflow]</c> attribute as usual.
+    /// <para>
+    /// <b>Important:</b> the <c>[Workflow]</c> attribute must still be present on the class even
+    /// when this override is supplied — Temporal requires it to identify the class as a workflow
+    /// type. The attribute's name value is ignored when <paramref name="typeName"/> is set, so any
+    /// placeholder is acceptable: <c>[Workflow("placeholder")]</c> or even the static default.
+    /// </para>
     /// </param>
     /// <returns>A new custom XiansWorkflow instance.</returns>
     /// <exception cref="InvalidOperationException">
@@ -173,6 +179,23 @@ public class WorkflowCollection
                 throw new InvalidOperationException(
                     $"Workflow type name override '{workflowType}' must start with the " +
                     $"agent name prefix '{_agent.Name}:'.");
+            }
+
+            // The Temporal SDK's WorkflowDefinition.Create requires the [Workflow] attribute to
+            // exist on the class to identify it as a workflow — even when a nameOverride is used.
+            // The attribute's Name value is ignored at registration time, so any placeholder works,
+            // e.g. [Workflow("placeholder")] or [Workflow("MyAgent:MyWorkflow")].
+            var hasWorkflowAttr = typeof(T)
+                .GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
+                .Any();
+
+            if (!hasWorkflowAttr)
+            {
+                throw new InvalidOperationException(
+                    $"Workflow class '{typeof(T).Name}' is missing the [Workflow] attribute. " +
+                    "Temporal requires the attribute to be present even when a typeName override is " +
+                    "supplied — the attribute's name value is ignored at runtime. " +
+                    $"Add [Workflow] to the class.");
             }
         }
         else
