@@ -266,18 +266,15 @@ public static class SubWorkflowService
     }
 
     /// <summary>
-    /// Extracts the workflow type from a workflow class using the WorkflowAttribute.
+    /// Resolves the runtime workflow type for a workflow class.
+    /// Delegates to <see cref="XiansContext.GetWorkflowTypeFor(Type)"/> so any runtime
+    /// <c>typeName</c> override supplied to <c>DefineCustom&lt;T&gt;</c> is honoured —
+    /// the <c>[Workflow]</c> attribute on the class is only consulted as a fallback
+    /// when the class hasn't been registered.
     /// </summary>
     private static string GetWorkflowTypeFromClass<TWorkflow>()
     {
-        var workflowAttr = typeof(TWorkflow).GetCustomAttribute<WorkflowAttribute>();
-        if (workflowAttr?.Name == null)
-        {
-            throw new InvalidOperationException(
-                $"Workflow class '{typeof(TWorkflow).Name}' does not have a WorkflowAttribute with a Name property set.");
-        }
-
-        return workflowAttr.Name;
+        return XiansContext.GetWorkflowTypeFor(typeof(TWorkflow));
     }
 
     /// <summary>
