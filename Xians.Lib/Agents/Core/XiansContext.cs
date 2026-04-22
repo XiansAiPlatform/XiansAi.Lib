@@ -891,13 +891,24 @@ public static class XiansContext
     }
 
     /// <summary>
-    /// Gets the workflow type string from a workflow class Type.
-    /// Extracts the name from the [Workflow] attribute.
+    /// Gets the workflow type string for a workflow class.
+    /// Resolution order:
+    /// <list type="number">
+    ///   <item>If the class has been registered via <c>DefineCustom&lt;T&gt;</c>, returns the
+    ///         runtime <see cref="XiansWorkflow.WorkflowType"/> stored at registration time
+    ///         (this preserves any <c>typeName</c> override supplied at startup).</item>
+    ///   <item>Otherwise falls back to the name on the <c>[Workflow]</c> attribute.</item>
+    /// </list>
+    /// This means a class decorated with a placeholder attribute (e.g.
+    /// <c>[Workflow("DefaultAgent:Processing Workflow")]</c>) but registered with a runtime
+    /// override will resolve to the override, so signals/starts route to the correct Temporal type.
     /// </summary>
     /// <param name="workflowClassType">The Type of the workflow class.</param>
-    /// <returns>The workflow type string from the WorkflowAttribute.</returns>
+    /// <returns>The effective workflow type string.</returns>
     /// <exception cref="ArgumentNullException">Thrown when workflowClassType is null.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the workflow class doesn't have a WorkflowAttribute with a Name.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the workflow class is not registered AND has no <c>[Workflow]</c> attribute Name.
+    /// </exception>
     public static string GetWorkflowTypeFor(Type workflowClassType)
     {
         if (workflowClassType == null)
@@ -905,11 +916,27 @@ public static class XiansContext
             throw new ArgumentNullException(nameof(workflowClassType));
         }
 
+        // 1. Prefer the runtime-registered workflow type when the class has been
+        //    registered via DefineCustom<T>. This is what makes the typeName override
+        //    work end-to-end (DefineCustom -> Temporal worker -> sub-workflow lookups).
+        foreach (var registered in _workflowRegistry.GetAll())
+        {
+            if (registered.GetWorkflowClassType() == workflowClassType)
+            {
+                return registered.WorkflowType;
+            }
+        }
+
+        // 2. Fall back to the [Workflow] attribute for unregistered classes
+        //    (e.g. when called from tooling before the agent has been wired up).
         var workflowAttr = workflowClassType.GetCustomAttribute<WorkflowAttribute>();
         if (workflowAttr?.Name == null)
         {
             throw new InvalidOperationException(
-                $"Workflow class '{workflowClassType.Name}' does not have a WorkflowAttribute with a Name property set.");
+                $"Workflow class '{workflowClassType.Name}' is not registered with any agent " +
+                "and does not have a [Workflow] attribute with a Name property set. " +
+                "Either register it via xiansAgent.Workflows.DefineCustom<T>(...) or add " +
+                $"[Workflow(\"AgentName:WorkflowName\")] to the class.");
         }
 
         return workflowAttr.Name;
