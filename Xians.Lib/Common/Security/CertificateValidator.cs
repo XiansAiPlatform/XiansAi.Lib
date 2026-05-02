@@ -4,8 +4,16 @@ using Microsoft.Extensions.Logging;
 namespace Xians.Lib.Common.Security;
 
 /// <summary>
-/// Validates X509 certificates including expiration and chain validation.
+/// Validates X509 certificates used as client API keys.
 /// </summary>
+/// <remarks>
+/// The API key certificate is a self-issued identity token that the client supplies
+/// to itself; the authoritative trust decision is made server-side when the
+/// certificate is presented in the Authorization header. As a result, this
+/// validator only checks properties the client can meaningfully verify locally
+/// (e.g. expiration). Chain / revocation validation is intentionally not
+/// performed here — there is no trust anchor on the client to validate against.
+/// </remarks>
 internal class CertificateValidator
 {
     private readonly ILogger? _logger;
@@ -21,47 +29,6 @@ internal class CertificateValidator
     public void ValidateExpiration(X509Certificate2 certificate)
     {
         CertificateValidationHelper.ValidateExpiration(certificate, _logger);
-    }
-
-    /// <summary>
-    /// Validates the certificate chain and revocation status.
-    /// </summary>
-    public void ValidateChain(X509Certificate2 certificate)
-    {
-        using var chain = new X509Chain();
-        
-        // Configure chain validation policy
-        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EntireChain;
-        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
-        chain.ChainPolicy.UrlRetrievalTimeout = TimeSpan.FromSeconds(5);
-
-        bool isValid = chain.Build(certificate);
-
-        if (!isValid)
-        {
-            var errors = new List<string>();
-            foreach (var status in chain.ChainStatus)
-            {
-                if (status.Status != X509ChainStatusFlags.NoError)
-                {
-                    errors.Add($"{status.Status}: {status.StatusInformation}");
-                    _logger?.LogWarning("Certificate chain validation issue: {Status} - {Info}", 
-                        status.Status, status.StatusInformation);
-                }
-            }
-
-            if (errors.Count > 0)
-            {
-                _logger?.LogWarning("Certificate chain validation completed with {Count} warnings", errors.Count);
-                // For strict validation, uncomment:
-                // throw new CertificateException($"Certificate chain validation failed: {string.Join(", ", errors)}");
-            }
-        }
-        else
-        {
-            _logger?.LogDebug("Certificate chain validation passed");
-        }
     }
 }
 

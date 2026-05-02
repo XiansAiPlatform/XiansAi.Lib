@@ -42,9 +42,7 @@ internal class CertificateParser
             certificate = new X509Certificate2(certificateBytes, (string?)null, keyStorageFlags);
 #pragma warning restore SYSLIB0057
 
-            // Validate certificate
             _validator.ValidateExpiration(certificate);
-            _validator.ValidateChain(certificate);
 
             // Extract tenant ID and user ID
             var tenantId = _fieldExtractor.ExtractTenantId(certificate);
