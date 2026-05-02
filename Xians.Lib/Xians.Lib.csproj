@@ -39,6 +39,9 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
     <PackageReference Include="Temporalio" Version="1.13.0" />
     <PackageReference Include="Temporalio.Extensions.OpenTelemetry" Version="1.13.0" />
+    <!-- Pin to >=1.15.3 to address GHSA-g94r-2vxg-569j (CVE-2026-40894);
+         Temporalio.Extensions.OpenTelemetry 1.13.0 only requires >=1.4.0. -->
+    <PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
   </ItemGroup>
 
 </Project>
