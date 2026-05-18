@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -25,6 +26,11 @@ public static class DynamicMethodInvoker
         // Security: Limit JSON depth to prevent deeply nested attacks
         MaxDepth = 32
     };
+
+    // Perf (issue #98): cache the case-insensitive method lookup keyed by
+    // (Type, methodNameLower). PrepareMethodInvocation runs for every data
+    // message; the previous code did a Type.GetMethods + LINQ filter per call.
+    private static readonly ConcurrentDictionary<(Type, string), MethodInfo[]> _methodLookupCache = new();
 
     /// <summary>
     /// Invokes a method dynamically with proper JSON parameter handling
@@ -106,13 +112,17 @@ public static class DynamicMethodInvoker
     }
 
     private static (MethodInfo method, object?[] parameters) PrepareMethodInvocation(
-        Type targetType, 
-        string methodName, 
+        Type targetType,
+        string methodName,
         string? parametersJson)
     {
-        var methods = targetType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Where(m => m.Name.Equals(methodName, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        // Perf (issue #98): cache the (Type, methodName) -> MethodInfo[] resolution so
+        // every data message no longer pays for Type.GetMethods + LINQ filtering.
+        var key = (targetType, methodName.ToLowerInvariant());
+        var methods = _methodLookupCache.GetOrAdd(key, static k =>
+            k.Item1.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(m => m.Name.Equals(k.Item2, StringComparison.OrdinalIgnoreCase))
+                .ToArray());
 
         if (methods.Length == 0)
         {
