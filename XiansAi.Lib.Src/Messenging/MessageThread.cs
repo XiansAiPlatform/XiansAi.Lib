@@ -69,12 +69,14 @@ public class MessageThread : IMessageThread
 
     public async Task SendData(object? data, string? content = null)
     {
-        await new Agent2User().SendData(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
+        // Perf (issue #98): use the static singleton instead of allocating per send.
+        await MessageHub.Agent2User.SendData(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
     }
 
     public async Task SendChat(string content, object? data = null)
     {
-        await new Agent2User().SendChat(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
+        // Perf (issue #98): use the static singleton instead of allocating per send.
+        await MessageHub.Agent2User.SendChat(ParticipantId, content, data, LatestMessage.RequestId, LatestMessage.Scope);
     }
 
     public async Task<string?> SendHandoff(Type targetWorkflowType, string? message = null, object? data = null)
@@ -92,7 +94,8 @@ public class MessageThread : IMessageThread
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
         var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
         data ??= LatestMessage.Data;
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, timeoutSeconds);
+        // Perf (issue #98): use the static singleton instead of allocating per send.
+        return await MessageHub.Agent2Agent.BotToBotMessage(MessageType.Chat, ParticipantId, message, data, targetWorkflowTypeString, targetWorkflowId, LatestMessage.RequestId, LatestMessage.Scope, Authorization, timeoutSeconds);
     }
 
     public async Task<string?> SendHandoff(string targetWorkflowId, string? message = null, object? data = null)
