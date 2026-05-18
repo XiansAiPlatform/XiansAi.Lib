@@ -255,15 +255,19 @@ public class SecureApi : ISecureApiClient, IDisposable
             InnerHandler = socketsHandler
         };
 
-        _client = new HttpClient(tenantIdHandler) { 
+        _client = new HttpClient(tenantIdHandler) {
             BaseAddress = new Uri(serverUrl),
             // Reduce timeout for faster shutdown - 30 seconds should be sufficient
             Timeout = TimeSpan.FromSeconds(5 * 60)
         };
 
-        // Configure for faster shutdown
-        _client.DefaultRequestHeaders.ConnectionClose = true; // Close connections after requests
-        
+        // Perf (issue #98): do NOT set ConnectionClose = true here. The surrounding
+        // SocketsHttpHandler already configures PooledConnectionLifetime (15 min) and
+        // PooledConnectionIdleTimeout (2 min) to handle graceful shutdown. Setting
+        // ConnectionClose forces every outbound message-handling call to send
+        // 'Connection: close', defeating the connection pool and paying a full
+        // TCP + TLS (client-cert) handshake per HTTP hop on the per-message hot path.
+
         try
         {
             // Convert the Base64 string to a certificate
