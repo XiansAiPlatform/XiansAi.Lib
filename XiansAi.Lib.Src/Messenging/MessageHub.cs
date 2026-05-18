@@ -361,6 +361,14 @@ public class MessageHub: IMessageHub
         }
     }
 
+    // Perf: hoisted to static readonly to preserve System.Text.Json's per-options metadata cache.
+    // Allocating a fresh JsonSerializerOptions per message defeated that cache (issue #98 hot-path waste).
+    private static readonly JsonSerializerOptions _castPayloadOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        MaxDepth = 32
+    };
+
     public static T CastPayload<T>(object obj)
     {
         if (obj == null)
@@ -369,7 +377,7 @@ public class MessageHub: IMessageHub
         }
         try {
             var payloadStr = obj.ToString();
-            
+
             // Security: Validate payload size to prevent DoS
             const int MaxPayloadSize = 5 * 1024 * 1024; // 5 MB
             if (payloadStr != null && payloadStr.Length > MaxPayloadSize)
@@ -377,13 +385,7 @@ public class MessageHub: IMessageHub
                 throw new InvalidOperationException($"Payload size {payloadStr.Length} exceeds maximum allowed size of {MaxPayloadSize} bytes");
             }
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                MaxDepth = 32
-            };
-            
-            return JsonSerializer.Deserialize<T>(payloadStr!, options)!;
+            return JsonSerializer.Deserialize<T>(payloadStr!, _castPayloadOptions)!;
         }
         catch (Exception ex)
         {
