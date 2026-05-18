@@ -148,6 +148,20 @@ public class Logger<T>
             }
         }
     }
+    /// <summary>
+    /// Returns whether the given log level would actually be written.
+    /// Use this to guard expensive log-message construction (issue #98 hot-path waste:
+    /// JsonSerializer.Serialize inside interpolated strings ran regardless of level).
+    /// </summary>
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        if (IsInWorkflow())
+        {
+            return Workflow.Logger.IsEnabled(logLevel);
+        }
+        return _logger.IsEnabled(logLevel);
+    }
+
     public void LogTrace(string message)
     {
         Log(LogLevel.Trace, message, null);

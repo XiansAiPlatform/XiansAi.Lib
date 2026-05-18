@@ -131,7 +131,13 @@ public class MessageThread : IMessageThread
             Authorization = Authorization
         };
 
-        _logger.LogDebug("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
+        // Perf (issue #98): guard JsonSerializer.Serialize behind IsEnabled. The ILogger
+        // structured-logging contract still evaluates argument expressions eagerly, so an
+        // unguarded JsonSerializer.Serialize ran on every Handoff even when Debug was off.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Handing over thread: {Message}", JsonSerializer.Serialize(outgoingMessage));
+        }
 
         if (Workflow.InWorkflow)
         {

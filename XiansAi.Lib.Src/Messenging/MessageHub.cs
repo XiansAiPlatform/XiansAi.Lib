@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Temporal;
 using Temporalio.Workflows;
 using XiansAi.Logging;
@@ -29,8 +30,10 @@ public class MessageHub: IMessageHub
     public static Agent2User Agent2User { get; } = new Agent2User();
     public static Agent2Agent Agent2Agent { get; } = new Agent2Agent();
 
-    private readonly ConcurrentBag<Func<MessageThread, Task>> _chatHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
-    private readonly ConcurrentBag<Func<MessageThread, Task>> _dataHandlers = new ConcurrentBag<Func<MessageThread, Task>>();
+    // Perf (issue #98): _chatHandlers and _dataHandlers ConcurrentBags removed.
+    // They were write-only — dispatch uses _chatHandlerMappings.Values /
+    // _dataHandlerMappings.Values, so the bags were dead state that only ever grew
+    // (Unsubscribe* could not remove from ConcurrentBag, slowly leaking memory).
     private readonly ConcurrentBag<Func<EventMetadata, object?, Task>> _flowMessageHandlers = new ConcurrentBag<Func<EventMetadata, object?, Task>>();
 
     private static readonly Logger<MessengerLog> _logger = Logger<MessengerLog>.For();
@@ -152,7 +155,6 @@ public class MessageHub: IMessageHub
         
         if (_chatHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _chatHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered async message handler: {handler.Method.Name}");
         }
         else
@@ -180,7 +182,6 @@ public class MessageHub: IMessageHub
         
         if (_chatHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _chatHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered sync message handler: {handler.Method.Name}");
         }
         else
@@ -224,7 +225,6 @@ public class MessageHub: IMessageHub
         
         if (_dataHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _dataHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered async metadata handler: {handler.Method.Name}");
         }
         else
@@ -252,7 +252,6 @@ public class MessageHub: IMessageHub
         
         if (_dataHandlerMappings.TryAdd(handler, funcHandler))
         {
-            _dataHandlers.Add(funcHandler);
             _logger.LogInformation($"Registered sync metadata handler: {handler.Method.Name}");
         }
         else
@@ -287,7 +286,13 @@ public class MessageHub: IMessageHub
 
     public async Task ReceiveConversationChatOrData(MessageSignal messageSignal)
     {
-        _logger.LogDebug($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
+        // Perf (issue #98): guard expensive JsonSerializer.Serialize behind IsEnabled —
+        // interpolated strings evaluate eagerly, so the payload was being serialized on every
+        // signal even when Debug logging was disabled in production.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug($"Received Signal Message: {JsonSerializer.Serialize(messageSignal)}");
+        }
 
         var messageType = Enum.Parse<MessageType>(messageSignal.Payload.Type);
 
@@ -321,16 +326,23 @@ public class MessageHub: IMessageHub
 
     private async Task ProcessConversationHandlers(IEnumerable<Func<MessageThread, Task>> handlers, MessageThread messageThread)
     {
-        var handlerList = handlers.ToList();
-        _logger.LogDebug($"New message received: {JsonSerializer.Serialize(messageThread)}");
-        _logger.LogDebug($"Informing {handlerList.Count} handlers");
-
+        // Perf (issue #98): drop the defensive .ToList() snapshot — _chatHandlerMappings.Values
+        // (ConcurrentDictionary) is already snapshot-safe to enumerate. Avoids a per-signal alloc.
         var handlerTasks = new List<Task>();
+        var handlerCount = 0;
 
-        foreach (var handler in handlerList)
+        foreach (var handler in handlers)
         {
+            handlerCount++;
             var handlerTask = InvokeHandlerSafely(handler, messageThread);
             handlerTasks.Add(handlerTask);
+        }
+
+        // Perf (issue #98): guard expensive JsonSerializer.Serialize behind IsEnabled.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug($"New message received: {JsonSerializer.Serialize(messageThread)}");
+            _logger.LogDebug($"Informing {handlerCount} handlers");
         }
 
         try
@@ -402,10 +414,38 @@ public class MessageHub: IMessageHub
             SourceWorkflowType = obj.SourceWorkflowType,
             SourceAgent = obj.SourceAgent
         };
-        // Call all handlers uniformly
-        foreach (var handler in _flowMessageHandlers.ToList())
+
+        // Perf (issue #98): run handlers in parallel via Task.WhenAll (mirroring
+        // ProcessConversationHandlers) instead of awaiting each one in sequence —
+        // total latency was the sum of subscriber latencies. Also drop the defensive
+        // .ToList() snapshot since ConcurrentBag enumeration is already snapshot-safe.
+        var handlerTasks = new List<Task>();
+        foreach (var handler in _flowMessageHandlers)
         {
-            await handler(metadata, obj.Payload);
+            handlerTasks.Add(InvokeFlowHandlerSafely(handler, metadata, obj.Payload));
+        }
+
+        try
+        {
+            await Task.WhenAll(handlerTasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"One or more flow-message handlers failed: {ex.Message}", ex);
+            // Continue execution even if some handlers failed
+        }
+    }
+
+    private async Task InvokeFlowHandlerSafely(Func<EventMetadata, object?, Task> handler, EventMetadata metadata, object? payload)
+    {
+        try
+        {
+            await handler(metadata, payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in flow-message handler: {ex.Message}", ex);
+            // Don't rethrow - continue with other handlers
         }
     }
 }

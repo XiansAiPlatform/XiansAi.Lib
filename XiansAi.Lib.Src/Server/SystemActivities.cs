@@ -229,7 +229,13 @@ public class SystemActivities
             ShouldProcessDataInWorkflow = _processDataInWorkflow,
             DataProcessorTypeName = _dataProcessorType?.AssemblyQualifiedName
         };
-        _logger.LogDebug("ProcessDataSettings: {Settings}", JsonSerializer.Serialize(settings));
+        // Perf (issue #98): guard the eager JsonSerializer.Serialize. ILogger structured-logging
+        // arguments are still evaluated eagerly, so the settings were being serialized to JSON
+        // on every workflow init regardless of log level.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("ProcessDataSettings: {Settings}", JsonSerializer.Serialize(settings));
+        }
         return settings;
     }
 
@@ -342,7 +348,12 @@ public class SystemActivities
 
     public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
 
-        _logger.LogDebug("Sending message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
+        // Perf (issue #98): guard the eager JsonSerializer.Serialize. The message is on the
+        // outbound hot path; we don't want to pay for serialization-to-JSON when Debug is off.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Sending message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
+        }
 
         if (!SecureApi.IsReady)
         {
