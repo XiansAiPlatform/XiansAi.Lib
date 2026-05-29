@@ -261,7 +261,8 @@ internal static class MessageProcessor
             WorkflowType = workflowType,
             Authorization = message.Payload.Authorization,
             ThreadId = message.Payload.ThreadId,
-            MessageType = messageType
+            MessageType = messageType,
+            Metadata = message.Payload.Metadata
         };
 
         await Workflow.ExecuteActivityAsync(

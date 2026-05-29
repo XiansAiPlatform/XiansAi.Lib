@@ -25,20 +25,25 @@ public class InboundMessagePayload
     public required string ParticipantId { get; set; }
     public string? Authorization { get; set; }
     public required string Text { get; set; }
-    
+
     private string? _requestId;
-    public required string RequestId 
-    { 
-        
-        get => string.IsNullOrEmpty(_requestId) ? $"generated-{ (Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString())}" : _requestId;
+    public required string RequestId
+    {
+
+        get => string.IsNullOrEmpty(_requestId) ? $"generated-{(Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString())}" : _requestId;
         set => _requestId = value;
     }
-    
+
     public required string Hint { get; set; }
     public required string Scope { get; set; }
     public required object Data { get; set; }
     public required string Type { get; set; }
     public List<DbMessage>? History { get; set; }
+
+    /// <summary>
+    /// Optional metadata (e.g. Inbound HTTP headers form webhooks).
+    /// </summary>
+    public Dictionary<string, string>? Metadata { get; set; }
 }
 
 /// <summary>
