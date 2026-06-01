@@ -35,6 +35,25 @@ public class SystemActivities
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<SystemActivities>();
 
+    // Perf: hoisted to static readonly to preserve System.Text.Json's per-options metadata cache.
+    // The previous code allocated a fresh JsonSerializerOptions on every bot-to-bot response (issue #98).
+    private static readonly JsonSerializerOptions _botToBotResponseOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        MaxDepth = 32
+    };
+
+    // Perf: pre-computed lowercase route segments used in SendChatOrDataStatic to avoid
+    // an Enum.ToString() + ToLower() allocation per outbound message.
+    private static string MessageTypeRouteSegment(MessageType type) => type switch
+    {
+        MessageType.Chat => "chat",
+        MessageType.Data => "data",
+        MessageType.Handoff => "handoff",
+        _ => type.ToString().ToLowerInvariant()
+    };
+
     private readonly List<Type> _capabilities = new();
     private readonly IChatInterceptor? _chatInterceptor;
     private readonly List<IKernelModifier> _kernelModifiers;
@@ -210,7 +229,13 @@ public class SystemActivities
             ShouldProcessDataInWorkflow = _processDataInWorkflow,
             DataProcessorTypeName = _dataProcessorType?.AssemblyQualifiedName
         };
-        _logger.LogDebug("ProcessDataSettings: {Settings}", JsonSerializer.Serialize(settings));
+        // Perf (issue #98): guard the eager JsonSerializer.Serialize. ILogger structured-logging
+        // arguments are still evaluated eagerly, so the settings were being serialized to JSON
+        // on every workflow init regardless of log level.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("ProcessDataSettings: {Settings}", JsonSerializer.Serialize(settings));
+        }
         return settings;
     }
 
@@ -298,16 +323,9 @@ public class SystemActivities
             }
             
             _logger.LogDebug("Received response of length: {Length}", rawResponse.Length);
-            
-            // Try to deserialize the response with security options
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                MaxDepth = 32
-            };
-            
-            var messageResponse = JsonSerializer.Deserialize<MessageResponse>(rawResponse, options);
+
+            // Perf: use the static-readonly options (see _botToBotResponseOptions at top of class).
+            var messageResponse = JsonSerializer.Deserialize<MessageResponse>(rawResponse, _botToBotResponseOptions);
             
             return messageResponse ?? throw new Exception("No Conversation response from the Agent");
         }
@@ -330,7 +348,12 @@ public class SystemActivities
 
     public static async Task<string> SendChatOrDataStatic(ChatOrDataRequest message, MessageType type) {
 
-        _logger.LogDebug("Sending message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
+        // Perf (issue #98): guard the eager JsonSerializer.Serialize. The message is on the
+        // outbound hot path; we don't want to pay for serialization-to-JSON when Debug is off.
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("Sending message type: {Type}, message: {Message}", type, JsonSerializer.Serialize(message));
+        }
 
         if (!SecureApi.IsReady)
         {
@@ -341,7 +364,7 @@ public class SystemActivities
         try
         {
             var client = SecureApi.Instance.Client;
-            var response = await client.PostAsJsonAsync($"api/agent/conversation/outbound/{type.ToString().ToLower()}", message);
+            var response = await client.PostAsJsonAsync($"api/agent/conversation/outbound/{MessageTypeRouteSegment(type)}", message);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();

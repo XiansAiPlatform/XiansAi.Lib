@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using Temporalio.Exceptions;
 using Temporalio.Workflows;
 using XiansAi.Logging;
@@ -93,6 +94,12 @@ public class DataHandler : SafeHandler
         }
     }
 
+    // Perf (issue #98): cache the processor-Type resolution. The fallback path
+    // (Type.GetType miss → AppDomain.GetAssemblies().SelectMany(GetTypes())) is
+    // O(total-types-in-process) and runs each time InitDataProcessing is entered
+    // (including after ContinueAsNew).
+    private static readonly ConcurrentDictionary<string, Type> _processorTypeCache = new();
+
     private static Type GetProcessorType(ProcessDataSettings processDataInformation)
     {
         _logger.LogDebug($"Process data information starting data processing: {processDataInformation.DataProcessorTypeName}, {processDataInformation.ShouldProcessDataInWorkflow}");
@@ -101,17 +108,25 @@ public class DataHandler : SafeHandler
         {
             throw new Exception("Data processor type is not set for this flow. Use `flow.SetDataProcessor<DataProcessor>(bool)` to set the data processor type.");
         }
-        var dataProcessorType = Type.GetType(processDataInformation.DataProcessorTypeName)
-            ?? AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a => a.GetTypes())
-                .FirstOrDefault(t => t.FullName == processDataInformation.DataProcessorTypeName);
 
-        if (dataProcessorType == null)
+        return _processorTypeCache.GetOrAdd(processDataInformation.DataProcessorTypeName, static name =>
         {
-            throw new Exception($"Data processor type {processDataInformation.DataProcessorTypeName} not found");
-        }
+            var dataProcessorType = Type.GetType(name)
+                ?? AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(a =>
+                    {
+                        try { return a.GetTypes(); }
+                        catch (ReflectionTypeLoadException ex) { return ex.Types.Where(t => t is not null).ToArray()!; }
+                    })
+                    .FirstOrDefault(t => t.FullName == name);
 
-        return dataProcessorType;
+            if (dataProcessorType == null)
+            {
+                throw new Exception($"Data processor type {name} not found");
+            }
+
+            return dataProcessorType;
+        });
     }
 
     private async Task<MessageThread?> DequeueMessage()

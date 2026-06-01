@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using Temporalio.Workflows;
 
@@ -119,24 +120,41 @@ public class WorkflowIdentifier
         return workflowAttr?.Name ?? throw new InvalidOperationException("WorkflowAttribute.Name is not set");
     }
 
+    // Perf (issue #98): GetClassTypeFor is called on every cross-agent message via
+    // Agent2Agent.BotToBotMessage. Walking every assembly + every type per call is
+    // O(types-in-process) reflection on the hot path. Cache the resolution.
+    private static readonly ConcurrentDictionary<string, Type?> _classTypeCache = new();
+
     public static Type? GetClassTypeFor(string workflowType)
     {
-        // Find all types in the current app domain that have WorkflowAttribute
-        var workflowTypes = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(assembly => assembly.GetTypes())
-            .Where(type => type.GetCustomAttribute<WorkflowAttribute>() != null)
-            .ToList();
-
-        // Find the type with matching WorkflowAttribute.Name
-        foreach (var type in workflowTypes)
+        return _classTypeCache.GetOrAdd(workflowType, static name =>
         {
-            var workflowAttr = type.GetCustomAttribute<WorkflowAttribute>();
-            if (workflowAttr != null && workflowAttr.Name == workflowType)
+            // Find all types in the current app domain that have WorkflowAttribute
+            // and whose attribute name matches. Reflection cost is paid once per name.
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                return type;
-            }
-        }
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    // Fall back to the types that did load successfully.
+                    types = ex.Types.Where(t => t is not null).ToArray()!;
+                }
 
-        return null;
+                foreach (var type in types)
+                {
+                    var workflowAttr = type.GetCustomAttribute<WorkflowAttribute>();
+                    if (workflowAttr != null && workflowAttr.Name == name)
+                    {
+                        return type;
+                    }
+                }
+            }
+
+            return null;
+        });
     }
 }

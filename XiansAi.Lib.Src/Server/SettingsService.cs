@@ -27,6 +27,15 @@ public static class SettingsService
     private static readonly Lazy<Task<ServerSettings>> _settingsLazy = new(() => LoadSettingsFromServer());
     private static readonly object _settingsLock = new object();
 
+    // Perf: hoisted to static readonly so STJ's internal metadata cache is preserved
+    // across calls; previously this was allocated per ParseSettingsResponse call.
+    private static readonly JsonSerializerOptions _settingsJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        MaxDepth = 32
+    };
+
 
     /// <summary>
     /// Loads settings from the server. Caches the settings after the first fetch.
@@ -95,15 +104,7 @@ public static class SettingsService
                 throw new Exception("Response size exceeds maximum allowed limit");
             }
 
-            var options = new JsonSerializerOptions
-            { 
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                // Security: Limit JSON depth to prevent deeply nested attacks
-                MaxDepth = 32
-            };
-            
-            var settings = JsonSerializer.Deserialize<ServerSettings>(response, options);
+            var settings = JsonSerializer.Deserialize<ServerSettings>(response, _settingsJsonOptions);
 
             if (settings == null)
             {

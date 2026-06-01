@@ -82,35 +82,41 @@ public class Agent2Agent : IAgent2Agent {
     /// <inheritdoc />
     public async Task<MessageResponse> SendData(string workflowIdOrType, object data, string methodName, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
-        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
-        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+        // Perf (issue #98): construct WorkflowIdentifier once instead of twice.
+        var identifier = new WorkflowIdentifier(workflowIdOrType);
+        var targetWorkflowId = identifier.WorkflowId;
+        var targetWorkflowTypeString = identifier.WorkflowType;
 
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
+        return await BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
 
     }
-    
+
     /// <inheritdoc />
     public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, object? data = null, string? requestId = null, string? scope = null, string? authorization = null, int timeoutSeconds = 300)
     {
-        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
-        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+        // Perf (issue #98): construct WorkflowIdentifier once instead of twice.
+        var identifier = new WorkflowIdentifier(workflowIdOrType);
+        var targetWorkflowId = identifier.WorkflowId;
+        var targetWorkflowTypeString = identifier.WorkflowType;
 
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
+        return await BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
 
     }
 
     /// <inheritdoc />
     public async Task<MessageResponse> SendChat(string workflowIdOrType, string message, MessageThread messageThread, int timeoutSeconds = 300)
     {
-        var targetWorkflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
-        var targetWorkflowTypeString = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, messageThread.ParticipantId, message, messageThread.LatestMessage.Data, targetWorkflowTypeString, targetWorkflowId, messageThread.LatestMessage.RequestId, messageThread.LatestMessage.Scope, messageThread.Authorization, timeoutSeconds);
+        // Perf (issue #98): construct WorkflowIdentifier once instead of twice.
+        var identifier = new WorkflowIdentifier(workflowIdOrType);
+        var targetWorkflowId = identifier.WorkflowId;
+        var targetWorkflowTypeString = identifier.WorkflowType;
+        return await BotToBotMessage(MessageType.Chat, messageThread.ParticipantId, message, messageThread.LatestMessage.Data, targetWorkflowTypeString, targetWorkflowId, messageThread.LatestMessage.RequestId, messageThread.LatestMessage.Scope, messageThread.Authorization, timeoutSeconds);
     }
 
     /// <inheritdoc />
@@ -122,7 +128,7 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
+        return await BotToBotMessage(MessageType.Data, participantId, methodName, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization, timeoutSeconds);
     }
 
    /// <inheritdoc />
@@ -131,7 +137,7 @@ public class Agent2Agent : IAgent2Agent {
         var targetWorkflowId = WorkflowIdentifier.GetSingletonWorkflowIdFor(targetWorkflowType);
         var targetWorkflowTypeString = WorkflowIdentifier.GetWorkflowTypeFor(targetWorkflowType);
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, messageThread.ParticipantId, message, messageThread.LatestMessage.Data, targetWorkflowTypeString, targetWorkflowId, messageThread.LatestMessage.RequestId, messageThread.LatestMessage.Scope, messageThread.Authorization, timeoutSeconds);
+        return await BotToBotMessage(MessageType.Chat, messageThread.ParticipantId, message, messageThread.LatestMessage.Data, targetWorkflowTypeString, targetWorkflowId, messageThread.LatestMessage.RequestId, messageThread.LatestMessage.Scope, messageThread.Authorization, timeoutSeconds);
     }
 
     /// <inheritdoc />
@@ -143,7 +149,7 @@ public class Agent2Agent : IAgent2Agent {
         // Use the current workflow's id as the participant id
         var participantId = AgentContext.WorkflowId;
 
-        return await new Agent2Agent().BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization,timeoutSeconds);
+        return await BotToBotMessage(MessageType.Chat, participantId, message, data, targetWorkflowTypeString, targetWorkflowId, requestId, scope, authorization,timeoutSeconds);
     }
 
 

@@ -5,8 +5,16 @@ using Temporalio.Workflows;
 namespace Temporal;
 
 
-public class UpdateService 
+public class UpdateService
 {
+    // Perf: hoisted to static readonly so STJ's per-options metadata cache survives across calls.
+    // Previously a fresh JsonSerializerOptions was allocated per ConvertResult invocation.
+    private static readonly JsonSerializerOptions _convertResultJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        MaxDepth = 32
+    };
+
     public static async Task<TResult?> SendUpdateWithStart<TResult>(Type workflowType, string update, params object?[] args) {
         var workflow = WorkflowIdentifier.GetWorkflowTypeFor(workflowType);
         return await SendUpdateWithStart<TResult>(workflow, update, args);
@@ -55,12 +63,7 @@ public class UpdateService
                 return (TResult)(object)jsonElement.GetGuid();
 
             // For complex types, deserialize from JSON
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                MaxDepth = 32
-            };
-            return JsonSerializer.Deserialize<TResult>(jsonElement.GetRawText(), options);
+            return JsonSerializer.Deserialize<TResult>(jsonElement.GetRawText(), _convertResultJsonOptions);
         }
 
         // If it's a string representation, try to deserialize it
@@ -75,12 +78,7 @@ public class UpdateService
                     throw new InvalidOperationException($"Result JSON size {jsonString.Length} exceeds maximum allowed size");
                 }
 
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    MaxDepth = 32
-                };
-                return JsonSerializer.Deserialize<TResult>(jsonString, options);
+                return JsonSerializer.Deserialize<TResult>(jsonString, _convertResultJsonOptions);
             }
             catch (JsonException)
             {

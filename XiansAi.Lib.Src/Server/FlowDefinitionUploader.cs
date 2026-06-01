@@ -34,8 +34,15 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
     private readonly ISecureApiClient _secureApi;
     private static readonly HashSet<string> _uploadedDefinitions = new();
     private static readonly object _uploadLock = new();
-    
+
     private const string API_ENDPOINT = "api/agent/definitions";
+
+    // Perf: hoisted to static readonly so STJ's per-options metadata cache survives across calls.
+    private static readonly JsonSerializerOptions _warningJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        MaxDepth = 16
+    };
 
     /// <summary>
     /// Initializes a new instance of the FlowDefinitionUploader class.
@@ -180,13 +187,7 @@ public class FlowDefinitionUploader : IFlowDefinitionUploader
                         throw new InvalidOperationException("Permission denied for this flow definition");
                     }
 
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        MaxDepth = 16
-                    };
-                    
-                    var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson, options);
+                    var warningResponse = System.Text.Json.JsonSerializer.Deserialize<WarningResponse>(warningJson, _warningJsonOptions);
                     _logger.LogWarning("Permission warning: {Message}", warningResponse?.message);
                     throw new InvalidOperationException(warningResponse?.message ?? "Permission denied for this flow definition");
 

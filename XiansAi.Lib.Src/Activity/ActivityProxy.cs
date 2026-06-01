@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Server;
 using XiansAi.Logging;
@@ -42,7 +43,9 @@ internal class ActivityProxy<I, T> : DispatchProxy where T : I
         // Get the activity name
         var activityName = attribute.Name ?? method.Name;
 
-        // Get the parameters and their values
+        // Get the parameters and their values. This dictionary is also reused for the
+        // activity-result upload below, so we build it unconditionally — but the much
+        // more expensive JsonSerializer.Serialize(inputs) call is guarded by IsEnabled.
         var inputs = method.GetParameters()
                            .Select((param, index) => new { param.Name, Value = args?[index] })
                            .ToDictionary(p => p.Name!, p => p.Value);
@@ -51,14 +54,24 @@ internal class ActivityProxy<I, T> : DispatchProxy where T : I
 
         try
         {
-            _logger.LogInformation($"Calling activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}");
+            // Perf (issue #98): guard the eager JsonSerializer.Serialize. The previous code
+            // serialized inputs on every activity call, even when Information was disabled.
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation($"Calling activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}");
+            }
 
             // Call the activity
             result = method.Invoke(_target, args);
         }
         catch (TargetInvocationException ex)
         {
-            _logger.LogError($"Error in activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}", ex.InnerException ?? ex);
+            // On the error path, the cost of an extra serialize is acceptable — but still
+            // guard with IsEnabled(Error) to be consistent.
+            if (_logger.IsEnabled(LogLevel.Error))
+            {
+                _logger.LogError($"Error in activity {activityName} with parameters {JsonSerializer.Serialize(inputs)}", ex.InnerException ?? ex);
+            }
             throw;
         }
 

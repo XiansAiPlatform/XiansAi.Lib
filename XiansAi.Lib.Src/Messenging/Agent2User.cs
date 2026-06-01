@@ -81,16 +81,20 @@ public class Agent2User : IAgent2User {
     /// <inheritdoc />
     public async Task SendChatAs(string workflowTypeOrId, string participantId, string content, object? data = null, string? requestId = null, string? scope = null)
     {
-        var workflowId = new WorkflowIdentifier(workflowTypeOrId).WorkflowId;
-        var workflowType = new WorkflowIdentifier(workflowTypeOrId).WorkflowType;
+        // Perf (issue #98): construct WorkflowIdentifier once instead of twice.
+        var identifier = new WorkflowIdentifier(workflowTypeOrId);
+        var workflowId = identifier.WorkflowId;
+        var workflowType = identifier.WorkflowType;
         await SendConversationChatOrData(workflowId, workflowType, MessageType.Chat, participantId, content, data, requestId, scope);
     }
-    
+
     /// <inheritdoc />
     public async Task SendDataAs(string workflowIdOrType, string participantId, string content, object data, string? requestId = null, string? scope = null)
     {
-        var workflowId = new WorkflowIdentifier(workflowIdOrType).WorkflowId;
-        var workflowType = new WorkflowIdentifier(workflowIdOrType).WorkflowType;
+        // Perf (issue #98): construct WorkflowIdentifier once instead of twice.
+        var identifier = new WorkflowIdentifier(workflowIdOrType);
+        var workflowId = identifier.WorkflowId;
+        var workflowType = identifier.WorkflowType;
         await SendConversationChatOrData(workflowId, workflowType, MessageType.Data, participantId, content, data, requestId, scope);
     }
 

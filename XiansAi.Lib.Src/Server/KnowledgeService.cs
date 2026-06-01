@@ -13,6 +13,14 @@ public class KnowledgeService
     private const string KNOWLEDGE_URL = "api/agent/knowledge/latest?name={name}&agent={agent}";
     private const string UPLOAD_KNOWLEDGE_URL = "api/agent/knowledge";
 
+    // Perf: hoisted to static readonly so STJ's per-options metadata cache survives across calls.
+    private static readonly JsonSerializerOptions _knowledgeJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        MaxDepth = 32
+    };
+
     public KnowledgeService()
     {
         _logger = Globals.LogFactory.CreateLogger<KnowledgeService>();
@@ -144,15 +152,7 @@ public class KnowledgeService
                 throw new InvalidOperationException("Response size exceeds maximum allowed limit");
             }
 
-            var options = new JsonSerializerOptions
-            { 
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                // Security: Limit JSON depth to prevent deeply nested attacks
-                MaxDepth = 32
-            };
-            
-            var knowledge = JsonSerializer.Deserialize<Knowledge>(response, options);
+            var knowledge = JsonSerializer.Deserialize<Knowledge>(response, _knowledgeJsonOptions);
 
             if (knowledge?.Content == null || knowledge.Name == null)
             {

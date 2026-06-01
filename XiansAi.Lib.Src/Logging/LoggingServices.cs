@@ -38,12 +38,62 @@ public static class LoggingServices
     private static int _batchSize = 100;
     private static int _processingIntervalMs = 60000;
 
+    // Perf (issue #98): bound the queue so that an extended SecureApi outage cannot
+    // grow it indefinitely. Previously RequeueLogBatch re-enqueued failed batches
+    // forever, so a server outage was a slow OOM. Override via env var.
+    private const int DefaultMaxQueueDepth = 50_000;
+    private static readonly int _maxQueueDepth = ParseMaxQueueDepth();
+    private static long _droppedLogCount;
+    private static long _droppedLogWarningCount;
+
+    private static int ParseMaxQueueDepth()
+    {
+        var raw = Environment.GetEnvironmentVariable("XIANSAI_LOG_QUEUE_MAX");
+        if (!string.IsNullOrWhiteSpace(raw) && int.TryParse(raw, out var v) && v > 0)
+        {
+            return v;
+        }
+        return DefaultMaxQueueDepth;
+    }
+
     /// <summary>
-    /// Enqueues a log to the global queue for processing
+    /// Enqueues a log to the global queue for processing.
+    /// If the queue is over its configured depth, the oldest entries are dropped
+    /// to prevent unbounded memory growth during an extended upload outage.
     /// </summary>
     public static void EnqueueLog(Log log)
     {
         _globalLogQueue.Enqueue(log);
+        TrimQueueIfNeeded();
+    }
+
+    private static void TrimQueueIfNeeded()
+    {
+        var max = _maxQueueDepth;
+        if (max <= 0) return; // 0 disables the bound
+
+        // ConcurrentQueue.Count is an O(1) snapshot in .NET; safe to read on the hot path.
+        if (_globalLogQueue.Count <= max) return;
+
+        // Drop oldest entries until we are back under the bound. We never block —
+        // if another thread drains faster than we trim, that's fine.
+        var dropped = 0;
+        while (_globalLogQueue.Count > max && _globalLogQueue.TryDequeue(out _))
+        {
+            dropped++;
+        }
+
+        if (dropped > 0)
+        {
+            Interlocked.Add(ref _droppedLogCount, dropped);
+            // Emit at most one warning per 1000 drop events to avoid log spam.
+            var warns = Interlocked.Increment(ref _droppedLogWarningCount);
+            if (warns == 1 || warns % 1000 == 0)
+            {
+                Console.Error.WriteLine(
+                    $"LoggingServices: log queue exceeded {max} entries; dropped {dropped} oldest entries (total dropped: {Interlocked.Read(ref _droppedLogCount)}).");
+            }
+        }
     }
 
     /// <summary>
@@ -200,7 +250,9 @@ public static class LoggingServices
     }
     
     /// <summary>
-    /// Helper method to re-queue a batch of logs
+    /// Helper method to re-queue a batch of logs.
+    /// After re-queueing, trims to the bound (issue #98: previously the requeue path
+    /// was unbounded, so a sustained upload outage was a slow OOM).
     /// </summary>
     private static void RequeueLogBatch(List<Log> logs)
     {
@@ -208,6 +260,7 @@ public static class LoggingServices
         {
             _globalLogQueue.Enqueue(log);
         }
+        TrimQueueIfNeeded();
     }
 
     /// <summary>

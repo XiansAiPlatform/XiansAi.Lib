@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Server;
 using Microsoft.SemanticKernel;
@@ -413,25 +414,32 @@ internal class SemanticRouterHubImpl : IDisposable
         };
     }
 
+    // Perf (issue #98): compile-once Regex patterns for SanitizeName. The previous code
+    // called static Regex.Replace with three different inline patterns on every chat route,
+    // hitting the lock-contended global pattern cache each time.
+    private static readonly Regex _separatorRegex = new(@"[\s:;,\.]", RegexOptions.Compiled);
+    private static readonly Regex _invalidCharsRegex = new(@"[^a-zA-Z0-9_-]", RegexOptions.Compiled);
+    private static readonly Regex _multiUnderscoreRegex = new(@"_{2,}", RegexOptions.Compiled);
+
     private static string SanitizeName(string? name)
     {
         if (string.IsNullOrEmpty(name))
             return "user";
 
-        // OpenAI API only allows alphanumeric characters, underscores, and hyphens
-        // First replace spaces and common separators with underscores
-        var sanitized = System.Text.RegularExpressions.Regex.Replace(name, @"[\s:;,\.]", "_");
-        
-        // Then remove any remaining characters that aren't alphanumeric, underscore, or hyphen
-        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"[^a-zA-Z0-9_-]", "");
-        
-        // Ensure we don't have multiple underscores in a row
-        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"_{2,}", "_");
-        
-        // Trim underscores from start and end
+        // OpenAI API only allows alphanumeric characters, underscores, and hyphens.
+        // First replace spaces and common separators with underscores.
+        var sanitized = _separatorRegex.Replace(name, "_");
+
+        // Then remove any remaining characters that aren't alphanumeric, underscore, or hyphen.
+        sanitized = _invalidCharsRegex.Replace(sanitized, "");
+
+        // Ensure we don't have multiple underscores in a row.
+        sanitized = _multiUnderscoreRegex.Replace(sanitized, "_");
+
+        // Trim underscores from start and end.
         sanitized = sanitized.Trim('_', '-');
-        
-        // If the result is empty, return a default
+
+        // If the result is empty, return a default.
         return string.IsNullOrEmpty(sanitized) ? "default_agent" : sanitized;
     }
 

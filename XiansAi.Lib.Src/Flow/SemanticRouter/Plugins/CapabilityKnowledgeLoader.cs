@@ -11,6 +11,13 @@ public class CapabilityKnowledgeLoader
 {
     private static readonly ILogger _logger = Globals.LogFactory.CreateLogger<CapabilityKnowledgeLoader>();
     private static readonly IKnowledgeLoader _knowledgeLoader = new KnowledgeLoaderImpl();
+
+    // Perf: hoisted to static readonly so STJ's per-options metadata cache survives across calls.
+    private static readonly JsonSerializerOptions _capabilityKnowledgeJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        MaxDepth = 32
+    };
     
     /// <summary>
     /// Loads capability knowledge using the KnowledgeLoader service.
@@ -42,15 +49,8 @@ public class CapabilityKnowledgeLoader
                 throw new InvalidOperationException($"Capability knowledge content size {jsonContent.Length} exceeds maximum allowed size of {MaxContentSize} bytes");
             }
 
-            var options = new JsonSerializerOptions
-            { 
-                PropertyNameCaseInsensitive = true,
-                // Security: Limit JSON depth to prevent deeply nested attacks
-                MaxDepth = 32
-            };
-            
-            var knowledgeModel = JsonSerializer.Deserialize<CapabilityKnowledgeModel>(jsonContent, options);
-            
+            var knowledgeModel = JsonSerializer.Deserialize<CapabilityKnowledgeModel>(jsonContent, _capabilityKnowledgeJsonOptions);
+
             if (knowledgeModel == null)
             {
                 throw new InvalidOperationException($"Failed to deserialize capability knowledge: {knowledgeKey}");
@@ -61,12 +61,12 @@ public class CapabilityKnowledgeLoader
             {
                 throw new InvalidOperationException($"Capability knowledge {knowledgeKey} is missing a description");
             }
-            
+
             if (string.IsNullOrEmpty(knowledgeModel.Returns))
             {
                 throw new InvalidOperationException($"Capability knowledge {knowledgeKey} is missing a return description");
             }
-            
+
             return knowledgeModel;
         }
         catch (Exception ex)
@@ -75,7 +75,7 @@ public class CapabilityKnowledgeLoader
             throw;
         }
     }
-    
+
     /// <summary>
     /// Asynchronously loads capability knowledge using the KnowledgeLoader service.
     /// </summary>
@@ -103,14 +103,7 @@ public class CapabilityKnowledgeLoader
                 throw new InvalidOperationException($"Capability knowledge content size {jsonContent.Length} exceeds maximum allowed size of {MaxContentSize} bytes");
             }
 
-            var options = new JsonSerializerOptions
-            { 
-                PropertyNameCaseInsensitive = true,
-                // Security: Limit JSON depth to prevent deeply nested attacks
-                MaxDepth = 32
-            };
-            
-            var knowledgeModel = JsonSerializer.Deserialize<CapabilityKnowledgeModel>(jsonContent, options);
+            var knowledgeModel = JsonSerializer.Deserialize<CapabilityKnowledgeModel>(jsonContent, _capabilityKnowledgeJsonOptions);
             
             if (knowledgeModel == null)
             {
