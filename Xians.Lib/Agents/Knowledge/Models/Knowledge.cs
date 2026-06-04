@@ -62,5 +62,11 @@ public class Knowledge
     /// Gets or sets whether this knowledge item is visible. Defaults to true.
     /// </summary>
     public bool Visible { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the optional activation name this knowledge is scoped to.
+    /// Sent in the request body on create; the server reads it from the body.
+    /// </summary>
+    public string? ActivationName { get; set; }
 }
 

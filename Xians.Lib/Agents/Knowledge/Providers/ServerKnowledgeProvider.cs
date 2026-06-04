@@ -228,7 +228,8 @@ internal class ServerKnowledgeProvider : IKnowledgeProvider
             Agent = agentName,
             SystemScoped = systemScoped,
             Description = description,
-            Visible = visible
+            Visible = visible,
+            ActivationName = activationName
         };
 
         _logger.LogDebug(
@@ -242,11 +243,6 @@ internal class ServerKnowledgeProvider : IKnowledgeProvider
 
         // POST to api/agent/knowledge
         var endpoint = WorkflowConstants.ApiEndpoints.Knowledge;
-
-        if (!string.IsNullOrEmpty(activationName))
-        {
-            endpoint += $"?activationName={UrlEncoder.Default.Encode(activationName)}";
-        }
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
         httpRequest.Content = JsonContent.Create(knowledge);
