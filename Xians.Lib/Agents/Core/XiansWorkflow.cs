@@ -225,9 +225,13 @@ public class XiansWorkflow
 
     /// <summary>
     /// Registers a handler for file upload messages.
-    /// Triggered when a File message is received (type="File") with Data containing the base64 encoded file.
+    /// Triggered when a File message is received (type="File") with Data containing the base64 encoded file(s).
+    /// Access the uploaded files as typed objects via <c>context.Message.Files</c>, which decodes
+    /// the multi-file format <c>{ files: [{ content, fileName, contentType, fileSize }, ...] }</c>,
+    /// the single-file object format, and raw base64 string payloads.
+    /// The raw payload remains available via <c>context.Message.Data</c>.
     /// </summary>
-    /// <param name="handler">The async handler to process file uploads. Access the file via context.Message.Data (base64 string).</param>
+    /// <param name="handler">The async handler to process file uploads. Access the files via context.Message.Files.</param>
     public void OnFileUpload(Func<UserMessageContext, Task> handler)
     {
         if (!_isBuiltIn)
