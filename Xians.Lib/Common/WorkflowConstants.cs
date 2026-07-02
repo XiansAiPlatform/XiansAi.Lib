@@ -73,6 +73,8 @@ public static class WorkflowConstants
         public const string AgentDefinitions = "/api/agent/definitions";
         public const string FlowServerSettings = "/api/agent/settings/flowserver";
         public const string Documents = "api/agent/documents";
+        /// <summary>Base path for downloading message file attachments by id.</summary>
+        public const string Files = "api/agent/files";
         public const string Knowledge = "api/agent/knowledge";
         public const string KnowledgeLatest = "api/agent/knowledge/latest";
         public const string KnowledgeLatestSystem = "api/agent/knowledge/latest/system";

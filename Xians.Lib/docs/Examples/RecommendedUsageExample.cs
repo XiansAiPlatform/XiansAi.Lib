@@ -147,9 +147,6 @@ public class ServerSettingsExample
     public string FlowServerNamespace { get; set; } = "production";
     public string? FlowServerCertBase64 { get; set; }
     public string? FlowServerPrivateKeyBase64 { get; set; }
-    public string ApiKey { get; set; } = "...";
-    public string? ProviderName { get; set; } = "openai";
-    public string ModelName { get; set; } = "gpt-4";
 }
 
 

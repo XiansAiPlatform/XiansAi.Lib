@@ -16,6 +16,7 @@ public class MessageActivities
 {
     private readonly HttpClient _httpClient;
     private readonly Xians.Lib.Agents.Messaging.MessageService _messageService;
+    private readonly Xians.Lib.Agents.Messaging.FileDownloadService _fileDownloadService;
 
     public MessageActivities(HttpClient httpClient)
     {
@@ -24,6 +25,10 @@ public class MessageActivities
         // Create shared message service
         var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Messaging.MessageService>();
         _messageService = new Xians.Lib.Agents.Messaging.MessageService(httpClient, logger);
+
+        // Downloads out-of-band (GridFS) file bytes referenced by File messages.
+        var fileLogger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<Xians.Lib.Agents.Messaging.FileDownloadService>();
+        _fileDownloadService = new Xians.Lib.Agents.Messaging.FileDownloadService(httpClient, fileLogger);
     }
 
     /// <summary>
@@ -100,6 +105,13 @@ public class MessageActivities
                 request.ThreadId,
                 request.Metadata
             );
+
+            // For File messages, resolve any reference-only files (bytes stored in GridFS)
+            // by downloading them so OnFileUpload handlers can read context.Message.Files transparently.
+            if (messageType == "file")
+            {
+                await ResolveReferenceFilesAsync(context, request.TenantId);
+            }
 
             // Invoke the registered handler (which makes agent API calls and sends responses)
             await handler(context);
@@ -366,6 +378,35 @@ public class MessageActivities
                 request.TargetWorkflowId,
                 request.TargetWorkflowType);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Downloads the bytes for any reference-only files (those carrying a fileId but no inline
+    /// content) and populates their <see cref="UploadedFile.Content"/> so handlers see resolved files.
+    /// </summary>
+    private async Task ResolveReferenceFilesAsync(ActivityUserMessageContext context, string tenantId)
+    {
+        var files = context.Message.Files;
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            if (!file.IsReference || string.IsNullOrEmpty(file.FileId))
+            {
+                continue;
+            }
+
+            var bytes = await _fileDownloadService.DownloadAsync(file.FileId, tenantId);
+            file.Content = Convert.ToBase64String(bytes);
+
+            ActivityExecutionContext.Current.Logger.LogDebug(
+                "Resolved reference file {FileId} ({ByteCount} bytes)",
+                file.FileId,
+                bytes.Length);
         }
     }
 

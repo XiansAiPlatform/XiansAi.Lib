@@ -1,7 +1,6 @@
 using Xians.Lib.Agents.Core;
 using DotNetEnv;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 Env.Load();
 
@@ -33,45 +32,38 @@ conversationalWorkflow.OnUserChatMessage(async (context) =>
 
 conversationalWorkflow.OnFileUpload(async (context) =>
 {
-    string base64Content;
-    string? fileName = null;
-    string? contentType = null;
+    var files = context.Message.Files;
 
-    if (context.Message.Data is JsonElement jsonElement)
-    {
-        base64Content = jsonElement.TryGetProperty("content", out var contentProp)
-            ? contentProp.GetString() ?? ""
-            : jsonElement.GetString() ?? "";
-        if (jsonElement.TryGetProperty("fileName", out var fn))
-            fileName = fn.GetString();
-        if (jsonElement.TryGetProperty("contentType", out var ct))
-            contentType = ct.GetString();
-    }
-    else
-    {
-        base64Content = context.Message.Data?.ToString() ?? "";
-        fileName = context.Message.Text;
-    }
-
-    if (string.IsNullOrEmpty(base64Content))
+    if (files.Count == 0)
     {
         await context.ReplyAsync("No file data received.");
         return;
     }
 
-    try
+    var saveDirectory = Path.Combine(Path.GetTempPath(), "xians-file-uploads");
+    Directory.CreateDirectory(saveDirectory);
+
+    var summaries = new List<string>();
+    foreach (var file in files)
     {
-        var fileBytes = Convert.FromBase64String(base64Content);
-        var displayName = fileName ?? "uploaded-file";
-        await context.ReplyAsync(
-            $"File received successfully! Processed {fileBytes.Length} bytes. " +
-            $"{(contentType != null ? $"Type: {contentType}. " : "")}" +
-            $"Name: {displayName}");
+        if (!file.TryGetBytes(out var fileBytes))
+        {
+            await context.ReplyAsync(
+                $"Invalid file format for '{file.FileName ?? "uploaded-file"}'. Please ensure the file is base64 encoded.");
+            return;
+        }
+
+        var fileName = Path.GetFileName(file.FileName ?? $"uploaded-file-{Guid.NewGuid():N}");
+        var savePath = Path.Combine(saveDirectory, fileName);
+        await File.WriteAllBytesAsync(savePath, fileBytes!);
+
+        summaries.Add(
+            $"{fileName} ({fileBytes!.Length} bytes" +
+            $"{(file.ContentType != null ? $", {file.ContentType}" : "")}) saved to {savePath}");
     }
-    catch (FormatException)
-    {
-        await context.ReplyAsync("Invalid file format. Please ensure the file is base64 encoded.");
-    }
+
+    await context.ReplyAsync(
+        $"Received {files.Count} file(s) with message '{context.Message.Text}' successfully! {string.Join(", ", summaries)}");
 });
 
 await xiansAgent.RunAllAsync();
