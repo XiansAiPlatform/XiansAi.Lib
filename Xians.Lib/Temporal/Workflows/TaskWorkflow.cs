@@ -72,6 +72,13 @@ public class TaskWorkflow
     }
 
     [WorkflowSignal]
+    public Task UpdateMetadata(Dictionary<string, object>? metadata)
+    {
+        MergeMetadata(metadata);
+        return Task.CompletedTask;
+    }
+
+    [WorkflowSignal]
     public Task PerformAction(TaskActionRequest actionRequest)
     {
         _performedAction = actionRequest.Action;

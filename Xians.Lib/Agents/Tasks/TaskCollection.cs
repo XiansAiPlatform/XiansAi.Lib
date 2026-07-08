@@ -101,6 +101,15 @@ public class TaskCollection
     }
 
     /// <summary>
+    /// Merges metadata into a task without completing it.
+    /// </summary>
+    public async Task UpdateMetadataAsync(string taskId, Dictionary<string, object> metadata, string? tenantId = null)
+    {
+        var executor = GetExecutor();
+        await executor.UpdateMetadataAsync(taskId, metadata);
+    }
+
+    /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
     public async Task PerformActionAsync(
@@ -150,6 +159,20 @@ public class TaskCollection
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
         var taskService = new TaskService(client, _agent.Name, tenantId, logger);
         await taskService.UpdateDraftAsync(taskId, updatedDraft);
+    }
+
+    /// <summary>
+    /// Merges metadata into a task from outside a workflow context.
+    /// </summary>
+    public async Task SignalUpdateMetadataAsync(
+        ITemporalClient client,
+        string tenantId,
+        string taskId,
+        Dictionary<string, object> metadata)
+    {
+        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
+        var taskService = new TaskService(client, _agent.Name, tenantId, logger);
+        await taskService.UpdateMetadataAsync(taskId, metadata);
     }
 
     /// <summary>

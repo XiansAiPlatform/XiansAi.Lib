@@ -55,6 +55,17 @@ internal class TaskActivityExecutor : ContextAwareActivityExecutor<TaskActivitie
     }
 
     /// <summary>
+    /// Merges metadata into a task using context-aware execution.
+    /// </summary>
+    public async Task UpdateMetadataAsync(string taskId, Dictionary<string, object> metadata)
+    {
+        await ExecuteAsync(
+            act => act.UpdateMetadataAsync(_tenantId, taskId, metadata),
+            svc => svc.UpdateMetadataAsync(taskId, metadata),
+            operationName: "UpdateMetadata");
+    }
+
+    /// <summary>
     /// Performs an action on a task using context-aware execution.
     /// </summary>
     public async Task PerformActionAsync(
