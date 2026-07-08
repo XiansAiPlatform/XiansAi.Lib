@@ -14,4 +14,9 @@ public record TaskActionRequest
     /// Optional comment from the human performing the action.
     /// </summary>
     public string? Comment { get; init; }
+
+    /// <summary>
+    /// Optional metadata merged into the task's metadata when the action is performed.
+    /// </summary>
+    public Dictionary<string, object>? Metadata { get; init; }
 }

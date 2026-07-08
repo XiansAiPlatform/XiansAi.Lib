@@ -14,6 +14,7 @@ public class TaskWorkflow
     private string? _initialWork;
     private string? _finalWork;
     private TaskWorkflowRequest? _request;
+    private Dictionary<string, object>? _metadata;
     private string[]? _availableActions;
     private string? _performedAction;
     private string? _actionComment;
@@ -27,6 +28,7 @@ public class TaskWorkflow
     public virtual async Task<TaskWorkflowResult> RunAsync(TaskWorkflowRequest request)
     {
         _request = request;
+        _metadata = CloneMetadata(request.Metadata);
         _availableActions = request.Actions is { Length: > 0 } ? request.Actions : DefaultActions;
         _initialWork = request.DraftWork;
         _finalWork = request.DraftWork;
@@ -57,7 +59,8 @@ public class TaskWorkflow
             Comment = _actionComment,
             CompletedAt = Workflow.UtcNow,
             TimedOut = _timedOut,
-            Completed = _isCompleted
+            Completed = _isCompleted,
+            Metadata = _metadata
         };
     }
 
@@ -73,6 +76,7 @@ public class TaskWorkflow
     {
         _performedAction = actionRequest.Action;
         _actionComment = actionRequest.Comment;
+        MergeMetadata(actionRequest.Metadata);
         _isCompleted = true;
         
         return Task.CompletedTask;
@@ -89,11 +93,36 @@ public class TaskWorkflow
             FinalWork = _finalWork,
             IsCompleted = _isCompleted,
             ParticipantId = _request?.ParticipantId ?? string.Empty,
-            Metadata = _request?.Metadata,
+            Metadata = _metadata,
             AvailableActions = _availableActions,
             PerformedAction = _performedAction,
             Comment = _actionComment,
             TimedOut = _timedOut
         };
+    }
+
+    private static Dictionary<string, object>? CloneMetadata(Dictionary<string, object>? metadata)
+    {
+        if (metadata == null || metadata.Count == 0)
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object>(metadata);
+    }
+
+    private void MergeMetadata(Dictionary<string, object>? metadata)
+    {
+        if (metadata == null || metadata.Count == 0)
+        {
+            return;
+        }
+
+        _metadata ??= new Dictionary<string, object>();
+
+        foreach (var entry in metadata)
+        {
+            _metadata[entry.Key] = entry.Value;
+        }
     }
 }

@@ -70,13 +70,23 @@ internal class TaskService
     /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
-    public async Task PerformActionAsync(string taskId, string action, string? comment = null)
+    public async Task PerformActionAsync(
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
-        _logger.LogDebug("Performing action: TaskId={TaskId}, Action={Action}, TenantId={TenantId}", 
-            taskId, action, _tenantId);
+        _logger.LogDebug(
+            "Performing action: TaskId={TaskId}, Action={Action}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
+            taskId, action, _tenantId, metadata?.Count ?? 0);
         
         var handle = GetTaskHandle(taskId);
-        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        var actionRequest = new TaskActionRequest
+        {
+            Action = action,
+            Comment = comment,
+            Metadata = metadata
+        };
         await handle.SignalAsync(wf => wf.PerformAction(actionRequest));
         
         _logger.LogDebug("Action performed: TaskId={TaskId}, Action={Action}", taskId, action);

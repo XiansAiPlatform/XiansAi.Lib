@@ -57,11 +57,15 @@ internal class TaskActivityExecutor : ContextAwareActivityExecutor<TaskActivitie
     /// <summary>
     /// Performs an action on a task using context-aware execution.
     /// </summary>
-    public async Task PerformActionAsync(string taskId, string action, string? comment = null)
+    public async Task PerformActionAsync(
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
         await ExecuteAsync(
-            act => act.PerformActionAsync(_tenantId, taskId, action, comment),
-            svc => svc.PerformActionAsync(taskId, action, comment),
+            act => act.PerformActionAsync(_tenantId, taskId, action, comment, metadata),
+            svc => svc.PerformActionAsync(taskId, action, comment, metadata),
             operationName: "PerformAction");
     }
 }

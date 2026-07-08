@@ -102,13 +102,19 @@ public class TaskActivities
     /// Performs an action on a task with an optional comment.
     /// </summary>
     [Activity]
-    public async Task PerformActionAsync(string tenantId, string taskId, string action, string? comment = null)
+    public async Task PerformActionAsync(
+        string tenantId,
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "PerformAction activity started: TaskId={TaskId}, Action={Action}, TenantId={TenantId}",
+            "PerformAction activity started: TaskId={TaskId}, Action={Action}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
             taskId,
             action,
-            tenantId);
+            tenantId,
+            metadata?.Count ?? 0);
 
         try
         {
@@ -117,7 +123,7 @@ public class TaskActivities
                 ?? throw new InvalidOperationException("Agent name not available in activity context");
             var taskService = new TaskService(_client, agentName, tenantId, logger);
             
-            await taskService.PerformActionAsync(taskId, action, comment);
+            await taskService.PerformActionAsync(taskId, action, comment, metadata);
 
             ActivityExecutionContext.Current.Logger.LogDebug(
                 "Action performed successfully: TaskId={TaskId}, Action={Action}",

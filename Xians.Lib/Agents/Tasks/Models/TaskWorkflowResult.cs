@@ -31,4 +31,8 @@ public record TaskWorkflowResult
     /// </summary>
     public bool Completed { get; init; }
 
+    /// <summary>
+    /// Task metadata after completion, including any metadata merged during the action.
+    /// </summary>
+    public Dictionary<string, object>? Metadata { get; init; }
 }
