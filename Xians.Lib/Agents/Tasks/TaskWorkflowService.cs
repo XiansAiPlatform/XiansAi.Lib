@@ -210,9 +210,19 @@ public static class TaskWorkflowService
     /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
-    public static async Task PerformActionAsync(string taskId, string action, string? comment = null, string? tenantId = null)
+    public static async Task PerformActionAsync(
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null,
+        string? tenantId = null)
     {
-        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        var actionRequest = new TaskActionRequest
+        {
+            Action = action,
+            Comment = comment,
+            Metadata = metadata
+        };
         
         if (Workflow.InWorkflow)
         {
@@ -229,7 +239,7 @@ public static class TaskWorkflowService
             
             var agent = GetAgentFromTaskId();
             var client = await agent.TemporalService!.GetClientAsync();
-            await SignalPerformActionAsync(client, agent.Name, tenantId, taskId, action, comment);
+            await SignalPerformActionAsync(client, agent.Name, tenantId, taskId, action, comment, metadata);
         }
     }
 
@@ -307,10 +317,16 @@ public static class TaskWorkflowService
         string tenantId,
         string taskId,
         string action,
-        string? comment = null)
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
         var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
-        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        var actionRequest = new TaskActionRequest
+        {
+            Action = action,
+            Comment = comment,
+            Metadata = metadata
+        };
         await handle.SignalAsync("PerformAction", new object[] { actionRequest });
         
         _logger.LogDebug("Action performed on task via client: TaskId={TaskId}, Action={Action}", taskId, action);
