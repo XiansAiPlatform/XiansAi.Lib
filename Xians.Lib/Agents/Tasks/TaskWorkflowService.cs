@@ -208,6 +208,39 @@ public static class TaskWorkflowService
     }
 
     /// <summary>
+    /// Merges metadata into a task without completing it.
+    /// </summary>
+    public static async Task UpdateMetadataAsync(
+        string taskId,
+        Dictionary<string, object> metadata,
+        string? tenantId = null)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (metadata.Count == 0)
+        {
+            throw new ArgumentException("Metadata must contain at least one entry.", nameof(metadata));
+        }
+
+        if (Workflow.InWorkflow)
+        {
+            var handle = GetTaskHandle(taskId);
+            await handle.SignalAsync("UpdateMetadata", new object[] { metadata });
+            _logger.LogDebug("Metadata updated for task: TaskId={TaskId}", taskId);
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                throw new ArgumentException("Tenant ID is required when calling from outside workflow context.", nameof(tenantId));
+            }
+            
+            var agent = GetAgentFromTaskId();
+            var client = await agent.TemporalService!.GetClientAsync();
+            await SignalUpdateMetadataAsync(client, agent.Name, tenantId, taskId, metadata);
+        }
+    }
+
+    /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
     public static async Task PerformActionAsync(
@@ -306,6 +339,28 @@ public static class TaskWorkflowService
         await handle.SignalAsync("UpdateDraft", new object[] { updatedDraft });
         
         _logger.LogDebug("Draft updated for task via client: TaskId={TaskId}", taskId);
+    }
+
+    /// <summary>
+    /// Merges metadata into a task from outside a workflow context.
+    /// </summary>
+    public static async Task SignalUpdateMetadataAsync(
+        ITemporalClient client,
+        string agentName,
+        string tenantId,
+        string taskId,
+        Dictionary<string, object> metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (metadata.Count == 0)
+        {
+            throw new ArgumentException("Metadata must contain at least one entry.", nameof(metadata));
+        }
+
+        var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
+        await handle.SignalAsync("UpdateMetadata", new object[] { metadata });
+        
+        _logger.LogDebug("Metadata updated for task via client: TaskId={TaskId}", taskId);
     }
 
     /// <summary>

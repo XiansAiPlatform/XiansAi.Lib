@@ -93,6 +93,15 @@ public class HitlTask
     }
 
     /// <summary>
+    /// Merges metadata into the task without completing it.
+    /// </summary>
+    public async Task UpdateMetadataAsync(Dictionary<string, object> metadata)
+    {
+        _logger.LogDebug("Updating metadata for task: TaskId={TaskId}", _taskId);
+        await TaskWorkflowService.SignalUpdateMetadataAsync(_client, _agentName, _tenantId, _taskId, metadata);
+    }
+
+    /// <summary>
     /// Performs an action on the task with an optional comment.
     /// </summary>
     public async Task PerformActionAsync(

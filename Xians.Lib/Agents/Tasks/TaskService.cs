@@ -68,6 +68,27 @@ internal class TaskService
     }
 
     /// <summary>
+    /// Merges metadata into the task without completing it.
+    /// </summary>
+    public async Task UpdateMetadataAsync(string taskId, Dictionary<string, object> metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (metadata.Count == 0)
+        {
+            throw new ArgumentException("Metadata must contain at least one entry.", nameof(metadata));
+        }
+
+        _logger.LogDebug(
+            "Updating metadata: TaskId={TaskId}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
+            taskId, _tenantId, metadata.Count);
+        
+        var handle = GetTaskHandle(taskId);
+        await handle.SignalAsync(wf => wf.UpdateMetadata(metadata));
+        
+        _logger.LogDebug("Metadata updated: TaskId={TaskId}", taskId);
+    }
+
+    /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
     public async Task PerformActionAsync(

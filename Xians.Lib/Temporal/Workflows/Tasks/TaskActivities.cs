@@ -99,6 +99,44 @@ public class TaskActivities
     }
 
     /// <summary>
+    /// Merges metadata into a task without completing it.
+    /// </summary>
+    [Activity]
+    public async Task UpdateMetadataAsync(string tenantId, string taskId, Dictionary<string, object> metadata)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "UpdateMetadata activity started: TaskId={TaskId}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
+            taskId,
+            tenantId,
+            metadata.Count);
+
+        try
+        {
+            var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
+            var agentName = XiansContext.CurrentAgent?.Name 
+                ?? throw new InvalidOperationException("Agent name not available in activity context");
+            var taskService = new TaskService(_client, agentName, tenantId, logger);
+            
+            await taskService.UpdateMetadataAsync(taskId, metadata);
+
+            ActivityExecutionContext.Current.Logger.LogDebug(
+                "Metadata updated successfully: TaskId={TaskId}",
+                taskId);
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error updating metadata: TaskId={TaskId}",
+                taskId);
+            throw new ActivityExecutionException(
+                $"Failed to update metadata for TaskId='{taskId}'",
+                activityName: nameof(UpdateMetadataAsync),
+                tenantId: tenantId,
+                innerException: ex);
+        }
+    }
+
+    /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
     [Activity]
