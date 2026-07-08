@@ -93,28 +93,40 @@ public class HitlTask
     }
 
     /// <summary>
+    /// Merges metadata into the task without completing it.
+    /// </summary>
+    public async Task UpdateMetadataAsync(Dictionary<string, object> metadata)
+    {
+        _logger.LogDebug("Updating metadata for task: TaskId={TaskId}", _taskId);
+        await TaskWorkflowService.SignalUpdateMetadataAsync(_client, _agentName, _tenantId, _taskId, metadata);
+    }
+
+    /// <summary>
     /// Performs an action on the task with an optional comment.
     /// </summary>
-    public async Task PerformActionAsync(string action, string? comment = null)
+    public async Task PerformActionAsync(
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
         _logger.LogDebug("Performing action on task: TaskId={TaskId}, Action={Action}", _taskId, action);
-        await TaskWorkflowService.SignalPerformActionAsync(_client, _agentName, _tenantId, _taskId, action, comment);
+        await TaskWorkflowService.SignalPerformActionAsync(_client, _agentName, _tenantId, _taskId, action, comment, metadata);
     }
 
     /// <summary>
     /// Approves the task with an optional comment.
     /// </summary>
-    public async Task ApproveAsync(string? comment = null)
+    public async Task ApproveAsync(string? comment = null, Dictionary<string, object>? metadata = null)
     {
-        await PerformActionAsync("approve", comment);
+        await PerformActionAsync("approve", comment, metadata);
     }
 
     /// <summary>
     /// Rejects the task with an optional comment.
     /// </summary>
-    public async Task RejectAsync(string? comment = null)
+    public async Task RejectAsync(string? comment = null, Dictionary<string, object>? metadata = null)
     {
-        await PerformActionAsync("reject", comment);
+        await PerformActionAsync("reject", comment, metadata);
     }
 
     /// <summary>

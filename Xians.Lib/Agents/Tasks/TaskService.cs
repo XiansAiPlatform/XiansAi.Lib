@@ -68,15 +68,46 @@ internal class TaskService
     }
 
     /// <summary>
-    /// Performs an action on a task with an optional comment.
+    /// Merges metadata into the task without completing it.
     /// </summary>
-    public async Task PerformActionAsync(string taskId, string action, string? comment = null)
+    public async Task UpdateMetadataAsync(string taskId, Dictionary<string, object> metadata)
     {
-        _logger.LogDebug("Performing action: TaskId={TaskId}, Action={Action}, TenantId={TenantId}", 
-            taskId, action, _tenantId);
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (metadata.Count == 0)
+        {
+            throw new ArgumentException("Metadata must contain at least one entry.", nameof(metadata));
+        }
+
+        _logger.LogDebug(
+            "Updating metadata: TaskId={TaskId}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
+            taskId, _tenantId, metadata.Count);
         
         var handle = GetTaskHandle(taskId);
-        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        await handle.SignalAsync(wf => wf.UpdateMetadata(metadata));
+        
+        _logger.LogDebug("Metadata updated: TaskId={TaskId}", taskId);
+    }
+
+    /// <summary>
+    /// Performs an action on a task with an optional comment.
+    /// </summary>
+    public async Task PerformActionAsync(
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
+    {
+        _logger.LogDebug(
+            "Performing action: TaskId={TaskId}, Action={Action}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
+            taskId, action, _tenantId, metadata?.Count ?? 0);
+        
+        var handle = GetTaskHandle(taskId);
+        var actionRequest = new TaskActionRequest
+        {
+            Action = action,
+            Comment = comment,
+            Metadata = metadata
+        };
         await handle.SignalAsync(wf => wf.PerformAction(actionRequest));
         
         _logger.LogDebug("Action performed: TaskId={TaskId}, Action={Action}", taskId, action);

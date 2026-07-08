@@ -99,16 +99,16 @@ public class TaskActivities
     }
 
     /// <summary>
-    /// Performs an action on a task with an optional comment.
+    /// Merges metadata into a task without completing it.
     /// </summary>
     [Activity]
-    public async Task PerformActionAsync(string tenantId, string taskId, string action, string? comment = null)
+    public async Task UpdateMetadataAsync(string tenantId, string taskId, Dictionary<string, object> metadata)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(
-            "PerformAction activity started: TaskId={TaskId}, Action={Action}, TenantId={TenantId}",
+            "UpdateMetadata activity started: TaskId={TaskId}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
             taskId,
-            action,
-            tenantId);
+            tenantId,
+            metadata.Count);
 
         try
         {
@@ -117,7 +117,51 @@ public class TaskActivities
                 ?? throw new InvalidOperationException("Agent name not available in activity context");
             var taskService = new TaskService(_client, agentName, tenantId, logger);
             
-            await taskService.PerformActionAsync(taskId, action, comment);
+            await taskService.UpdateMetadataAsync(taskId, metadata);
+
+            ActivityExecutionContext.Current.Logger.LogDebug(
+                "Metadata updated successfully: TaskId={TaskId}",
+                taskId);
+        }
+        catch (Exception ex)
+        {
+            ActivityExecutionContext.Current.Logger.LogError(ex,
+                "Error updating metadata: TaskId={TaskId}",
+                taskId);
+            throw new ActivityExecutionException(
+                $"Failed to update metadata for TaskId='{taskId}'",
+                activityName: nameof(UpdateMetadataAsync),
+                tenantId: tenantId,
+                innerException: ex);
+        }
+    }
+
+    /// <summary>
+    /// Performs an action on a task with an optional comment.
+    /// </summary>
+    [Activity]
+    public async Task PerformActionAsync(
+        string tenantId,
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
+    {
+        ActivityExecutionContext.Current.Logger.LogDebug(
+            "PerformAction activity started: TaskId={TaskId}, Action={Action}, TenantId={TenantId}, MetadataKeyCount={MetadataKeyCount}",
+            taskId,
+            action,
+            tenantId,
+            metadata?.Count ?? 0);
+
+        try
+        {
+            var logger = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
+            var agentName = XiansContext.CurrentAgent?.Name 
+                ?? throw new InvalidOperationException("Agent name not available in activity context");
+            var taskService = new TaskService(_client, agentName, tenantId, logger);
+            
+            await taskService.PerformActionAsync(taskId, action, comment, metadata);
 
             ActivityExecutionContext.Current.Logger.LogDebug(
                 "Action performed successfully: TaskId={TaskId}, Action={Action}",

@@ -101,12 +101,26 @@ public class TaskCollection
     }
 
     /// <summary>
-    /// Performs an action on a task with an optional comment.
+    /// Merges metadata into a task without completing it.
     /// </summary>
-    public async Task PerformActionAsync(string taskId, string action, string? comment = null, string? tenantId = null)
+    public async Task UpdateMetadataAsync(string taskId, Dictionary<string, object> metadata, string? tenantId = null)
     {
         var executor = GetExecutor();
-        await executor.PerformActionAsync(taskId, action, comment);
+        await executor.UpdateMetadataAsync(taskId, metadata);
+    }
+
+    /// <summary>
+    /// Performs an action on a task with an optional comment.
+    /// </summary>
+    public async Task PerformActionAsync(
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null,
+        string? tenantId = null)
+    {
+        var executor = GetExecutor();
+        await executor.PerformActionAsync(taskId, action, comment, metadata);
     }
 
     /// <summary>
@@ -148,6 +162,20 @@ public class TaskCollection
     }
 
     /// <summary>
+    /// Merges metadata into a task from outside a workflow context.
+    /// </summary>
+    public async Task SignalUpdateMetadataAsync(
+        ITemporalClient client,
+        string tenantId,
+        string taskId,
+        Dictionary<string, object> metadata)
+    {
+        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
+        var taskService = new TaskService(client, _agent.Name, tenantId, logger);
+        await taskService.UpdateMetadataAsync(taskId, metadata);
+    }
+
+    /// <summary>
     /// Sends a signal to perform an action on a task from outside a workflow context.
     /// </summary>
     public async Task SignalPerformActionAsync(
@@ -155,10 +183,11 @@ public class TaskCollection
         string tenantId,
         string taskId,
         string action,
-        string? comment = null)
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
         var taskService = new TaskService(client, _agent.Name, tenantId, logger);
-        await taskService.PerformActionAsync(taskId, action, comment);
+        await taskService.PerformActionAsync(taskId, action, comment, metadata);
     }
 }

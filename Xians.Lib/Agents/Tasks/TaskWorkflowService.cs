@@ -208,11 +208,54 @@ public static class TaskWorkflowService
     }
 
     /// <summary>
+    /// Merges metadata into a task without completing it.
+    /// </summary>
+    public static async Task UpdateMetadataAsync(
+        string taskId,
+        Dictionary<string, object> metadata,
+        string? tenantId = null)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (metadata.Count == 0)
+        {
+            throw new ArgumentException("Metadata must contain at least one entry.", nameof(metadata));
+        }
+
+        if (Workflow.InWorkflow)
+        {
+            var handle = GetTaskHandle(taskId);
+            await handle.SignalAsync("UpdateMetadata", new object[] { metadata });
+            _logger.LogDebug("Metadata updated for task: TaskId={TaskId}", taskId);
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                throw new ArgumentException("Tenant ID is required when calling from outside workflow context.", nameof(tenantId));
+            }
+            
+            var agent = GetAgentFromTaskId();
+            var client = await agent.TemporalService!.GetClientAsync();
+            await SignalUpdateMetadataAsync(client, agent.Name, tenantId, taskId, metadata);
+        }
+    }
+
+    /// <summary>
     /// Performs an action on a task with an optional comment.
     /// </summary>
-    public static async Task PerformActionAsync(string taskId, string action, string? comment = null, string? tenantId = null)
+    public static async Task PerformActionAsync(
+        string taskId,
+        string action,
+        string? comment = null,
+        Dictionary<string, object>? metadata = null,
+        string? tenantId = null)
     {
-        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        var actionRequest = new TaskActionRequest
+        {
+            Action = action,
+            Comment = comment,
+            Metadata = metadata
+        };
         
         if (Workflow.InWorkflow)
         {
@@ -229,7 +272,7 @@ public static class TaskWorkflowService
             
             var agent = GetAgentFromTaskId();
             var client = await agent.TemporalService!.GetClientAsync();
-            await SignalPerformActionAsync(client, agent.Name, tenantId, taskId, action, comment);
+            await SignalPerformActionAsync(client, agent.Name, tenantId, taskId, action, comment, metadata);
         }
     }
 
@@ -299,6 +342,28 @@ public static class TaskWorkflowService
     }
 
     /// <summary>
+    /// Merges metadata into a task from outside a workflow context.
+    /// </summary>
+    public static async Task SignalUpdateMetadataAsync(
+        ITemporalClient client,
+        string agentName,
+        string tenantId,
+        string taskId,
+        Dictionary<string, object> metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (metadata.Count == 0)
+        {
+            throw new ArgumentException("Metadata must contain at least one entry.", nameof(metadata));
+        }
+
+        var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
+        await handle.SignalAsync("UpdateMetadata", new object[] { metadata });
+        
+        _logger.LogDebug("Metadata updated for task via client: TaskId={TaskId}", taskId);
+    }
+
+    /// <summary>
     /// Sends a signal to perform an action on a task from outside a workflow context.
     /// </summary>
     public static async Task SignalPerformActionAsync(
@@ -307,10 +372,16 @@ public static class TaskWorkflowService
         string tenantId,
         string taskId,
         string action,
-        string? comment = null)
+        string? comment = null,
+        Dictionary<string, object>? metadata = null)
     {
         var handle = GetTaskHandleForClient(client, agentName, tenantId, taskId);
-        var actionRequest = new TaskActionRequest { Action = action, Comment = comment };
+        var actionRequest = new TaskActionRequest
+        {
+            Action = action,
+            Comment = comment,
+            Metadata = metadata
+        };
         await handle.SignalAsync("PerformAction", new object[] { actionRequest });
         
         _logger.LogDebug("Action performed on task via client: TaskId={TaskId}, Action={Action}", taskId, action);
