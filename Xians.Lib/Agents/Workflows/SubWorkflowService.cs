@@ -37,6 +37,17 @@ public static class SubWorkflowService
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async Task StartAsync(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
+        await StartCoreAsync(workflowType, uniqueKeys, activationName: null, executionTimeout, args);
+    }
+
+    /// <summary>
+    /// Core implementation for starting a child workflow.
+    /// </summary>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
+    /// When null, the caller's idPostfix is inherited only for same-agent children
+    /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
+    internal static async Task StartCoreAsync(string workflowType, string[] uniqueKeys, string? activationName, TimeSpan? executionTimeout, object[] args)
+    {
         if (Workflow.InWorkflow)
         {
             // Within a workflow - start as child workflow
@@ -45,7 +56,7 @@ public static class SubWorkflowService
                 workflowType,
                 XiansContext.WorkflowId);
 
-            var options = new SubWorkflowOptions(workflowType, uniqueKeys);
+            var options = new SubWorkflowOptions(workflowType, uniqueKeys, activationName: activationName);
             if (executionTimeout.HasValue)
             {
                 options.ExecutionTimeout = executionTimeout.Value;
@@ -59,7 +70,8 @@ public static class SubWorkflowService
                 "Starting workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
-            await StartViaClientAsync(workflowType, uniqueKeys, executionTimeout, args);
+            var childIdPostfix = ResolveChildIdPostfix(workflowType, activationName);
+            await StartViaClientAsync(workflowType, uniqueKeys, childIdPostfix, executionTimeout, args);
         }
     }
     
@@ -114,6 +126,17 @@ public static class SubWorkflowService
     /// <returns>The workflow result.</returns>
     public static async Task<TResult> ExecuteAsync<TResult>(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
+        return await ExecuteCoreAsync<TResult>(workflowType, uniqueKeys, activationName: null, executionTimeout, args);
+    }
+
+    /// <summary>
+    /// Core implementation for executing a child workflow and waiting for its result.
+    /// </summary>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
+    /// When null, the caller's idPostfix is inherited only for same-agent children
+    /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
+    internal static async Task<TResult> ExecuteCoreAsync<TResult>(string workflowType, string[] uniqueKeys, string? activationName, TimeSpan? executionTimeout, object[] args)
+    {
         if (Workflow.InWorkflow)
         {
             // Within a workflow - execute as child workflow
@@ -122,7 +145,7 @@ public static class SubWorkflowService
                 workflowType,
                 XiansContext.WorkflowId);
 
-            var options = new SubWorkflowOptions(workflowType, uniqueKeys);
+            var options = new SubWorkflowOptions(workflowType, uniqueKeys, activationName: activationName);
             if (executionTimeout.HasValue)
             {
                 options.ExecutionTimeout = executionTimeout.Value;
@@ -136,7 +159,8 @@ public static class SubWorkflowService
                 "Executing workflow '{WorkflowType}' via client (not in workflow context)",
                 workflowType);
 
-            return await ExecuteViaClientAsync<TResult>(workflowType, uniqueKeys, executionTimeout, args);
+            var childIdPostfix = ResolveChildIdPostfix(workflowType, activationName);
+            return await ExecuteViaClientAsync<TResult>(workflowType, uniqueKeys, childIdPostfix, executionTimeout, args);
         }
     }
 
@@ -154,7 +178,7 @@ public static class SubWorkflowService
     /// <returns>A task representing the asynchronous operation. Returns when the server accepts the signal; does not wait for delivery to the workflow.</returns>
     public static async Task SignalAsync(string workflowType, string signalName, params object[] signalArgs)
     {
-        var uniqueKeys = GetUniqueKeysFromContext();
+        var uniqueKeys = GetUniqueKeysFromContext(workflowType);
         if (Workflow.InWorkflow)
         {
             _logger.LogDebug(
@@ -257,11 +281,60 @@ public static class SubWorkflowService
     }
 
     /// <summary>
-    /// Gets unique keys from context only (idPostfix). Callers cannot pass unique keys externally for signaling.
+    /// Resolves the effective idPostfix (activation name) for a child workflow.
+    /// Precedence:
+    /// 1. An explicitly provided <paramref name="activationName"/> always wins.
+    /// 2. Otherwise, the caller's idPostfix is inherited only when the target workflow belongs
+    ///    to the same agent as the caller. Activations are agent-specific, so propagating the
+    ///    caller's activation name to another agent's workflow would give that workflow a
+    ///    non-existent activation context.
+    /// 3. When the caller's agent cannot be determined (outside workflow/activity context),
+    ///    the context idPostfix is inherited as before for backward compatibility.
     /// </summary>
-    private static string[] GetUniqueKeysFromContext()
+    /// <param name="workflowType">The target workflow type (format: "AgentName:WorkflowName").</param>
+    /// <param name="activationName">Optional explicit target activation name.</param>
+    /// <returns>The idPostfix the child workflow should carry, or null for none.</returns>
+    internal static string? ResolveChildIdPostfix(string workflowType, string? activationName)
     {
-        var idPostfix = XiansContext.TryGetIdPostfix();
+        var targetAgentName = workflowType.Contains(':') ? workflowType.Split(':')[0] : workflowType;
+        return ResolveChildIdPostfix(
+            activationName,
+            targetAgentName,
+            XiansContext.SafeAgentName,
+            XiansContext.TryGetIdPostfix());
+    }
+
+    /// <summary>
+    /// Pure resolution logic for the effective child idPostfix. See <see cref="ResolveChildIdPostfix(string, string?)"/>.
+    /// </summary>
+    internal static string? ResolveChildIdPostfix(
+        string? activationName,
+        string targetAgentName,
+        string? callerAgentName,
+        string? callerIdPostfix)
+    {
+        if (!string.IsNullOrWhiteSpace(activationName))
+            return activationName;
+
+        // Caller agent unknown (outside workflow/activity context): keep legacy inheritance.
+        if (callerAgentName == null)
+            return callerIdPostfix;
+
+        // Same-agent child: inherit the caller's activation context.
+        if (string.Equals(callerAgentName, targetAgentName, StringComparison.Ordinal))
+            return callerIdPostfix;
+
+        // Cross-agent child without explicit activation: no activation context.
+        return null;
+    }
+
+    /// <summary>
+    /// Gets unique keys from context only (idPostfix). Callers cannot pass unique keys externally for signaling.
+    /// The caller's idPostfix is only used for same-agent targets, mirroring how child workflow IDs are built.
+    /// </summary>
+    private static string[] GetUniqueKeysFromContext(string workflowType)
+    {
+        var idPostfix = ResolveChildIdPostfix(workflowType, activationName: null);
         return string.IsNullOrWhiteSpace(idPostfix) ? [] : [idPostfix];
     }
 
@@ -282,7 +355,7 @@ public static class SubWorkflowService
     /// Requires access to the agent to get the Temporal client.
     /// Propagates parent workflow metadata when available from context.
     /// </summary>
-    private static async Task StartViaClientAsync(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout, object[] args)
+    private static async Task StartViaClientAsync(string workflowType, string[] uniqueKeys, string? childIdPostfix, TimeSpan? executionTimeout, object[] args)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
@@ -290,14 +363,14 @@ public static class SubWorkflowService
         var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
-        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, client);
+        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, childIdPostfix, client);
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
             // Inherit parent workflow metadata (works in both workflow and activity contexts)
-            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, searchAttributes),
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, childIdPostfix, searchAttributes),
             TypedSearchAttributes = searchAttributes
         };
 
@@ -319,7 +392,7 @@ public static class SubWorkflowService
     /// Requires access to the agent to get the Temporal client.
     /// If called from an activity, propagates parent workflow metadata.
     /// </summary>
-    private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout, object[] args)
+    private static async Task<TResult> ExecuteViaClientAsync<TResult>(string workflowType, string[] uniqueKeys, string? childIdPostfix, TimeSpan? executionTimeout, object[] args)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
 
@@ -327,14 +400,14 @@ public static class SubWorkflowService
         var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
-        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, client);
+        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, childIdPostfix, client);
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
             // Inherit parent workflow metadata (works in both workflow and activity contexts)
-            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, searchAttributes),
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, childIdPostfix, searchAttributes),
             TypedSearchAttributes = searchAttributes
         };
 
@@ -384,13 +457,14 @@ public static class SubWorkflowService
         var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
-        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, client);
+        var childIdPostfix = ResolveChildIdPostfix(workflowType, activationName: null);
+        var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, childIdPostfix, client);
         var options = new WorkflowOptions
         {
             Id = workflowId,
             TaskQueue = taskQueue,
             IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting,
-            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, searchAttributes),
+            Memo = BuildInheritedMemo(tenantId, agentName, systemScoped, childIdPostfix, searchAttributes),
             TypedSearchAttributes = searchAttributes
         };
 
@@ -525,11 +599,15 @@ public static class SubWorkflowService
     /// <param name="tenantId">Tenant ID for the child workflow.</param>
     /// <param name="agentName">Agent name for the child workflow.</param>
     /// <param name="systemScoped">Whether the workflow is system-scoped.</param>
+    /// <param name="childIdPostfix">The idPostfix (activation name) the child workflow should carry.
+    /// When null, any inherited idPostfix entry is removed so the child does not pick up
+    /// an activation belonging to a different agent.</param>
     /// <param name="searchAttributes">Optional search attributes; when provided, userId is extracted for the memo.</param>
     internal static Dictionary<string, object> BuildInheritedMemo(
         string tenantId,
         string agentName,
         bool systemScoped,
+        string? childIdPostfix,
         Temporalio.Common.SearchAttributeCollection? searchAttributes = null)
     {
         var memo = new Dictionary<string, object>();
@@ -569,11 +647,15 @@ public static class SubWorkflowService
         memo[WorkflowConstants.Keys.TenantId] = tenantId;
         memo[WorkflowConstants.Keys.Agent] = agentName;
         memo[WorkflowConstants.Keys.SystemScoped] = systemScoped;
-        
-        var idPostfix = XiansContext.TryGetIdPostfix();
-        if (idPostfix != null)
+
+        if (!string.IsNullOrWhiteSpace(childIdPostfix))
         {
-            memo[WorkflowConstants.Keys.idPostfix] = idPostfix;
+            memo[WorkflowConstants.Keys.idPostfix] = childIdPostfix;
+        }
+        else
+        {
+            // Remove any inherited idPostfix - the parent's activation does not apply to this child
+            memo.Remove(WorkflowConstants.Keys.idPostfix);
         }
 
         // Include userId for consistency with search attributes (Temporal memo cannot have null values)
@@ -588,33 +670,69 @@ public static class SubWorkflowService
     /// <summary>
     /// Builds search attributes for child/sub-workflow by inheriting parent attributes when in workflow context.
     /// Works both in workflow context (inherits all) and outside workflow context (builds minimal).
+    /// Inherited attributes are corrected for the child: agent, tenantId, and idPostfix are overridden
+    /// so a child belonging to a different agent is not tagged with the parent's identity or activation.
     /// This is a shared method used by both SubWorkflowOptions and client-based workflow starting.
     /// </summary>
-    internal static Temporalio.Common.SearchAttributeCollection? BuildInheritedSearchAttributes(string tenantId, string agentName)
+    /// <param name="tenantId">Tenant ID for the child workflow.</param>
+    /// <param name="agentName">Agent name for the child workflow (the target agent, not the caller).</param>
+    /// <param name="childIdPostfix">The idPostfix (activation name) the child workflow should carry, or null for none.</param>
+    internal static Temporalio.Common.SearchAttributeCollection? BuildInheritedSearchAttributes(
+        string tenantId,
+        string agentName,
+        string? childIdPostfix)
     {
         if (Workflow.InWorkflow)
-            return Workflow.TypedSearchAttributes;
+            return OverrideChildMetadata(Workflow.TypedSearchAttributes, tenantId, agentName, childIdPostfix);
 
-        var idPostfix = XiansContext.TryGetIdPostfix() ?? string.Empty;
         var participantId = XiansContext.TryGetParticipantId() ?? string.Empty;
-        return WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, participantId, idPostfix);
+        return WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, participantId, childIdPostfix ?? string.Empty);
     }
 
     /// <summary>
     /// Async version that fetches parent workflow's search attributes when in activity context.
     /// Delegates to <see cref="WorkflowMetadataResolver.ResolveSearchAttributesForChildAsync"/> for activity-context
     /// resolution; falls back to sync <see cref="BuildInheritedSearchAttributes"/> when outside workflow/activity.
+    /// Inherited attributes are corrected for the child (agent, tenantId, idPostfix).
     /// </summary>
     internal static async Task<Temporalio.Common.SearchAttributeCollection?> BuildInheritedSearchAttributesAsync(
         string tenantId,
         string agentName,
+        string? childIdPostfix,
         ITemporalClient client)
     {
         var fromResolver = await WorkflowMetadataResolver.ResolveSearchAttributesForChildAsync(tenantId, agentName, client);
         if (fromResolver != null)
-            return fromResolver;
+            return OverrideChildMetadata(fromResolver, tenantId, agentName, childIdPostfix);
 
-        return BuildInheritedSearchAttributes(tenantId, agentName);
+        return BuildInheritedSearchAttributes(tenantId, agentName, childIdPostfix);
+    }
+
+    /// <summary>
+    /// Overrides child-specific metadata (tenantId, agent, idPostfix) on a search attribute
+    /// collection inherited from the parent workflow. The idPostfix attribute is removed when
+    /// the child has no activation context.
+    /// </summary>
+    private static Temporalio.Common.SearchAttributeCollection OverrideChildMetadata(
+        Temporalio.Common.SearchAttributeCollection inherited,
+        string tenantId,
+        string agentName,
+        string? childIdPostfix)
+    {
+        var builder = new Temporalio.Common.SearchAttributeCollection.Builder(inherited);
+        builder.Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId);
+        builder.Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName);
+
+        if (!string.IsNullOrWhiteSpace(childIdPostfix))
+        {
+            builder.Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), childIdPostfix);
+        }
+        else
+        {
+            builder.Unset(WorkflowConstants.Keys.idPostfix);
+        }
+
+        return builder.ToSearchAttributeCollection();
     }
 }
 

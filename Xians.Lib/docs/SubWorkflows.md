@@ -40,6 +40,43 @@ var result = await XiansContext.ExecuteWorkflowAsync<ProcessOrderWorkflow, Order
 );
 ```
 
+## Cross-Agent Sub-Workflows and Activations
+
+Sub-workflows can belong to a **different agent** than the caller - the target agent is always
+derived from the workflow type (`"AgentName:WorkflowName"`), so task queue routing works across
+agents automatically.
+
+Activations, however, are **agent-specific**. The caller's activation name (idPostfix) therefore
+propagates to children as follows:
+
+- **Same-agent child**: the caller's idPostfix is inherited (workflow ID, memo, and search
+  attributes), preserving the activation context.
+- **Cross-agent child**: the caller's idPostfix is NOT inherited - the caller's activation does
+  not exist for the target agent. Pass `activationName` to run the child under one of the target
+  agent's activations.
+- **Explicit `activationName`**: always wins, for both same-agent and cross-agent children.
+
+```csharp
+// Cross-agent child under a specific activation of the target agent
+var result = await XiansContext.Workflows.ExecuteAsync<FraudDetectionWorkflow, string>(
+    [invoiceId],
+    uniqueKey: invoiceId,
+    activationName: "fraud-detection-eu"
+);
+
+// Cross-agent child with no activation context (default)
+var result2 = await XiansContext.Workflows.ExecuteAsync<FraudDetectionWorkflow, string>(
+    [invoiceId],
+    uniqueKey: invoiceId
+);
+```
+
+When starting cross-agent children without an activation, provide a `uniqueKey` (e.g. the entity
+ID being processed) - otherwise concurrent parents would produce the same child workflow ID.
+
+The system-scoped flag used for task queue routing is resolved from the **target agent** when it
+is registered in the same process; it falls back to the parent's setting otherwise.
+
 ## Usage from XiansContext
 
 The `XiansContext` class provides convenient static methods for sub-workflow execution:
@@ -259,14 +296,14 @@ await Workflow.StartChildWorkflowAsync("MyAgent:MyWorkflow", new[] { arg1 }, opt
 
 ### SubWorkflowOptions Properties
 
-- `TaskQueue` - Automatically determined based on system scope (inherited from parent) and tenant ID
+- `TaskQueue` - Automatically determined based on system scope (resolved from the target agent when registered in-process, otherwise inherited from parent) and tenant ID
 - `Id` - Generated as `{TenantId}:{WorkflowType}:{OptionalPostfix}`
-- `Memo` - Propagates `TenantId`, `Agent`, `UserId`, and `SystemScoped` from parent
-- `TypedSearchAttributes` - Propagates searchable attributes for workflow discovery
+- `Memo` - Propagates `TenantId`, `Agent`, `UserId`, and `SystemScoped`; `Agent` and `idPostfix` are corrected for the child (see Cross-Agent Sub-Workflows above)
+- `TypedSearchAttributes` - Propagates searchable attributes for workflow discovery, with `agent`, `tenantId`, and `idPostfix` corrected for the child
 - `RetryPolicy` - Defaults to single attempt (fail fast)
 - `ParentClosePolicy` - Set to `Abandon` (child continues if parent closes)
 
-**Note:** The `SystemScoped` flag is always inherited from the parent workflow and cannot be overridden. This is an agent-level property that determines tenant isolation behavior.
+**Note:** The `SystemScoped` flag is an agent-level property that determines tenant isolation behavior. It is resolved from the target agent when that agent is registered in the same process, and inherited from the parent workflow otherwise. It cannot be overridden per-call.
 
 ## Workflow ID Format
 

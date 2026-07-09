@@ -18,112 +18,111 @@ public class WorkflowHelper
     /// Starts a child workflow without waiting for its completion.
     /// If called from within a workflow, starts a child workflow.
     /// If called outside a workflow, starts a new workflow using the Temporal client.
-    /// Parent's idPostfix is automatically included from context.
+    /// The caller's idPostfix (activation name) is inherited only for same-agent children;
+    /// for cross-agent children, pass <paramref name="activationName"/> to target a specific activation.
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
-    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after the child's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
+    /// Use this when starting a workflow that belongs to a different agent and should run under
+    /// one of that agent's activations.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
+    public async Task StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
-        // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.TryGetIdPostfix();
-        var uniqueKeys = new List<string>();
-        
-        if (!string.IsNullOrWhiteSpace(idPostfix))
-            uniqueKeys.Add(idPostfix);
-        
-        if (!string.IsNullOrWhiteSpace(uniqueKey))
-            uniqueKeys.Add(uniqueKey);
-
-        await SubWorkflowService.StartAsync<TWorkflow>(uniqueKeys.ToArray(), executionTimeout, args);
+        var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
+        await StartAsync(workflowType, args, uniqueKey, executionTimeout, activationName);
     }
 
     /// <summary>
     /// Starts a child workflow without waiting for its completion.
     /// If called from within a workflow, starts a child workflow.
     /// If called outside a workflow, starts a new workflow using the Temporal client.
-    /// Parent's idPostfix is automatically included from context.
+    /// The caller's idPostfix (activation name) is inherited only for same-agent children;
+    /// for cross-agent children, pass <paramref name="activationName"/> to target a specific activation.
     /// </summary>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
-    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after the child's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
+    /// Use this when starting a workflow that belongs to a different agent and should run under
+    /// one of that agent's activations.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
+    public async Task StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
         // Validate workflowType is not null
         _ = workflowType.Length;
-        
-        // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.TryGetIdPostfix();
-        var uniqueKeys = new List<string>();
-        
-        if (!string.IsNullOrWhiteSpace(idPostfix))
-            uniqueKeys.Add(idPostfix);
-        
-        if (!string.IsNullOrWhiteSpace(uniqueKey))
-            uniqueKeys.Add(uniqueKey);
 
-        await SubWorkflowService.StartAsync(workflowType, uniqueKeys.ToArray(), executionTimeout, args);
+        var uniqueKeys = BuildChildUniqueKeys(workflowType, uniqueKey, activationName);
+        await SubWorkflowService.StartCoreAsync(workflowType, uniqueKeys, activationName, executionTimeout, args);
     }
 
     /// <summary>
     /// Executes a child workflow and waits for its result.
     /// If called from within a workflow, executes a child workflow.
     /// If called outside a workflow, executes a workflow using the Temporal client.
-    /// Parent's idPostfix is automatically included from context.
+    /// The caller's idPostfix (activation name) is inherited only for same-agent children;
+    /// for cross-agent children, pass <paramref name="activationName"/> to target a specific activation.
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
     /// <typeparam name="TResult">The expected result type.</typeparam>
-    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
-    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after the child's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
+    /// Use this when starting a workflow that belongs to a different agent and should run under
+    /// one of that agent's activations.</param>
     /// <returns>The workflow result.</returns>
-    public async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
+    public async Task<TResult> ExecuteAsync<TWorkflow, TResult>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
-        // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.TryGetIdPostfix();
-        var uniqueKeys = new List<string>();
-        
-        if (!string.IsNullOrWhiteSpace(idPostfix))
-            uniqueKeys.Add(idPostfix);
-        
-        if (!string.IsNullOrWhiteSpace(uniqueKey))
-            uniqueKeys.Add(uniqueKey);
-
-        return await SubWorkflowService.ExecuteAsync<TWorkflow, TResult>(uniqueKeys.ToArray(), executionTimeout, args);
+        var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
+        return await ExecuteAsync<TResult>(workflowType, args, uniqueKey, executionTimeout, activationName);
     }
 
     /// <summary>
     /// Executes a child workflow and waits for its result.
     /// If called from within a workflow, executes a child workflow.
     /// If called outside a workflow, executes a workflow using the Temporal client.
-    /// Parent's idPostfix is automatically included from context.
+    /// The caller's idPostfix (activation name) is inherited only for same-agent children;
+    /// for cross-agent children, pass <paramref name="activationName"/> to target a specific activation.
     /// </summary>
     /// <typeparam name="TResult">The expected result type.</typeparam>
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
-    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after parent's idPostfix).</param>
-    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
+    /// <param name="uniqueKey">Optional unique key for workflow ID uniqueness (appended after the child's idPostfix).</param>
+    /// <param name="executionTimeout">Optional workflow execution timeout.</param>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
+    /// Use this when starting a workflow that belongs to a different agent and should run under
+    /// one of that agent's activations.</param>
     /// <returns>The workflow result.</returns>
-    public async Task<TResult> ExecuteAsync<TResult>(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null)
+    public async Task<TResult> ExecuteAsync<TResult>(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
         // Validate workflowType is not null
         _ = workflowType.Length;
-        
-        // Build array with idPostfix and uniqueKey when not null
-        var idPostfix = XiansContext.TryGetIdPostfix();
+
+        var uniqueKeys = BuildChildUniqueKeys(workflowType, uniqueKey, activationName);
+        return await SubWorkflowService.ExecuteCoreAsync<TResult>(workflowType, uniqueKeys, activationName, executionTimeout, args);
+    }
+
+    /// <summary>
+    /// Builds the workflow ID unique keys for a child workflow: the resolved child idPostfix
+    /// (explicit activation name, or the caller's idPostfix for same-agent children) followed
+    /// by the optional caller-provided unique key.
+    /// </summary>
+    private static string[] BuildChildUniqueKeys(string workflowType, string? uniqueKey, string? activationName)
+    {
+        var childIdPostfix = SubWorkflowService.ResolveChildIdPostfix(workflowType, activationName);
         var uniqueKeys = new List<string>();
-        
-        if (!string.IsNullOrWhiteSpace(idPostfix))
-            uniqueKeys.Add(idPostfix);
-        
+
+        if (!string.IsNullOrWhiteSpace(childIdPostfix))
+            uniqueKeys.Add(childIdPostfix);
+
         if (!string.IsNullOrWhiteSpace(uniqueKey))
             uniqueKeys.Add(uniqueKey);
 
-        return await SubWorkflowService.ExecuteAsync<TResult>(workflowType, uniqueKeys.ToArray(), executionTimeout, args);
+        return uniqueKeys.ToArray();
     }
 
     /// <summary>
