@@ -87,6 +87,8 @@ public static class WorkflowConstants
         public const string Secrets = "api/agent/secrets";
         /// <summary>Endpoint to retrieve ordered workflow input values for a given activation configuration.</summary>
         public const string ActivationWorkflowInputs = "api/agent/activation/workflow-inputs";
+        /// <summary>Endpoint to check whether an activation exists and is active for an agent in the current tenant.</summary>
+        public const string ActivationExists = "api/agent/activation/exists";
     }
 
     /// <summary>

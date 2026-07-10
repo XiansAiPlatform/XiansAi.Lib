@@ -140,6 +140,12 @@ public class XiansPlatform
     /// </summary>
     private void DisplayInitializationBanner(bool showLogo = false)
     {
+        // Print the whole banner under a process-wide lock so concurrent console output doesn't interleave
+        Common.Infrastructure.ConsoleDisplay.WriteBlock(() => DisplayInitializationBannerCore(showLogo));
+    }
+
+    private void DisplayInitializationBannerCore(bool showLogo)
+    {
         var certInfo = _options.CertificateInfo;
         var serverUrl = _options.ServerUrl;
         

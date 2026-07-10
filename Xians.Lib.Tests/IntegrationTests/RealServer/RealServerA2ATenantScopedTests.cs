@@ -5,6 +5,10 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
+// This test suite intentionally exercises the deprecated XiansContext.A2A API to verify
+// A2A communication continues to work correctly until it is fully removed.
+#pragma warning disable CS0618
+
 /// <summary>
 /// Real server integration tests for A2A with TENANT-SCOPED agents.
 /// 
@@ -191,6 +195,8 @@ public class RealServerA2ATenantScopedTests : RealServerTestBase, IAsyncLifetime
         Console.WriteLine("✓ Tenant-scoped test cleanup complete");
     }
 }
+
+#pragma warning restore CS0618
 
 // Shared test result class (same as main A2A tests)
 public class A2ATestResult

@@ -838,6 +838,12 @@ public static class XiansContext
     /// Gets the A2A (Agent-to-Agent) operations for sending messages between workflows.
     /// Provides simplified API for A2A communication without manually creating A2AClient instances.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Deprecated:</b> A2A operations are deprecated. Use Temporal SubWorkflows or Temporal
+    /// Signals for inter-workflow communication instead.
+    /// </para>
+    /// </remarks>
     /// <example>
     /// <code>
     /// // Send chat to a built-in workflow by name
@@ -850,6 +856,7 @@ public static class XiansContext
     /// var response = await XiansContext.A2A.SendDataToBuiltInAsync("DataWorkflow", new A2AMessage { Data = myData });
     /// </code>
     /// </example>
+    [Obsolete("A2A operations are deprecated. Use Temporal SubWorkflows (XiansContext.CurrentWorkflow.SubWorkflow) or Temporal Signals for inter-workflow communication instead.")]
     public static A2AContextOperations A2A => _a2aOperations.Value;
 
     #endregion

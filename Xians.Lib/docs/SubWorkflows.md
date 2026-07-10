@@ -74,8 +74,75 @@ var result2 = await XiansContext.Workflows.ExecuteAsync<FraudDetectionWorkflow, 
 When starting cross-agent children without an activation, provide a `uniqueKey` (e.g. the entity
 ID being processed) - otherwise concurrent parents would produce the same child workflow ID.
 
+When an explicit `activationName` is passed, the SDK validates against the server that the
+activation exists and is active for the target agent in the current tenant **before** starting the
+workflow. This prevents orphaned Temporal workflows sitting on a task queue no worker listens on
+(e.g. when the agent is not activated in the tenant). If the activation does not exist or is
+deactivated, the call fails instead of starting the workflow with a typed
+`ActivationNotFoundException` or `ActivationDeactivatedException` (both derive from
+`InvalidOperationException`). The same typed exceptions are thrown in **all contexts**: inside a
+workflow the check runs through a system activity (workflows cannot make HTTP calls) that reports
+the activation status as a value, and the SDK converts a negative status into the typed exception.
+Because the activity completes successfully even for a negative result, Temporal does not log
+failed-activity warning traces for an expected "not found" outcome. A plain catch works
+everywhere. When no HTTP service is available (local mode), the check is skipped.
+
+```csharp
+try
+{
+    await XiansContext.Workflows.ExecuteAsync<string>(
+        "Fraud Detection Agent:Fraud Detection Workflow",
+        [invoiceId],
+        uniqueKey: invoiceId,
+        activationName: "fraud-detection-eu");
+}
+catch (ActivationNotFoundException ex)
+{
+    // Target activation does not exist in this tenant
+    // ex.AgentName, ex.ActivationName, ex.TenantId
+}
+catch (ActivationDeactivatedException ex)
+{
+    // Target activation exists but is deactivated
+}
+```
+
+If these exceptions are not caught inside a workflow, the workflow **fails** (Xians workers
+register both types as workflow failure exception types), rather than suspending on workflow
+task retries as unknown exception types normally would in Temporal.
+
 The system-scoped flag used for task queue routing is resolved from the **target agent** when it
 is registered in the same process; it falls back to the parent's setting otherwise.
+
+Signaling follows the same rules. `SignalAsync` and `SignalWithStartAsync` include the caller's
+idPostfix in the target workflow ID only for same-agent targets. To signal a workflow that runs
+under a specific activation (e.g. one started with an explicit `activationName`), use the
+`SignalAsync` overload that takes an activation name:
+
+```csharp
+await XiansContext.Workflows.SignalAsync<FraudDetectionWorkflow>(
+    "review-completed",
+    [reviewResult],
+    activationName: "fraud-detection-eu"
+);
+```
+
+`SignalWithStartAsync` also accepts an optional `activationName`. Because signal-with-start can
+create a new workflow, an explicit activation is validated up front exactly like
+`StartAsync`/`ExecuteAsync` - a missing or deactivated activation throws
+`ActivationNotFoundException` / `ActivationDeactivatedException` before anything is started.
+`SignalAsync` performs no such validation: it never starts a workflow, so a missing activation
+simply means the target workflow is not running and Temporal reports a not-found error.
+
+```csharp
+await XiansContext.Workflows.SignalWithStartAsync<FraudDetectionWorkflow>(
+    workflowArgs: [invoiceId],
+    signalName: "review-requested",
+    uniqueKey: invoiceId,
+    activationName: "fraud-detection-eu",
+    signalArgs: [reviewRequest]
+);
+```
 
 ## Usage from XiansContext
 

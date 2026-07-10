@@ -199,10 +199,13 @@ public static class LoggerFactory
     /// </summary>
     private static LogLevel GetConsoleLogLevel()
     {
-        // Check override first (from XiansOptions)
-        if (_consoleLogLevelOverride.HasValue)
+        // Check override first (from XiansOptions).
+        // Copy to a local: the static field can be reset concurrently (e.g. ConfigureLogLevels),
+        // and HasValue/Value on the shared field would race.
+        var overrideLevel = _consoleLogLevelOverride;
+        if (overrideLevel.HasValue)
         {
-            return _consoleLogLevelOverride.Value;
+            return overrideLevel.Value;
         }
 
         // Fall back to environment variable
@@ -218,10 +221,12 @@ public static class LoggerFactory
     /// </summary>
     public static LogLevel GetServerLogLevel()
     {
-        // Check override first (from XiansOptions)
-        if (_serverLogLevelOverride.HasValue)
+        // Check override first (from XiansOptions). Copy to a local to avoid racing
+        // with concurrent resets of the shared field (see GetConsoleLogLevel).
+        var overrideLevel = _serverLogLevelOverride;
+        if (overrideLevel.HasValue)
         {
-            return _serverLogLevelOverride.Value;
+            return overrideLevel.Value;
         }
 
         // Check new environment variable name first

@@ -5,6 +5,7 @@ using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
+using Xians.Lib.Temporal.Workflows.Activations;
 using System.Reflection;
 using System.Text.Json;
 
@@ -48,6 +49,8 @@ public static class SubWorkflowService
     /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
     internal static async Task StartCoreAsync(string workflowType, string[] uniqueKeys, string? activationName, TimeSpan? executionTimeout, object[] args)
     {
+        await ValidateExplicitActivationAsync(workflowType, activationName);
+
         if (Workflow.InWorkflow)
         {
             // Within a workflow - start as child workflow
@@ -137,6 +140,8 @@ public static class SubWorkflowService
     /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
     internal static async Task<TResult> ExecuteCoreAsync<TResult>(string workflowType, string[] uniqueKeys, string? activationName, TimeSpan? executionTimeout, object[] args)
     {
+        await ValidateExplicitActivationAsync(workflowType, activationName);
+
         if (Workflow.InWorkflow)
         {
             // Within a workflow - execute as child workflow
@@ -178,7 +183,18 @@ public static class SubWorkflowService
     /// <returns>A task representing the asynchronous operation. Returns when the server accepts the signal; does not wait for delivery to the workflow.</returns>
     public static async Task SignalAsync(string workflowType, string signalName, params object[] signalArgs)
     {
-        var uniqueKeys = GetUniqueKeysFromContext(workflowType);
+        await SignalCoreAsync(workflowType, signalName, activationName: null, signalArgs);
+    }
+
+    /// <summary>
+    /// Core implementation for signaling a workflow execution.
+    /// </summary>
+    /// <param name="activationName">Optional target activation name (idPostfix) used to build the
+    /// target workflow ID. When null, the caller's idPostfix is used only for same-agent targets
+    /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
+    internal static async Task SignalCoreAsync(string workflowType, string signalName, string? activationName, object[] signalArgs)
+    {
+        var uniqueKeys = GetUniqueKeysFromContext(workflowType, activationName);
         if (Workflow.InWorkflow)
         {
             _logger.LogDebug(
@@ -241,15 +257,8 @@ public static class SubWorkflowService
         object[] signalArgs,
         TimeSpan? executionTimeout = null)
     {
-        if (Workflow.InWorkflow)
-        {
-            throw new InvalidOperationException(
-                "SignalWithStart is a client-only operation and cannot be called from within a workflow. " +
-                "Use StartAsync to start a child workflow, or call SignalWithStart from an activity or outside workflow context.");
-        }
-
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
-        await SignalWithStartViaClientAsync(workflowType, uniqueKeys, workflowArgs, signalName, signalArgs, executionTimeout);
+        await SignalWithStartCoreAsync(workflowType, uniqueKeys, workflowArgs, signalName, signalArgs, activationName: null, executionTimeout);
     }
 
     /// <summary>
@@ -270,6 +279,31 @@ public static class SubWorkflowService
         object[] signalArgs,
         TimeSpan? executionTimeout = null)
     {
+        await SignalWithStartCoreAsync(workflowType, uniqueKeys, workflowArgs, signalName, signalArgs, activationName: null, executionTimeout);
+    }
+
+    /// <summary>
+    /// Core implementation for signal-with-start. Because signal-with-start can create a new
+    /// workflow, an explicitly targeted activation is validated the same way as in
+    /// <see cref="StartCoreAsync"/> / <see cref="ExecuteCoreAsync{TResult}"/> before anything
+    /// is started, so a missing or deactivated activation fails with a typed exception instead
+    /// of creating an orphaned workflow on a task queue no worker listens on.
+    /// </summary>
+    /// <param name="activationName">Optional target activation name (idPostfix) for the workflow.
+    /// When null, the caller's idPostfix is used only for same-agent targets
+    /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
+    /// <exception cref="ActivationNotFoundException">Thrown when the activation does not exist.</exception>
+    /// <exception cref="ActivationDeactivatedException">Thrown when the activation is deactivated.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when called from within a workflow (client-only).</exception>
+    internal static async Task SignalWithStartCoreAsync(
+        string workflowType,
+        string[] uniqueKeys,
+        object[] workflowArgs,
+        string signalName,
+        object[] signalArgs,
+        string? activationName,
+        TimeSpan? executionTimeout)
+    {
         if (Workflow.InWorkflow)
         {
             throw new InvalidOperationException(
@@ -277,7 +311,62 @@ public static class SubWorkflowService
                 "Use StartAsync to start a child workflow, or call SignalWithStart from an activity or outside workflow context.");
         }
 
-        await SignalWithStartViaClientAsync(workflowType, uniqueKeys, workflowArgs, signalName, signalArgs, executionTimeout);
+        await ValidateExplicitActivationAsync(workflowType, activationName);
+
+        var childIdPostfix = ResolveChildIdPostfix(workflowType, activationName);
+        await SignalWithStartViaClientAsync(workflowType, uniqueKeys, workflowArgs, signalName, signalArgs, childIdPostfix, executionTimeout);
+    }
+
+    /// <summary>
+    /// Validates that an explicitly targeted activation exists and is active before starting a
+    /// workflow under it. Without this check, Temporal would create the workflow on a task queue
+    /// no worker listens on, leaving an orphaned "Running" workflow.
+    /// No-op when no explicit activation name is provided.
+    /// In workflow context the check runs through the <see cref="ActivationActivities"/> system
+    /// activity (workflows cannot make HTTP calls); otherwise it calls the server directly.
+    /// In both contexts, definitive failures surface as the typed exceptions below, so callers
+    /// can use a plain catch regardless of context. The activity reports a status value rather
+    /// than failing, so an expected negative result does not produce Temporal's failed-activity
+    /// warning logs; this method converts the status into the typed exception.
+    /// </summary>
+    /// <exception cref="ActivationNotFoundException">Thrown when the activation does not exist.</exception>
+    /// <exception cref="ActivationDeactivatedException">Thrown when the activation is deactivated.</exception>
+    private static async Task ValidateExplicitActivationAsync(string workflowType, string? activationName)
+    {
+        if (string.IsNullOrWhiteSpace(activationName))
+            return;
+
+        var agentName = workflowType.Contains(':') ? workflowType.Split(':')[0] : workflowType;
+        var targetActivation = activationName;
+
+        if (Workflow.InWorkflow)
+        {
+            var status = await Workflow.ExecuteActivityAsync(
+                (ActivationActivities a) => a.ValidateActivationAsync(agentName, targetActivation),
+                new ActivityOptions
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(30),
+                    RetryPolicy = new Temporalio.Common.RetryPolicy
+                    {
+                        MaximumAttempts = 3,
+                        InitialInterval = TimeSpan.FromSeconds(1),
+                        MaximumInterval = TimeSpan.FromSeconds(10),
+                        BackoffCoefficient = 2
+                    }
+                });
+
+            switch (status)
+            {
+                case ActivationCheckStatus.NotFound:
+                    throw new ActivationNotFoundException(agentName, targetActivation, XiansContext.SafeTenantId);
+                case ActivationCheckStatus.Deactivated:
+                    throw new ActivationDeactivatedException(agentName, targetActivation);
+            }
+        }
+        else
+        {
+            await ActivationValidationService.EnsureActivationActiveAsync(agentName, targetActivation);
+        }
     }
 
     /// <summary>
@@ -329,12 +418,12 @@ public static class SubWorkflowService
     }
 
     /// <summary>
-    /// Gets unique keys from context only (idPostfix). Callers cannot pass unique keys externally for signaling.
-    /// The caller's idPostfix is only used for same-agent targets, mirroring how child workflow IDs are built.
+    /// Gets unique keys for signaling: an explicit activation name when provided, otherwise the
+    /// caller's idPostfix for same-agent targets only, mirroring how child workflow IDs are built.
     /// </summary>
-    private static string[] GetUniqueKeysFromContext(string workflowType)
+    private static string[] GetUniqueKeysFromContext(string workflowType, string? activationName)
     {
-        var idPostfix = ResolveChildIdPostfix(workflowType, activationName: null);
+        var idPostfix = ResolveChildIdPostfix(workflowType, activationName);
         return string.IsNullOrWhiteSpace(idPostfix) ? [] : [idPostfix];
     }
 
@@ -451,13 +540,13 @@ public static class SubWorkflowService
         object[] workflowArgs,
         string signalName,
         object[] signalArgs,
+        string? childIdPostfix,
         TimeSpan? executionTimeout)
     {
         var (client, tenantId, systemScoped, agentName) = await GetClientAndContextAsync(workflowType);
         var workflowId = BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
         var taskQueue = TenantContext.GetTaskQueueName(workflowType, systemScoped, tenantId);
 
-        var childIdPostfix = ResolveChildIdPostfix(workflowType, activationName: null);
         var searchAttributes = await BuildInheritedSearchAttributesAsync(tenantId, agentName, childIdPostfix, client);
         var options = new WorkflowOptions
         {
