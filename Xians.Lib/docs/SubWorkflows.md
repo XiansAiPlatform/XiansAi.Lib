@@ -13,32 +13,48 @@ The SDK automatically detects the context and handles both scenarios seamlessly.
 
 ## Quick Start
 
+All sub-workflow operations go through `XiansContext.Workflows`, which works both inside and
+outside workflow context: inside a workflow it starts a true child workflow; outside a workflow
+it uses the Temporal client directly (see [Overview](#overview) above).
+
 ### Starting a Sub-Workflow (Fire and Forget)
 
 ```csharp
-// Using workflow type
-await XiansContext.StartWorkflowAsync("MyAgent:ProcessOrder", "order-123", orderData);
+// Using workflow class (recommended - compile-time checked)
+await XiansContext.Workflows.StartAsync<ProcessOrderWorkflow>(
+    new object[] { orderData },
+    uniqueKey: "order-123"
+);
 
-// Using workflow class
-await XiansContext.StartWorkflowAsync<ProcessOrderWorkflow>("order-123", orderData);
+// Using workflow type string (for dynamic workflow selection)
+await XiansContext.Workflows.StartAsync(
+    "MyAgent:ProcessOrder",
+    new object[] { orderData },
+    uniqueKey: "order-123"
+);
 ```
 
 ### Executing a Sub-Workflow (Wait for Result)
 
 ```csharp
-// Using workflow type
-var result = await XiansContext.ExecuteWorkflowAsync<OrderResult>(
-    "MyAgent:ProcessOrder", 
-    "order-123", 
-    orderData
+// Using workflow class (recommended - compile-time checked)
+var result = await XiansContext.Workflows.ExecuteAsync<ProcessOrderWorkflow, OrderResult>(
+    new object[] { orderData },
+    uniqueKey: "order-123"
 );
 
-// Using workflow class
-var result = await XiansContext.ExecuteWorkflowAsync<ProcessOrderWorkflow, OrderResult>(
-    "order-123", 
-    orderData
+// Using workflow type string
+var result = await XiansContext.Workflows.ExecuteAsync<OrderResult>(
+    "MyAgent:ProcessOrder",
+    new object[] { orderData },
+    uniqueKey: "order-123"
 );
 ```
+
+**Note:** Use the workflow type string form whenever the target workflow's class type isn't
+available to reference as a generic type parameter (e.g. it lives in another assembly, or is
+selected dynamically at runtime). `"WorkflowName"` must match the name declared in the target
+class's `[Workflow("AgentName:WorkflowName")]` attribute - not necessarily the C# class name.
 
 ## Cross-Agent Sub-Workflows and Activations
 
@@ -135,7 +151,18 @@ create a new workflow, an explicit activation is validated up front exactly like
 simply means the target workflow is not running and Temporal reports a not-found error.
 
 ```csharp
+// By workflow class
 await XiansContext.Workflows.SignalWithStartAsync<FraudDetectionWorkflow>(
+    workflowArgs: [invoiceId],
+    signalName: "review-requested",
+    uniqueKey: invoiceId,
+    activationName: "fraud-detection-eu",
+    signalArgs: [reviewRequest]
+);
+
+// By workflow type string (useful when the workflow class isn't available)
+await XiansContext.Workflows.SignalWithStartAsync(
+    "Fraud Detection Agent:Fraud Detection Workflow",
     workflowArgs: [invoiceId],
     signalName: "review-requested",
     uniqueKey: invoiceId,
@@ -144,103 +171,72 @@ await XiansContext.Workflows.SignalWithStartAsync<FraudDetectionWorkflow>(
 );
 ```
 
-## Usage from XiansContext
+## Usage from XiansContext.Workflows
 
-The `XiansContext` class provides convenient static methods for sub-workflow execution:
+`XiansContext.Workflows` (a `WorkflowHelper` instance) is the entry point for all sub-workflow
+operations. Every method has a generic, compile-time-checked overload keyed by workflow class,
+and a string-based overload keyed by `"AgentName:WorkflowName"` for cases where the workflow class
+is not available (e.g. dynamic workflow selection, or the workflow lives in another assembly).
 
-### StartWorkflowAsync
+### StartAsync
 
 Starts a sub-workflow without waiting for completion. Returns immediately after starting.
 
 ```csharp
-// Type-safe overloads (recommended)
-public static async Task StartWorkflowAsync<TWorkflow>()
-public static async Task StartWorkflowAsync<TWorkflow>(object arg)
-public static async Task StartWorkflowAsync<TWorkflow>(object arg1, object arg2)
+public async Task StartAsync<TWorkflow>(
+    object[] args,
+    string? uniqueKey = null,
+    TimeSpan? executionTimeout = null,
+    string? activationName = null)
 
-// Generic overload with params
-public static async Task StartWorkflowAsync<TWorkflow>(
-    string? idPostfix = null, 
-    params object[] args)
-
-// String-based workflow type
-public static async Task StartWorkflowAsync(
-    string workflowType, 
-    string? idPostfix = null, 
-    params object[] args)
+public async Task StartAsync(
+    string workflowType,
+    object[] args,
+    string? uniqueKey = null,
+    TimeSpan? executionTimeout = null,
+    string? activationName = null)
 ```
 
 **Parameters:**
 
-- `workflowType` - The workflow type in format "AgentName:WorkflowName"
-- `TWorkflow` - Generic type parameter for the workflow class
-- `idPostfix` - Optional unique identifier to append to workflow ID
+- `TWorkflow` - Generic type parameter for the workflow class (omit and use `workflowType` instead when the class isn't available)
+- `workflowType` - The workflow type in format `"AgentName:WorkflowName"`
 - `args` - Arguments to pass to the workflow
-- `arg`, `arg1`, `arg2` - Type-safe arguments for common scenarios (0-2 args)
+- `uniqueKey` - Optional unique key appended to the workflow ID for uniqueness
+- `executionTimeout` - Optional workflow execution timeout
+- `activationName` - Optional target activation name (idPostfix); see [Cross-Agent Sub-Workflows and Activations](#cross-agent-sub-workflows-and-activations)
 
-### ExecuteWorkflowAsync
+### ExecuteAsync
 
 Executes a sub-workflow and waits for its result. Returns when the workflow completes.
 
 ```csharp
-// Type-safe overloads (recommended)
-public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>()
-public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(object arg)
-public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(object arg1, object arg2)
+public async Task<TResult> ExecuteAsync<TWorkflow, TResult>(
+    object[] args,
+    string? uniqueKey = null,
+    TimeSpan? executionTimeout = null,
+    string? activationName = null)
 
-// Generic overload with params
-public static async Task<TResult> ExecuteWorkflowAsync<TWorkflow, TResult>(
-    string? idPostfix = null, 
-    params object[] args)
-
-// String-based workflow type
-public static async Task<TResult> ExecuteWorkflowAsync<TResult>(
-    string workflowType, 
-    string? idPostfix = null, 
-    params object[] args)
+public async Task<TResult> ExecuteAsync<TResult>(
+    string workflowType,
+    object[] args,
+    string? uniqueKey = null,
+    TimeSpan? executionTimeout = null,
+    string? activationName = null)
 ```
 
 **Parameters:**
 
-- Same as `StartWorkflowAsync`
-- `TResult` - The expected return type from the workflow
-- `arg`, `arg1`, `arg2` - Type-safe arguments for common scenarios (0-2 args)
+- Same as `StartAsync`, plus `TResult` - the expected return type from the workflow
 
-## Direct Usage via SubWorkflowService
+### SignalAsync and SignalWithStartAsync
 
-For more control, you can use the `SubWorkflowService` directly:
-
-```csharp
-using Xians.Lib.Agents.Workflows;
-
-// Start without arguments
-await SubWorkflowService.StartAsync<MyWorkflow>();
-
-// Start with single argument
-await SubWorkflowService.StartAsync<MyWorkflow>(arg1);
-
-// Start with two arguments
-await SubWorkflowService.StartAsync<MyWorkflow>(arg1, arg2);
-
-// Start with multiple arguments (params)
-await SubWorkflowService.StartAsync<MyWorkflow>("instance-1", arg1, arg2);
-
-// Execute and wait for result (no arguments)
-var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>();
-
-// Execute with single argument
-var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>(arg1);
-
-// Execute with two arguments
-var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>(arg1, arg2);
-
-// Execute with multiple arguments (params)
-var result = await SubWorkflowService.ExecuteAsync<MyWorkflow, MyResult>(
-    "instance-1", 
-    arg1, 
-    arg2
-);
-```
+See [Cross-Agent Sub-Workflows and Activations](#cross-agent-sub-workflows-and-activations) above
+for `SignalAsync` and `SignalWithStartAsync` usage, including the activation-targeted overloads.
+Both also have plain string-based overloads (`SignalAsync(string workflowType, ...)` and
+`SignalWithStartAsync(string workflowType, ...)`) mirroring `StartAsync`/`ExecuteAsync`. The
+XiansAi.Docs "Workflows" and "Cross-Agent Workflows and Activations" concept pages have the full
+method reference tables.
 
 ## Examples
 
@@ -253,25 +249,25 @@ public class ProcessOrderWorkflow
     [WorkflowRun]
     public async Task<OrderResult> RunAsync(Order order)
     {
-        // Start payment processing (fire and forget)
-        await XiansContext.StartWorkflowAsync(
+        // Start payment processing (fire and forget), by workflow type string
+        await XiansContext.Workflows.StartAsync(
             "PaymentService:ProcessPayment",
-            order.Id,
-            order.PaymentInfo
+            new object[] { order.PaymentInfo },
+            uniqueKey: order.Id
         );
 
         // Execute inventory check and wait for result
-        var inventoryResult = await XiansContext.ExecuteWorkflowAsync<InventoryResult>(
+        var inventoryResult = await XiansContext.Workflows.ExecuteAsync<InventoryResult>(
             "InventoryService:CheckInventory",
-            order.Id,
-            order.Items
+            new object[] { order.Items },
+            uniqueKey: order.Id
         );
 
         // Execute shipping workflow
-        var shippingResult = await XiansContext.ExecuteWorkflowAsync<ShippingResult>(
+        var shippingResult = await XiansContext.Workflows.ExecuteAsync<ShippingResult>(
             "ShippingService:CreateShipment",
-            order.Id,
-            order.ShippingAddress
+            new object[] { order.ShippingAddress },
+            uniqueKey: order.Id
         );
 
         return new OrderResult
@@ -295,11 +291,10 @@ public class BulkNotificationWorkflow
     {
         // Start multiple sub-workflows in parallel
         var tasks = users.Select(user =>
-            XiansContext.StartWorkflowAsync(
+            XiansContext.Workflows.StartAsync(
                 "NotificationService:SendNotification",
-                user.Id,
-                user,
-                message
+                new object[] { user, message },
+                uniqueKey: user.Id
             )
         );
 
@@ -321,10 +316,10 @@ public class OrderController
         {
             // This will use the Temporal client to start a new workflow
             // (not a child workflow since we're not in a workflow context)
-            await XiansContext.StartWorkflowAsync(
+            await XiansContext.Workflows.StartAsync(
                 "OrderService:ProcessOrder",
-                order.Id,
-                order
+                new object[] { order },
+                uniqueKey: order.Id
             );
 
             return Ok(new { orderId = order.Id, status = "processing" });
@@ -341,7 +336,8 @@ public class OrderController
 
 ### Custom SubWorkflowOptions
 
-For advanced scenarios, you can create custom `SubWorkflowOptions`:
+For advanced scenarios, you can create custom `SubWorkflowOptions` (used internally by
+`XiansContext.Workflows`, and available directly for full control over child-workflow start):
 
 ```csharp
 using Temporalio.Common;
@@ -350,12 +346,13 @@ using Xians.Lib.Agents.Workflows;
 // Within a workflow
 var options = new SubWorkflowOptions(
     workflowType: "MyAgent:MyWorkflow",
-    idPostfix: "custom-id",
-    retryPolicy: new RetryPolicy 
-    { 
+    uniqueKeys: new[] { "custom-id" },
+    retryPolicy: new RetryPolicy
+    {
         MaximumAttempts = 3,
         InitialInterval = TimeSpan.FromSeconds(1)
     }
+    // activationName: "some-activation" // optional, for cross-agent targeting
 );
 
 await Workflow.StartChildWorkflowAsync("MyAgent:MyWorkflow", new[] { arg1 }, options);
@@ -364,7 +361,7 @@ await Workflow.StartChildWorkflowAsync("MyAgent:MyWorkflow", new[] { arg1 }, opt
 ### SubWorkflowOptions Properties
 
 - `TaskQueue` - Automatically determined based on system scope (resolved from the target agent when registered in-process, otherwise inherited from parent) and tenant ID
-- `Id` - Generated as `{TenantId}:{WorkflowType}:{OptionalPostfix}`
+- `Id` - Generated as `{TenantId}:{AgentName}:{WorkflowName}[:{idPostfix}][:{uniqueKey}]` (see [Workflow ID Format](#workflow-id-format) below)
 - `Memo` - Propagates `TenantId`, `Agent`, `UserId`, and `SystemScoped`; `Agent` and `idPostfix` are corrected for the child (see Cross-Agent Sub-Workflows above)
 - `TypedSearchAttributes` - Propagates searchable attributes for workflow discovery, with `agent`, `tenantId`, and `idPostfix` corrected for the child
 - `RetryPolicy` - Defaults to single attempt (fail fast)
@@ -377,7 +374,7 @@ await Workflow.StartChildWorkflowAsync("MyAgent:MyWorkflow", new[] { arg1 }, opt
 Sub-workflows follow the standard Xians workflow ID format:
 
 ```text
-{TenantId}:{WorkflowType}:{OptionalPostfix}
+{TenantId}:{AgentName}:{WorkflowName}[:{idPostfix}][:{uniqueKey}]
 ```
 
 Examples:
@@ -385,6 +382,7 @@ Examples:
 - `acme-corp:OrderService:ProcessOrder`
 - `acme-corp:OrderService:ProcessOrder:order-123`
 - `contoso:PaymentService:Charge:payment-456`
+- `contoso:PaymentService:Charge:fraud-detection-eu:payment-456` (with an explicit `activationName`)
 
 ## Multi-Tenancy and System Scoping
 
@@ -416,8 +414,8 @@ Sub-workflows use a fail-fast retry policy by default (`MaximumAttempts = 1`). T
 // Create custom options with retry logic
 var options = new SubWorkflowOptions(
     "MyAgent:MyWorkflow",
-    "instance-1",
-    new RetryPolicy
+    uniqueKeys: new[] { "instance-1" },
+    retryPolicy: new RetryPolicy
     {
         MaximumAttempts = 3,
         InitialInterval = TimeSpan.FromSeconds(1),
@@ -526,21 +524,22 @@ await AgentContext.ExecuteWorkflow<MyWorkflow, Result>("postfix", new object[] {
 ### New SDK (Xians.Lib)
 
 ```csharp
-await XiansContext.StartWorkflowAsync<MyWorkflow>("postfix", arg1, arg2);
-await XiansContext.ExecuteWorkflowAsync<MyWorkflow, Result>("postfix", arg1);
+await XiansContext.Workflows.StartAsync<MyWorkflow>(new object[] { arg1, arg2 }, uniqueKey: "postfix");
+await XiansContext.Workflows.ExecuteAsync<MyWorkflow, Result>(new object[] { arg1 }, uniqueKey: "postfix");
 ```
 
 **Key Improvements:**
 
 - Cleaner async/await patterns with `Async` suffix
-- Params array instead of `new object[]`
-- Better error messages and validation
+- Explicit `activationName` targeting for cross-agent activations (see [Cross-Agent Sub-Workflows and Activations](#cross-agent-sub-workflows-and-activations))
+- Better error messages and validation, with typed activation exceptions
 - Automatic context detection and handling
 - Improved multi-tenancy support
 
 ## See Also
 
-- [Workflows Documentation](./Workflows.md)
+- XiansAi.Docs "Workflows" concept page - core `XiansContext.Workflows` API reference
+- XiansAi.Docs "Cross-Agent Workflows and Activations" concept page
 - [Multi-Tenancy Documentation](./Multi-tenancy.md)
 - [Scheduling Documentation](./Scheduling.md)
 - [A2A Communication](./A2A.md)
