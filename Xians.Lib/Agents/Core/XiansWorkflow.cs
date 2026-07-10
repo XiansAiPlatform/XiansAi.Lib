@@ -332,7 +332,15 @@ public class XiansWorkflow
             Interceptors = [new TracingInterceptor()],
             // Treat nondeterminism errors as workflow failures (instead of retrying the task forever).
             // This terminates the stuck run so the next SignalWithStart creates a fresh execution.
-            WorkflowFailureExceptionTypes = [typeof(WorkflowNondeterminismException)]
+            // Activation exceptions are rethrown as typed .NET exceptions by SubWorkflowService
+            // inside workflows; registering them here makes them fail the workflow execution
+            // when uncaught, rather than suspending the workflow via task retries.
+            WorkflowFailureExceptionTypes =
+            [
+                typeof(WorkflowNondeterminismException),
+                typeof(Workflows.ActivationNotFoundException),
+                typeof(Workflows.ActivationDeactivatedException)
+            ]
         };
 
         // Initialize registrars

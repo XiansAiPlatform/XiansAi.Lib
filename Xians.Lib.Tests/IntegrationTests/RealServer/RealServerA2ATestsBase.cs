@@ -6,6 +6,10 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
+// This test suite intentionally exercises the deprecated XiansContext.A2A API to verify
+// A2A communication continues to work correctly until it is fully removed.
+#pragma warning disable CS0618
+
 /// <summary>
 /// Base class for A2A tests with configurable SystemScoped setting.
 /// Allows testing both system-scoped and tenant-scoped scenarios with the same test logic.
@@ -267,3 +271,5 @@ public abstract class RealServerA2ATestsBase : RealServerTestBase, IAsyncLifetim
         Console.WriteLine($"✓ Test cleanup complete (SystemScoped={UseSystemScoped})");
     }
 }
+
+#pragma warning restore CS0618

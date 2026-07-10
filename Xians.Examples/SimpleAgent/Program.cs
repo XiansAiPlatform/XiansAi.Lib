@@ -63,7 +63,7 @@ await xiansAgent.Knowledge.UploadEmbeddedResourceAsync(
 );
 
 // Define a built-in conversational workflow
-var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Conversing Workflow");
+var conversationalWorkflow = xiansAgent.Workflows.DefineSupervisor(); //var conversationalWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Supervisor Workflow");
 
 // Create your MAF agent instance
 var mafAgent = new MafSubAgent(openAiApiKey);
@@ -85,7 +85,7 @@ conversationalWorkflow.OnUserChatMessage(async (context) =>
 });
 
 
-var webhookWorkflow = xiansAgent.Workflows.DefineBuiltIn(name: "Webhook Workflow");
+var webhookWorkflow = xiansAgent.Workflows.DefineIntegrator();
 webhookWorkflow.OnWebhook((context) =>
 {
     // Your webhook processing logic here

@@ -227,7 +227,15 @@ public class KnowledgeCollection
         {
             return Task.CompletedTask;
         }
-        
+
+        // Print the whole box under a process-wide lock so concurrent agents don't interleave output
+        ConsoleDisplay.WriteBlock(DisplayKnowledgeSummaryCore);
+
+        return Task.CompletedTask;
+    }
+
+    private void DisplayKnowledgeSummaryCore()
+    {
         var knowledgeList = _localKnowledge;
 
         // Fixed box width for better console compatibility
@@ -308,8 +316,6 @@ public class KnowledgeCollection
         Console.ResetColor();
         Console.WriteLine();
         Console.WriteLine();
-        
-        return Task.CompletedTask;
     }
 
     /// <summary>

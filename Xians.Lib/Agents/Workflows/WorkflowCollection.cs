@@ -589,10 +589,12 @@ public class WorkflowCollection
             }
             catch (Exception ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"ERROR: Failed to start workflow '{w.WorkflowType}': {ex.Message}");
-                Console.WriteLine($"Exception: {ex}");
-                Console.ResetColor();
+                Common.Infrastructure.ConsoleDisplay.WriteBlock(() =>
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"ERROR: Failed to start workflow '{w.WorkflowType}': {ex.Message}");
+                    Console.WriteLine($"Exception: {ex}");
+                });
                 throw; // Re-throw to fail the overall operation
             }
         });
@@ -609,6 +611,12 @@ public class WorkflowCollection
             return;
         }
 
+        // Print the whole box under a process-wide lock so concurrent agents don't interleave output
+        Common.Infrastructure.ConsoleDisplay.WriteBlock(DisplayWorkflowSummaryCore);
+    }
+
+    private void DisplayWorkflowSummaryCore()
+    {
         // Fixed box width for better console compatibility
         const int boxWidth = 63;
         
@@ -681,6 +689,12 @@ public class WorkflowCollection
     /// Displays formatted agent details.
     /// </summary>
     private void DisplayAgentDetails(int boxWidth)
+    {
+        // Print the whole box under a process-wide lock so concurrent agents don't interleave output
+        Common.Infrastructure.ConsoleDisplay.WriteBlock(() => DisplayAgentDetailsCore(boxWidth));
+    }
+
+    private void DisplayAgentDetailsCore(int boxWidth)
     {
         Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine($"┌{new string('─', boxWidth)}┐");

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Worker;
+using Xians.Lib.Temporal.Workflows.Activations;
 using Xians.Lib.Temporal.Workflows.Scheduling;
 using Xians.Lib.Temporal.Workflows.Messaging;
 using Xians.Lib.Temporal.Workflows.Knowledge;
@@ -91,6 +92,13 @@ internal class ActivityRegistrar
                 "DocumentActivities",
                 () => new DocumentActivities(_agent.HttpService.Client),
                 typeof(DocumentActivities));
+
+            registeredCount += TryRegisterActivity(
+                workerOptions,
+                workflowType,
+                "ActivationActivities",
+                () => new ActivationActivities(),
+                typeof(ActivationActivities));
         }
         else if (_agent.Options?.LocalMode == true)
         {

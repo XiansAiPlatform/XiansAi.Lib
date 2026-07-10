@@ -141,7 +141,11 @@ public class ContentDiscoveryWorkflow
             return TestData.ContentURLs.Split(',').ToList();
         }
 
-        // Send A2A message to web workflow using the simplified API
+        // Send A2A message to web workflow using the simplified API.
+        // NOTE: A2A is deprecated in favor of Temporal SubWorkflows/Signals, but is kept here
+        // intentionally as this file is the documented reference example for A2A communication
+        // (see A2AContextOperations.cs remarks).
+#pragma warning disable CS0618
         var response = await XiansContext.A2A.SendChatToBuiltInAsync(
             Constants.WebWorkflowName,
             new A2AMessage 
@@ -149,6 +153,7 @@ public class ContentDiscoveryWorkflow
                 Data = {},
                 Text = $"Fetch all content article URLs from {contentSiteURL}. Return ONLY the URLs as a comma-separated list with no additional text, explanations, or formatting. Example format: url1,url2,url3" 
             });
+#pragma warning restore CS0618
 
         if (string.IsNullOrEmpty(response.Text))
         {

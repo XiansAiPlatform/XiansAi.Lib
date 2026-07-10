@@ -6,6 +6,10 @@ using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 
+// This test suite intentionally exercises the deprecated XiansContext.A2A API to verify
+// A2A communication continues to work correctly until it is fully removed.
+#pragma warning disable CS0618
+
 /// <summary>
 /// Real server integration tests for A2A (Agent-to-Agent) communication.
 /// 
@@ -910,6 +914,8 @@ public class WorkflowState
 /// <summary>
 /// Collection definition to disable parallelization for A2A tests.
 /// </summary>
+#pragma warning restore CS0618
+
 [CollectionDefinition("RealServerA2A", DisableParallelization = true)]
 public class RealServerA2ACollection
 {
