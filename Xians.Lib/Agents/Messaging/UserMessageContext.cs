@@ -217,6 +217,7 @@ public class UserMessageContext
     /// <param name="data">Optional data to pass with the handoff. If null, uses the current message data.</param>
     /// <param name="userMessage">Optional message to send to the user before the handoff.</param>
     /// <returns>The response from the handoff operation.</returns>
+    [Obsolete("This method is deprecated and will be removed in a future version.")]
     public virtual async Task<string?> SendHandoffAsync(string targetWorkflowId, string? message = null, object? data = null, string? userMessage = null)
     {
         if (string.IsNullOrEmpty(targetWorkflowId))
@@ -276,6 +277,7 @@ public class UserMessageContext
     /// Internal method to send handoff requests.
     /// Context-aware: Uses activity in workflow, direct service call in activity.
     /// </summary>
+    [Obsolete("This method is deprecated and will be removed in a future version.")]
     private async Task<string?> SendHandoffInternalAsync(string targetWorkflowId, string? targetWorkflowType, string? message, object? data)
     {
         if (string.IsNullOrEmpty(Message.ThreadId))
