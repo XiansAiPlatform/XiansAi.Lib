@@ -353,6 +353,7 @@ public class MessageActivities
     /// Delegates to shared MessageService.
     /// </summary>
     [Activity]
+    [Obsolete("This method is deprecated and will be removed in a future version.")]
     public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
     {
         ActivityExecutionContext.Current.Logger.LogDebug(

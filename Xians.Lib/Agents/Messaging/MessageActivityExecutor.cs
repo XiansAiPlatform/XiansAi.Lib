@@ -69,6 +69,7 @@ internal class MessageActivityExecutor : ContextAwareActivityExecutor<MessageAct
     /// <summary>
     /// Sends a handoff request using context-aware execution.
     /// </summary>
+    [Obsolete("This method is deprecated and will be removed in a future version.")]
     public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
     {
         return await ExecuteAsync(

@@ -334,6 +334,7 @@ internal class MessageService
     /// <param name="request">The send handoff request containing target workflow information and message details.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The response from the handoff operation.</returns>
+    [Obsolete("This method is deprecated and will be removed in a future version.")]
     public async Task<string?> SendHandoffAsync(
         SendHandoffRequest request,
         CancellationToken cancellationToken = default)
