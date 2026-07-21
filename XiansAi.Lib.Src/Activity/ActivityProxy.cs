@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
 using Server;
-using XiansAi.Logging;
 
 namespace XiansAi.Activity;
 
@@ -13,7 +12,7 @@ namespace XiansAi.Activity;
 internal class ActivityProxy<I, T> : DispatchProxy where T : I
 {
     private T? _target;
-    private static readonly Logger<ActivityProxyLogger> _logger = ActivityProxyFactory.CreateLogger();
+    private static readonly Logging.Logger<ActivityProxyLogger> _logger = ActivityProxyFactory.CreateLogger();
 
     /// <summary>
     /// Creates a proxy instance for the specified target

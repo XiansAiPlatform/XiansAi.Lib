@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporal;
 using Temporalio.Workflows;
-using XiansAi.Logging;
 
 namespace XiansAi.Messaging;
 
@@ -36,7 +35,7 @@ public class MessageHub: IMessageHub
     // (Unsubscribe* could not remove from ConcurrentBag, slowly leaking memory).
     private readonly ConcurrentBag<Func<EventMetadata, object?, Task>> _flowMessageHandlers = new ConcurrentBag<Func<EventMetadata, object?, Task>>();
 
-    private static readonly Logger<MessengerLog> _logger = Logger<MessengerLog>.For();
+    private static readonly Logging.Logger<MessengerLog> _logger = Logging.Logger<MessengerLog>.For();
 
     private readonly ConcurrentDictionary<Delegate, Func<MessageThread, Task>> _chatHandlerMappings = 
         new ConcurrentDictionary<Delegate, Func<MessageThread, Task>>();
