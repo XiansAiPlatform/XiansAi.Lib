@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Common;
 using Temporalio.Exceptions;
-using Temporalio.Worker;
 using Temporalio.Extensions.OpenTelemetry;
-using Xians.Lib.Agents.Scheduling;
-using Xians.Lib.Temporal.Workflows;
+using Temporalio.Worker;
 using Xians.Lib.Agents.Messaging;
-using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Agents.Workflows.Models;
+using Xians.Lib.Common.MultiTenancy;
+using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -342,6 +342,28 @@ public class XiansWorkflow
                 typeof(Workflows.ActivationDeactivatedException)
             ]
         };
+
+        // Opt-in Temporal Worker Deployment Versioning.
+        // When enabled, tag this worker with a Worker Deployment Version so Temporal routes tasks to
+        // compatible workers and new builds roll out without breaking in-flight (Pinned) executions.
+        // When the resolver returns null, DeploymentOptions is left untouched — the worker is exactly
+        // today's unversioned worker.
+        var versioning = WorkerVersioningResolver.Resolve(_agent.Options?.WorkerVersioning, _agent.Name);
+        if (versioning != null)
+        {
+            workerOptions.DeploymentOptions = new WorkerDeploymentOptions(
+                new WorkerDeploymentVersion(versioning.DeploymentName, versioning.BuildId),
+                useWorkerVersioning: true)
+            {
+                DefaultVersioningBehavior = versioning.DefaultBehavior
+            };
+
+            _logger.LogInformation(
+                "Worker versioning enabled for '{WorkflowType}': deployment '{DeploymentName}', build '{BuildId}', " +
+                "default behavior {Behavior} (queue '{TaskQueue}')",
+                WorkflowType, versioning.DeploymentName, versioning.BuildId,
+                workerOptions.DeploymentOptions.DefaultVersioningBehavior, taskQueue);
+        }
 
         // Initialize registrars
         var workflowRegistrar = new WorkflowRegistrar(_logger);
