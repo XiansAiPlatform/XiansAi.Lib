@@ -349,40 +349,6 @@ public class MessageActivities
     }
 
     /// <summary>
-    /// Sends a handoff request to transfer a conversation to another agent/workflow.
-    /// Delegates to shared MessageService.
-    /// </summary>
-    [Activity]
-    [Obsolete("This method is deprecated and will be removed in a future version.")]
-    public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
-    {
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "SendHandoff activity started: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
-            request.TargetWorkflowId,
-            request.TargetWorkflowType);
-        
-        try
-        {
-            var result = await _messageService.SendHandoffAsync(request);
-
-            ActivityExecutionContext.Current.Logger.LogDebug(
-                "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
-                request.TargetWorkflowId,
-                request.TargetWorkflowType);
-
-            return result;
-        }
-        catch (Exception ex)
-        {
-            ActivityExecutionContext.Current.Logger.LogError(ex,
-                "Error sending handoff: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
-                request.TargetWorkflowId,
-                request.TargetWorkflowType);
-            throw;
-        }
-    }
-
-    /// <summary>
     /// Downloads the bytes for any reference-only files (those carrying a fileId but no inline
     /// content) and populates their <see cref="UploadedFile.Content"/> so handlers see resolved files.
     /// </summary>

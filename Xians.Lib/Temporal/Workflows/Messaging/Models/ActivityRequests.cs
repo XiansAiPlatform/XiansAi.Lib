@@ -79,20 +79,3 @@ public class GetLastTaskIdRequest
     public required string TenantId { get; set; }
 }
 
-/// <summary>
-/// Request object for sending handoff messages via activity.
-/// </summary>
-public class SendHandoffRequest
-{
-    public string? TargetWorkflowId { get; set; }
-    public string? TargetWorkflowType { get; set; }
-    public required string SourceAgent { get; set; }
-    public required string SourceWorkflowType { get; set; }
-    public required string SourceWorkflowId { get; set; }
-    public required string ThreadId { get; set; }
-    public required string ParticipantId { get; set; }
-    public string? Authorization { get; set; }
-    public required string Text { get; set; }
-    public object? Data { get; set; }
-    public required string TenantId { get; set; }
-}

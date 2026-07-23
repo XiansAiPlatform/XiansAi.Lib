@@ -209,32 +209,6 @@ public class UserMessageContext
 
 
     /// <summary>
-    /// Sends a handoff request to transfer the conversation to another workflow using its workflow ID.
-    /// Works in both workflow and activity contexts.
-    /// </summary>
-    /// <param name="targetWorkflowId">The workflow ID of the target workflow to hand off to.</param>
-    /// <param name="message">Optional custom message for the handoff. If null, uses the current message text.</param>
-    /// <param name="data">Optional data to pass with the handoff. If null, uses the current message data.</param>
-    /// <param name="userMessage">Optional message to send to the user before the handoff.</param>
-    /// <returns>The response from the handoff operation.</returns>
-    [Obsolete("This method is deprecated and will be removed in a future version.")]
-    public virtual async Task<string?> SendHandoffAsync(string targetWorkflowId, string? message = null, object? data = null, string? userMessage = null)
-    {
-        if (string.IsNullOrEmpty(targetWorkflowId))
-        {
-            throw new ArgumentException("Target workflow ID cannot be null or empty", nameof(targetWorkflowId));
-        }
-
-        // Send message to user if provided
-        if (!string.IsNullOrEmpty(userMessage))
-        {
-            await ReplyAsync(userMessage);
-        }
-
-        return await SendHandoffInternalAsync(targetWorkflowId, null, message, data);
-    }
-
-    /// <summary>
     /// Internal method to send messages back to the user.
     /// Context-aware: Uses activity in workflow, direct service call in activity.
     /// </summary>
@@ -271,49 +245,6 @@ public class UserMessageContext
             "Message sent successfully: ParticipantId={ParticipantId}, RequestId={RequestId}",
             Message.ParticipantId,
             Message.RequestId);
-    }
-
-    /// <summary>
-    /// Internal method to send handoff requests.
-    /// Context-aware: Uses activity in workflow, direct service call in activity.
-    /// </summary>
-    [Obsolete("This method is deprecated and will be removed in a future version.")]
-    private async Task<string?> SendHandoffInternalAsync(string targetWorkflowId, string? targetWorkflowType, string? message, object? data)
-    {
-        if (string.IsNullOrEmpty(Message.ThreadId))
-        {
-            throw new InvalidOperationException("ThreadId is required for handoff operations");
-        }
-
-        // Use provided message or fall back to current message text
-        var text = message ?? Message.Text;
-        if (string.IsNullOrEmpty(text))
-        {
-            throw new InvalidOperationException("Message text is required for handoff");
-        }
-
-        _logger.LogDebug(
-            "Preparing to send handoff: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}, Tenant={Tenant}",
-            targetWorkflowId,
-            targetWorkflowType,
-            Message.TenantId);
-
-        // Shared business logic: Build request
-        var request = BuildSendHandoffRequest(targetWorkflowId, targetWorkflowType, text, data);
-
-        // Context-aware execution via executor
-        if (_executor == null)
-        {
-            throw new InvalidOperationException("MessageActivityExecutor is not available. This typically means the context was created outside a workflow and no agent is registered.");
-        }
-        var result = await _executor.SendHandoffAsync(request);
-
-        _logger.LogDebug(
-            "Handoff sent successfully: TargetWorkflowId={TargetWorkflowId}, TargetWorkflowType={TargetWorkflowType}",
-            targetWorkflowId,
-            targetWorkflowType);
-
-        return result;
     }
 
     #region Shared Business Logic Methods
@@ -371,30 +302,6 @@ public class UserMessageContext
             Hint = Message.Hint,
             Origin = null,
             Type = messageType,
-            TenantId = Message.TenantId
-        };
-    }
-
-    /// <summary>
-    /// Builds a send handoff request.
-    /// Shared business logic used by SendHandoffInternalAsync.
-    /// </summary>
-    private SendHandoffRequest BuildSendHandoffRequest(string? targetWorkflowId, string? targetWorkflowType, string text, object? data)
-    {
-        var agent = XiansContext.CurrentAgent;
-        
-        return new SendHandoffRequest
-        {
-            TargetWorkflowId = targetWorkflowId,
-            TargetWorkflowType = targetWorkflowType,
-            SourceAgent = agent.Name,
-            SourceWorkflowType = XiansContext.WorkflowType,
-            SourceWorkflowId = _cachedWorkflowId ?? string.Empty,
-            ThreadId = Message.ThreadId!,
-            ParticipantId = Message.ParticipantId,
-            Authorization = Message.Authorization,
-            Text = text,
-            Data = data ?? Message.Data,
             TenantId = Message.TenantId
         };
     }

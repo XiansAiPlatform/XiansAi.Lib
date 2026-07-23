@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
+using Xians.Lib.Temporal.Workflows.Activations;
 
 namespace Xians.Lib.Agents.Workflows;
 
@@ -62,25 +63,57 @@ internal static class ActivationValidationService
         string? tenantId,
         bool systemScoped)
     {
+        var status = await CheckActivationStatusAsync(client, agentName, activationName, tenantId, systemScoped);
+
+        switch (status)
+        {
+            case ActivationCheckStatus.Active:
+                _logger.LogDebug(
+                    "Activation '{ActivationName}' for agent '{AgentName}' validated successfully.",
+                    activationName,
+                    agentName);
+                return;
+
+            case ActivationCheckStatus.NotFound:
+                throw new ActivationNotFoundException(agentName, activationName, tenantId);
+
+            case ActivationCheckStatus.Deactivated:
+                throw new ActivationDeactivatedException(agentName, activationName);
+        }
+    }
+
+    /// <summary>
+    /// Non-throwing variant of the core activation check. Returns a definitive
+    /// <see cref="ActivationCheckStatus"/> for the expected outcomes (200 → <see cref="ActivationCheckStatus.Active"/>,
+    /// 404 → <see cref="ActivationCheckStatus.NotFound"/>, 409 → <see cref="ActivationCheckStatus.Deactivated"/>).
+    /// Genuine errors still throw: 400 → <see cref="InvalidOperationException"/>, and other non-success
+    /// responses → <see cref="HttpRequestException"/> so retry policies can apply. Used both by
+    /// <see cref="EnsureActivationActiveAsync(HttpClient, string, string, string?, bool)"/> (which maps the status to
+    /// typed exceptions) and by the public agent self-info APIs that surface the status directly.
+    /// </summary>
+    internal static async Task<ActivationCheckStatus> CheckActivationStatusAsync(
+        HttpClient client,
+        string agentName,
+        string activationName,
+        string? tenantId,
+        bool systemScoped,
+        CancellationToken cancellationToken = default)
+    {
         var url = $"{WorkflowConstants.ApiEndpoints.ActivationExists}" +
                   $"?activationName={Uri.EscapeDataString(activationName)}" +
                   $"&agentName={Uri.EscapeDataString(agentName)}";
 
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         if (systemScoped && !string.IsNullOrWhiteSpace(tenantId))
         {
             request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
         }
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, cancellationToken);
 
         if (response.IsSuccessStatusCode)
         {
-            _logger.LogDebug(
-                "Activation '{ActivationName}' for agent '{AgentName}' validated successfully.",
-                activationName,
-                agentName);
-            return;
+            return ActivationCheckStatus.Active;
         }
 
         var errorContent = await response.Content.ReadAsStringAsync();
@@ -88,10 +121,10 @@ internal static class ActivationValidationService
         switch (response.StatusCode)
         {
             case HttpStatusCode.NotFound:
-                throw new ActivationNotFoundException(agentName, activationName, tenantId);
+                return ActivationCheckStatus.NotFound;
 
             case HttpStatusCode.Conflict:
-                throw new ActivationDeactivatedException(agentName, activationName);
+                return ActivationCheckStatus.Deactivated;
 
             case HttpStatusCode.BadRequest:
                 throw new InvalidOperationException(

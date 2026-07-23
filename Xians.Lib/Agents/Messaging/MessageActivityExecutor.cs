@@ -65,17 +65,5 @@ internal class MessageActivityExecutor : ContextAwareActivityExecutor<MessageAct
             svc => svc.GetLastTaskIdAsync(request),
             operationName: "GetLastTaskId");
     }
-
-    /// <summary>
-    /// Sends a handoff request using context-aware execution.
-    /// </summary>
-    [Obsolete("This method is deprecated and will be removed in a future version.")]
-    public async Task<string?> SendHandoffAsync(SendHandoffRequest request)
-    {
-        return await ExecuteAsync(
-            act => act.SendHandoffAsync(request),
-            svc => svc.SendHandoffAsync(request),
-            operationName: "SendHandoff");
-    }
 }
 
