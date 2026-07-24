@@ -62,7 +62,9 @@ integratorWorkflow.OnWebhook(async (context) =>
 {
     try
     {
-        Console.WriteLine($"Received webhook '{context.Webhook.Name}' with payload: {context.Webhook.Payload}");
+        // Avoid logging the raw payload verbatim: it may contain caller-supplied sensitive data.
+        Console.WriteLine(
+            $"Received webhook '{context.Webhook.Name}' (payload length: {context.Webhook.Payload?.Length ?? 0})");
 
         // Start the custom workflow WITHOUT waiting for its result. The workflow creates and lists the
         // webhooks, waits one minute (a durable timer), then deletes them - which is longer than the
@@ -82,8 +84,10 @@ integratorWorkflow.OnWebhook(async (context) =>
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Error processing webhook: {ex.Message}");
-        context.Response = WebhookResponse.InternalServerError($"Failed to process webhook: {ex.Message}");
+        // Log the full exception server-side, but return a generic message to the external caller so
+        // internal implementation/backend error details are not disclosed.
+        Console.WriteLine($"Error processing webhook: {ex}");
+        context.Response = WebhookResponse.InternalServerError("Failed to process webhook. See server logs for details.");
     }
 });
 

@@ -109,7 +109,7 @@ internal static class ActivationValidationService
             request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
         }
 
-        var response = await client.SendAsync(request, cancellationToken);
+        using var response = await client.SendAsync(request, cancellationToken);
 
         if (response.IsSuccessStatusCode)
         {

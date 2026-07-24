@@ -314,10 +314,19 @@ public class XiansAgent
     /// Returns true when this agent has an active activation of the given name in the current tenant.
     /// A missing or deactivated activation returns false. The activation name is resolved automatically
     /// from the current <see cref="XiansContext"/> when running inside a workflow/activity.
+    /// <para>
+    /// This only maps the "not found"/"deactivated" outcomes to false. Genuine errors still propagate:
+    /// see the exceptions on <see cref="GetActivationStatusAsync"/> (e.g. <see cref="InvalidOperationException"/>
+    /// for a missing HTTP service/unresolvable activation or a 400, and <see cref="HttpRequestException"/>
+    /// for transient/server errors), so this is not a fully exception-free check.
+    /// </para>
     /// </summary>
     /// <param name="activationName">Optional activation name. Defaults to the current activation from context.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if the activation exists and is active; otherwise false.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the HTTP service is unavailable, no activation
+    /// name can be resolved, or the server rejects the request (400).</exception>
+    /// <exception cref="HttpRequestException">Thrown for transient/server errors so retry policies can apply.</exception>
     public async Task<bool> ActivationExistsAsync(
         string? activationName = null,
         CancellationToken cancellationToken = default)

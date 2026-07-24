@@ -73,7 +73,7 @@ public class WebhookCollection
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         AddTenantHeader(request);
 
-        var response = await client.SendAsync(request, cancellationToken);
+        using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             await ThrowForResponseAsync(response, "list webhooks");
 
@@ -139,7 +139,7 @@ public class WebhookCollection
         };
         AddTenantHeader(request);
 
-        var response = await client.SendAsync(request, cancellationToken);
+        using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             await ThrowForResponseAsync(response, "create webhook");
 
@@ -167,7 +167,7 @@ public class WebhookCollection
             $"{WorkflowConstants.ApiEndpoints.AgentWebhooks}/{UrlEncoder.Default.Encode(id)}");
         AddTenantHeader(request);
 
-        var response = await client.SendAsync(request, cancellationToken);
+        using var response = await client.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return false;
         if (!response.IsSuccessStatusCode)
@@ -208,7 +208,9 @@ public class WebhookCollection
             operation,
             response.StatusCode,
             body);
-        throw new HttpRequestException($"Webhook {operation} failed. Status: {response.StatusCode}. {body}");
+        // Keep the full server body in the log above, but throw a sanitized message so backend
+        // implementation details aren't leaked if a caller surfaces ex.Message externally.
+        throw new HttpRequestException($"Webhook {operation} failed. Status: {response.StatusCode}.");
     }
 
     /// <summary>Request body matching the server's builtin webhook creation contract.</summary>
