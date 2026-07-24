@@ -42,54 +42,9 @@ public void MyTest()
 - `ResetWorkflowState()` - Workflow registries only
 - `ResetCaches()` - Cache state only
 
-### 2. `XiansTestFixture` - Automatic Cleanup Base Class
+### 2. Base Class Pattern - Automatic Cleanup
 
-For synchronous tests:
-
-```csharp
-using Xians.Lib.Common.Testing;
-
-public class MyTests : XiansTestFixture
-{
-    [Fact]
-    public void MyTest()
-    {
-        // Static state is automatically clean
-        // Test code here
-    }
-    // Cleanup happens automatically in Dispose
-}
-```
-
-### 3. `XiansAsyncTestFixture` - Async Test Support
-
-For xUnit `IAsyncLifetime` tests:
-
-```csharp
-using Xians.Lib.Common.Testing;
-using Xunit;
-
-public class MyAsyncTests : XiansAsyncTestFixture, IAsyncLifetime
-{
-    public async Task InitializeAsync()
-    {
-        await base.InitializeAsync();  // Clean state
-        // Your async setup
-    }
-    
-    public async Task DisposeAsync()
-    {
-        // Your async cleanup
-        await base.DisposeAsync();  // Clean static state
-    }
-    
-    [Fact]
-    public async Task MyTest()
-    {
-        // Test code
-    }
-}
-```
+Wrap `TestCleanup` in a reusable base class so cleanup runs automatically before and after each test (see the `RealServerTestBase` example below).
 
 ## Migration Guide
 
@@ -116,7 +71,13 @@ public class MyTests
 ### After (Automatic)
 
 ```csharp
-public class MyTests : XiansTestFixture
+public abstract class TestBase : IDisposable
+{
+    protected TestBase() => TestCleanup.ResetAllStaticState();
+    public void Dispose() => TestCleanup.ResetAllStaticState();
+}
+
+public class MyTests : TestBase
 {
     [Fact]
     public void Test1()
@@ -130,10 +91,9 @@ public class MyTests : XiansTestFixture
 ## Best Practices
 
 ### ✅ DO:
-- Inherit from `XiansTestFixture` for simple tests
+- Wrap `TestCleanup.ResetAllStaticState()` in a shared base class for simple tests
 - Use `TestCleanup.ResetAllStaticState()` in setup/teardown
 - Call `base.Dispose(disposing)` when overriding Dispose
-- Use `XiansAsyncTestFixture` for async initialization
 
 ### ❌ DON'T:
 - Call individual cleanup methods manually (use centralized)

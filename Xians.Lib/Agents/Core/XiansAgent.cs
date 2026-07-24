@@ -9,6 +9,8 @@ using Xians.Lib.Agents.Metrics;
 using Xians.Lib.Logging;
 using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Agents.Secrets;
+using Xians.Lib.Agents.Webhooks;
+using Xians.Lib.Temporal.Workflows.Activations;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -52,6 +54,12 @@ public class XiansAgent
     /// Gets the Secret Vault collection for scoped CRUD of secrets (tenant/agent/user scope via builder).
     /// </summary>
     public SecretVaultCollection Secrets { get; private set; }
+
+    /// <summary>
+    /// Gets the webhook collection for managing this agent's builtin (inbound) webhooks
+    /// (create, list, delete) for the current tenant. Agent and activation are resolved automatically.
+    /// </summary>
+    public WebhookCollection Webhooks { get; private set; }
 
     /// <summary>
     /// Gets the name of the agent.
@@ -138,6 +146,7 @@ public class XiansAgent
         Metrics = new MetricsCollection(this);
         Schedules = new ScheduleCollection(this, TemporalService);
         Secrets = new SecretVaultCollection(this);
+        Webhooks = new WebhookCollection(this);
 
         // Register this agent in the static context
         XiansContext.RegisterAgent(this);
@@ -266,6 +275,63 @@ public class XiansAgent
             throw new InvalidOperationException(
                 $"Failed to delete agent '{Name}'. Status: {response.StatusCode}, Error: {errorMessage}");
         }
+    }
+
+    /// <summary>
+    /// Checks whether this agent has an active activation of the given name in the current tenant.
+    /// The activation name is resolved automatically from the current <see cref="XiansContext"/> when
+    /// running inside a workflow/activity; pass it explicitly otherwise.
+    /// </summary>
+    /// <param name="activationName">Optional activation name. Defaults to the current activation from context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The activation status: <see cref="ActivationCheckStatus.Active"/>,
+    /// <see cref="ActivationCheckStatus.NotFound"/>, or <see cref="ActivationCheckStatus.Deactivated"/>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the HTTP service is not available, no activation
+    /// name can be resolved, or the server rejects the request (400).</exception>
+    /// <exception cref="HttpRequestException">Thrown for transient/server errors so retry policies can apply.</exception>
+    public async Task<ActivationCheckStatus> GetActivationStatusAsync(
+        string? activationName = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (HttpService == null)
+        {
+            throw new InvalidOperationException("HTTP service is not available. Cannot check activation status.");
+        }
+
+        var resolvedActivation = activationName ?? XiansContext.SafeIdPostfix
+            ?? throw new InvalidOperationException(
+                "No activation name provided and none is available from the current context. " +
+                "Call from within a workflow/activity, or pass an explicit activationName.");
+
+        var client = await HttpService.GetHealthyClientAsync();
+        var tenantId = XiansContext.SafeTenantId ?? Options?.CertificateTenantId;
+
+        return await ActivationValidationService.CheckActivationStatusAsync(
+            client, Name, resolvedActivation, tenantId, SystemScoped, cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns true when this agent has an active activation of the given name in the current tenant.
+    /// A missing or deactivated activation returns false. The activation name is resolved automatically
+    /// from the current <see cref="XiansContext"/> when running inside a workflow/activity.
+    /// <para>
+    /// This only maps the "not found"/"deactivated" outcomes to false. Genuine errors still propagate:
+    /// see the exceptions on <see cref="GetActivationStatusAsync"/> (e.g. <see cref="InvalidOperationException"/>
+    /// for a missing HTTP service/unresolvable activation or a 400, and <see cref="HttpRequestException"/>
+    /// for transient/server errors), so this is not a fully exception-free check.
+    /// </para>
+    /// </summary>
+    /// <param name="activationName">Optional activation name. Defaults to the current activation from context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the activation exists and is active; otherwise false.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the HTTP service is unavailable, no activation
+    /// name can be resolved, or the server rejects the request (400).</exception>
+    /// <exception cref="HttpRequestException">Thrown for transient/server errors so retry policies can apply.</exception>
+    public async Task<bool> ActivationExistsAsync(
+        string? activationName = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetActivationStatusAsync(activationName, cancellationToken) == ActivationCheckStatus.Active;
     }
 
     /// <summary>
