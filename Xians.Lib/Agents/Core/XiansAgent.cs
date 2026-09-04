@@ -348,6 +348,7 @@ public class XiansAgent
         await InitializeTasksIfConfiguredAsync();
 
         // Set up cancellation token if not provided
+        IDisposable? sigTermRegistration = null;
         if (cancellationToken == CancellationToken.None)
         {
             var tokenSource = new CancellationTokenSource();
@@ -356,11 +357,21 @@ public class XiansAgent
                 tokenSource.Cancel();
                 eventArgs.Cancel = true;
             };
+            // SIGTERM (container orchestrator stop) cancels the same token so workers drain
+            // gracefully instead of being killed mid-task.
+            sigTermRegistration = ShutdownSignals.RegisterSigTerm(tokenSource);
             cancellationToken = tokenSource.Token;
         }
 
-        // Run all workflows
-        await Workflows.RunAllAsync(cancellationToken);
+        try
+        {
+            // Run all workflows
+            await Workflows.RunAllAsync(cancellationToken);
+        }
+        finally
+        {
+            sigTermRegistration?.Dispose();
+        }
     }
 
     /// <summary>

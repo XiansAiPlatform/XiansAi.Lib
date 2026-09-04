@@ -758,7 +758,8 @@ public static class SubWorkflowService
 
     /// <summary>
     /// Builds search attributes for child/sub-workflow by inheriting parent attributes when in workflow context.
-    /// Works both in workflow context (inherits all) and outside workflow context (builds minimal).
+    /// Works both in workflow context (inherits all except server-reserved Temporal* attributes, which the
+    /// server stamps itself and rejects in start requests) and outside workflow context (builds minimal).
     /// Inherited attributes are corrected for the child: agent, tenantId, and idPostfix are overridden
     /// so a child belonging to a different agent is not tagged with the parent's identity or activation.
     /// This is a shared method used by both SubWorkflowOptions and client-based workflow starting.
@@ -772,7 +773,13 @@ public static class SubWorkflowService
         string? childIdPostfix)
     {
         if (Workflow.InWorkflow)
-            return OverrideChildMetadata(Workflow.TypedSearchAttributes, tenantId, agentName, childIdPostfix);
+        {
+            // Strip the server-reserved Temporal* attributes before stamping the child's own identity:
+            // the server sets them itself on the new execution and rejects start requests that carry them.
+            // Sanitizing first also keeps OverrideChildMetadata operating on a clean inherited set.
+            var inherited = WorkflowMetadataResolver.SanitizeForStart(Workflow.TypedSearchAttributes)!;
+            return OverrideChildMetadata(inherited, tenantId, agentName, childIdPostfix);
+        }
 
         var participantId = XiansContext.TryGetParticipantId() ?? string.Empty;
         return WorkflowMetadataResolver.BuildSearchAttributes(tenantId, agentName, participantId, childIdPostfix ?? string.Empty);

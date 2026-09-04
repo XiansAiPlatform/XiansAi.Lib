@@ -187,10 +187,12 @@ internal static class WorkflowMetadataResolver
 
     /// <summary>
     /// Resolves search attributes for a child/sub-workflow to inherit from the parent.
-    /// In workflow context: returns Workflow.TypedSearchAttributes directly.
+    /// In workflow context: returns Workflow.TypedSearchAttributes.
     /// In activity context: fetches parent workflow description via client and returns TypedSearchAttributes
     /// (or builds from mined values if TypedSearchAttributes is empty).
     /// Outside workflow/activity: returns null (caller should build from context).
+    /// Server-reserved Temporal* attributes (e.g. TemporalWorkerDeployment under Worker Deployment
+    /// Versioning) are stripped — the server rejects start requests that set them.
     /// </summary>
     /// <param name="tenantId">Tenant ID for the child workflow.</param>
     /// <param name="agentName">Agent name for the child workflow.</param>
@@ -202,14 +204,14 @@ internal static class WorkflowMetadataResolver
         ITemporalClient? client)
     {
         if (Workflow.InWorkflow)
-            return Workflow.TypedSearchAttributes;
+            return SanitizeForStart(Workflow.TypedSearchAttributes);
 
         if (!ActivityExecutionContext.HasCurrent || client == null)
             return null;
 
         var description = await FetchWorkflowDescriptionAsync(client);
         if (description?.TypedSearchAttributes != null)
-            return description.TypedSearchAttributes;
+            return SanitizeForStart(description.TypedSearchAttributes);
 
         var userId = GetFromDescription(description, WorkflowConstants.Keys.UserId) ?? string.Empty;
         var idPostfix = GetFromDescription(description, WorkflowConstants.Keys.idPostfix) ?? string.Empty;
@@ -282,6 +284,31 @@ internal static class WorkflowMetadataResolver
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), idPostfix)
             .ToSearchAttributeCollection();
+    }
+
+    /// <summary>
+    /// Removes server-reserved search attributes (names starting with "Temporal") from a collection
+    /// so it can be used in new workflow start / schedule requests. The server stamps these itself
+    /// (e.g. TemporalWorkerDeployment, TemporalWorkerDeploymentVersion, TemporalWorkflowVersioningBehavior
+    /// under Worker Deployment Versioning) and rejects any request that tries to set them.
+    /// Pure and deterministic; safe to call in workflow context.
+    /// Null stays null; a collection that strips to empty is returned empty (never converted to null,
+    /// so callers' null-fallback paths are not triggered); nothing-to-strip returns the same instance.
+    /// </summary>
+    internal static SearchAttributeCollection? SanitizeForStart(SearchAttributeCollection? attrs)
+    {
+        if (attrs == null || attrs.Count == 0) return attrs;
+
+        SearchAttributeCollection.Builder? builder = null;
+        foreach (var key in attrs.UntypedValues.Keys)
+        {
+            if (key.Name.StartsWith("Temporal", StringComparison.Ordinal))
+            {
+                builder ??= new SearchAttributeCollection.Builder(attrs);
+                builder.Unset(key.Name);
+            }
+        }
+        return builder == null ? attrs : builder.ToSearchAttributeCollection();
     }
 
     /// <summary>

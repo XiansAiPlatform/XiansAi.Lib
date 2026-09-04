@@ -468,20 +468,22 @@ public class ScheduleBuilder
     /// Gets search attributes for scheduled workflow executions.
     /// When in workflow: uses explicit _typedSearchAttributes or Workflow.TypedSearchAttributes.
     /// When in activity: fetches parent workflow's search attributes via client API, falling back to context-built attributes.
+    /// Server-reserved Temporal* attributes are stripped on every path — the server stamps them itself
+    /// and rejects schedule/start requests that try to set them.
     /// </summary>
     private async Task<SearchAttributeCollection?> GetEffectiveSearchAttributesForScheduleAsync(
         string tenantId, ITemporalClient client)
     {
         if (_typedSearchAttributes != null)
-            return _typedSearchAttributes;
+            return WorkflowMetadataResolver.SanitizeForStart(_typedSearchAttributes);
 
         if (Workflow.InWorkflow)
-            return Workflow.TypedSearchAttributes;
+            return WorkflowMetadataResolver.SanitizeForStart(Workflow.TypedSearchAttributes);
 
         // Activity context: fetch parent workflow's search attributes via client API
         var description = await WorkflowMetadataResolver.FetchWorkflowDescriptionAsync(client);
         if (description?.TypedSearchAttributes != null)
-            return description.TypedSearchAttributes;
+            return WorkflowMetadataResolver.SanitizeForStart(description.TypedSearchAttributes);
 
         // Fallback: build from context (extract from description when available)
         _logger.LogDebug(

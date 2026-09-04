@@ -21,6 +21,12 @@ public class XiansOptions : ServerConfiguration
     public TemporalConfiguration? TemporalConfiguration { get; set; }
 
     /// <summary>
+    /// Optional opt-in Temporal Worker Deployment Versioning configuration.
+    /// When null (the default), workers are created unversioned exactly as before.
+    /// </summary>
+    public WorkerVersioningOptions? WorkerVersioning { get; set; }
+
+    /// <summary>
     /// Gets or sets the cache configuration.
     /// If not provided, uses default caching settings (5-minute TTL, enabled).
     /// </summary>
