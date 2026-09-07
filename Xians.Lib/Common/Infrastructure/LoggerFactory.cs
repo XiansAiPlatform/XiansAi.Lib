@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
 using Xians.Lib.Logging;
+using Xians.Lib.Observability;
 
 namespace Xians.Lib.Common.Infrastructure;
 
@@ -121,6 +124,8 @@ public static class LoggerFactory
                 })
                 .SetMinimumLevel(LogLevel.Trace)
                 .AddFilter((_, level) => level >= (_consoleLogLevelOverride ?? fallbackLevel));
+
+            TryAddOtlpLogging(builder);
         });
     }
 
@@ -155,6 +160,29 @@ public static class LoggerFactory
             builder.AddFilter("Microsoft", level => level >= GetConsoleLogLevel())
                    .AddFilter("System", level => level >= GetConsoleLogLevel())
                    .AddFilter((_, level) => level >= GetConsoleLogLevel());
+
+            TryAddOtlpLogging(builder);
+        });
+    }
+
+    /// <summary>
+    /// If OpenTelemetry is already running, also send logs to the same collector as traces.
+    /// </summary>
+    private static void TryAddOtlpLogging(ILoggingBuilder builder)
+    {
+        if (!OpenTelemetryBootstrap.IsInitialized || string.IsNullOrWhiteSpace(OpenTelemetryBootstrap.OtlpEndpoint))
+            return;
+
+        var endpoint = OpenTelemetryBootstrap.OtlpEndpoint;
+        builder.AddOpenTelemetry(logging =>
+        {
+            logging.IncludeFormattedMessage = true;
+            logging.IncludeScopes = true;
+            logging.AddOtlpExporter(o =>
+            {
+                o.Endpoint = new Uri(endpoint);
+                o.Protocol = OtlpExportProtocol.Grpc;
+            });
         });
     }
 

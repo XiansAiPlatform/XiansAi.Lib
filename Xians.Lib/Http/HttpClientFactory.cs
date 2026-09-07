@@ -48,7 +48,12 @@ internal class HttpClientFactory
             }
         };
 
-        var client = new HttpClient(socketsHandler)
+        var propagatingHandler = new TraceContextPropagatingHandler
+        {
+            InnerHandler = socketsHandler
+        };
+
+        var client = new HttpClient(propagatingHandler)
         {
             BaseAddress = new Uri(_config.ServerUrl),
             Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds)
