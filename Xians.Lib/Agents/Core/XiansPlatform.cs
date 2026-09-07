@@ -86,6 +86,9 @@ public class XiansPlatform
         // Validate configuration
         options.Validate();
 
+        // Start OpenTelemetry when OpenTelemetry__Enabled=true and an endpoint is configured.
+        Observability.OpenTelemetryBootstrap.TryInitialize();
+
         // Configure logging levels if provided in options
         Common.Infrastructure.LoggerFactory.ConfigureLogLevels(
             options.ConsoleLogLevel,
