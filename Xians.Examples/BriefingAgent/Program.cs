@@ -2,6 +2,7 @@ using DotNetEnv;
 using Microsoft.Extensions.Logging;
 using Temporalio.Exceptions;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.Workflows.Models;
 
 Env.Load();
@@ -70,7 +71,7 @@ Console.WriteLine("Press Ctrl+C to stop.");
 
 await xiansAgent.RunAllAsync();
 
-static async Task RememberCheckInSubscriberAsync(Xians.Lib.Agents.Messaging.UserMessageContext context)
+static async Task RememberCheckInSubscriberAsync(UserMessageContext context)
 {
     try
     {
@@ -85,9 +86,9 @@ static async Task RememberCheckInSubscriberAsync(Xians.Lib.Agents.Messaging.User
             context.Message.Authorization,
             metadata);
     }
-    catch (Exception ex)
+    catch (Exception ex) when (ex is not OperationCanceledException)
     {
-        Console.WriteLine($"Could not remember participant for proactive check-ins: {ex.Message}");
+        Console.WriteLine($"Could not remember participant for proactive check-ins: {ex}");
     }
 }
 
@@ -113,8 +114,8 @@ static async Task EnsureCheckInWorkflowAsync()
     {
         // Already running under this activation — the schedule will keep it going.
     }
-    catch (Exception ex)
+    catch (Exception ex) when (ex is not OperationCanceledException)
     {
-        Console.WriteLine($"Could not start the check-in workflow: {ex.Message}");
+        Console.WriteLine($"Could not start the check-in workflow: {ex}");
     }
 }

@@ -11,6 +11,7 @@ internal static class MarkdownFormattingPrompt
         - Never emit HTML. Slack strips tags; Teams text messages do not render them.
         - Do not rewrite formatting inside inline `code` or fenced code blocks.
         - There is no post-processor. The text you emit is delivered unchanged to Studio, Slack, or Teams. Follow the channel block below exactly.
+        - Never explain, narrate, or comment on the formatting you used. Deliver the answer only.
         """;
 
     public const string Studio =
@@ -106,8 +107,11 @@ internal static class MarkdownFormattingPrompt
     /// channel formatting block. Other agents should call this instead of
     /// inlining Slack/Teams rules.
     /// </summary>
-    public static string Combine(string agentInstructions, ChatChannel channel) =>
-        $"{agentInstructions.Trim()}\n\n{For(channel)}";
+    public static string Combine(string agentInstructions, ChatChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(agentInstructions);
+        return $"{agentInstructions.Trim()}\n\n{For(channel)}";
+    }
 
     public static string Combine(string agentInstructions, string? scope) =>
         Combine(agentInstructions, FromScope(scope));

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
@@ -115,7 +116,7 @@ internal sealed class CheckInActivities
     public int GetIntervalMinutes()
     {
         var raw = Environment.GetEnvironmentVariable("PROACTIVE_CHECKIN_EVERY_MINUTES");
-        return int.TryParse(raw, out var minutes) && minutes > 0
+        return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes) && minutes > 0
             ? minutes
             : DefaultIntervalMinutes;
     }
@@ -123,14 +124,17 @@ internal sealed class CheckInActivities
     [Activity]
     public async Task DeleteLegacySchedulesAsync()
     {
+        var logger = ActivityExecutionContext.Current.Logger;
         foreach (var name in LegacyScheduleNames)
         {
             try
             {
                 await XiansContext.CurrentAgent.Schedules.DeleteAsync(name).ConfigureAwait(false);
+                logger.LogInformation("Deleted legacy check-in schedule {ScheduleName}", name);
             }
             catch (ScheduleNotFoundException)
             {
+                logger.LogDebug("Legacy check-in schedule {ScheduleName} was already absent", name);
             }
         }
     }
@@ -147,9 +151,9 @@ internal sealed class CheckInActivities
         var targets = subscribers
             .Select(ToSubscriber)
             .OfType<CheckInTarget>()
+            .Where(subscriber => !WasRecentlyActive(subscriber))
             .OrderByDescending(subscriber => subscriber.ThreadId is not null)
             .ThenByDescending(subscriber => subscriber.LastSeenAt ?? DateTime.MinValue)
-            .Where(subscriber => !WasRecentlyActive(subscriber))
             .DistinctBy(subscriber => (subscriber.ParticipantId, subscriber.Scope))
             .ToList();
 
@@ -261,23 +265,13 @@ internal sealed class CheckInActivities
         return DateTime.UtcNow - lastSeenAt.ToUniversalTime() < RecentlyActiveWindow;
     }
 
-    internal static string? ResolveOrigin(Dictionary<string, string>? metadata)
+    internal static string? ResolveOrigin(IReadOnlyDictionary<string, string>? metadata)
     {
-        if (metadata is null)
-        {
-            return null;
-        }
-
-        foreach (var key in new[] { "origin", "Origin" })
-        {
-            if (metadata.TryGetValue(key, out var value)
-                && value.StartsWith("app:", StringComparison.OrdinalIgnoreCase))
-            {
-                return value;
-            }
-        }
-
-        return null;
+        return metadata?
+            .Where(pair => string.Equals(pair.Key, "origin", StringComparison.OrdinalIgnoreCase)
+                           && pair.Value.StartsWith("app:", StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Value)
+            .FirstOrDefault();
     }
 
     private static string? ReadString(JsonElement content, string name)
@@ -298,7 +292,7 @@ internal sealed class CheckInActivities
             ? element.GetString()
             : element.GetRawText().Trim('"');
 
-        return DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
+        return DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
             ? parsed
             : null;
     }
@@ -311,12 +305,12 @@ internal sealed class CheckInActivities
         }
 
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var property in element.EnumerateObject())
+        foreach (var (propertyName, value) in element.EnumerateObject()
+                     .Where(property => property.Value.ValueKind == JsonValueKind.String)
+                     .Select(property => (property.Name, Value: property.Value.GetString()))
+                     .Where(pair => pair.Value is not null))
         {
-            if (property.Value.ValueKind == JsonValueKind.String && property.Value.GetString() is { } value)
-            {
-                map[property.Name] = value;
-            }
+            map[propertyName] = value!;
         }
 
         return map.Count == 0 ? null : map;

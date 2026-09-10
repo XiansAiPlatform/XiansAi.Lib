@@ -26,6 +26,9 @@ public sealed class BriefingLlm
 
     public BriefingLlm(string anthropicApiKey, string modelName = "claude-sonnet-4-6")
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(anthropicApiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
+
         _anthropic = new AnthropicClient { ApiKey = anthropicApiKey };
         _modelName = modelName;
     }
@@ -63,14 +66,14 @@ public sealed class BriefingLlm
         var response = await agent.RunAsync(text, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        return response.Text;
+        return string.IsNullOrWhiteSpace(response.Text)
+            ? "I wasn't able to produce a reply. Please try again."
+            : response.Text;
     }
 }
 
 internal sealed class ChatHistoryProvider(UserMessageContext userContext) : AIContextProvider(null, null)
 {
-    private readonly UserMessageContext _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
-
     internal const int HistoryPageSize = 10;
 
     public override IReadOnlyList<string> StateKeys => [];
@@ -129,22 +132,27 @@ internal sealed class ChatHistoryProvider(UserMessageContext userContext) : AICo
     }
 
     protected override async ValueTask<AIContext> ProvideAIContextAsync(
-        InvokingContext context,
+        InvokingContext _,
         CancellationToken cancellationToken = default)
     {
-        var xiansMessages = await _userContext.GetChatHistoryAsync(page: 1, pageSize: HistoryPageSize).ConfigureAwait(false);
+        var xiansMessages = await userContext.GetChatHistoryAsync(page: 1, pageSize: HistoryPageSize)
+            .ConfigureAwait(false);
 
         var messages = xiansMessages
             .Where(msg => !string.IsNullOrEmpty(msg.Text))
             .OrderBy(msg => msg.CreatedAt)
-            .Select(msg => new ChatMessage(
-                msg.Direction.ToLowerInvariant() == "outgoing" ? ChatRole.Assistant : ChatRole.User,
-                msg.Text!))
+            .Select(msg => new ChatMessage(ToChatRole(msg.Direction), msg.Text ?? string.Empty))
             .ToList();
 
         return new AIContext { Messages = messages };
     }
 
-    protected override ValueTask StoreAIContextAsync(InvokedContext context, CancellationToken cancellationToken = default) =>
+    protected override ValueTask StoreAIContextAsync(InvokedContext _, CancellationToken cancellationToken = default) =>
         default;
+
+    private static ChatRole ToChatRole(string? direction) =>
+        "outgoing".Equals(direction, StringComparison.OrdinalIgnoreCase)
+        || "outbound".Equals(direction, StringComparison.OrdinalIgnoreCase)
+            ? ChatRole.Assistant
+            : ChatRole.User;
 }
