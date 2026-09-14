@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text;
 using Moq;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
@@ -96,14 +95,11 @@ public class AgentNameUnicodeTests : IDisposable
         var composed = "Kåre:Chat";
         var decomposed = "Ka\u030Are:Chat";
 
-        // Cache key is the raw string today; sanitizer NFC-normalizes before GetOrCreateType
-        // when callers go through WorkflowCollection. Call both forms through the sanitizer
-        // to match production (DefineBuiltIn uses already-NFC agent.Name).
-        var nfc = IdentifierSanitizer.SanitizeAndValidateWorkflowType(decomposed);
-        Assert.Equal(composed.Normalize(NormalizationForm.FormC), nfc);
+        var first = DynamicWorkflowTypeBuilder.GetOrCreateType(decomposed);
+        var second = DynamicWorkflowTypeBuilder.GetOrCreateType(composed);
 
-        var type = DynamicWorkflowTypeBuilder.GetOrCreateType(nfc);
-        Assert.Equal(nfc, type.GetCustomAttribute<WorkflowAttribute>()!.Name);
+        Assert.Same(first, second);
+        Assert.Equal(composed, first.GetCustomAttribute<WorkflowAttribute>()!.Name);
     }
 
     private static XiansAgent CreateAgent(string name)

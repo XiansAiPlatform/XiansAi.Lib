@@ -10,23 +10,37 @@ namespace Xians.Lib.Common;
 /// </summary>
 /// <remarks>
 /// Allowed characters: Unicode letters (including Norwegian æ, ø, å), combining marks,
-/// numbers, whitespace, and <c>._@|+-/\ ,#=</c>. Markup/injection characters
-/// (<c>&lt; &gt; " ' { }</c>) are rejected. Colon is allowed only in workflow types
-/// (<c>Agent:Flow</c>); agent names, activation names, and workflow names still reject
-/// <c>:</c> because it is the workflow-identifier delimiter. Tenant IDs stay ASCII.
+/// numbers, a single ASCII space, and <c>._@|+-/\ ,#=</c>. Markup/injection characters
+/// (<c>&lt; &gt; " ' { }</c>) and control / line-separator whitespace (TAB, CR, LF, etc.)
+/// are rejected. Colon is allowed only in workflow types (<c>Agent:Flow</c>); agent names,
+/// activation names, and workflow names still reject <c>:</c> because it is the
+/// workflow-identifier delimiter. Tenant IDs stay ASCII.
 /// </remarks>
 public static class IdentifierSanitizer
 {
     /// <summary>
+    /// Maximum length of an agent, activation, or workflow name after trim and NFC.
+    /// Matches the agent-name cap used by knowledge APIs.
+    /// </summary>
+    public const int MaxNameLength = 256;
+
+    /// <summary>
+    /// Maximum length of a workflow type (<c>Agent:Flow</c>): two names plus the colon delimiter.
+    /// </summary>
+    public const int MaxWorkflowTypeLength = MaxNameLength * 2 + 1;
+
+    /// <summary>
     /// Unicode-safe pattern used by the server for fields that store or look up agent names
     /// and workflow identifiers. Colon is included so workflow types (<c>Agent:Flow</c>) match.
+    /// Whitespace is a literal space only — not the <c>\s</c> class — so TAB/CR/LF and
+    /// Unicode line separators cannot enter identifiers.
     /// </summary>
-    public const string AllowedPattern = @"^[\p{L}\p{M}\p{N}\s._@|+\-:/\\,#=]+$";
+    public const string AllowedPattern = @"^[\p{L}\p{M}\p{N} ._@|+\-:/\\,#=]+$";
 
     /// <summary>
     /// Same as <see cref="AllowedPattern"/> but without colon, for agent / activation / workflow names.
     /// </summary>
-    public const string AllowedPatternWithoutColon = @"^[\p{L}\p{M}\p{N}\s._@|+\-/\\,#=]+$";
+    public const string AllowedPatternWithoutColon = @"^[\p{L}\p{M}\p{N} ._@|+\-/\\,#=]+$";
 
     private static readonly Regex AllowedRegex = new(
         AllowedPattern,
@@ -42,7 +56,7 @@ public static class IdentifierSanitizer
     /// </summary>
     public static string SanitizeAndValidateAgentName(string? name, string paramName = "name")
     {
-        var sanitized = NormalizeRequired(name, paramName);
+        var sanitized = NormalizeRequired(name, paramName, MaxNameLength);
         ValidateAllowed(sanitized, paramName, allowColon: false, kind: "Agent name");
         return sanitized;
     }
@@ -53,7 +67,7 @@ public static class IdentifierSanitizer
     /// </summary>
     public static string SanitizeAndValidateActivationName(string? name, string paramName = "name")
     {
-        var sanitized = NormalizeRequired(name, paramName);
+        var sanitized = NormalizeRequired(name, paramName, MaxNameLength);
         ValidateAllowed(sanitized, paramName, allowColon: false, kind: "Activation name");
         return sanitized;
     }
@@ -64,7 +78,7 @@ public static class IdentifierSanitizer
     /// </summary>
     public static string SanitizeAndValidateWorkflowName(string? name, string paramName = "name")
     {
-        var sanitized = NormalizeRequired(name, paramName);
+        var sanitized = NormalizeRequired(name, paramName, MaxNameLength);
         ValidateAllowed(sanitized, paramName, allowColon: false, kind: "Workflow name");
         return sanitized;
     }
@@ -74,7 +88,7 @@ public static class IdentifierSanitizer
     /// </summary>
     public static string SanitizeAndValidateWorkflowType(string? workflowType, string paramName = "workflowType")
     {
-        var sanitized = NormalizeRequired(workflowType, paramName);
+        var sanitized = NormalizeRequired(workflowType, paramName, MaxWorkflowTypeLength);
         ValidateAllowed(sanitized, paramName, allowColon: true, kind: "Workflow type");
         return sanitized;
     }
@@ -94,16 +108,24 @@ public static class IdentifierSanitizer
     }
 
     /// <summary>
-    /// Trims and NFC-normalizes a required identifier. Throws when null or whitespace.
+    /// Trims and NFC-normalizes a required identifier. Throws when null, whitespace, or too long.
     /// </summary>
-    public static string NormalizeRequired(string? value, string paramName)
+    public static string NormalizeRequired(string? value, string paramName, int maxLength = MaxNameLength)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new ArgumentException($"{paramName} cannot be null or empty.", paramName);
         }
 
-        return value.Trim().Normalize(NormalizationForm.FormC);
+        var normalized = value.Trim().Normalize(NormalizationForm.FormC);
+        if (normalized.Length > maxLength)
+        {
+            throw new ArgumentException(
+                $"{paramName} exceeds maximum length of {maxLength} characters.",
+                paramName);
+        }
+
+        return normalized;
     }
 
     private static void ValidateAllowed(string value, string paramName, bool allowColon, string kind)

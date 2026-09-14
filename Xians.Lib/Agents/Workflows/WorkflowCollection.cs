@@ -467,7 +467,9 @@ public class WorkflowCollection
                 "The attribute cannot be [Workflow] without parameters; you must specify the workflow type name.");
         }
 
-        var workflowType = IdentifierSanitizer.SanitizeAndValidateWorkflowType(workflowAttribute.Name, "workflowType");
+        var workflowType = IdentifierSanitizer.SanitizeAndValidateWorkflowType(
+            workflowAttribute.Name,
+            $"{nameof(workflowAttribute)}.{nameof(workflowAttribute.Name)}");
         
         // Validate that workflow type follows the naming convention (unless it's a platform workflow)
         if (validateAgentPrefix)
