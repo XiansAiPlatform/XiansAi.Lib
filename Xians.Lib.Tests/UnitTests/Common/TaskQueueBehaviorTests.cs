@@ -47,6 +47,29 @@ public class TaskQueueBehaviorTests
     }
 
     [Fact]
+    public void TaskQueue_PreservesNorwegianLettersInWorkflowType()
+    {
+        var workflowType = "Kjøpsassistent:Supervisor Workflow";
+
+        var systemScoped = TenantContext.GetTaskQueueName(workflowType, systemScoped: true, TENANT_ID);
+        var tenantScoped = TenantContext.GetTaskQueueName(workflowType, systemScoped: false, TENANT_ID);
+
+        Assert.Equal(workflowType, systemScoped);
+        Assert.Equal($"{TENANT_ID}:{workflowType}", tenantScoped);
+    }
+
+    [Fact]
+    public void TaskQueue_NfcNormalizesDecomposedARingInWorkflowType()
+    {
+        var composed = "Kåre:Chat";
+        var decomposed = "Ka\u030Are:Chat";
+
+        var taskQueue = TenantContext.GetTaskQueueName(decomposed, systemScoped: true, TENANT_ID);
+
+        Assert.Equal(composed, taskQueue);
+    }
+
+    [Fact]
     public void SystemScoped_False_NoTenantId_ThrowsException()
     {
         // Arrange

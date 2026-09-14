@@ -48,11 +48,7 @@ public static class WorkflowConstants
         /// <returns>The task workflow type name</returns>
         public static string GetTaskWorkflowType(string agentName)
         {
-            if (string.IsNullOrWhiteSpace(agentName))
-            {
-                throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
-            }
-            return $"{agentName}:Task Workflow";
+            return $"{IdentifierSanitizer.SanitizeAndValidateAgentName(agentName, nameof(agentName))}:Task Workflow";
         }
     }
 

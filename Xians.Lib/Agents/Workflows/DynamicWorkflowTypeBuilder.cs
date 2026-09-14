@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using Xians.Lib.Common;
 using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.Workflows;
@@ -26,19 +27,7 @@ internal static class DynamicWorkflowTypeBuilder
     /// <returns>A dynamically created type that extends BuiltinWorkflow</returns>
     /// <exception cref="InvalidOperationException">Thrown when type creation fails</exception>
     public static Type GetOrCreateType(string workflowTypeName)
-    {
-        lock (_cacheLock)
-        {
-            if (_typeCache.TryGetValue(workflowTypeName, out var cachedType))
-            {
-                return cachedType;
-            }
-
-            var createdType = CreateType(workflowTypeName);
-            _typeCache[workflowTypeName] = createdType;
-            return createdType;
-        }
-    }
+        => GetOrCreate(workflowTypeName, CreateType, "builtin");
 
     /// <summary>
     /// Creates a new dynamic type that extends BuiltinWorkflow.
@@ -90,10 +79,20 @@ internal static class DynamicWorkflowTypeBuilder
     /// </summary>
     private static string SanitizeTypeName(string workflowTypeName)
     {
-        return workflowTypeName
-            .Replace(":", "_")
-            .Replace(" ", "_")
-            .Replace("-", "_");
+        var builder = new System.Text.StringBuilder(workflowTypeName.Length);
+        foreach (var c in workflowTypeName)
+        {
+            // Unicode letters/digits (including æ, ø, å) are valid in CLR type names.
+            builder.Append(char.IsLetterOrDigit(c) ? c : '_');
+        }
+
+        var sanitized = builder.ToString();
+        if (sanitized.Length == 0 || (!char.IsLetter(sanitized[0]) && sanitized[0] != '_'))
+        {
+            sanitized = "_" + sanitized;
+        }
+
+        return sanitized;
     }
 
     /// <summary>
@@ -217,16 +216,22 @@ internal static class DynamicWorkflowTypeBuilder
     /// <returns>A dynamically created type that extends TaskWorkflow</returns>
     /// <exception cref="InvalidOperationException">Thrown when type creation fails</exception>
     public static Type GetOrCreateTaskWorkflowType(string workflowTypeName)
+        => GetOrCreate(workflowTypeName, CreateTaskWorkflowType, "task");
+
+    private static Type GetOrCreate(string workflowTypeName, Func<string, Type> factory, string kind)
     {
+        var normalized = IdentifierSanitizer.SanitizeAndValidateWorkflowType(
+            workflowTypeName, nameof(workflowTypeName));
+        var key = kind + ":" + normalized;
         lock (_cacheLock)
         {
-            if (_typeCache.TryGetValue(workflowTypeName, out var cachedType))
+            if (_typeCache.TryGetValue(key, out var cachedType))
             {
                 return cachedType;
             }
 
-            var createdType = CreateTaskWorkflowType(workflowTypeName);
-            _typeCache[workflowTypeName] = createdType;
+            var createdType = factory(normalized);
+            _typeCache[key] = createdType;
             return createdType;
         }
     }

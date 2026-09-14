@@ -126,12 +126,7 @@ public class XiansAgent
         Http.IHttpClientService? httpService = null, XiansOptions? options = null, 
         Common.Caching.CacheService? cacheService = null, bool? enableTasksOverride = null)
     {
-        Name = name.Trim(); // Trim to handle whitespace variations
-
-        if (Name.Contains(':'))
-        {
-            throw new ArgumentException("Agent name cannot contain ':' character as it is used as a delimiter in workflow identifiers.", nameof(name));
-        }
+        Name = Common.IdentifierSanitizer.SanitizeAndValidateAgentName(name, nameof(name));
         
         SystemScoped = systemScoped;
         Description = description;
@@ -230,7 +225,7 @@ public class XiansAgent
         
         var response = await client.PostAsync(
             $"{Common.WorkflowConstants.ApiEndpoints.AgentDefinitions}/deploy-template",
-            System.Net.Http.Json.JsonContent.Create(deployRequest));
+            System.Net.Http.Json.JsonContent.Create(deployRequest, options: Common.UnicodeJson.SerializerOptions));
 
         // Treat 409 Conflict as idempotent success to avoid redeploy failures
         // when the template agent already exists in the tenant.

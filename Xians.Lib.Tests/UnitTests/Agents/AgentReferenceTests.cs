@@ -388,6 +388,31 @@ public class AgentReferenceTests : IDisposable
     }
 
     [Fact]
+    public void Agent_AcceptsNorwegianName_AndNfcNormalizes()
+    {
+        var owner = CreateOwner(systemScoped: false);
+        var decomposed = "Ka\u030Are";
+
+        var other = owner.Tenant.Agent($"  {decomposed}  ");
+
+        Assert.Equal("Kåre", other.Name);
+    }
+
+    [Fact]
+    public async Task ExistsAsync_NorwegianAgentName_UrlEncodesUtf8()
+    {
+        var owner = CreateOwner(systemScoped: false);
+        HttpRequestMessage? captured = null;
+        SetupResponse(HttpStatusCode.OK, "", captureRequest: req => captured = req);
+
+        Assert.True(await owner.Tenant.Agent("Kjøpsassistent").ExistsAsync());
+
+        var uri = captured!.RequestUri!.AbsoluteUri;
+        Assert.Contains($"agentName={Uri.EscapeDataString("Kjøpsassistent")}", uri);
+        Assert.Contains("Kj%C3%B8psassistent", uri);
+    }
+
+    [Fact]
     public async Task UnboundActivationInfo_ActivateAsync_Throws()
     {
         var unbound = new ActivationInfo { Id = ACTIVATION_ID, Name = ACTIVATION_NAME };

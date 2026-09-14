@@ -75,6 +75,7 @@ public static class TenantContext
     /// <exception cref="TenantIsolationException">Thrown when tenantId is required but not provided.</exception>
     public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId)
     {
+        workflowType = IdentifierSanitizer.NormalizeForLookup(workflowType);
 
         string taskQueue;
 
@@ -99,7 +100,7 @@ public static class TenantContext
         }
 
         // if running Task Workflow, we prefix the que with 'hitl_task:' for identification purposes
-        if (workflowType.EndsWith(":Task Workflow"))
+        if (workflowType.EndsWith(":Task Workflow", StringComparison.Ordinal))
         {
             taskQueue = $"hitl_task:{taskQueue}";
         } 
