@@ -1,3 +1,13 @@
 {
-  "mcpServers": []
+  "mcpServers": [
+    {
+      "name": "example",
+      "url": "https://example.com/mcp",
+      "enabled": false,
+      "transport": "auto",
+      "authentication": {
+        "type": "none"
+      }
+    }
+  ]
 }
