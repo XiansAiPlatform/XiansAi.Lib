@@ -74,11 +74,7 @@ public class WorkflowDefinitionUploader
             var client = await _httpService.GetHealthyClientAsync();
             
             // Use consistent serialization options for both hash computation and upload
-            var jsonOptions = new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-                WriteIndented = false
-            };
+            var jsonOptions = UnicodeJson.SerializerOptions;
             
             // Serialize and compute hash (using same options as upload for consistency)
             var serializedDefinition = JsonSerializer.Serialize(definition, jsonOptions);
@@ -159,7 +155,7 @@ public class WorkflowDefinitionUploader
                 
                 var uploadResponse = await client.PostAsync(
                     $"{WorkflowConstants.ApiEndpoints.AgentDefinitions}/agent", 
-                    JsonContent.Create(agentRequest));
+                    JsonContent.Create(agentRequest, options: UnicodeJson.SerializerOptions));
                 
                 if (!uploadResponse.IsSuccessStatusCode)
                 {

@@ -90,10 +90,20 @@ internal static class DynamicWorkflowTypeBuilder
     /// </summary>
     private static string SanitizeTypeName(string workflowTypeName)
     {
-        return workflowTypeName
-            .Replace(":", "_")
-            .Replace(" ", "_")
-            .Replace("-", "_");
+        var builder = new System.Text.StringBuilder(workflowTypeName.Length);
+        foreach (var c in workflowTypeName)
+        {
+            // Unicode letters/digits (including æ, ø, å) are valid in CLR type names.
+            builder.Append(char.IsLetterOrDigit(c) ? c : '_');
+        }
+
+        var sanitized = builder.ToString();
+        if (sanitized.Length == 0 || (!char.IsLetter(sanitized[0]) && sanitized[0] != '_'))
+        {
+            sanitized = "_" + sanitized;
+        }
+
+        return sanitized;
     }
 
     /// <summary>

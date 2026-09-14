@@ -65,6 +65,22 @@ public class TenantContextTests
         Assert.Equal("tenant", tenantId);
     }
 
+    [Fact]
+    public void ExtractTenantId_UnicodeAgentName_ReturnsTenantId()
+    {
+        var workflowId = "acme-corp:Kjøpsassistent:Supervisor Workflow:uuid-123";
+
+        Assert.Equal("acme-corp", TenantContext.ExtractTenantId(workflowId));
+    }
+
+    [Fact]
+    public void ExtractWorkflowType_UnicodeAgentName_ReturnsAgentNameSegment()
+    {
+        var workflowId = "acme-corp:Kjøpsassistent:Supervisor Workflow:uuid-123";
+
+        Assert.Equal("Kjøpsassistent", TenantContext.ExtractWorkflowType(workflowId));
+    }
+
     [Theory]
     [InlineData("acme-corp:CustomerService:s:uuid-123", "CustomerService")]
     [InlineData("contoso:GlobalNotifications:Alerts:uuid-456", "GlobalNotifications")]

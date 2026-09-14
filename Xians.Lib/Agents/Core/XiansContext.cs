@@ -3,6 +3,7 @@ using Temporalio.Activities;
 using Temporalio.Client;
 using Temporalio.Workflows;
 using Xians.Lib.Common.MultiTenancy;
+using Xians.Lib.Common;
 
 using Xians.Lib.Agents.A2A;
 using Xians.Lib.Agents.Core.Registry;
@@ -90,11 +91,11 @@ public static class XiansContext
 
             if (separatorIndex > 0)
             {
-                return workflowType.Substring(0, separatorIndex);
+                return IdentifierSanitizer.NormalizeForLookup(workflowType.Substring(0, separatorIndex));
             }
 
             // Fallback: use entire workflow type as agent name
-            return workflowType;
+            return IdentifierSanitizer.NormalizeForLookup(workflowType);
         }
     }
 
@@ -402,12 +403,13 @@ public static class XiansContext
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
     private static string GetWorkflowType() =>
-        GetFromContext(
-            () => Workflow.Info.WorkflowType
-                ?? throw new InvalidOperationException("Workflow type is not available from Temporal workflow info."),
-            () => ActivityExecutionContext.Current.Info.WorkflowType
-                ?? throw new InvalidOperationException("Workflow type is not available from Temporal activity info.")
-        );
+        IdentifierSanitizer.NormalizeForLookup(
+            GetFromContext(
+                () => Workflow.Info.WorkflowType
+                    ?? throw new InvalidOperationException("Workflow type is not available from Temporal workflow info."),
+                () => ActivityExecutionContext.Current.Info.WorkflowType
+                    ?? throw new InvalidOperationException("Workflow type is not available from Temporal activity info.")
+            ));
 
     /// <summary>
     /// Gets the current workflow run ID.
@@ -421,11 +423,12 @@ public static class XiansContext
     /// Works in both workflow and activity contexts.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when not in workflow or activity context.</exception>
-    public static string GetTaskQueue() => 
-        GetFromContext(
-            () => Workflow.Info.TaskQueue,
-            () => ActivityExecutionContext.Current.Info.TaskQueue
-        );
+    public static string GetTaskQueue() =>
+        IdentifierSanitizer.NormalizeForLookup(
+            GetFromContext(
+                () => Workflow.Info.TaskQueue,
+                () => ActivityExecutionContext.Current.Info.TaskQueue
+            ));
 
     /// <summary>
     /// Generic helper to get data from either workflow or activity context.
@@ -881,7 +884,9 @@ public static class XiansContext
             throw new ArgumentException("Workflow name cannot be null or empty.", nameof(workflowName));
         }
 
-        return agentName + ":" + workflowName;
+        return IdentifierSanitizer.SanitizeAndValidateAgentName(agentName, nameof(agentName))
+            + ":"
+            + IdentifierSanitizer.SanitizeAndValidateWorkflowName(workflowName, nameof(workflowName));
     }
 
     /// <summary>

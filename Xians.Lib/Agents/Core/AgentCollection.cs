@@ -54,7 +54,7 @@ public class AgentCollection
         }
 
         return new XiansAgent(
-            registration.Name, 
+            IdentifierSanitizer.SanitizeAndValidateAgentName(registration.Name, nameof(registration)), 
             registration.IsTemplate,
             registration.Description,
             registration.Summary,

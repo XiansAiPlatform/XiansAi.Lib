@@ -52,7 +52,7 @@ public static class WorkflowConstants
             {
                 throw new ArgumentException("Agent name cannot be null or empty.", nameof(agentName));
             }
-            return $"{agentName}:Task Workflow";
+            return $"{IdentifierSanitizer.NormalizeForLookup(agentName)}:Task Workflow";
         }
     }
 

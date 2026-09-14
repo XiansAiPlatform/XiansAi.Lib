@@ -40,6 +40,8 @@ public class WorkflowCollection
         
         // Built-in workflows are not activable because they are automatically activated upon invocation
         options.Activable = false;
+
+        name = IdentifierSanitizer.SanitizeAndValidateWorkflowName(name, nameof(name));
         
         // Check if workflow with same name already exists
         if (_workflows.Any(w => w.Name == name))
@@ -137,7 +139,7 @@ public class WorkflowCollection
 
         if (typeNameOverride != null)
         {
-            workflowType = typeNameOverride;
+            workflowType = IdentifierSanitizer.SanitizeAndValidateWorkflowType(typeNameOverride, nameof(typeNameOverride));
 
             // Validate the override follows the required "AgentName:WorkflowName" format.
             if (workflowType.Count(c => c == ':') != 1)
@@ -147,7 +149,7 @@ public class WorkflowCollection
                     "in the format 'AgentName:WorkflowName'.");
             }
 
-            if (validateAgentPrefix && !workflowType.StartsWith(_agent.Name + ":"))
+            if (validateAgentPrefix && !workflowType.StartsWith(_agent.Name + ":", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"Workflow type name override '{workflowType}' must start with the " +
@@ -456,17 +458,22 @@ public class WorkflowCollection
         var workflowAttribute = typeof(T).GetCustomAttributes(typeof(Temporalio.Workflows.WorkflowAttribute), false)
             .FirstOrDefault() as Temporalio.Workflows.WorkflowAttribute;
 
-        var workflowType = workflowAttribute?.Name ?? throw new InvalidOperationException(
-            $"Workflow type not found for workflow class '{typeof(T).Name}'. " +
-            "Custom workflows must have the [Workflow] attribute with an explicit Name in the format 'AgentName:WorkflowName'. " +
-            $"Example: [Workflow(\"{_agent.Name}:{typeof(T).Name}\")]. " +
-            "The attribute cannot be [Workflow] without parameters; you must specify the workflow type name.");
+        if (workflowAttribute?.Name == null)
+        {
+            throw new InvalidOperationException(
+                $"Workflow type not found for workflow class '{typeof(T).Name}'. " +
+                "Custom workflows must have the [Workflow] attribute with an explicit Name in the format 'AgentName:WorkflowName'. " +
+                $"Example: [Workflow(\"{_agent.Name}:{typeof(T).Name}\")]. " +
+                "The attribute cannot be [Workflow] without parameters; you must specify the workflow type name.");
+        }
+
+        var workflowType = IdentifierSanitizer.SanitizeAndValidateWorkflowType(workflowAttribute.Name, "workflowType");
         
         // Validate that workflow type follows the naming convention (unless it's a platform workflow)
         if (validateAgentPrefix)
         {
             var expectedPrefix = _agent.Name + ":";
-            if (!workflowType.StartsWith(expectedPrefix))
+            if (!workflowType.StartsWith(expectedPrefix, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"Custom workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +

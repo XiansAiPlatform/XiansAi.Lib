@@ -75,6 +75,7 @@ public static class TenantContext
     /// <exception cref="TenantIsolationException">Thrown when tenantId is required but not provided.</exception>
     public static string GetTaskQueueName(string workflowType, bool systemScoped, string? tenantId)
     {
+        workflowType = IdentifierSanitizer.NormalizeForLookup(workflowType);
 
         string taskQueue;
 

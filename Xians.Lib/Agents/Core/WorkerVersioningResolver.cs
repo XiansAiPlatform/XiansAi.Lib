@@ -63,7 +63,18 @@ internal static class WorkerVersioningResolver
                 "Set WorkerVersioning.DeploymentName or provide an agent name.");
         }
 
-        return new ResolvedVersioning(deploymentName!.Trim(), buildId!.Trim(), options.DefaultBehavior);
+        deploymentName = deploymentName!.Trim();
+
+        // Temporal Worker Deployment names are ASCII-only ([A-Za-z0-9._-]+). Unicode agent names
+        // (e.g. Kjøpsassistent) are valid as agent identifiers but cannot be used as a deployment name.
+        if (!IsAsciiDeploymentName(deploymentName))
+        {
+            throw new System.InvalidOperationException(
+                "Worker versioning deployment names must be ASCII letters, digits, '.', '_' or '-'. " +
+                "Set WorkerVersioning.DeploymentName explicitly when the agent name contains non-ASCII characters.");
+        }
+
+        return new ResolvedVersioning(deploymentName, buildId!.Trim(), options.DefaultBehavior);
     }
 
     private static string? FirstNonEmpty(params string?[] values)
@@ -76,5 +87,18 @@ internal static class WorkerVersioningResolver
             }
         }
         return null;
+    }
+
+    private static bool IsAsciiDeploymentName(string name)
+    {
+        foreach (var c in name)
+        {
+            if (!(c is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-'))
+            {
+                return false;
+            }
+        }
+
+        return name.Length > 0;
     }
 }
