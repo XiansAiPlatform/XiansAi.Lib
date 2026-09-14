@@ -206,6 +206,15 @@ public class IdentifierSanitizerTests
         Assert.Contains("maximum length", ex.Message);
     }
 
+    [Theory]
+    [InlineData("foo\n")]
+    [InlineData("foo\r")]
+    public void AllowedPatterns_RejectTrailingNewlineWithoutRelyingOnTrim(string name)
+    {
+        Assert.DoesNotMatch(IdentifierSanitizer.AllowedPattern, name);
+        Assert.DoesNotMatch(IdentifierSanitizer.AllowedPatternWithoutColon, name);
+    }
+
     [Fact]
     public void UnicodeJson_PassesNorwegianLettersThroughUnescaped()
     {

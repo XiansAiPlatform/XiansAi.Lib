@@ -100,7 +100,7 @@ public static class TenantContext
         }
 
         // if running Task Workflow, we prefix the que with 'hitl_task:' for identification purposes
-        if (workflowType.EndsWith(":Task Workflow"))
+        if (workflowType.EndsWith(":Task Workflow", StringComparison.Ordinal))
         {
             taskQueue = $"hitl_task:{taskQueue}";
         } 

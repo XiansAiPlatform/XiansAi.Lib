@@ -139,6 +139,13 @@ public class AgentNameUnicodeTests : IDisposable
         Assert.Equal(workflowType, task.GetCustomAttribute<WorkflowAttribute>()!.Name);
     }
 
+    [Fact]
+    public void DynamicWorkflowTypeBuilder_RejectsMarkupInWorkflowType()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            DynamicWorkflowTypeBuilder.GetOrCreateType("bad<script>:Chat"));
+    }
+
     private static XiansAgent CreateAgent(string name)
     {
         var mockHttpService = new Mock<IHttpClientService>();

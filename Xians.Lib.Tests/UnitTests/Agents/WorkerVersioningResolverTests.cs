@@ -95,6 +95,23 @@ public class WorkerVersioningResolverTests
     }
 
     [Fact]
+    public void Resolve_ExplicitNonAsciiDeploymentName_Throws()
+    {
+        var options = new WorkerVersioningOptions
+        {
+            Mode = WorkerVersioningMode.Enabled,
+            BuildId = "1.0",
+            DeploymentName = "Kjøpsassistent"
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => WorkerVersioningResolver.Resolve(options, AgentName));
+
+        Assert.Contains("ASCII", ex.Message);
+        Assert.Contains("DeploymentName", ex.Message);
+    }
+
+    [Fact]
     public void Resolve_DeploymentName_FallsBackToAgentName()
     {
         var options = new WorkerVersioningOptions { Mode = WorkerVersioningMode.Enabled, BuildId = "1.0" };

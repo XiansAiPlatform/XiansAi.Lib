@@ -220,7 +220,8 @@ internal static class DynamicWorkflowTypeBuilder
 
     private static Type GetOrCreate(string workflowTypeName, Func<string, Type> factory, string kind)
     {
-        var normalized = IdentifierSanitizer.NormalizeForLookup(workflowTypeName);
+        var normalized = IdentifierSanitizer.SanitizeAndValidateWorkflowType(
+            workflowTypeName, nameof(workflowTypeName));
         var key = kind + ":" + normalized;
         lock (_cacheLock)
         {

@@ -35,12 +35,12 @@ public static class IdentifierSanitizer
     /// Whitespace is a literal space only — not the <c>\s</c> class — so TAB/CR/LF and
     /// Unicode line separators cannot enter identifiers.
     /// </summary>
-    public const string AllowedPattern = @"^[\p{L}\p{M}\p{N} ._@|+\-:/\\,#=]+$";
+    public const string AllowedPattern = @"\A[\p{L}\p{M}\p{N} ._@|+\-:/\\,#=]+\z";
 
     /// <summary>
     /// Same as <see cref="AllowedPattern"/> but without colon, for agent / activation / workflow names.
     /// </summary>
-    public const string AllowedPatternWithoutColon = @"^[\p{L}\p{M}\p{N} ._@|+\-/\\,#=]+$";
+    public const string AllowedPatternWithoutColon = @"\A[\p{L}\p{M}\p{N} ._@|+\-/\\,#=]+\z";
 
     private static readonly Regex AllowedRegex = new(
         AllowedPattern,
