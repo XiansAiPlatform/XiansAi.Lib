@@ -27,7 +27,7 @@ internal static class DynamicWorkflowTypeBuilder
     /// <returns>A dynamically created type that extends BuiltinWorkflow</returns>
     /// <exception cref="InvalidOperationException">Thrown when type creation fails</exception>
     public static Type GetOrCreateType(string workflowTypeName)
-        => GetOrCreate(workflowTypeName, CreateType);
+        => GetOrCreate(workflowTypeName, CreateType, "builtin");
 
     /// <summary>
     /// Creates a new dynamic type that extends BuiltinWorkflow.
@@ -216,11 +216,12 @@ internal static class DynamicWorkflowTypeBuilder
     /// <returns>A dynamically created type that extends TaskWorkflow</returns>
     /// <exception cref="InvalidOperationException">Thrown when type creation fails</exception>
     public static Type GetOrCreateTaskWorkflowType(string workflowTypeName)
-        => GetOrCreate(workflowTypeName, CreateTaskWorkflowType);
+        => GetOrCreate(workflowTypeName, CreateTaskWorkflowType, "task");
 
-    private static Type GetOrCreate(string workflowTypeName, Func<string, Type> factory)
+    private static Type GetOrCreate(string workflowTypeName, Func<string, Type> factory, string kind)
     {
-        var key = IdentifierSanitizer.NormalizeForLookup(workflowTypeName);
+        var normalized = IdentifierSanitizer.NormalizeForLookup(workflowTypeName);
+        var key = kind + ":" + normalized;
         lock (_cacheLock)
         {
             if (_typeCache.TryGetValue(key, out var cachedType))
@@ -228,7 +229,7 @@ internal static class DynamicWorkflowTypeBuilder
                 return cachedType;
             }
 
-            var createdType = factory(key);
+            var createdType = factory(normalized);
             _typeCache[key] = createdType;
             return createdType;
         }

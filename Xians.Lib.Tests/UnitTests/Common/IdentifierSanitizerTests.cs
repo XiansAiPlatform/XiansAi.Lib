@@ -42,9 +42,10 @@ public class IdentifierSanitizerTests
     [InlineData("name|pipe")]
     [InlineData("name-dash")]
     [InlineData(@"name\path")]
-    public void SanitizeAndValidateAgentName_AcceptsUnicodeAndAllowedPunctuation(string name)
+    public void NameValidators_AcceptUnicodeAndAllowedPunctuation(string name)
     {
-        Assert.Equal(name, IdentifierSanitizer.SanitizeAndValidateAgentName(name));
+        Assert.All(NameValidatorsWithoutColon, validate =>
+            Assert.Equal(name, validate(name)));
     }
 
     [Fact]
@@ -144,6 +145,33 @@ public class IdentifierSanitizerTests
     public void SanitizeAndValidateActivationName_AcceptsNorwegianLetters()
     {
         Assert.Equal("Kjøp-øst", IdentifierSanitizer.SanitizeAndValidateActivationName("Kjøp-øst"));
+    }
+
+    [Fact]
+    public void SanitizeAndValidateAgentName_AcceptsCombiningMarkOnlyName()
+    {
+        // Server allow-list includes \p{M} with no base-letter requirement, so a combining-mark-only
+        // name is accepted. NFC cannot compose a mark with no base character.
+        var combiningRing = "\u030A";
+        Assert.Equal(combiningRing, IdentifierSanitizer.SanitizeAndValidateAgentName(combiningRing));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void NormalizeForLookup_NullOrWhitespace_ReturnsEmpty(string? value)
+    {
+        Assert.Equal(string.Empty, IdentifierSanitizer.NormalizeForLookup(value!));
+    }
+
+    [Fact]
+    public void NormalizeForLookup_NfcComposesDecomposedInput()
+    {
+        var composed = "Kåre";
+        var decomposed = "Ka\u030Are";
+
+        Assert.Equal(composed, IdentifierSanitizer.NormalizeForLookup(decomposed));
     }
 
     [Fact]

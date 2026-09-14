@@ -89,13 +89,14 @@ public static class XiansContext
             var workflowType = WorkflowType;
             var separatorIndex = workflowType.IndexOf(':');
 
+            // WorkflowType is already NFC-normalized; splitting on ':' cannot reintroduce a decomposed form.
             if (separatorIndex > 0)
             {
-                return IdentifierSanitizer.NormalizeForLookup(workflowType.Substring(0, separatorIndex));
+                return workflowType.Substring(0, separatorIndex);
             }
 
             // Fallback: use entire workflow type as agent name
-            return IdentifierSanitizer.NormalizeForLookup(workflowType);
+            return workflowType;
         }
     }
 

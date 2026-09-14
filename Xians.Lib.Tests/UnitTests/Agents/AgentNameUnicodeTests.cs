@@ -6,6 +6,7 @@ using Xians.Lib.Agents.Workflows;
 using Xians.Lib.Common;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
+using Xians.Lib.Temporal.Workflows;
 using Xians.Lib.Tests.TestUtilities;
 using Xians.Lib.Tests.UnitTests.Common;
 
@@ -100,6 +101,35 @@ public class AgentNameUnicodeTests : IDisposable
 
         Assert.Same(first, second);
         Assert.Equal(composed, first.GetCustomAttribute<WorkflowAttribute>()!.Name);
+    }
+
+    [Fact]
+    public void DynamicWorkflowTypeBuilder_TaskWorkflowNfcKey_DoesNotCreateDuplicateType()
+    {
+        var composed = "Kåre:Task Workflow";
+        var decomposed = "Ka\u030Are:Task Workflow";
+
+        var first = DynamicWorkflowTypeBuilder.GetOrCreateTaskWorkflowType(decomposed);
+        var second = DynamicWorkflowTypeBuilder.GetOrCreateTaskWorkflowType(composed);
+
+        Assert.Same(first, second);
+        Assert.True(typeof(TaskWorkflow).IsAssignableFrom(first));
+        Assert.Equal(composed, first.GetCustomAttribute<WorkflowAttribute>()!.Name);
+    }
+
+    [Fact]
+    public void DynamicWorkflowTypeBuilder_BuiltinAndTaskWorkflow_DoNotShareCacheEntry()
+    {
+        var workflowType = "SharedAgent:Task Workflow";
+
+        var builtin = DynamicWorkflowTypeBuilder.GetOrCreateType(workflowType);
+        var task = DynamicWorkflowTypeBuilder.GetOrCreateTaskWorkflowType(workflowType);
+
+        Assert.NotSame(builtin, task);
+        Assert.True(typeof(BuiltinWorkflow).IsAssignableFrom(builtin));
+        Assert.True(typeof(TaskWorkflow).IsAssignableFrom(task));
+        Assert.Equal(workflowType, builtin.GetCustomAttribute<WorkflowAttribute>()!.Name);
+        Assert.Equal(workflowType, task.GetCustomAttribute<WorkflowAttribute>()!.Name);
     }
 
     private static XiansAgent CreateAgent(string name)
