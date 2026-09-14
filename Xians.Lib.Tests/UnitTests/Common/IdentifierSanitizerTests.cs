@@ -82,13 +82,7 @@ public class IdentifierSanitizerTests
     [InlineData("")]
     [InlineData("   ")]
     public void AllValidators_RejectNullOrWhitespace(string? name)
-    {
-        foreach (var validate in AllValidators)
-        {
-            var ex = Assert.Throws<ArgumentException>(() => validate(name));
-            Assert.Contains("cannot be null or empty", ex.Message);
-        }
-    }
+        => AssertAllReject(AllValidators, name, "cannot be null or empty");
 
     [Theory]
     [InlineData("foo<bar")]
@@ -98,13 +92,7 @@ public class IdentifierSanitizerTests
     [InlineData("foo{bar")]
     [InlineData("foo}bar")]
     public void AllValidators_RejectMarkupCharacters(string name)
-    {
-        foreach (var validate in AllValidators)
-        {
-            var ex = Assert.Throws<ArgumentException>(() => validate(name));
-            Assert.Contains("invalid characters", ex.Message);
-        }
-    }
+        => AssertAllReject(AllValidators, name, "invalid characters");
 
     [Theory]
     [InlineData("foo\r\nbar")]
@@ -117,24 +105,24 @@ public class IdentifierSanitizerTests
     [InlineData("foo\u2028bar")]
     [InlineData("foo\u2029bar")]
     public void AllValidators_RejectControlAndLineSeparators(string name)
-    {
-        foreach (var validate in AllValidators)
-        {
-            var ex = Assert.Throws<ArgumentException>(() => validate(name));
-            Assert.Contains("invalid characters", ex.Message);
-        }
-    }
+        => AssertAllReject(AllValidators, name, "invalid characters");
 
     [Theory]
     [InlineData("bad:name")]
     [InlineData("Kjøpsassistent:Chat")]
     public void NameValidators_RejectColon(string name)
+        => AssertAllReject(NameValidatorsWithoutColon, name, "cannot contain ':'");
+
+    private static void AssertAllReject(
+        IEnumerable<Func<string?, string>> validators,
+        string? name,
+        string messageFragment)
     {
-        foreach (var validate in NameValidatorsWithoutColon)
+        Assert.All(validators, validate =>
         {
             var ex = Assert.Throws<ArgumentException>(() => validate(name));
-            Assert.Contains("cannot contain ':'", ex.Message);
-        }
+            Assert.Contains(messageFragment, ex.Message);
+        });
     }
 
     [Fact]
