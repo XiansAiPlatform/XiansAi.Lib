@@ -78,6 +78,13 @@ public class AgentNameUnicodeTests : IDisposable
     }
 
     [Fact]
+    public void GetTaskWorkflowType_RejectsInvalidAgentName()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            WorkflowConstants.WorkflowTypes.GetTaskWorkflowType("bad<script>"));
+    }
+
+    [Fact]
     public void DynamicWorkflowTypeBuilder_PreservesUnicodeInWorkflowAttribute()
     {
         var workflowType = $"{IdentifierSanitizerTests.NorwegianAgentName}:Supervisor Workflow";
