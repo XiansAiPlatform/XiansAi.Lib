@@ -45,6 +45,10 @@ Example `Rules`:
 }
 ```
 
+## Scheduled prompts
+
+Ask the agent to run a prompt on a recurring schedule, for example: `Every day at 9 AM Asia/Colombo, summarize Reuters, BBC, and TechCrunch in five bullets.` Each schedule stores its own prompt and parameters, appears under **Schedules** in Agent Studio, and sends results back to the requesting participant. The agent can list, reschedule, and delete existing schedules.
+
 ## MCP options
 
 Server fields:

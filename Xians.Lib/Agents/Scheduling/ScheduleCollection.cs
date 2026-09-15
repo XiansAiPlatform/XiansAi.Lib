@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Client.Schedules;
 using Xians.Lib.Agents.Scheduling.Models;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
@@ -44,6 +45,26 @@ public class ScheduleCollection
             throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules.");
         
         return new ScheduleBuilder(scheduleName, _agent, workflowType, _temporalService, idPostfix);
+    }
+
+    /// <summary>Lists schedules owned by the current agent activation.</summary>
+    public async Task<IReadOnlyList<XiansSchedule>> ListAsync()
+    {
+        if (_temporalService == null)
+            throw new InvalidOperationException("Temporal service is not configured. Cannot list schedules.");
+
+        var tenantId = XiansContext.TenantId;
+        var prefix = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, XiansContext.SafeIdPostfix, "");
+        var client = await _temporalService.GetClientAsync();
+        var result = new List<XiansSchedule>();
+        await foreach (var schedule in client.ListSchedulesAsync(new ScheduleListOptions
+        {
+            Query = $"tenantId = '{tenantId}' AND agent = '{_agent.Name.Replace("'", "''")}'"
+        }))
+            if (schedule.Id.StartsWith(prefix, StringComparison.Ordinal))
+                result.Add(new XiansSchedule(client.GetScheduleHandle(schedule.Id)));
+
+        return result;
     }
 
     /// <summary>
@@ -210,4 +231,3 @@ public class ScheduleCollection
     }
 
 }
-

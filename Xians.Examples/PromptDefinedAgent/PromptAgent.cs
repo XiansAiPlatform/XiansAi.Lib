@@ -2,11 +2,13 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using OpenAI.Chat;
+using PromptDefinedAgent.Configuration;
 using PromptDefinedAgent.Mcp;
+using PromptDefinedAgent.Scheduling;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 
-internal sealed class PromptAgent
+public sealed class PromptAgent
 {
     private readonly ChatClient _chatClient;
     private readonly WebTools _webTools;
@@ -17,10 +19,15 @@ internal sealed class PromptAgent
         _webTools = new WebTools(webSearchApiKey);
     }
 
-    public async Task<string> RunAsync(UserMessageContext context)
+    public Task<string> RunAsync(UserMessageContext context) => RunAsync(context.Message.Text, context);
+
+    public Task<string> RunScheduledAsync(string prompt) => RunAsync(prompt, null);
+
+    private async Task<string> RunAsync(string prompt, UserMessageContext? context)
     {
         var configuredPrompt = await XiansContext.CurrentAgent.Knowledge.GetAsync("system-prompt");
-        await using var mcpTools = await McpToolProvider.LoadAsync();
+        var rules = await RulesConfig.LoadAsync();
+        await using var mcpTools = await McpToolProvider.LoadAsync(rules);
         var tools = new List<AITool>
         {
             AIFunctionFactory.Create(GetCurrentDateTime),
@@ -29,17 +36,27 @@ internal sealed class PromptAgent
         };
         tools.AddRange(mcpTools.Tools);
 
-        var agent = _chatClient.CreateAIAgent(new ChatClientAgentOptions
+        if (context is not null)
+        {
+            var scheduleTools = new ScheduleTools(context);
+            tools.Add(AIFunctionFactory.Create(scheduleTools.CreateSchedule));
+            tools.Add(AIFunctionFactory.Create(scheduleTools.ListSchedules));
+            tools.Add(AIFunctionFactory.Create(scheduleTools.UpdateScheduleTiming));
+            tools.Add(AIFunctionFactory.Create(scheduleTools.DeleteSchedule));
+        }
+
+        var options = new ChatClientAgentOptions
         {
             ChatOptions = new ChatOptions
             {
                 Instructions = configuredPrompt?.Content ?? "You are a helpful assistant.",
                 Tools = tools
-            },
-            ChatMessageStoreFactory = _ => new ConversationStore(context)
-        });
+            }
+        };
+        if (context is not null) options.ChatMessageStoreFactory = _ => new ConversationStore(context);
+        var agent = _chatClient.CreateAIAgent(options);
 
-        return (await agent.RunAsync(context.Message.Text)).Text;
+        return (await agent.RunAsync(prompt)).Text;
     }
 
     private static string GetCurrentDateTime() => DateTimeOffset.Now.ToString("O");

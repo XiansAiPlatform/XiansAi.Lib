@@ -1,4 +1,5 @@
 using DotNetEnv;
+using PromptDefinedAgent.Scheduling;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge;
 
@@ -41,5 +42,8 @@ workflow.OnUserChatMessage(async context =>
     await context.ReplyAsync(await promptAgent.RunAsync(context));
     context.SkipResponse = true;
 });
+
+agent.Workflows.DefineCustom<ScheduledPromptWorkflow>()
+    .AddActivity(new ScheduledPromptActivities(promptAgent));
 
 await agent.RunAllAsync();

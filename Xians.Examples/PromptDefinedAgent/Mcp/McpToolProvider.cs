@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using PromptDefinedAgent.Configuration;
@@ -10,27 +9,10 @@ namespace PromptDefinedAgent.Mcp;
 
 internal static class McpToolProvider
 {
-    public static async Task<McpToolCollection> LoadAsync()
+    public static async Task<McpToolCollection> LoadAsync(RulesConfig config)
     {
         var result = new McpToolCollection();
-        var rules = await XiansContext.CurrentAgent.Knowledge.GetAsync("Rules");
-        if (string.IsNullOrWhiteSpace(rules?.Content)) return result;
-
-        RulesConfig? config;
-        try
-        {
-            config = JsonSerializer.Deserialize<RulesConfig>(rules.Content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-        }
-        catch (JsonException exception)
-        {
-            Console.Error.WriteLine($"Ignoring invalid Rules JSON: {exception.Message}");
-            return result;
-        }
-
-        foreach (var server in config?.McpServers.Where(server => server.Enabled) ?? [])
+        foreach (var server in config.McpServers.Where(server => server.Enabled))
             await AddServerAsync(server, result);
 
         return result;
