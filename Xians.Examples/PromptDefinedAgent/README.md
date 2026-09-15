@@ -77,4 +77,8 @@ Authentication shapes:
 { "type": "basic", "usernameSecret": "USERNAME_SECRET_NAME", "passwordSecret": "PASSWORD_SECRET_NAME" }
 ```
 
-Store credential values in **Xians Secrets**, not in `Rules`. Secret lookup order is activation → agent → tenant. Invalid or unavailable MCP servers are skipped; built-in tools remain available.
+## Secrets
+
+In Agent Studio, open **Settings → Secrets** and save each PAT, token, or password under a key such as `GITHUB_MCP_TOKEN`. Put only that key in `Rules` (for example, `"secret": "GITHUB_MCP_TOKEN"`), never the credential itself. Studio currently creates tenant-scoped secrets; values are encrypted at rest and hidden after saving.
+
+Secret lookup order is activation → agent → tenant. Invalid or unavailable MCP servers are skipped; built-in tools remain available.
