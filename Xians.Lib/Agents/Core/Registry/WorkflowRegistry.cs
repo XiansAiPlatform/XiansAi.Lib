@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Xians.Lib.Common;
 
 namespace Xians.Lib.Agents.Core.Registry;
 
@@ -23,10 +24,12 @@ internal class WorkflowRegistry : IWorkflowRegistry
             throw new ArgumentNullException(nameof(workflow));
         }
 
-        if (!_workflows.TryAdd(workflowType, workflow))
+        var key = IdentifierSanitizer.NormalizeForLookup(workflowType);
+
+        if (!_workflows.TryAdd(key, workflow))
         {
             // Workflow already registered - this is OK (might be restarting)
-            _workflows[workflowType] = workflow;
+            _workflows[key] = workflow;
         }
     }
 
@@ -38,7 +41,7 @@ internal class WorkflowRegistry : IWorkflowRegistry
             throw new ArgumentNullException(nameof(workflowType), "Workflow type cannot be null or empty.");
         }
 
-        if (_workflows.TryGetValue(workflowType, out var workflow))
+        if (_workflows.TryGetValue(IdentifierSanitizer.NormalizeForLookup(workflowType), out var workflow))
         {
             return workflow;
         }
@@ -56,7 +59,7 @@ internal class WorkflowRegistry : IWorkflowRegistry
             return false;
         }
 
-        return _workflows.TryGetValue(workflowType, out workflow);
+        return _workflows.TryGetValue(IdentifierSanitizer.NormalizeForLookup(workflowType), out workflow);
     }
 
     /// <inheritdoc/>

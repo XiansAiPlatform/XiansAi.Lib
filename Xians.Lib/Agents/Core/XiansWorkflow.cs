@@ -6,6 +6,7 @@ using Temporalio.Worker;
 using Xians.Lib.Agents.Messaging;
 using Xians.Lib.Agents.Workflows.Models;
 using Xians.Lib.Common.MultiTenancy;
+using Xians.Lib.Common;
 using Xians.Lib.Temporal.Workflows;
 
 namespace Xians.Lib.Agents.Core;
@@ -31,9 +32,11 @@ public class XiansWorkflow
         
         if (string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentNullException(nameof(workflowType));
+
+        workflowType = IdentifierSanitizer.SanitizeAndValidateWorkflowType(workflowType, nameof(workflowType));
         
         var expectedPrefix = agent.Name + ":";
-        if (!workflowType.StartsWith(expectedPrefix))
+        if (!workflowType.StartsWith(expectedPrefix, StringComparison.Ordinal))
         {
             throw new ArgumentException(
                 $"Workflow type '{workflowType}' must start with agent name prefix '{expectedPrefix}'. " +

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Linq;
+using Xians.Lib.Common;
 
 namespace Xians.Lib.Agents.Core.Registry;
 
@@ -29,7 +30,7 @@ internal class AgentRegistry : IAgentRegistry
         // registration of system-scoped and tenant-scoped variants that share
         // the same name.
         _agents.AddOrUpdate(
-            agent.Name,
+            IdentifierSanitizer.NormalizeForLookup(agent.Name),
             _ => CreateEntry(agent),
             (_, existing) => UpdateEntry(existing, agent));
     }
@@ -42,7 +43,7 @@ internal class AgentRegistry : IAgentRegistry
             throw new ArgumentNullException(nameof(agentName), "Agent name cannot be null or empty.");
         }
 
-        if (_agents.TryGetValue(agentName, out var entry))
+        if (_agents.TryGetValue(IdentifierSanitizer.NormalizeForLookup(agentName), out var entry))
         {
             var agent = entry.TenantAgent ?? entry.SystemAgent;
             if (agent != null)
@@ -64,7 +65,7 @@ internal class AgentRegistry : IAgentRegistry
             return false;
         }
 
-        var found = _agents.TryGetValue(agentName, out var entry);
+        var found = _agents.TryGetValue(IdentifierSanitizer.NormalizeForLookup(agentName), out var entry);
         agent = entry?.TenantAgent ?? entry?.SystemAgent;
         return found && agent != null;
     }

@@ -43,13 +43,7 @@ public class AgentReference
         if (string.IsNullOrWhiteSpace(agentName))
             throw new ArgumentException("Agent name is required.", nameof(agentName));
 
-        Name = agentName.Trim();
-        if (Name.Contains(':'))
-        {
-            throw new ArgumentException(
-                "Agent name cannot contain ':' character as it is used as a delimiter in workflow identifiers.",
-                nameof(agentName));
-        }
+        Name = IdentifierSanitizer.SanitizeAndValidateAgentName(agentName, nameof(agentName));
 
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<AgentReference>();
     }
@@ -100,10 +94,8 @@ public class AgentReference
         string activationName,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(activationName))
-        {
-            throw new ArgumentException("Activation name is required.", nameof(activationName));
-        }
+        var sanitizedActivationName = IdentifierSanitizer.SanitizeAndValidateActivationName(
+            activationName, nameof(activationName));
 
         EnsureHttpService();
 
@@ -111,7 +103,7 @@ public class AgentReference
         var tenantId = XiansContext.SafeTenantId ?? _owner.Options?.CertificateTenantId;
 
         return await ActivationValidationService.CheckActivationStatusAsync(
-            client, Name, activationName, tenantId, _owner.SystemScoped, cancellationToken);
+            client, Name, sanitizedActivationName, tenantId, _owner.SystemScoped, cancellationToken);
     }
 
     /// <summary>
@@ -175,14 +167,13 @@ public class AgentReference
         IEnumerable<WorkflowConfig>? workflows = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Activation name is required.", nameof(name));
+        var sanitizedName = IdentifierSanitizer.SanitizeAndValidateActivationName(name, nameof(name));
 
         EnsureHttpService();
 
         var body = new CreateActivationBody
         {
-            Name = name.Trim(),
+            Name = sanitizedName,
             AgentName = Name,
             Description = description,
             ParticipantId = participantId,
@@ -199,7 +190,7 @@ public class AgentReference
         var client = await _owner.HttpService!.GetHealthyClientAsync();
         using var request = new HttpRequestMessage(HttpMethod.Post, WorkflowConstants.ApiEndpoints.Activations)
         {
-            Content = JsonContent.Create(body)
+            Content = JsonContent.Create(body, options: UnicodeJson.SerializerOptions)
         };
         AddTenantHeader(request);
 

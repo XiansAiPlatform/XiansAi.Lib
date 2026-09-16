@@ -100,8 +100,8 @@ internal static class ActivationValidationService
         CancellationToken cancellationToken = default)
     {
         var url = $"{WorkflowConstants.ApiEndpoints.ActivationExists}" +
-                  $"?activationName={Uri.EscapeDataString(activationName)}" +
-                  $"&agentName={Uri.EscapeDataString(agentName)}";
+                  $"?activationName={Uri.EscapeDataString(IdentifierSanitizer.NormalizeForLookup(activationName))}" +
+                  $"&agentName={Uri.EscapeDataString(IdentifierSanitizer.NormalizeForLookup(agentName))}";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         if (systemScoped && !string.IsNullOrWhiteSpace(tenantId))

@@ -48,13 +48,10 @@ public class AgentCollection
     /// <returns>The registered XiansAgent instance.</returns>
     public XiansAgent Register(XiansAgentRegistration registration)
     {
-        if (string.IsNullOrWhiteSpace(registration.Name))
-        {
-            throw new ArgumentException("Agent name is required", nameof(registration));
-        }
+        ArgumentNullException.ThrowIfNull(registration);
 
         return new XiansAgent(
-            registration.Name, 
+            IdentifierSanitizer.SanitizeAndValidateAgentName(registration.Name, nameof(registration.Name)), 
             registration.IsTemplate,
             registration.Description,
             registration.Summary,

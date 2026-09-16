@@ -68,6 +68,50 @@ public class WorkerVersioningResolverTests
     }
 
     [Fact]
+    public void Resolve_UnicodeAgentName_WithoutExplicitDeploymentName_Throws()
+    {
+        var options = new WorkerVersioningOptions { Mode = WorkerVersioningMode.Enabled, BuildId = "1.0" };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => WorkerVersioningResolver.Resolve(options, "Kjøpsassistent"));
+
+        Assert.Contains("ASCII", ex.Message);
+        Assert.Contains("DeploymentName", ex.Message);
+    }
+
+    [Fact]
+    public void Resolve_UnicodeAgentName_WithExplicitAsciiDeploymentName_Succeeds()
+    {
+        var options = new WorkerVersioningOptions
+        {
+            Mode = WorkerVersioningMode.Enabled,
+            BuildId = "1.0",
+            DeploymentName = "kjopsassistent"
+        };
+
+        var result = WorkerVersioningResolver.Resolve(options, "Kjøpsassistent");
+
+        Assert.Equal("kjopsassistent", result!.DeploymentName);
+    }
+
+    [Fact]
+    public void Resolve_ExplicitNonAsciiDeploymentName_Throws()
+    {
+        var options = new WorkerVersioningOptions
+        {
+            Mode = WorkerVersioningMode.Enabled,
+            BuildId = "1.0",
+            DeploymentName = "Kjøpsassistent"
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => WorkerVersioningResolver.Resolve(options, AgentName));
+
+        Assert.Contains("ASCII", ex.Message);
+        Assert.Contains("DeploymentName", ex.Message);
+    }
+
+    [Fact]
     public void Resolve_DeploymentName_FallsBackToAgentName()
     {
         var options = new WorkerVersioningOptions { Mode = WorkerVersioningMode.Enabled, BuildId = "1.0" };
