@@ -10,7 +10,6 @@ Copy `.env.example` to `.env` and set:
 XIANS_SERVER_URL=
 XIANS_API_KEY=
 OPENAI_API_KEY=
-TAVILY_API_KEY=
 ```
 
 Run from the solution directory:

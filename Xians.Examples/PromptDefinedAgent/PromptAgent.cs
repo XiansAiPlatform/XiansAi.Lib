@@ -11,12 +11,10 @@ using Xians.Lib.Agents.Messaging;
 public sealed class PromptAgent
 {
     private readonly ChatClient _chatClient;
-    private readonly WebTools _webTools;
 
-    public PromptAgent(string apiKey, string webSearchApiKey, string model = "gpt-4o-mini")
+    public PromptAgent(string apiKey)
     {
-        _chatClient = new OpenAIClient(apiKey).GetChatClient(model);
-        _webTools = new WebTools(webSearchApiKey);
+        _chatClient = new OpenAIClient(apiKey).GetChatClient("gpt-4o-mini");
     }
 
     public Task<string> RunAsync(UserMessageContext context) => RunAsync(context.Message.Text, context);
@@ -28,13 +26,7 @@ public sealed class PromptAgent
         var configuredPrompt = await XiansContext.CurrentAgent.Knowledge.GetAsync("system-prompt");
         var rules = await RulesConfig.LoadAsync();
         await using var mcpTools = await McpToolProvider.LoadAsync(rules);
-        var tools = new List<AITool>
-        {
-            AIFunctionFactory.Create(GetCurrentDateTime),
-            AIFunctionFactory.Create(_webTools.SearchWeb),
-            AIFunctionFactory.Create(_webTools.ReadWebPage)
-        };
-        tools.AddRange(mcpTools.Tools);
+        var tools = new List<AITool>(mcpTools.Tools);
 
         if (context is not null)
         {
@@ -59,5 +51,4 @@ public sealed class PromptAgent
         return (await agent.RunAsync(prompt)).Text;
     }
 
-    private static string GetCurrentDateTime() => DateTimeOffset.Now.ToString("O");
 }

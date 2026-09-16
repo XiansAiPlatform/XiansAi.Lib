@@ -32,9 +32,7 @@ await agent.Knowledge.UploadEmbeddedResourceAsync(
 
 var promptAgent = new PromptAgent(
     Environment.GetEnvironmentVariable("OPENAI_API_KEY")
-        ?? throw new InvalidOperationException("OPENAI_API_KEY is not set"),
-    Environment.GetEnvironmentVariable("TAVILY_API_KEY")
-        ?? throw new InvalidOperationException("TAVILY_API_KEY is not set"));
+        ?? throw new InvalidOperationException("OPENAI_API_KEY is not set"));
 
 var workflow = agent.Workflows.DefineSupervisor();
 workflow.OnUserChatMessage(async context =>
