@@ -201,6 +201,157 @@ public class LoggingServicesTests : IAsyncLifetime
         }
     }
 
+    // The failure path is the one that matters for console volume: while the server is unreachable every
+    // batch is requeued and nothing drains, so it runs on every cycle for as long as the outage lasts.
+    // These four tests pin what an outage costs the console.
+
+    [Fact]
+    public async Task WhenUploadsKeepFailing_TheFailureIsReportedOnceNotEveryCycle()
+    {
+        var console = await CaptureConsoleDuringFailingUploadsAsync(cycles: 4);
+
+        // One report for the streak, regardless of how many cycles failed inside the window.
+        Assert.Equal(1, CountOccurrences(console, "Logger API failed with status"));
+    }
+
+    [Fact]
+    public async Task WhenAnUploadFails_TheResponseBodyIsTruncated()
+    {
+        var hugeBody = new string('x', 20_000);
+        var console = await CaptureConsoleDuringFailingUploadsAsync(cycles: 2, responseBody: hugeBody);
+
+        Assert.Contains("(truncated, 20000 chars total)", console, StringComparison.Ordinal);
+        Assert.DoesNotContain(hugeBody, console, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WhenLogsExceedTheRetryLimit_DropsAreReportedPerBatchNotPerLog()
+    {
+        // MAX_RETRIES is 3, so a few failing cycles are enough to start dropping entries.
+        var console = await CaptureConsoleDuringFailingUploadsAsync(cycles: 6);
+
+        // The per-entry form ("Dropping log {guid} after 3 failed attempts") is what flooded stderr.
+        Assert.DoesNotContain("Dropping log ", console, StringComparison.Ordinal);
+        Assert.Contains("failed upload attempts", console, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WhenUploadsRecover_TheRecoveryIsReported()
+    {
+        // Arrange — fail first so there is a streak. The helper leaves the service running.
+        await CaptureConsoleDuringFailingUploadsAsync(cycles: 2);
+
+        _mockServer!.Reset();
+        _mockServer
+            .Given(Request.Create().WithPath("/api/agent/logs").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(200).WithBody("{\"success\": true}"));
+
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        using var captured = new StringWriter();
+        try
+        {
+            Console.SetOut(captured);
+            Console.SetError(captured);
+
+            for (var i = 0; i < 5; i++)
+            {
+                LoggingServices.EnqueueLog(CreateTestLog(LogLevel.Information, $"recovered-{i}"));
+            }
+
+            // Driven by Shutdown rather than by waiting on the background thread: StartLogProcessor skips
+            // creating a replacement while a previously cancelled thread is still alive, so after a
+            // Shutdown/Initialize pair the processor is not reliably running. Shutdown drains the queue
+            // synchronously through ProcessLogBatch, which is the path under test here either way.
+            LoggingServices.Shutdown();
+
+            // The recovery line is written by the upload continuation, which Shutdown starts but does not
+            // await after the drain.
+            await Task.Delay(2000);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+
+        // An outage that ends silently is as unhelpful as one that floods: the recovery line is what says
+        // the suppression window is over.
+        var console = captured.ToString();
+        Assert.True(
+            console.Contains("Log upload recovered after", StringComparison.Ordinal),
+            $"recovery line missing. console=<<<{console}>>>");
+    }
+
+    /// <summary>
+    /// Points this test's mock server at a failing response, drives several upload cycles, and returns
+    /// everything written to stdout and stderr while they ran.
+    /// </summary>
+    /// <remarks>
+    /// Returns with the service still initialized and still failing, so a caller can go on to flip the
+    /// server back to success and observe the recovery.
+    /// </remarks>
+    /// <param name="cycles">Roughly how many upload cycles to allow before returning.</param>
+    /// <param name="responseBody">Body the mock server returns with the failure status.</param>
+    private async Task<string> CaptureConsoleDuringFailingUploadsAsync(
+        int cycles,
+        string responseBody = "upload rejected")
+    {
+        LoggingServices.Shutdown();
+        // Long enough for the cancelled processing thread to actually exit: StartLogProcessor will not
+        // create a replacement while the old one is still alive, and the old one stops on its cancelled
+        // token — leaving the service with no processor at all.
+        await Task.Delay(1500);
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+
+        _mockServer!.Reset();
+        _mockServer
+            .Given(Request.Create().WithPath("/api/agent/logs").UsingPost())
+            .RespondWith(Response.Create().WithStatusCode(500).WithBody(responseBody));
+
+        const int intervalMs = 300;
+        LoggingServices.ConfigureBatchSettings(10, intervalMs);
+        LoggingServices.Initialize(_httpService!);
+        await Task.Delay(100);
+
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        using var captured = new StringWriter();
+        try
+        {
+            // Both streams: the failure reports go to stderr, the diagnostics to stdout.
+            Console.SetOut(captured);
+            Console.SetError(captured);
+
+            for (var i = 0; i < 10; i++)
+            {
+                LoggingServices.EnqueueLog(CreateTestLog(LogLevel.Information, $"failing-{i}"));
+            }
+
+            await Task.Delay(intervalMs * cycles + 1000);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+
+        return captured.ToString();
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var at = 0;
+        while ((at = haystack.IndexOf(needle, at, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            at += needle.Length;
+        }
+
+        return count;
+    }
+
     /// <summary>
     /// Runs one full enqueue → batch → upload cycle against this test's mock server and returns everything
     /// written to stdout while it ran.
@@ -213,7 +364,7 @@ public class LoggingServicesTests : IAsyncLifetime
     private async Task<string> CaptureConsoleDuringOneUploadCycleAsync()
     {
         LoggingServices.Shutdown();
-        await Task.Delay(500);
+        await Task.Delay(1500);
         while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
 
         var uploadsBefore = _mockServer!.LogEntries.Count();

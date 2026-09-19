@@ -54,6 +54,18 @@ public static class LoggingServices
 
     // Track first log enqueued for diagnostics
     private static bool _firstLogEnqueued = false;
+
+    // Upload failure reporting. When the log server is unreachable every batch is requeued and nothing
+    // drains, so the failure path runs on every cycle for as long as the outage lasts — reported without a
+    // limit that is a stdout flood precisely when an operator is trying to read the console. These fields
+    // collapse a streak into its first line plus one repeat per interval, carrying the count so the
+    // magnitude stays visible. Access is normally confined to the log-processing thread and its upload
+    // continuations, but Shutdown can drain on the caller's thread at the same time, hence the interlocked
+    // counter.
+    private const int MAX_RESPONSE_BODY_CHARS = 500;
+    private static readonly TimeSpan FAILURE_REPORT_INTERVAL = TimeSpan.FromMinutes(5);
+    private static int _consecutiveUploadFailures;
+    private static DateTime _lastFailureReportUtc = DateTime.MinValue;
     
     /// <summary>
     /// Enqueues a log to the global queue for processing.
@@ -113,6 +125,11 @@ public static class LoggingServices
             
             _httpClientService = httpClientService ?? throw new ArgumentNullException(nameof(httpClientService));
 
+            // A new session starts with a clean failure streak, so its first upload failure reports
+            // immediately rather than landing inside a suppression window left by the previous one.
+            Interlocked.Exchange(ref _consecutiveUploadFailures, 0);
+            _lastFailureReportUtc = DateTime.MinValue;
+
             // Start the background processor
             StartLogProcessor();
 
@@ -161,7 +178,22 @@ public static class LoggingServices
     {
         lock (_processingLock)
         {
-            if (_processingThread != null && _processingThread.IsAlive) return;
+            // A thread left over from a previous session can still be alive while already cancelled — it is
+            // about to stop on its own token. Treating that as "a processor is running" left the service
+            // with none at all: the old thread exited moments later and nothing started a replacement, so
+            // after a Shutdown/Initialize pair logs queued forever and were never uploaded. Only an
+            // uncancelled thread counts as running.
+            if (_processingThread is { IsAlive: true } && _cancellationTokenSource is { IsCancellationRequested: false })
+            {
+                return;
+            }
+
+            // Give a cancelled predecessor a moment to exit. If it does not, starting a replacement is still
+            // correct: the old one stops at the top of its next loop iteration and does no work meanwhile.
+            if (_processingThread is { IsAlive: true })
+            {
+                _processingThread.Join(TimeSpan.FromSeconds(1));
+            }
 
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
@@ -186,16 +218,18 @@ public static class LoggingServices
             try
             {
                 ProcessLogBatch();
-                
-                // Sleep before processing next batch
-                Thread.Sleep(_processingIntervalMs);
+
+                // Waits on the token rather than sleeping blind, so cancellation is observed immediately.
+                // A blind sleep meant Shutdown waited out the remainder of the interval — up to the error
+                // backoff below — and then reported the thread as hung on the console.
+                cancellationToken.WaitHandle.WaitOne(_processingIntervalMs);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error in log processing thread: {ex.Message}");
-                
-                // Sleep a bit longer after an error
-                Thread.Sleep(10000);
+                ReportUploadFailure($"ERROR: log processing thread failed: {ex.Message}");
+
+                // Back off after an error, still observing cancellation.
+                cancellationToken.WaitHandle.WaitOne(10000);
             }
         }
     }
@@ -217,7 +251,9 @@ public static class LoggingServices
         
         if (_httpClientService == null)
         {
-            Console.WriteLine("[LoggingServices] WARNING: HTTP client service is null, cannot upload logs");
+            // A misconfigured host hits this on every cycle for the life of the process, so it goes through
+            // the same rate limiter as the upload failures below.
+            ReportUploadFailure("WARNING: HTTP client service is null, cannot upload logs");
             return;
         }
 
@@ -265,7 +301,7 @@ public static class LoggingServices
     {
         if (_httpClientService == null)
         {
-            Console.Error.WriteLine("[LoggingServices] ERROR: HTTP client service is not available, log upload failed");
+            ReportUploadFailure("ERROR: HTTP client service is not available, log upload failed");
             RequeueLogBatch(logs);
             return;
         }
@@ -283,8 +319,8 @@ public static class LoggingServices
             if (!response.IsSuccessStatusCode)
             {
                 var responseBody = await response.Content.ReadAsStringAsync();
-                Console.Error.WriteLine($"[LoggingServices] ERROR: Logger API failed with status {response.StatusCode}");
-                Console.Error.WriteLine($"[LoggingServices] Response: {responseBody}");
+                ReportUploadFailure(
+                    $"ERROR: Logger API failed with status {response.StatusCode}. Response: {TruncateResponseBody(responseBody)}");
                 RequeueLogBatch(logs);
             }
             else
@@ -296,7 +332,10 @@ public static class LoggingServices
                 {
                     Console.WriteLine($"[LoggingServices] ✓ Successfully uploaded {logs.Count} logs to server");
                 }
-                
+
+                // Ends any suppression window and reports the recovery if a streak was running.
+                ReportUploadRecovered();
+
                 // Successful upload - remove retry tracking for these logs
                 foreach (var log in logs)
                 {
@@ -311,11 +350,11 @@ public static class LoggingServices
         {
             // HTTP client was disposed - this can happen during shutdown
             // Don't requeue as we're shutting down anyway
-            Console.Error.WriteLine("[LoggingServices] HTTP client disposed, skipping log batch");
+            ReportUploadFailure("HTTP client disposed, skipping log batch");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[LoggingServices] ERROR: Logger exception: {ex.Message}");
+            ReportUploadFailure($"ERROR: Logger exception: {ex.Message}");
             if (_verboseDiagnostics)
             {
                 Console.Error.WriteLine($"[LoggingServices] Stack trace: {ex.StackTrace}");
@@ -325,11 +364,78 @@ public static class LoggingServices
     }
     
     /// <summary>
+    /// Writes an upload failure to stderr, at most once per <see cref="FAILURE_REPORT_INTERVAL"/> while a
+    /// failure streak continues. The first failure of a streak always reports.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is hidden by this: the first occurrence is immediate, and every suppressed repeat is counted
+    /// into the streak that the next report and the recovery line both carry. What it removes is the
+    /// thousands of identical lines an hour-long outage used to produce.
+    /// </remarks>
+    /// <param name="message">The failure description, already formatted.</param>
+    private static void ReportUploadFailure(string message)
+    {
+        var failures = Interlocked.Increment(ref _consecutiveUploadFailures);
+        var now = DateTime.UtcNow;
+
+        if (failures > 1 && now - _lastFailureReportUtc < FAILURE_REPORT_INTERVAL)
+        {
+            return;
+        }
+
+        _lastFailureReportUtc = now;
+
+        var suffix = failures > 1
+            ? $" ({failures} consecutive failures; further reports suppressed for {FAILURE_REPORT_INTERVAL.TotalMinutes:0} minutes)"
+            : string.Empty;
+
+        Console.Error.WriteLine($"[LoggingServices] {message}{suffix}");
+    }
+
+    /// <summary>
+    /// Clears the failure streak after a successful upload, reporting the recovery when there was one to
+    /// recover from — otherwise an outage would end as silently as it was suppressed.
+    /// </summary>
+    private static void ReportUploadRecovered()
+    {
+        var failures = Interlocked.Exchange(ref _consecutiveUploadFailures, 0);
+        if (failures > 0)
+        {
+            Console.Error.WriteLine($"[LoggingServices] Log upload recovered after {failures} consecutive failures");
+        }
+    }
+
+    /// <summary>
+    /// Trims an error response body to <see cref="MAX_RESPONSE_BODY_CHARS"/> before it reaches the console.
+    /// A rejected request can come back with an arbitrarily large body (an HTML error page, a full validation
+    /// report), and the first few hundred characters are what identifies the problem.
+    /// </summary>
+    /// <param name="body">Raw response body.</param>
+    private static string TruncateResponseBody(string? body)
+    {
+        if (string.IsNullOrEmpty(body))
+        {
+            return "(empty)";
+        }
+
+        return body.Length <= MAX_RESPONSE_BODY_CHARS
+            ? body
+            : string.Concat(body.AsSpan(0, MAX_RESPONSE_BODY_CHARS), $"… (truncated, {body.Length} chars total)");
+    }
+
+    /// <summary>
     /// Helper method to re-queue a batch of logs with retry limit.
     /// Logs that exceed MAX_RETRIES are dropped to prevent infinite accumulation.
     /// </summary>
     private static void RequeueLogBatch(List<Log> logs)
     {
+        // Counted, then reported once for the batch. This used to write a line per dropped entry, inside a
+        // loop over a batch of up to _batchSize logs — so a sustained outage, where every batch is requeued
+        // until its entries exhaust MAX_RETRIES, produced up to _batchSize stderr lines per cycle. The
+        // individual ids identified nothing actionable: they are ids of log entries that never reached the
+        // server, so there is nothing to look them up in.
+        var droppedCount = 0;
+
         foreach (var log in logs)
         {
             // Skip logs without IDs
@@ -349,8 +455,14 @@ public static class LoggingServices
             {
                 // Drop log after max retries to prevent infinite accumulation
                 _logRetryCount.TryRemove(log.Id, out _);
-                Console.Error.WriteLine($"Dropping log {log.Id} after {MAX_RETRIES} failed attempts");
+                droppedCount++;
             }
+        }
+
+        if (droppedCount > 0)
+        {
+            Console.Error.WriteLine(
+                $"[LoggingServices] Dropped {droppedCount} log(s) after {MAX_RETRIES} failed upload attempts");
         }
     }
 
