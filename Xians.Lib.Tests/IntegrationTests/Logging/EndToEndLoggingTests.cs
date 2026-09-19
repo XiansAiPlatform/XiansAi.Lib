@@ -13,6 +13,11 @@ using Xians.Lib.Tests.TestUtilities;
 namespace Xians.Lib.Tests.IntegrationTests.Logging;
 
 [Trait("Category", "Integration")]
+// Same collection as LoggingServicesTests, for the same reason it already declares one: both drive the
+// process-wide statics in LoggingServices (Initialize, Shutdown, the shared queue). xUnit runs separate
+// collections in parallel, so without this the two classes interleave — one class's Shutdown clears the
+// other's initialization mid-test, and its uploads then go to a mock server that is already disposed.
+[Collection("LoggingServices")]
 public class EndToEndLoggingTests : IAsyncLifetime
 {
     private WireMockServer? _mockServer;

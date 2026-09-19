@@ -146,8 +146,9 @@ public class UserMessageContext
     /// <returns>A list of DbMessage objects representing the chat history.</returns>
     public virtual async Task<List<DbMessage>> GetChatHistoryAsync(int page = 1, int pageSize = 10)
     {
-        
-        Console.WriteLine($"***** Fetching chat history: WorkflowId={_cachedWorkflowId}, ParticipantId={Message.ParticipantId}, Page={page}, PageSize={pageSize}, Tenant={Message.TenantId}");
+        // A raw Console.WriteLine of the same message used to sit here. It duplicated the LogDebug below,
+        // but bypassed ILogger entirely — so it printed a participant id and a tenant id to stdout on every
+        // chat turn, at every log level, with no way for a host to turn it off.
         _logger.LogDebug(
             "Fetching chat history: WorkflowId={WorkflowId}, ParticipantId={ParticipantId}, Page={Page}, PageSize={PageSize}, Tenant={Tenant}",
             _cachedWorkflowId,

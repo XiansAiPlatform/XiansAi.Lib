@@ -44,6 +44,41 @@ public class WorkflowOptions
     public int MaxHistoryLength { get; set; } = 1000;
 
     /// <summary>
+    /// Maximum number of workflow executions this workflow's worker keeps in its sticky cache.
+    /// Default is 500.
+    /// <para>
+    /// This is the single largest consumer of a worker's memory. A cached execution holds its workflow
+    /// instance and the state needed to continue it without replaying history - mostly native memory owned
+    /// by the SDK core, which a managed heap dump does not show. Eviction is LRU by count only: there is no
+    /// TTL and no memory-pressure eviction, and a workflow terminated server-side keeps its entry until
+    /// enough newer workflows push it out. So the cache does not shrink when load goes away; this number is
+    /// what its steady-state footprint is bounded by.
+    /// </para>
+    /// <para>
+    /// Temporal's own default is 10,000 per worker. An agent process runs one worker per defined workflow,
+    /// so that default lets a handful of workflow definitions retain tens of thousands of executions - far
+    /// more than a container-sized memory limit allows. 500 keeps the sticky hit rate high for the set of
+    /// executions actually being worked on (five times the default <see cref="MaxConcurrent"/>) while
+    /// bounding what is retained after a burst.
+    /// </para>
+    /// <para>
+    /// The trade-off when lowering this is CPU and server load, not correctness: an evicted execution is
+    /// replayed from history the next time a task arrives for it. Raise it for a worker with few, long-lived
+    /// workflows; lower it for one facing many short-lived executions under a tight memory limit. Values
+    /// between 1 and <see cref="MaxConcurrent"/> are raised to <see cref="MaxConcurrent"/>, since a non-zero
+    /// cache smaller than the number of tasks in flight would thrash on every one of them.
+    /// </para>
+    /// <para>
+    /// Set to <c>0</c> to disable sticky execution entirely. Nothing is cached, so nothing is retained and a
+    /// terminated execution can strand nothing — at the cost of replaying history on every workflow task.
+    /// That trade is worth making for a worker whose executions are numerous and mostly idle, since each one
+    /// produces few workflow tasks and there is little cache benefit to give up; it is a poor trade for a
+    /// worker running bursts of many activities, where every activity result becomes another full replay.
+    /// </para>
+    /// </summary>
+    public int MaxCachedWorkflows { get; set; } = 500;
+
+    /// <summary>
     /// Whether this workflow can be activated/triggered.
     /// Default is true.
     /// </summary>
@@ -66,6 +101,7 @@ public class WorkflowOptions
         {
             MaxConcurrent = MaxConcurrent,
             MaxHistoryLength = MaxHistoryLength,
+            MaxCachedWorkflows = MaxCachedWorkflows,
             Activable = Activable,
             InactivityTimeout = InactivityTimeout
         };

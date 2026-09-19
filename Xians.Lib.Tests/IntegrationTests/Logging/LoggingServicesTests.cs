@@ -168,6 +168,88 @@ public class LoggingServicesTests : IAsyncLifetime
         Assert.NotNull(queue);
     }
 
+    // The upload diagnostics write straight to stdout rather than through an ILogger, so a host has no log
+    // level, category filter or environment variable that can reach them. Uploading runs on a fixed interval
+    // for the life of the process, so ungated they are unconditional console traffic no consumer can stop.
+    // These two tests pin the gate: silent by default, still available when diagnostics are asked for.
+    [Fact]
+    public async Task BatchUpload_ByDefault_DoesNotPrintUploadDiagnostics()
+    {
+        var console = await CaptureConsoleDuringOneUploadCycleAsync();
+
+        Assert.DoesNotContain("Uploading batch of", console, StringComparison.Ordinal);
+        Assert.DoesNotContain("Successfully uploaded", console, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BatchUpload_WithVerboseDiagnostics_PrintsUploadDiagnostics()
+    {
+        try
+        {
+            // Opted in before the capture starts, since EnableVerboseDiagnostics announces itself.
+            LoggingServices.EnableVerboseDiagnostics(true);
+
+            var console = await CaptureConsoleDuringOneUploadCycleAsync();
+
+            Assert.Contains("Uploading batch of", console, StringComparison.Ordinal);
+            Assert.Contains("Successfully uploaded", console, StringComparison.Ordinal);
+        }
+        finally
+        {
+            // Process-wide static shared with every other test in this collection.
+            LoggingServices.EnableVerboseDiagnostics(false);
+        }
+    }
+
+    /// <summary>
+    /// Runs one full enqueue → batch → upload cycle against this test's mock server and returns everything
+    /// written to stdout while it ran.
+    /// </summary>
+    /// <remarks>
+    /// Shuts the service down first rather than trusting the ambient state: Initialize is a no-op while
+    /// _isInitialized is set, so without this the uploads would go to whichever mock server a previous test
+    /// left wired up, and this one would see no traffic at all.
+    /// </remarks>
+    private async Task<string> CaptureConsoleDuringOneUploadCycleAsync()
+    {
+        LoggingServices.Shutdown();
+        await Task.Delay(500);
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+
+        var uploadsBefore = _mockServer!.LogEntries.Count();
+
+        LoggingServices.ConfigureBatchSettings(5, 500);
+        LoggingServices.Initialize(_httpService!);
+        await Task.Delay(100);
+
+        var original = Console.Out;
+        using var captured = new StringWriter();
+        try
+        {
+            // Enqueued inside the capture so the batch the background thread picks up is produced, uploaded
+            // and reported on entirely within the window.
+            Console.SetOut(captured);
+
+            for (var i = 0; i < 10; i++)
+            {
+                LoggingServices.EnqueueLog(CreateTestLog(LogLevel.Information, $"console-probe-{i}"));
+            }
+
+            await Task.Delay(2000);
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+
+        // Without a real upload in the window, "nothing was printed" would pass for the wrong reason.
+        Assert.True(
+            _mockServer!.LogEntries.Count() > uploadsBefore,
+            "expected at least one upload during the capture window for the assertions to mean anything");
+
+        return captured.ToString();
+    }
+
     [Fact]
     public async Task LoggingServices_ProcessesLogs_WhenInitialized()
     {

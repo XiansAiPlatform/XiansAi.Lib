@@ -238,8 +238,14 @@ public static class LoggingServices
             return;
         }
         
-        // Show upload message
-        Console.WriteLine($"[LoggingServices] Uploading batch of {batchToSend.Count} logs, {_globalLogQueue.Count} remaining in queue");
+        // Diagnostic only. This writes straight to stdout rather than through an ILogger, so a host has no
+        // log level, category filter or environment variable that can reach it — the neighbouring
+        // diagnostics in this class are gated for that reason, and this one was missed. Uploading happens on
+        // a fixed interval for as long as the process lives, so ungated it is unconditional console traffic.
+        if (_verboseDiagnostics)
+        {
+            Console.WriteLine($"[LoggingServices] Uploading batch of {batchToSend.Count} logs, {_globalLogQueue.Count} remaining in queue");
+        }
         
         // Track the upload task instead of fire-and-forget
         var uploadTask = SendLogBatchAsync(batchToSend);
@@ -283,8 +289,13 @@ public static class LoggingServices
             }
             else
             {
-                // Always show successful upload (not just in verbose mode)
-                Console.WriteLine($"[LoggingServices] ✓ Successfully uploaded {logs.Count} logs to server");
+                // Diagnostic only — a successful upload is the expected outcome and says nothing an
+                // operator needs. Failures above stay unconditional on stderr, so silencing this does not
+                // hide a problem. See the matching gate in ProcessLogBatch.
+                if (_verboseDiagnostics)
+                {
+                    Console.WriteLine($"[LoggingServices] ✓ Successfully uploaded {logs.Count} logs to server");
+                }
                 
                 // Successful upload - remove retry tracking for these logs
                 foreach (var log in logs)

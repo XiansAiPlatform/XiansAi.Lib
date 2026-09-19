@@ -319,9 +319,24 @@ public class XiansWorkflow
 
         // Create worker options
         // MaxConcurrentWorkflowTasks defaults to 100 (Temporal's default) but can be customized
+        // Sticky cache size. Left unset, Temporal applies its own default of 10,000 executions per worker,
+        // and an agent process runs one worker per defined workflow — so a handful of definitions can retain
+        // tens of thousands of executions, mostly in native memory the GC cannot reclaim and a heap dump does
+        // not show. Eviction is LRU by count with no TTL, so the cache never gives memory back on its own.
+        //
+        // Zero is passed through untouched: Temporal treats it as "disable sticky execution entirely", which
+        // is a legitimate choice for a worker whose executions are numerous and mostly idle — nothing is
+        // retained, at the cost of replaying history on every workflow task. Any other value is floored at the
+        // concurrent task count, because a non-zero cache smaller than the number of tasks in flight would
+        // evict an execution that is still being worked on and thrash on every one of them.
+        var maxCachedWorkflows = Options.MaxCachedWorkflows <= 0
+            ? 0
+            : Math.Max(Options.MaxCachedWorkflows, Workers);
+
         var workerOptions = new TemporalWorkerOptions(taskQueue: taskQueue)
         {
             MaxConcurrentWorkflowTasks = Workers,
+            MaxCachedWorkflows = maxCachedWorkflows,
             LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true),
             // Automatically propagate OpenTelemetry trace context into workflows and activities.
             // No-op when no TracerProvider is configured (safe to keep always enabled).
@@ -386,8 +401,9 @@ public class XiansWorkflow
 
         try
         {
-            _logger.LogDebug("✓ Worker listening on queue '{TaskQueue}' (max concurrent: {MaxConcurrent})", 
-                taskQueue, Workers);
+            _logger.LogDebug(
+                "✓ Worker listening on queue '{TaskQueue}' (max concurrent: {MaxConcurrent}, sticky cache: {MaxCachedWorkflows})",
+                taskQueue, Workers, maxCachedWorkflows);
 
             // Run the worker until cancellation
             await worker.ExecuteAsync(cancellationToken);
