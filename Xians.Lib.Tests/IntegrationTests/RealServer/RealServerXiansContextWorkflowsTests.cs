@@ -58,6 +58,9 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
         var options = CreateTestOptions();
 
         _platform = await XiansPlatform.InitializeAsync(options);
+        // System-scoped agents do not fall back to the certificate tenant. Out-of-workflow
+        // StartAsync/ExecuteAsync need an explicit acting tenant (same pattern as schedule tests).
+        XiansContext.SetTenantId(_platform.Options.CertificateTenantId ?? "tests");
         // Register agent (system-scoped to avoid tenant isolation issues in tests)
         _agent = _platform.Agents.Register(new XiansAgentRegistration 
         { 
@@ -397,8 +400,10 @@ public class RealServerXiansContextWorkflowsTests : RealServerTestBase, IAsyncLi
         try
         {
             // Call XiansContext.Workflows.StartAsync from outside a workflow
-            // This should use the Temporal client directly via SubWorkflowService
-            
+            // This should use the Temporal client directly via SubWorkflowService.
+            // System-scoped agents resolve tenant from context, not the certificate.
+            XiansContext.SetTenantId(_platform!.Options.CertificateTenantId ?? "tests");
+
             // StartAsync can be called outside workflow context - it uses the Temporal client
             await XiansContext.Workflows.StartAsync(
                 TargetWorkflowType,

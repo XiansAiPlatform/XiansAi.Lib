@@ -10,7 +10,10 @@ namespace Xians.Lib.Tests.IntegrationTests.RealServer;
 /// <summary>
 /// Base class for real server integration tests.
 /// Provides common setup for loading .env credentials and automatic test cleanup.
+/// Excluded from a plain <c>dotnet test</c> run; opt in with
+/// <c>dotnet test --filter "Category=RealServer"</c>.
 /// </summary>
+[Trait("Category", "RealServer")]
 public abstract class RealServerTestBase : IDisposable
 {
     protected readonly bool RunRealServerTests;

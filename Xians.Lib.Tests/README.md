@@ -22,10 +22,12 @@ Xians.Lib.Tests/
 
 ## Running Tests
 
-### All Tests (includes mocks, but NOT real server)
+### All Tests (excludes real server)
 ```bash
 dotnet test
 ```
+
+Real-server tests are skipped by default; the server repo owns that suite.
 
 ### Unit Tests Only (fast, no dependencies)
 ```bash
@@ -45,7 +47,7 @@ dotnet test --filter "Category=RealServer"
 
 ### All Tests INCLUDING Real Server
 ```bash
-dotnet test --filter "Category!=Integration|Category=RealServer"
+dotnet test --filter "Category!=RealServer|Category=RealServer"
 ```
 
 ### With Coverage

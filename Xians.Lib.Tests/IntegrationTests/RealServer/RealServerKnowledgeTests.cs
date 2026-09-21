@@ -982,9 +982,12 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
             // Get Temporal client from agent
             var temporalClient = await _agent!.TemporalService!.GetClientAsync();
             
-            // Build workflow ID and task queue using TemporalTestUtils
+            // 3-part ID: {tenant}:{agent}:{workflow}. A 4th colon segment is parsed as
+            // idPostfix/activation name, which scopes created knowledge to that activation.
+            // Agent API DELETE looks up tenant-default knowledge (ActivationName == null),
+            // so an extra uniqueness segment would make delete 404.
             var workflowType = $"{AGENT_NAME}:KnowledgeWorkflowTest";
-            var workflowId = $"{_platform!.Options.CertificateTenantId}:{workflowType}:{testId}";
+            var workflowId = $"{TemporalTestUtils.BuildWorkflowId(AGENT_NAME, "KnowledgeWorkflowTest", _platform!.Options.CertificateTenantId)}-{testId}";
             var taskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                 workflowType,
                 systemScoped: false,
