@@ -43,64 +43,64 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
     /// than four segments - a different schedule than the caller addressed. Returns null outside a
     /// workflow, where <see cref="ScheduleClient"/> resolves it correctly on its own.
     /// </remarks>
-    private string? ResolveFullScheduleId(string scheduleName, string? idPostfix)
+    private string? ResolveFullScheduleId(string scheduleName, string? activationName)
     {
         if (!Workflow.InWorkflow)
             return null;
 
-        if (string.IsNullOrEmpty(idPostfix))
-            idPostfix = XiansContext.SafeIdPostfix;
+        if (string.IsNullOrEmpty(activationName))
+            activationName = XiansContext.SafeIdPostfix;
 
         return ScheduleIdHelper.BuildFullScheduleId(
-            XiansContext.ResolveTenantId(_agent), _agent.Name, idPostfix, scheduleName);
+            XiansContext.ResolveTenantId(_agent), _agent.Name, activationName, scheduleName);
     }
 
     /// <summary>
     /// Prefers a full id already resolved by the caller (workflow list/get) over re-deriving it.
     /// </summary>
-    private string? EffectiveFullScheduleId(string scheduleName, string? idPostfix, string? fullScheduleId)
+    private string? EffectiveFullScheduleId(string scheduleName, string? activationName, string? fullScheduleId)
         => !string.IsNullOrEmpty(fullScheduleId)
             ? fullScheduleId
-            : ResolveFullScheduleId(scheduleName, idPostfix);
+            : ResolveFullScheduleId(scheduleName, activationName);
 
-    public Task<ScheduleIdentity> GetIdentityAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public Task<ScheduleIdentity> GetIdentityAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
         var request = new GetScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId)
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId)
         };
 
         return ExecuteAsync(
             act => act.GetSchedule(request),
-            svc => svc.GetIdentityAsync(scheduleName, idPostfix, request.FullScheduleId),
+            svc => svc.GetIdentityAsync(scheduleName, activationName, request.FullScheduleId),
             operationName: "GetSchedule");
     }
 
-    public Task<bool> ExistsAsync(string scheduleName, string? idPostfix)
+    public Task<bool> ExistsAsync(string scheduleName, string? activationName)
     {
         var request = new ScheduleExistsRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix)
+            IdPostfix = activationName,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, activationName)
         };
 
         return ExecuteAsync(
             act => act.ScheduleExists(request),
-            svc => svc.ExistsAsync(scheduleName, idPostfix, request.FullScheduleId),
+            svc => svc.ExistsAsync(scheduleName, activationName, request.FullScheduleId),
             options: ScheduleActivityOptions.GetQuickCheckOptions(),
             operationName: "ScheduleExists");
     }
 
-    public Task<bool> DeleteAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public Task<bool> DeleteAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
         var request = new DeleteScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId)
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId)
         };
 
         return ExecuteAsync(
@@ -109,7 +109,7 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
             {
                 try
                 {
-                    await svc.DeleteAsync(scheduleName, idPostfix, request.FullScheduleId);
+                    await svc.DeleteAsync(scheduleName, activationName, request.FullScheduleId);
                     return true;
                 }
                 catch (ScheduleNotFoundException)
@@ -120,85 +120,85 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
             operationName: "DeleteSchedule");
     }
 
-    public Task PauseAsync(string scheduleName, string? idPostfix, string? note, string? fullScheduleId = null)
+    public Task PauseAsync(string scheduleName, string? activationName, string? note, string? fullScheduleId = null)
     {
         var request = new PauseScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId),
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId),
             Note = note
         };
 
         return ExecuteAsync(
             act => act.PauseSchedule(request),
-            svc => svc.PauseAsync(scheduleName, idPostfix, note, request.FullScheduleId),
+            svc => svc.PauseAsync(scheduleName, activationName, note, request.FullScheduleId),
             operationName: "PauseSchedule");
     }
 
-    public Task UnpauseAsync(string scheduleName, string? idPostfix, string? note, string? fullScheduleId = null)
+    public Task UnpauseAsync(string scheduleName, string? activationName, string? note, string? fullScheduleId = null)
     {
         var request = new ResumeScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId),
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId),
             Note = note
         };
 
         return ExecuteAsync(
             act => act.ResumeSchedule(request),
-            svc => svc.UnpauseAsync(scheduleName, idPostfix, note, request.FullScheduleId),
+            svc => svc.UnpauseAsync(scheduleName, activationName, note, request.FullScheduleId),
             operationName: "ResumeSchedule");
     }
 
-    public Task TriggerAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public Task TriggerAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
         var request = new TriggerScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId)
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId)
         };
 
         return ExecuteAsync(
             act => act.TriggerSchedule(request),
-            svc => svc.TriggerAsync(scheduleName, idPostfix, request.FullScheduleId),
+            svc => svc.TriggerAsync(scheduleName, activationName, request.FullScheduleId),
             operationName: "TriggerSchedule");
     }
 
-    public Task<ScheduleSnapshot> DescribeSnapshotAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public Task<ScheduleSnapshot> DescribeSnapshotAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
         var request = new GetScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId)
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId)
         };
 
         return ExecuteAsync(
             act => act.DescribeSchedule(request),
-            svc => svc.DescribeSnapshotAsync(scheduleName, idPostfix, request.FullScheduleId),
+            svc => svc.DescribeSnapshotAsync(scheduleName, activationName, request.FullScheduleId),
             operationName: "DescribeSchedule");
     }
 
     public Task BackfillAsync(
         string scheduleName,
-        string? idPostfix,
+        string? activationName,
         IReadOnlyCollection<ScheduleBackfill> backfills,
         string? fullScheduleId = null)
     {
         var request = new BackfillScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix,
-            FullScheduleId = EffectiveFullScheduleId(scheduleName, idPostfix, fullScheduleId),
+            IdPostfix = activationName,
+            FullScheduleId = EffectiveFullScheduleId(scheduleName, activationName, fullScheduleId),
             Backfills = backfills
         };
 
         return ExecuteAsync(
             act => act.BackfillSchedule(request),
-            svc => svc.BackfillAsync(scheduleName, idPostfix, backfills, request.FullScheduleId),
+            svc => svc.BackfillAsync(scheduleName, activationName, backfills, request.FullScheduleId),
             operationName: "BackfillSchedule");
     }
 
