@@ -41,7 +41,7 @@ workflow.OnUserChatMessage(async context =>
     context.SkipResponse = true;
 });
 
-agent.Workflows.DefineCustom<ScheduledPromptWorkflow>()
+agent.Workflows.DefineCustom<ScheduledPromptWorkflow>(new() { Activable = false })
     .AddActivity(new ScheduledPromptActivities(promptAgent));
 
 await agent.RunAllAsync();

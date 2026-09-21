@@ -2,6 +2,8 @@
 
 A reusable Xians agent configured through Agent Studio. Each activation can have its own prompt and MCP tools without code changes.
 
+Tool calls and results from chat and scheduled runs appear in Agent Studio's tool timeline with readable labels. Details retain exact tool names and call IDs, but omit arguments and result payloads to avoid exposing sensitive data.
+
 ## Setup
 
 Copy `.env.example` to `.env` and set:
@@ -44,9 +46,43 @@ Example `Rules`:
 }
 ```
 
+## Xians MCP
+
+Add this server to `Rules` (replace the URL when not running locally):
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "xians",
+      "url": "http://localhost:5005/api/v1/admin/mcp",
+      "enabled": true,
+      "transport": "streamableHttp",
+      "context": "xians",
+      "authentication": {
+        "type": "bearer",
+        "secret": "XIANS_MCP_KEY"
+      }
+    }
+  ]
+}
+```
+
+Generate an admin API key in **Developer → Secrets → Admin API Keys**, then save its value as `XIANS_MCP_KEY` in **Settings → Secrets**. The key must authenticate the agent's tenant; never put its value in Rules. Keep existing third-party servers in the same `mcpServers` array.
+
+`context: "xians"` is client-only: the agent injects its tenant, agent, and activation into recognized Xians tools and hides those fields from the model. Omit it for third-party servers. Copy the server URL from **Settings → Connections → Xians MCP**; previous activation-scoped URLs are no longer supported.
+
 ## Scheduled prompts
 
-Ask the agent to run a prompt on a recurring schedule, for example: `Every day at 9 AM Asia/Colombo, summarize Reuters, BBC, and TechCrunch in five bullets.` Each schedule stores its own prompt and parameters, appears under **Schedules** in Agent Studio, and sends results back to the requesting participant. The agent can list, reschedule, and delete existing schedules.
+Scheduling tools come exclusively from the **Xians MCP**; configure it in `Rules` to create, list, reschedule, delete, pause, or resume schedules. There are no built-in scheduling tools.
+
+The agent discovers registered workflows using `list_workflows` and includes the current chat's participant and scope in scheduled prompt inputs, so results return to that conversation. Specify your timezone when requesting a schedule.
+
+Xians MCP also supports Data Explorer: discover types, browse records, save JSON objects, and delete records after explicit confirmation. Ask “Save this report in Data Explorer under Reports”; chat replies are not automatically saved.
+
+The agent worker still runs `Prompt Defined Agent:Scheduled Prompt Workflow`. Its input contains `Prompt`, `Parameters`, `ParticipantId`, and optional `Scope`; results go to the specified participant. Schedules appear under **Schedules** in Agent Studio.
+
+The scheduled workflow is excluded from the activation wizard; chat-created schedules supply its required request.
 
 ## MCP options
 
@@ -56,6 +92,7 @@ Server fields:
 - `url` — absolute HTTP or HTTPS MCP endpoint.
 - `enabled` — enables the server; defaults to `true`.
 - `transport` — connection transport; defaults to `auto`.
+- `context: "xians"` — injects the current tenant, agent, and activation into recognized Xians tools; these fields are hidden from the model. Omit for third-party servers.
 - `authentication` — optional authentication configuration.
 
 Transport values:
@@ -84,4 +121,8 @@ Authentication shapes:
 
 In Agent Studio, open **Settings → Secrets** and save each PAT, token, or password under a key such as `GITHUB_MCP_TOKEN`. Put only that key in `Rules` (for example, `"secret": "GITHUB_MCP_TOKEN"`), never the credential itself. Studio currently creates tenant-scoped secrets; values are encrypted at rest and hidden after saving.
 
-Secret lookup order is activation → agent → tenant. Invalid or unavailable MCP servers are skipped; built-in tools remain available.
+Secret lookup order is activation → agent → tenant. Invalid or unavailable MCP servers are skipped; only tools from successfully connected MCP servers are available.
+
+## MCP diagnostics
+
+Agent terminal logs show the activation, configured/disabled servers, connection stages, per-server tool counts, and total tools. Failures include their stage, exception type, and HTTP status when available. Credentials, endpoint URLs, exception messages, and tool payloads are not logged.
