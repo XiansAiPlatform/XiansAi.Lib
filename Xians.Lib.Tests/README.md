@@ -22,35 +22,26 @@ Xians.Lib.Tests/
 
 ## Running Tests
 
-### All Tests (excludes real server)
+Full commands, filters, and RealServer setup: **[docs/RUNNING_TESTS.md](docs/RUNNING_TESTS.md)**.
+
 ```bash
+# Default: unit + mock integration. Does not hit a live Server.
 dotnet test
-```
 
-Real-server tests are skipped by default; the server repo owns that suite.
-
-### Unit Tests Only (fast, no dependencies)
-```bash
+# Unit only
 dotnet test --filter "Category!=Integration&Category!=RealServer"
-```
 
-### Mock Integration Tests (uses WireMock, not real server)
-```bash
+# WireMock / in-process integration (not a hosted Server)
 dotnet test --filter "Category=Integration"
-```
 
-### **Real Server Tests (actually connects to .env server)** ⭐
-```bash
-# These actually hit your server!
+# Opt-in: live Server from .env
 dotnet test --filter "Category=RealServer"
 ```
 
-### All Tests INCLUDING Real Server
-```bash
-dotnet test --filter "Category!=RealServer|Category=RealServer"
-```
+`dotnet test` applies `Category!=RealServer` automatically. Live agent-against-Server coverage is in **XiansAi.Server** (Lib-backed cycles). Lib RealServer tests are optional and need `SERVER_URL` / `API_KEY` in `.env`.
 
-### With Coverage
+Any `--filter` you pass replaces that default. Add `&Category!=RealServer` if you are targeting a name that would otherwise include `IntegrationTests/RealServer/`.
+
 ```bash
 dotnet test --collect:"XPlat Code Coverage"
 ```
@@ -150,19 +141,18 @@ dotnet test --filter "Category=Integration"
 - **Temporal Client Tests**: Test Temporal client connections (conditional)
 - **ServiceFactory Tests**: Test service creation and configuration
 
-### Real Server Tests (5 tests) - **NEW!**
-**Actually connect to the server in your .env file**
-- Test real HTTP connection
-- Fetch actual settings from server
-- Verify end-to-end integration
-- Run with: `dotnet test --filter "Category=RealServer"`
+### Real Server Tests (optional)
+**Not run by `dotnet test`.** Opt in with `--filter "Category=RealServer"`.
+- Connect to `SERVER_URL` using `API_KEY` from `.env`
+- Prefer Server Lib-backed cycles for platform PRs; see [RUNNING_TESTS.md](docs/RUNNING_TESTS.md)
 
 ## CI/CD Integration
 
 ### GitHub Actions Example
 ```yaml
-- name: Run Unit Tests
-  run: dotnet test --filter "Category!=Integration"
+- name: Run unit and mock integration tests
+  run: dotnet test
+  # Default filter is Category!=RealServer (set in the test csproj).
 
 - name: Start Temporal (Optional)
   run: docker run -d -p 7233:7233 temporalio/auto-setup:latest

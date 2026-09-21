@@ -199,6 +199,16 @@ Browse working examples in [`Xians.Examples/`](Xians.Examples/):
 | [WebhookTest](Xians.Examples/WebhookTest/) | Webhook handling |
 | [FileUpload](Xians.Examples/FileUpload/) | Document / file upload |
 
+## Testing
+
+From the repo root or `Xians.Lib.Tests/`:
+
+```bash
+dotnet test
+```
+
+That runs unit tests and mock integration only. Tests tagged `Category=RealServer` are excluded by default; live agent-against-Server coverage is in XiansAi.Server. Details: [Xians.Lib.Tests/docs/RUNNING_TESTS.md](Xians.Lib.Tests/docs/RUNNING_TESTS.md).
+
 ## Releases
 
 To publish a new version, create and push a version tag:

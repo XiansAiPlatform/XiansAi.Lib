@@ -1,5 +1,9 @@
 # Running Xians.Lib.Tests Against Actual Server
 
+Live Server coverage for platform work is in **XiansAi.Server** (Lib-backed cycles). Lib’s RealServer tests are optional.
+
+A plain `dotnet test` does **not** hit your Server. Use `--filter "Category=RealServer"`. See [docs/RUNNING_TESTS.md](docs/RUNNING_TESTS.md).
+
 ## Quick Start
 
 ```bash
@@ -9,14 +13,11 @@ cp env.template .env
 # 2. Edit .env with your server credentials
 nano .env  # or use your preferred editor
 
-# 3. Run all tests
+# 3. Opt-in RealServer tests (uses SERVER_URL / API_KEY)
+dotnet test --filter "Category=RealServer"
+
+# Default loop (unit + mock; no live Server)
 dotnet test
-
-# Or run only unit tests (fast, no server needed)
-dotnet test --filter "Category!=Integration"
-
-# Or run only integration tests (requires server)
-dotnet test --filter "Category=Integration"
 ```
 
 ## 📋 Configuration (.env)

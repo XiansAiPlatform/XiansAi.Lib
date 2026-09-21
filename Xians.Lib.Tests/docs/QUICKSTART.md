@@ -9,8 +9,9 @@ cp env.template .env
 # Edit .env - set SERVER_URL and API_KEY (Base64 certificate!)
 
 # 3. Run tests
-dotnet test --filter "Category!=Integration&Category!=RealServer"  # Fast unit tests
-dotnet test --filter "Category=RealServer"  # Test against real server
+dotnet test                                              # unit + mock (default; no live Server)
+dotnet test --filter "Category!=Integration&Category!=RealServer"  # unit only
+dotnet test --filter "Category=RealServer"               # opt-in live Server from .env
 ```
 
 ## 🔑 **IMPORTANT: API_KEY is a Certificate!**
@@ -25,7 +26,7 @@ API_KEY=my-simple-api-key
 API_KEY=MIIDXTCCAkWgAwIBAgIJAKL5g3aN3dqKMA0GCSqGSIb...  # Very long Base64 string
 ```
 
-**See [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md) for details on getting your certificate.**
+**See [AUTHENTICATION.md](AUTHENTICATION.md) for details on getting your certificate.**
 
 ## 🚀 Setup
 
@@ -74,10 +75,11 @@ dotnet test --filter "Category=RealServer"
 ```
 🌐 Connects to your actual server, requires valid certificate
 
-### All Tests
+### All Tests (Default Loop)
 ```bash
 dotnet test
 ```
+Unit + mock integration. RealServer is excluded. See [RUNNING_TESTS.md](RUNNING_TESTS.md).
 
 ## 📊 Test Categories
 
@@ -116,19 +118,20 @@ echo "$API_KEY" | base64 -d | openssl x509 -inform DER -text -noout
 
 ## 📚 More Info
 
-- **[AUTHENTICATION.md](docs/AUTHENTICATION.md)** - How to get and use certificates
-- **[TEST_TYPES.md](../TEST_TYPES.md)** - Understanding test categories
+- **[AUTHENTICATION.md](AUTHENTICATION.md)** - How to get and use certificates
+- **[RUNNING_TESTS.md](RUNNING_TESTS.md)** - Default `dotnet test`, filters, RealServer
+- **[TEST_TYPES.md](TEST_TYPES.md)** - Understanding test categories
 - **[README.md](../README.md)** - Full documentation
 
 ## 💡 Common Commands
 
 ```bash
-# Fast development cycle
+# Fast development cycle (unit only)
 dotnet test --filter "Category!=Integration&Category!=RealServer"
 
-# Verify server connection
-dotnet test --filter "Category=RealServer"
-
-# Everything
+# Default loop (unit + mock; no live Server)
 dotnet test
+
+# Opt-in live Server from .env
+dotnet test --filter "Category=RealServer"
 ```
