@@ -33,7 +33,7 @@ public class CreateIntervalScheduleRequest
 public class ScheduleExistsRequest
 {
     public required string ScheduleName { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
 }
 
 /// <summary>
@@ -42,7 +42,7 @@ public class ScheduleExistsRequest
 public class DeleteScheduleRequest
 {
     public required string ScheduleName { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
 }
 
 /// <summary>
@@ -51,7 +51,7 @@ public class DeleteScheduleRequest
 public class PauseScheduleRequest
 {
     public required string ScheduleName { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
     public string? Note { get; set; }
 }
 
@@ -61,7 +61,7 @@ public class PauseScheduleRequest
 public class ResumeScheduleRequest
 {
     public required string ScheduleName { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
     public string? Note { get; set; }
 }
 
@@ -71,7 +71,36 @@ public class ResumeScheduleRequest
 public class TriggerScheduleRequest
 {
     public required string ScheduleName { get; set; }
-    public required string IdPostfix { get; set; }
+    public string? IdPostfix { get; set; }
+}
+
+/// <summary>
+/// Request object for loading a schedule via activity (verifies it exists).
+/// </summary>
+public class GetScheduleRequest
+{
+    public required string ScheduleName { get; set; }
+    public string? IdPostfix { get; set; }
+}
+
+/// <summary>
+/// Serializable identity of a schedule, returned from get/exists activities.
+/// </summary>
+public class ScheduleIdentity
+{
+    public required string ScheduleName { get; set; }
+    public string? IdPostfix { get; set; }
+    public required string FullScheduleId { get; set; }
+}
+
+/// <summary>
+/// Request object for backfilling a schedule via activity.
+/// </summary>
+public class BackfillScheduleRequest
+{
+    public required string ScheduleName { get; set; }
+    public string? IdPostfix { get; set; }
+    public required IReadOnlyCollection<Temporalio.Client.Schedules.ScheduleBackfill> Backfills { get; set; }
 }
 
 

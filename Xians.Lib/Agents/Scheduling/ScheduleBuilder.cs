@@ -339,12 +339,14 @@ public class ScheduleBuilder
                 created ? "Schedule '{ScheduleId}' created successfully" : "Schedule '{ScheduleId}' already exists",
                 _scheduleName);
 
-            // Return schedule handle with full tenant:agent:idPostfix:scheduleId pattern
             var fullScheduleId = BuildFullScheduleId();
-            
-            return new XiansSchedule(new ScheduleHandle(
-                await _temporalService.GetClientAsync(),
-                fullScheduleId));
+            var identity = new ScheduleIdentity
+            {
+                ScheduleName = _scheduleName,
+                IdPostfix = effectiveIdPostfix ?? string.Empty,
+                FullScheduleId = fullScheduleId
+            };
+            return new XiansSchedule(_agent, identity);
         }
         catch (Exception ex)
         {

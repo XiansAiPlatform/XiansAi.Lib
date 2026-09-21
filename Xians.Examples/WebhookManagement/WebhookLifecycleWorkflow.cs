@@ -6,8 +6,8 @@ namespace Xians.Examples.WebhookManagement;
 
 /// <summary>
 /// Custom Temporal workflow that is started by the agent's Default webhook.
-/// It delegates all HTTP-backed webhook management to <see cref="WebhookManagementActivities"/>
-/// (activities can perform I/O; deterministic workflow code cannot), then returns the outcome so the
+/// It delegates webhook create/list/delete to <see cref="WebhookManagementActivities"/> so
+/// <c>WebhookUrl</c> is not recorded in workflow history, then returns the outcome so the
 /// triggering webhook can report what happened.
 /// </summary>
 [Description("Creates, lists and deletes inbound webhooks for the calling agent using the self-service SDK")]

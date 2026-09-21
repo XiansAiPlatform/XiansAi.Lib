@@ -1,11 +1,5 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Encodings.Web;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Webhooks.Models;
-using Xians.Lib.Common;
 using Xians.Lib.Common.Infrastructure;
 
 namespace Xians.Lib.Agents.Webhooks;
@@ -19,7 +13,14 @@ namespace Xians.Lib.Agents.Webhooks;
 /// need to pass them. Where an operation can run outside a specific activation context (listing), the
 /// scope is broadened to all activations of the agent.
 /// </para>
+/// Safe to call from Temporal workflows (HTTP is stubbed to <c>WebhookActivities</c>)
+/// and from activities (direct HTTP).
 /// </summary>
+/// <remarks>
+/// Calling <see cref="CreateAsync"/> from a workflow records the activity result (including
+/// <see cref="WebhookInfo.WebhookUrl"/>) in workflow history. Prefer mapping to ids/names before
+/// returning from an activity if you need to keep the webhook URL out of history.
+/// </remarks>
 /// <example>
 /// <code>
 /// // Create a webhook for the current activation (agent + activation resolved automatically)
@@ -36,12 +37,13 @@ namespace Xians.Lib.Agents.Webhooks;
 public class WebhookCollection
 {
     private readonly XiansAgent _agent;
-    private readonly ILogger<WebhookCollection> _logger;
+    private readonly WebhookActivityExecutor _executor;
 
     internal WebhookCollection(XiansAgent agent)
     {
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
-        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<WebhookCollection>();
+        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<WebhookActivityExecutor>();
+        _executor = new WebhookActivityExecutor(_agent, logger);
     }
 
     /// <summary>
@@ -51,34 +53,9 @@ public class WebhookCollection
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The agent's webhooks (empty list when none exist).</returns>
     /// <exception cref="InvalidOperationException">Thrown when the HTTP service is not configured.</exception>
-    public async Task<List<WebhookInfo>> ListAsync(CancellationToken cancellationToken = default)
+    public Task<List<WebhookInfo>> ListAsync(CancellationToken cancellationToken = default)
     {
-        EnsureHttpService();
-
-        var query = new List<string> { $"agentName={UrlEncoder.Default.Encode(_agent.Name)}" };
-        var activationName = XiansContext.SafeIdPostfix;
-        if (!string.IsNullOrEmpty(activationName))
-        {
-            query.Add($"activationName={UrlEncoder.Default.Encode(activationName)}");
-        }
-
-        var url = $"{WorkflowConstants.ApiEndpoints.AgentWebhooks}?{string.Join("&", query)}";
-
-        _logger.LogDebug(
-            "Listing webhooks for agent '{AgentName}'{ActivationScope}",
-            _agent.Name,
-            string.IsNullOrEmpty(activationName) ? " (all activations)" : $" (activation '{activationName}')");
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "list webhooks");
-
-        var envelope = await response.Content.ReadFromJsonAsync<WebhookListEnvelope>(cancellationToken);
-        return envelope?.Webhooks ?? new List<WebhookInfo>();
+        return _executor.ListAsync(XiansContext.SafeIdPostfix, cancellationToken);
     }
 
     /// <summary>
@@ -94,7 +71,7 @@ public class WebhookCollection
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The created webhook, including its <see cref="WebhookInfo.WebhookUrl"/>.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the HTTP service is not configured or no activation can be resolved.</exception>
-    public async Task<WebhookInfo> CreateAsync(
+    public Task<WebhookInfo> CreateAsync(
         string? webhookName = null,
         string? workflowName = null,
         string? participantId = null,
@@ -103,8 +80,6 @@ public class WebhookCollection
         string? activationName = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureHttpService();
-
         var resolvedActivation = activationName ?? XiansContext.SafeIdPostfix
             ?? throw new InvalidOperationException(
                 "Cannot create a webhook: no activation is available from the current context. " +
@@ -115,36 +90,14 @@ public class WebhookCollection
             ValidationHelper.ValidateRange(timeoutSeconds.Value, nameof(timeoutSeconds), 1, 300);
         }
 
-        var body = new CreateBuiltinWebhookBody
-        {
-            AgentName = _agent.Name,
-            ActivationName = resolvedActivation,
-            Name = name,
-            WorkflowName = workflowName,
-            ParticipantId = participantId,
-            TimeoutInSeconds = timeoutSeconds,
-            WebhookName = webhookName
-        };
-
-        _logger.LogDebug(
-            "Creating webhook for agent '{AgentName}', activation '{ActivationName}', webhookName '{WebhookName}'",
-            _agent.Name,
+        return _executor.CreateAsync(
             resolvedActivation,
-            webhookName ?? "Default");
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Post, WorkflowConstants.ApiEndpoints.AgentWebhooks)
-        {
-            Content = JsonContent.Create(body)
-        };
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "create webhook");
-
-        var created = await response.Content.ReadFromJsonAsync<WebhookInfo>(cancellationToken);
-        return created ?? throw new InvalidOperationException("Server returned an empty response for create webhook.");
+            webhookName,
+            workflowName,
+            participantId,
+            timeoutSeconds,
+            name,
+            cancellationToken);
     }
 
     /// <summary>
@@ -154,94 +107,9 @@ public class WebhookCollection
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if deleted, false if not found.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the HTTP service is not configured.</exception>
-    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
-        EnsureHttpService();
-
-        _logger.LogDebug("Deleting webhook '{WebhookId}' for agent '{AgentName}'", id, _agent.Name);
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(
-            HttpMethod.Delete,
-            $"{WorkflowConstants.ApiEndpoints.AgentWebhooks}/{UrlEncoder.Default.Encode(id)}");
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return false;
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "delete webhook");
-
-        return true;
-    }
-
-    private void EnsureHttpService()
-    {
-        if (_agent.HttpService == null)
-            throw new InvalidOperationException(
-                "HTTP service is not configured. Webhook management requires a connection to the Xians server.");
-    }
-
-    /// <summary>
-    /// Adds the tenant header for system-scoped agents so the server can resolve the acting tenant.
-    /// The tenant is taken from the current context (falling back to the certificate tenant).
-    /// Mirrors the behavior of the activation and secret vault clients.
-    /// </summary>
-    private void AddTenantHeader(HttpRequestMessage request)
-    {
-        if (!_agent.SystemScoped)
-            return;
-
-        var tenantId = XiansContext.SafeTenantId ?? _agent.Options?.CertificateTenantId;
-        if (!string.IsNullOrWhiteSpace(tenantId))
-        {
-            request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
-        }
-    }
-
-    private async Task ThrowForResponseAsync(HttpResponseMessage response, string operation)
-    {
-        var body = await response.Content.ReadAsStringAsync();
-        _logger.LogError(
-            "Webhook {Operation} failed: StatusCode={StatusCode}, Body={Body}",
-            operation,
-            response.StatusCode,
-            body);
-        // Keep the full server body in the log above, but throw a sanitized message so backend
-        // implementation details aren't leaked if a caller surfaces ex.Message externally.
-        throw new HttpRequestException($"Webhook {operation} failed. Status: {response.StatusCode}.");
-    }
-
-    /// <summary>Request body matching the server's builtin webhook creation contract.</summary>
-    private sealed class CreateBuiltinWebhookBody
-    {
-        [JsonPropertyName("agentName")]
-        public required string AgentName { get; set; }
-
-        [JsonPropertyName("activationName")]
-        public required string ActivationName { get; set; }
-
-        [JsonPropertyName("name")]
-        public string? Name { get; set; }
-
-        [JsonPropertyName("workflowName")]
-        public string? WorkflowName { get; set; }
-
-        [JsonPropertyName("participantId")]
-        public string? ParticipantId { get; set; }
-
-        [JsonPropertyName("timeoutInSeconds")]
-        public int? TimeoutInSeconds { get; set; }
-
-        [JsonPropertyName("webhookName")]
-        public string? WebhookName { get; set; }
-    }
-
-    /// <summary>Envelope for the list endpoint response: <c>{ "webhooks": [...] }</c>.</summary>
-    private sealed class WebhookListEnvelope
-    {
-        [JsonPropertyName("webhooks")]
-        public List<WebhookInfo>? Webhooks { get; set; }
+        return _executor.DeleteAsync(id, cancellationToken);
     }
 }
