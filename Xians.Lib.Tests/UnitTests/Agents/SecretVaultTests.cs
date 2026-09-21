@@ -9,6 +9,7 @@ using Xians.Lib.Common;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
 using Xians.Lib.Temporal.Workflows.Secrets;
+using Xians.Lib.Temporal.Workflows.Secrets.Models;
 using Xians.Lib.Tests.TestUtilities;
 
 namespace Xians.Lib.Tests.UnitTests.Agents;
@@ -168,39 +169,76 @@ public class SecretVaultTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateSecretActivity_Ok()
+    public async Task ListSecretsActivity_Ok()
     {
-        SetupResponse(HttpStatusCode.OK, JsonContent.Create(SampleSecret()));
+        SetupResponse(HttpStatusCode.OK, JsonContent.Create(new[] { SampleListItem() }));
 
-        var created = await new ActivityEnvironment().RunAsync(() =>
-            new SecretVaultActivities(_agent).CreateSecretAsync(new SecretVaultCreateRequest
-            {
-                Key = "api-key",
-                Value = "sk-xxx",
-                TenantId = TENANT_ID
-            }));
+        var secrets = await new ActivityEnvironment().RunAsync(() =>
+            new SecretVaultActivities(_agent).ListSecretsAsync(
+                new SecretVaultListActivityRequest
+                {
+                    Scope = new SecretVaultScopePayload { TenantId = TENANT_ID }
+                }));
 
-        Assert.Equal("sec-1", created.Id);
+        Assert.Equal("sec-1", Assert.Single(secrets).Id);
     }
 
     [Fact]
-    public async Task FetchSecretActivity_NotFound_ReturnsNull()
+    public async Task DeleteSecretActivity_NotFound_ReturnsFalse()
     {
         SetupResponse(HttpStatusCode.NotFound, new StringContent(""));
 
-        var result = await new ActivityEnvironment().RunAsync(() =>
-            new SecretVaultActivities(_agent).FetchSecretByKeyAsync(
-                new Temporal.Workflows.Secrets.Models.SecretVaultFetchActivityRequest
+        var deleted = await new ActivityEnvironment().RunAsync(() =>
+            new SecretVaultActivities(_agent).DeleteSecretAsync(
+                new SecretVaultIdActivityRequest
                 {
-                    Key = "missing",
-                    Scope = new Temporal.Workflows.Secrets.Models.SecretVaultScopePayload
-                    {
-                        TenantId = TENANT_ID
-                    }
+                    Id = "missing",
+                    Scope = new SecretVaultScopePayload { TenantId = TENANT_ID }
                 }));
 
-        Assert.Null(result);
+        Assert.False(deleted);
     }
+
+    /// <summary>
+    /// Activity arguments and results are persisted in Temporal workflow history, so no Secret Vault
+    /// activity may carry a decrypted secret value. Guards against one being reintroduced.
+    /// </summary>
+    [Fact]
+    public void SecretVaultActivities_ExposeNoSecretValues()
+    {
+        var valueCarrying = new[]
+        {
+            typeof(SecretVaultCreateRequest),
+            typeof(SecretVaultUpdateRequest),
+            typeof(SecretVaultGetResponse),
+            typeof(SecretVaultFetchResponse),
+            typeof(SecretVaultUpdateActivityRequest),
+            typeof(SecretVaultFetchActivityRequest)
+        };
+
+        var activities = typeof(SecretVaultActivities)
+            .GetMethods()
+            .Where(m => m.GetCustomAttributes(typeof(Temporalio.Activities.ActivityAttribute), false).Any())
+            .ToList();
+
+        Assert.NotEmpty(activities);
+
+        foreach (var activity in activities)
+        {
+            var crossing = activity.GetParameters().Select(p => p.ParameterType)
+                .Append(UnwrapTask(activity.ReturnType));
+
+            foreach (var type in crossing)
+            {
+                Assert.DoesNotContain(type, valueCarrying);
+            }
+        }
+    }
+
+    private static Type UnwrapTask(Type returnType)
+        => returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>)
+            ? returnType.GetGenericArguments()[0]
+            : returnType;
 
     private void SetupResponse(
         HttpStatusCode statusCode,
@@ -254,6 +292,15 @@ public class SecretVaultTests : IDisposable
         Id = "sec-1",
         Key = "api-key",
         Value = value,
+        TenantId = TENANT_ID,
+        CreatedBy = "user",
+        CreatedAt = DateTime.UtcNow
+    };
+
+    private static SecretVaultListItem SampleListItem() => new()
+    {
+        Id = "sec-1",
+        Key = "api-key",
         TenantId = TENANT_ID,
         CreatedBy = "user",
         CreatedAt = DateTime.UtcNow

@@ -59,7 +59,7 @@ public class ScheduleCollection
         if (_temporalService == null)
             throw new InvalidOperationException("Temporal service is not configured. Cannot list schedules.");
 
-        var tenantId = XiansContext.TenantId;
+        var tenantId = XiansContext.ResolveTenantId(_agent);
         var prefix = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, XiansContext.SafeIdPostfix, "");
         var client = await _temporalService.GetClientAsync();
         var result = new List<XiansSchedule>();

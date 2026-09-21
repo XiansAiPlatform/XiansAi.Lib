@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client.Schedules;
+using Temporalio.Exceptions;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling.Models;
@@ -29,12 +30,38 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
     protected override ActivityOptions GetDefaultActivityOptions()
         => ScheduleActivityOptions.GetStandardOptions();
 
+    protected override Exception? TranslateActivityFailure(ApplicationFailureException failure)
+        => ScheduleNotFoundException.FromFailure(failure);
+
+    /// <summary>
+    /// Resolves the full schedule id while still on the workflow side.
+    /// </summary>
+    /// <remarks>
+    /// idPostfix lives in the workflow's search attributes and memo, which
+    /// <c>WorkflowMetadataResolver</c> only reads when <c>Workflow.InWorkflow</c> is true. An activity
+    /// left to resolve it falls back to parsing the workflow id, which yields null for ids with fewer
+    /// than four segments - a different schedule than the caller addressed. Returns null outside a
+    /// workflow, where <see cref="ScheduleClient"/> resolves it correctly on its own.
+    /// </remarks>
+    private string? ResolveFullScheduleId(string scheduleName, string? idPostfix)
+    {
+        if (!Workflow.InWorkflow)
+            return null;
+
+        if (string.IsNullOrEmpty(idPostfix))
+            idPostfix = XiansContext.SafeIdPostfix;
+
+        return ScheduleIdHelper.BuildFullScheduleId(
+            XiansContext.ResolveTenantId(_agent), _agent.Name, idPostfix, scheduleName);
+    }
+
     public Task<ScheduleIdentity> GetIdentityAsync(string scheduleName, string? idPostfix)
     {
         var request = new GetScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix
+            IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix)
         };
 
         return ExecuteAsync(
@@ -48,7 +75,8 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
         var request = new ScheduleExistsRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix
+            IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix)
         };
 
         return ExecuteAsync(
@@ -63,7 +91,8 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
         var request = new DeleteScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix
+            IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix)
         };
 
         return ExecuteAsync(
@@ -89,6 +118,7 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
         {
             ScheduleName = scheduleName,
             IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix),
             Note = note
         };
 
@@ -104,6 +134,7 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
         {
             ScheduleName = scheduleName,
             IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix),
             Note = note
         };
 
@@ -118,7 +149,8 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
         var request = new TriggerScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix
+            IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix)
         };
 
         return ExecuteAsync(
@@ -127,17 +159,18 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
             operationName: "TriggerSchedule");
     }
 
-    public Task<ScheduleDescription> DescribeAsync(string scheduleName, string? idPostfix)
+    public Task<ScheduleSnapshot> DescribeSnapshotAsync(string scheduleName, string? idPostfix)
     {
         var request = new GetScheduleRequest
         {
             ScheduleName = scheduleName,
-            IdPostfix = idPostfix
+            IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix)
         };
 
         return ExecuteAsync(
             act => act.DescribeSchedule(request),
-            svc => svc.DescribeAsync(scheduleName, idPostfix),
+            svc => svc.DescribeSnapshotAsync(scheduleName, idPostfix),
             operationName: "DescribeSchedule");
     }
 
@@ -150,6 +183,7 @@ internal sealed class ScheduleActivityExecutor : ContextAwareActivityExecutor<Sc
         {
             ScheduleName = scheduleName,
             IdPostfix = idPostfix,
+            FullScheduleId = ResolveFullScheduleId(scheduleName, idPostfix),
             Backfills = backfills
         };
 

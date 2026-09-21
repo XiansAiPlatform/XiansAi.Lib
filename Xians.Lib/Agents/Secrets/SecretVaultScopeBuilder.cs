@@ -14,8 +14,13 @@ namespace Xians.Lib.Agents.Secrets;
 /// overload that takes a value. Then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>,
 /// <see cref="ListAsync"/>, <see cref="GetByIdAsync"/>, <see cref="UpdateAsync"/>, <see cref="DeleteAsync"/>.
 /// </para>
-/// Safe to call from Temporal workflows (HTTP is stubbed to Secret Vault activities)
-/// and from activities (direct HTTP).
+/// <para>
+/// All operations work from activities and from regular code. From <b>workflow</b> code only
+/// <see cref="ListAsync"/> and <see cref="DeleteAsync"/> are available: the other four carry a
+/// plaintext secret in the activity argument or result, which Temporal would record permanently in
+/// workflow history. They throw if called from a workflow - read and use secrets inside an activity
+/// or a message handler instead.
+/// </para>
 /// </summary>
 public class SecretVaultScopeBuilder
 {

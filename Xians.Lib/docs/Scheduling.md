@@ -848,9 +848,12 @@ The SDK automatically handles multi-tenant isolation:
 - **Querying**: `ListAsync()` only returns schedules for current tenant
 
 ### Tenant-Scoped Agents
-- **Tenant from registration**: Uses `agent.Options.CertificateTenantId`
+- **Tenant from context**: Uses the acting tenant when available, falling back to `agent.Options.CertificateTenantId` outside workflow/activity context
 - **Schedule ID format**: Same as system-scoped
 - **Isolation**: Agent can only access schedules for its registered tenant
+
+Creating a schedule and later managing it both resolve the tenant the same way, so the schedule ID
+stays stable across `CreateAsync`, `GetAsync`, `PauseAsync` and `DeleteAsync`.
 
 **You don't need to do anything** - tenant isolation is automatic and enforced! 🔒
 

@@ -56,7 +56,7 @@ internal sealed class AgentActivationClient
         EnsureHttpService();
 
         var client = await _owner.HttpService!.GetHealthyClientAsync();
-        var tenantId = XiansContext.SafeTenantId ?? _owner.Options?.CertificateTenantId;
+        var tenantId = XiansContext.TryResolveTenantId(_owner);
 
         return await ActivationValidationService.CheckActivationStatusAsync(
             client, _agentName, activationName, tenantId, _owner.SystemScoped, cancellationToken);
@@ -204,7 +204,8 @@ internal sealed class AgentActivationClient
         if (!_owner.SystemScoped)
             return;
 
-        var tenantId = XiansContext.SafeTenantId ?? _owner.Options?.CertificateTenantId;
+        // Context only - the certificate tenant names this key's owner, not the tenant being acted on.
+        var tenantId = XiansContext.TryResolveTenantId(_owner);
         if (!string.IsNullOrWhiteSpace(tenantId))
         {
             request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);

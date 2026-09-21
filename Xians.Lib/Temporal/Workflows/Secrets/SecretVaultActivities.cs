@@ -8,9 +8,16 @@ using Xians.Lib.Temporal.Workflows.Secrets.Models;
 namespace Xians.Lib.Temporal.Workflows.Secrets;
 
 /// <summary>
-/// System activities for Secret Vault CRUD from within workflows.
+/// System activities for the Secret Vault operations that workflows may perform.
 /// Automatically registered with all workflows (workflows cannot make HTTP calls directly).
 /// </summary>
+/// <remarks>
+/// Deliberately limited to listing and deleting. Create, fetch-by-key, get-by-id and update all carry
+/// a plaintext secret as an activity argument or result, and Temporal records both in workflow
+/// history for the namespace's full retention period. Exposing them here would make that leak
+/// reachable from workflow code, so they are available only through
+/// <see cref="Xians.Lib.Agents.Secrets.SecretVaultScopeBuilder"/> outside a workflow.
+/// </remarks>
 public class SecretVaultActivities
 {
     private readonly XiansAgent? _owner;
@@ -31,47 +38,11 @@ public class SecretVaultActivities
     }
 
     [Activity]
-    public Task<SecretVaultGetResponse> CreateSecretAsync(SecretVaultCreateRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "Creating secret '{Key}'",
-            request.Key);
-        return Client().CreateAsync(request);
-    }
-
-    [Activity]
-    public Task<SecretVaultFetchResponse?> FetchSecretByKeyAsync(SecretVaultFetchActivityRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ActivityExecutionContext.Current.Logger.LogDebug(
-            "Fetching secret by key '{Key}'",
-            request.Key);
-        return Client().FetchByKeyAsync(request);
-    }
-
-    [Activity]
     public Task<List<SecretVaultListItem>> ListSecretsAsync(SecretVaultListActivityRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         ActivityExecutionContext.Current.Logger.LogDebug("Listing secrets");
         return Client().ListAsync(request.Scope);
-    }
-
-    [Activity]
-    public Task<SecretVaultGetResponse?> GetSecretByIdAsync(SecretVaultIdActivityRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ActivityExecutionContext.Current.Logger.LogDebug("Getting secret '{SecretId}'", request.Id);
-        return Client().GetByIdAsync(request);
-    }
-
-    [Activity]
-    public Task<SecretVaultGetResponse> UpdateSecretAsync(SecretVaultUpdateActivityRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ActivityExecutionContext.Current.Logger.LogDebug("Updating secret '{SecretId}'", request.Id);
-        return Client().UpdateAsync(request);
     }
 
     [Activity]

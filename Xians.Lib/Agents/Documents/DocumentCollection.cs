@@ -335,22 +335,11 @@ public class DocumentCollection
 
     private string GetTenantId()
     {
-        // For non-system-scoped agents, use the agent's certificate tenant ID
-        // For system-scoped agents, the tenant ID must come from workflow context
-        // (extracted from workflow ID during workflow execution)
-        if (!_agent.SystemScoped)
-        {
-            return _agent.Options?.CertificateTenantId 
-                ?? throw new InvalidOperationException(
-                    "Tenant ID cannot be determined. XiansOptions must be properly configured with an API key.");
-        }
-
-        // System-scoped agent - must be called from workflow/activity context
         try
         {
-            return XiansContext.TenantId;
+            return XiansContext.ResolveTenantId(_agent);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException) when (_agent.SystemScoped)
         {
             throw new InvalidOperationException(
                 "Documents API for system-scoped agents can only be used within a workflow or activity context. " +

@@ -133,7 +133,8 @@ internal sealed class WebhookClient
         if (!_agent.SystemScoped)
             return;
 
-        var tenantId = XiansContext.SafeTenantId ?? _agent.Options?.CertificateTenantId;
+        // Context only - the certificate tenant names this key's owner, not the tenant being acted on.
+        var tenantId = XiansContext.TryResolveTenantId(_agent);
         if (!string.IsNullOrWhiteSpace(tenantId))
         {
             request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);

@@ -136,7 +136,7 @@ public class ScheduleActivities
     [Activity]
     public Task<bool> ScheduleExists(ScheduleExistsRequest request)
     {
-        return Client().ExistsAsync(request.ScheduleName, request.IdPostfix);
+        return Client().ExistsAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
     }
 
     /// <summary>
@@ -145,16 +145,20 @@ public class ScheduleActivities
     [Activity]
     public Task<ScheduleIdentity> GetSchedule(GetScheduleRequest request)
     {
-        return Client().GetIdentityAsync(request.ScheduleName, request.IdPostfix);
+        return Client().GetIdentityAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
     }
 
     /// <summary>
-    /// Describes a schedule.
+    /// Describes a schedule, returning a serializable projection.
     /// </summary>
+    /// <remarks>
+    /// Temporal's <see cref="ScheduleDescription"/> cannot be returned across an activity boundary -
+    /// it has no public constructor for the JSON converter to use. See <see cref="ScheduleSnapshot"/>.
+    /// </remarks>
     [Activity]
-    public Task<ScheduleDescription> DescribeSchedule(GetScheduleRequest request)
+    public Task<ScheduleSnapshot> DescribeSchedule(GetScheduleRequest request)
     {
-        return Client().DescribeAsync(request.ScheduleName, request.IdPostfix);
+        return Client().DescribeSnapshotAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
     }
 
     /// <summary>
@@ -163,7 +167,8 @@ public class ScheduleActivities
     [Activity]
     public Task BackfillSchedule(BackfillScheduleRequest request)
     {
-        return Client().BackfillAsync(request.ScheduleName, request.IdPostfix, request.Backfills);
+        return Client().BackfillAsync(
+            request.ScheduleName, request.IdPostfix, request.Backfills, request.FullScheduleId);
     }
 
     /// <summary>
@@ -176,7 +181,7 @@ public class ScheduleActivities
     {
         try
         {
-            await Client().DeleteAsync(request.ScheduleName, request.IdPostfix);
+            await Client().DeleteAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
             _logger.LogDebug("Successfully deleted schedule '{ScheduleName}'", request.ScheduleName);
             return true;
         }
@@ -201,7 +206,8 @@ public class ScheduleActivities
     {
         try
         {
-            await Client().PauseAsync(request.ScheduleName, request.IdPostfix, request.Note);
+            await Client().PauseAsync(
+                request.ScheduleName, request.IdPostfix, request.Note, request.FullScheduleId);
             _logger.LogDebug("Successfully paused schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
@@ -220,7 +226,8 @@ public class ScheduleActivities
     {
         try
         {
-            await Client().UnpauseAsync(request.ScheduleName, request.IdPostfix, request.Note);
+            await Client().UnpauseAsync(
+                request.ScheduleName, request.IdPostfix, request.Note, request.FullScheduleId);
             _logger.LogDebug("Successfully resumed schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
@@ -239,7 +246,7 @@ public class ScheduleActivities
     {
         try
         {
-            await Client().TriggerAsync(request.ScheduleName, request.IdPostfix);
+            await Client().TriggerAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
             _logger.LogDebug("Successfully triggered schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)

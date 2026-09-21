@@ -269,8 +269,11 @@ public class ActivationValidationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SystemScopedAgent_OutsideTemporalContext_FallsBackToCertificateTenant()
+    public async Task SystemScopedAgent_OutsideTemporalContext_OmitsTenantHeader()
     {
+        // The certificate tenant identifies the key owner, not the tenant being acted on, so a
+        // system-scoped agent with no acting tenant must send no tenant header rather than silently
+        // validating the activation against the key owner's tenant.
         RegisterAgent(systemScoped: true, certificateTenant: "certificate-tenant");
         HttpRequestMessage? captured = null;
         SetupResponse(HttpStatusCode.OK, captureRequest: req => captured = req);
@@ -278,8 +281,7 @@ public class ActivationValidationServiceTests : IDisposable
         await ActivationValidationService.EnsureActivationActiveAsync(AGENT_NAME, ACTIVATION_NAME);
 
         Assert.NotNull(captured);
-        Assert.True(captured!.Headers.TryGetValues(WorkflowConstants.Headers.TenantId, out var values));
-        Assert.Equal("certificate-tenant", values!.Single());
+        Assert.False(captured!.Headers.Contains(WorkflowConstants.Headers.TenantId));
     }
 
     /// <summary>

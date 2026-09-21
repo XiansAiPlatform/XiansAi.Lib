@@ -346,6 +346,63 @@ public static class XiansContext
     }
 
     /// <summary>
+    /// Resolves the tenant an operation belongs to: workflow/activity context first, then the agent's
+    /// certificate tenant when - and only when - the agent is tenant-scoped.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this over reading <see cref="XiansOptions.CertificateTenantId"/> directly. A system-scoped
+    /// agent serves many tenants, so its certificate identifies the key owner rather than the tenant
+    /// being operated on; falling back to it would silently address the wrong tenant. Those agents
+    /// therefore require a workflow, activity, or message-handler context.
+    /// <para>
+    /// Unlike <see cref="GetTenantId"/> this takes the agent explicitly, so it does not depend on
+    /// <see cref="CurrentAgent"/> resolving - which matters for code that runs before or outside a
+    /// registered agent context.
+    /// </para>
+    /// </remarks>
+    /// <param name="agent">The agent the operation is scoped to.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a system-scoped agent is used outside Temporal context, or a tenant-scoped agent has
+    /// no certificate tenant.
+    /// </exception>
+    public static string ResolveTenantId(XiansAgent agent)
+    {
+        var tenantId = TryResolveTenantId(agent);
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            return tenantId;
+        }
+
+        throw agent.SystemScoped
+            ? new InvalidOperationException(
+                $"System-scoped agent '{agent.Name}' resolves its tenant from workflow or activity context, " +
+                "not from its certificate. Call this from a workflow, an activity, or a message handler.")
+            : new InvalidOperationException(
+                $"Agent '{agent.Name}' is tenant-scoped but has no certificate tenant. " +
+                "Ensure XiansOptions is configured with a valid API key.");
+    }
+
+    /// <summary>
+    /// Non-throwing form of <see cref="ResolveTenantId"/>, returning null when the tenant cannot be
+    /// determined. Use where a missing tenant is a valid state (for example omitting a tenant header).
+    /// </summary>
+    /// <param name="agent">The agent the operation is scoped to.</param>
+    public static string? TryResolveTenantId(XiansAgent agent)
+    {
+        ArgumentNullException.ThrowIfNull(agent);
+
+        var fromContext = SafeTenantId;
+        if (!string.IsNullOrEmpty(fromContext))
+        {
+            return fromContext;
+        }
+
+        // Never the certificate for a system-scoped agent: it names the key owner rather than the
+        // tenant being operated on, so using it would silently act on the wrong tenant.
+        return agent.SystemScoped ? null : agent.Options?.CertificateTenantId;
+    }
+
+    /// <summary>
     /// Gets the participant ID from the current async execution context, search attributes, memo, or workflow ID.
     /// Tries in order: async local context → search attributes → memo → workflow ID parsing.
     /// </summary>

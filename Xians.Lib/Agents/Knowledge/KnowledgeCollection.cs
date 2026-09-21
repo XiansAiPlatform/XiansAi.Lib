@@ -325,23 +325,17 @@ public class KnowledgeCollection
     /// </summary>
     private string? GetTenantId()
     {
-        // Prefer XiansContext.TenantId (from workflow context) when available
-        var fromContext = XiansContext.SafeTenantId;
-        if (!string.IsNullOrEmpty(fromContext))
+        var tenantId = XiansContext.TryResolveTenantId(_agent);
+
+        // A tenant-scoped agent with no resolvable tenant is misconfigured rather than unscoped.
+        // A system-scoped agent outside workflow context legitimately has none, so null is returned.
+        if (string.IsNullOrEmpty(tenantId) && !_agent.SystemScoped)
         {
-            return fromContext;
+            throw new InvalidOperationException(
+                "Tenant ID cannot be determined. XiansOptions must be properly configured with an API key.");
         }
 
-        // Fall back to certificate tenant for non-system-scoped agents
-        if (!_agent.SystemScoped)
-        {
-            return _agent.Options?.CertificateTenantId 
-                ?? throw new InvalidOperationException(
-                    "Tenant ID cannot be determined. XiansOptions must be properly configured with an API key.");
-        }
-
-        // System-scoped agent outside workflow context - no tenant
-        return null;
+        return tenantId;
     }
 }
 

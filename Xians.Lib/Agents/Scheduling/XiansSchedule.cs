@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Client.Schedules;
+using Temporalio.Exceptions;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Scheduling.Models;
@@ -57,12 +58,40 @@ public class XiansSchedule
 
     /// <summary>
     /// Gets information about the schedule including next run times and recent actions.
+    /// Cannot be called from a workflow: Temporal's <see cref="ScheduleDescription"/> has no public
+    /// constructor and so cannot be rebuilt from an activity result. Use
+    /// <see cref="GetSnapshotAsync"/> instead, which returns the same information in a serializable form.
     /// </summary>
     public Task<ScheduleDescription> DescribeAsync()
     {
         if (Workflow.InWorkflow)
-            return Executor().DescribeAsync(RequireScheduleName(), _idPostfix);
+        {
+            throw new ApplicationFailureException(
+                "XiansSchedule.DescribeAsync cannot run inside a workflow because Temporal's " +
+                "ScheduleDescription cannot be deserialized from an activity result. " +
+                "Call GetSnapshotAsync from workflow code, or DescribeAsync from an activity.",
+                nonRetryable: true);
+        }
+
         return DescribeViaHandleAsync();
+    }
+
+    /// <summary>
+    /// Gets a serializable snapshot of the schedule (paused state, action counts, next run times).
+    /// Safe to call from a workflow, an activity, or regular code.
+    /// </summary>
+    public Task<ScheduleSnapshot> GetSnapshotAsync()
+    {
+        if (Workflow.InWorkflow)
+            return Executor().DescribeSnapshotAsync(RequireScheduleName(), _idPostfix);
+
+        return GetSnapshotViaHandleAsync();
+    }
+
+    private async Task<ScheduleSnapshot> GetSnapshotViaHandleAsync()
+    {
+        var description = await DescribeViaHandleAsync();
+        return ScheduleClient.ToSnapshot(Id, description);
     }
 
     /// <summary>
@@ -107,9 +136,13 @@ public class XiansSchedule
     {
         if (Workflow.InWorkflow)
         {
-            throw new InvalidOperationException(
+            // A FailureException fails the workflow run with this message. A plain
+            // InvalidOperationException would instead fail the workflow task and retry forever,
+            // because the worker registers only a narrow WorkflowFailureExceptionTypes list.
+            throw new ApplicationFailureException(
                 "XiansSchedule.UpdateAsync cannot run inside a workflow because the updater callback cannot be serialized. " +
-                "Call UpdateAsync from an activity or from non-workflow code.");
+                "Call UpdateAsync from an activity or from non-workflow code.",
+                nonRetryable: true);
         }
 
         try

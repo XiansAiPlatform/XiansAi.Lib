@@ -11,7 +11,8 @@ public class SecretVaultScopePayload
     public string? ActivationName { get; set; }
 }
 
-/// <summary>Activity payload for fetching a secret by key.</summary>
+/// <summary>Scoped request for fetching a secret by key. Not an activity payload - see
+/// <see cref="Xians.Lib.Temporal.Workflows.Secrets.SecretVaultActivities"/>.</summary>
 public class SecretVaultFetchActivityRequest
 {
     public required string Key { get; set; }
@@ -31,7 +32,8 @@ public class SecretVaultIdActivityRequest
     public SecretVaultScopePayload Scope { get; set; } = new();
 }
 
-/// <summary>Activity payload for updating a secret.</summary>
+/// <summary>Scoped request for updating a secret. Not an activity payload - see
+/// <see cref="Xians.Lib.Temporal.Workflows.Secrets.SecretVaultActivities"/>.</summary>
 public class SecretVaultUpdateActivityRequest
 {
     public required string Id { get; set; }

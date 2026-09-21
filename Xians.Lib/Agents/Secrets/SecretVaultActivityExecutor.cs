@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Temporalio.Exceptions;
+using Temporalio.Workflows;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Secrets.Models;
 using Xians.Lib.Temporal;
@@ -9,9 +11,12 @@ namespace Xians.Lib.Agents.Secrets;
 
 /// <summary>
 /// Context-aware executor for Secret Vault CRUD.
-/// In a workflow the call is stubbed to <see cref="SecretVaultActivities"/>;
-/// in an activity it uses <see cref="SecretVaultClient"/> HTTP directly.
 /// </summary>
+/// <remarks>
+/// Only the operations that carry no secret material - <see cref="ListAsync"/> and
+/// <see cref="DeleteAsync"/> - are stubbed to <see cref="SecretVaultActivities"/> for workflow use.
+/// The rest refuse to run in a workflow; see <see cref="EnsureNotInWorkflow"/>.
+/// </remarks>
 internal sealed class SecretVaultActivityExecutor : ContextAwareActivityExecutor<SecretVaultActivities, SecretVaultClient>
 {
     private readonly XiansAgent _agent;
@@ -26,12 +31,37 @@ internal sealed class SecretVaultActivityExecutor : ContextAwareActivityExecutor
 
     protected override SecretVaultClient CreateService() => new(_agent);
 
+    /// <summary>
+    /// Refuses operations that would move a secret value across an activity boundary.
+    /// </summary>
+    /// <remarks>
+    /// Temporal durably records activity arguments in <c>ActivityTaskScheduled</c> and results in
+    /// <c>ActivityTaskCompleted</c>, so routing a plaintext secret through an activity publishes it to
+    /// everyone with read access to the namespace, for the full retention period. There is no way to
+    /// call the vault from workflow code without crossing that boundary, so these operations belong in
+    /// an activity or a message handler, where the value never enters history.
+    /// </remarks>
+    private static void EnsureNotInWorkflow(string operation)
+    {
+        if (!Workflow.InWorkflow)
+            return;
+
+        throw new ApplicationFailureException(
+            $"Secret Vault {operation} cannot run inside a workflow: the secret value would be written " +
+            "to Temporal workflow history, readable by anyone with access to the namespace. " +
+            "Call it from an activity or a message handler and use the value there. " +
+            "ListAsync and DeleteAsync carry no secret values and remain workflow-safe.",
+            nonRetryable: true);
+    }
+
     public Task<SecretVaultGetResponse> CreateAsync(
         string key,
         string value,
         object? additionalData,
         CancellationToken cancellationToken = default)
     {
+        EnsureNotInWorkflow("CreateAsync");
+
         var request = new SecretVaultCreateRequest
         {
             Key = key,
@@ -43,19 +73,15 @@ internal sealed class SecretVaultActivityExecutor : ContextAwareActivityExecutor
             AdditionalData = additionalData
         };
 
-        return ExecuteAsync(
-            act => act.CreateSecretAsync(request),
-            svc => svc.CreateAsync(request, cancellationToken),
-            operationName: "CreateSecret");
+        return CreateService().CreateAsync(request, cancellationToken);
     }
 
     public Task<SecretVaultFetchResponse?> FetchByKeyAsync(string key, CancellationToken cancellationToken = default)
     {
+        EnsureNotInWorkflow("FetchByKeyAsync");
+
         var request = new SecretVaultFetchActivityRequest { Key = key, Scope = _scope };
-        return ExecuteAsync(
-            act => act.FetchSecretByKeyAsync(request),
-            svc => svc.FetchByKeyAsync(request, cancellationToken),
-            operationName: "FetchSecretByKey");
+        return CreateService().FetchByKeyAsync(request, cancellationToken);
     }
 
     public Task<List<SecretVaultListItem>> ListAsync(CancellationToken cancellationToken = default)
@@ -69,11 +95,10 @@ internal sealed class SecretVaultActivityExecutor : ContextAwareActivityExecutor
 
     public Task<SecretVaultGetResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
+        EnsureNotInWorkflow("GetByIdAsync");
+
         var request = new SecretVaultIdActivityRequest { Id = id, Scope = _scope };
-        return ExecuteAsync(
-            act => act.GetSecretByIdAsync(request),
-            svc => svc.GetByIdAsync(request, cancellationToken),
-            operationName: "GetSecretById");
+        return CreateService().GetByIdAsync(request, cancellationToken);
     }
 
     public Task<SecretVaultGetResponse> UpdateAsync(
@@ -86,6 +111,8 @@ internal sealed class SecretVaultActivityExecutor : ContextAwareActivityExecutor
         string? activationName,
         CancellationToken cancellationToken = default)
     {
+        EnsureNotInWorkflow("UpdateAsync");
+
         var request = new SecretVaultUpdateActivityRequest
         {
             Id = id,
@@ -100,10 +127,7 @@ internal sealed class SecretVaultActivityExecutor : ContextAwareActivityExecutor
             }
         };
 
-        return ExecuteAsync(
-            act => act.UpdateSecretAsync(request),
-            svc => svc.UpdateAsync(request, cancellationToken),
-            operationName: "UpdateSecret");
+        return CreateService().UpdateAsync(request, cancellationToken);
     }
 
     public Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
