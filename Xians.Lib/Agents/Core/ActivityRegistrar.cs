@@ -97,7 +97,7 @@ internal class ActivityRegistrar
                 workerOptions,
                 workflowType,
                 "ActivationActivities",
-                () => new ActivationActivities(),
+                () => new ActivationActivities(_agent),
                 typeof(ActivationActivities));
         }
         else if (_agent.Options?.LocalMode == true)

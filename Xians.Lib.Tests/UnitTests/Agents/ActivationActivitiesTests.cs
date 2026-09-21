@@ -27,6 +27,7 @@ public class ActivationActivitiesTests : IDisposable
 
     private readonly Mock<HttpMessageHandler> _httpMessageHandler;
     private readonly HttpClient _httpClient;
+    private readonly XiansAgent _owner;
 
     public ActivationActivitiesTests()
     {
@@ -37,7 +38,7 @@ public class ActivationActivitiesTests : IDisposable
         {
             BaseAddress = new Uri("http://localhost")
         };
-        RegisterAgent();
+        _owner = RegisterAgent();
     }
 
     public void Dispose()
@@ -117,11 +118,33 @@ public class ActivationActivitiesTests : IDisposable
                 new ActivationActivities().ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME)));
     }
 
+    [Fact]
+    public async Task AgentExistsAsync_Ok_ReturnsTrue()
+    {
+        SetupResponse(HttpStatusCode.OK);
+
+        var exists = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).AgentExistsAsync(AGENT_NAME));
+
+        Assert.True(exists);
+    }
+
+    [Fact]
+    public async Task AgentExistsAsync_NotFound_ReturnsFalse()
+    {
+        SetupResponse(HttpStatusCode.NotFound, "{\"error\":\"Agent not found\"}");
+
+        var exists = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).AgentExistsAsync(AGENT_NAME));
+
+        Assert.False(exists);
+    }
+
     /// <summary>
     /// Registers an agent named AGENT_NAME backed by the mocked HTTP handler, so the
     /// underlying validation service resolves it as the target agent.
     /// </summary>
-    private void RegisterAgent()
+    private XiansAgent RegisterAgent()
     {
         var mockHttpService = new Mock<IHttpClientService>();
         mockHttpService.Setup(x => x.Client).Returns(_httpClient);
@@ -152,5 +175,6 @@ public class ActivationActivitiesTests : IDisposable
             null); // cacheService
 
         XiansContext.RegisterAgent(agent);
+        return agent;
     }
 }
