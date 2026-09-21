@@ -18,6 +18,12 @@ internal static class ScheduleIdHelper
         return $"{tenantId}:{agentName}{(idPostfix is not null ? $":{idPostfix}" : string.Empty)}:{scheduleName}";
     }
 
+    /// <summary>
+    /// Escapes a string for use as a quoted Temporal visibility-query literal.
+    /// </summary>
+    public static string EscapeVisibilityLiteral(string value)
+        => value.Replace("'", "''", StringComparison.Ordinal);
+
     public static string BuildFullWorkflowId(string tenantId, string workflowType, string idPostfix)
     {
         return $"{tenantId}:{workflowType}:{idPostfix}";

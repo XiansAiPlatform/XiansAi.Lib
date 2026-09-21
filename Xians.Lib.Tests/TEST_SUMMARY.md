@@ -87,10 +87,10 @@ dotnet test --filter "Category=RealServer"
 # ✅ 5 tests (requires valid SERVER_URL + Base64 cert)
 ```
 
-### All Tests
+### All Tests (Default Loop)
 ```bash
 dotnet test
-# ✅ 41 tests total
+# unit + mock integration; RealServer excluded
 ```
 
 ## 🔐 Authentication

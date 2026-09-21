@@ -120,26 +120,28 @@ dotnet test --filter "Category=RealServer"
 dotnet test --filter "Category!=Integration&Category!=RealServer"
 ```
 
-### Before Commit (Comprehensive Mock Testing)
+### Before Commit (Default Loop)
 ```bash
-# Run unit + integration (mock) tests
-dotnet test --filter "Category!=RealServer"
+# Unit + mock integration. RealServer is excluded automatically.
+dotnet test
 ```
 
-### Before Deployment (Verify Real Server)
+### Optional: Verify Against a Server You Own
 ```bash
 # Setup .env with your actual server
 cp env.template .env
-# Edit .env: SERVER_URL=https://dev.xians.ai, API_KEY=...
+# Edit .env: SERVER_URL=..., API_KEY=...
 
-# Run REAL server tests
+# Platform path: Server Lib-backed cycles (XiansAi.Server)
+#   dotnet test --filter "FullyQualifiedName~EchoAgent"
+
+# Lib-side opt-in against SERVER_URL
 dotnet test --filter "Category=RealServer"
 ```
 
-### Full Test Suite
+### Everything, Including RealServer
 ```bash
-# Run everything
-dotnet test
+dotnet test --filter "Category!=RealServer|Category=RealServer"
 ```
 
 ## 🔍 How to Verify Tests Are Using Real Server
@@ -218,20 +220,20 @@ dotnet test --filter "Category=RealServer"
 ## 💡 Quick Reference
 
 ```bash
+# Default loop (unit + mock). RealServer is excluded.
+dotnet test
+
 # Fast unit tests (no server)
 dotnet test --filter "Category!=Integration&Category!=RealServer"
 
 # Mock integration tests (WireMock, no real server)
 dotnet test --filter "Category=Integration"
 
-# REAL server tests (uses .env, connects to actual server)
+# REAL server tests (uses .env, connects to actual server) — opt-in
 dotnet test --filter "Category=RealServer"
 
-# Everything except real server tests
-dotnet test --filter "Category!=RealServer"
-
-# Absolutely everything
-dotnet test
+# Absolutely everything (includes RealServer)
+dotnet test --filter "Category!=RealServer|Category=RealServer"
 ```
 
 ## 🎓 Summary
@@ -240,7 +242,7 @@ dotnet test
 - **Integration Tests** = Test component integration with MOCKS (WireMock)
 - **Real Server Tests** = Test against YOUR ACTUAL SERVER from .env
 
-The integration tests passing with a fake URL was by design - they're testing the library's logic, not your server connectivity. To test your actual server, use the new **Real Server Tests** category!
+The integration tests passing with a fake URL was by design - they're testing the library's logic, not your server connectivity. To test your actual server, use `--filter "Category=RealServer"` (not part of a plain `dotnet test`). Live agent-against-Server coverage for platform PRs is in XiansAi.Server. See [docs/RUNNING_TESTS.md](docs/RUNNING_TESTS.md).
 
 
 

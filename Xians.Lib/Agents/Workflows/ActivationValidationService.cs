@@ -44,7 +44,7 @@ internal static class ActivationValidationService
         }
 
         var client = await agent.HttpService.GetHealthyClientAsync();
-        var tenantId = XiansContext.SafeTenantId ?? agent.Options?.CertificateTenantId;
+        var tenantId = XiansContext.TryResolveTenantId(agent);
 
         await EnsureActivationActiveAsync(client, agentName, activationName, tenantId, agent.SystemScoped);
     }

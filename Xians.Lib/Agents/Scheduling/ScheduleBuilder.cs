@@ -339,12 +339,17 @@ public class ScheduleBuilder
                 created ? "Schedule '{ScheduleId}' created successfully" : "Schedule '{ScheduleId}' already exists",
                 _scheduleName);
 
-            // Return schedule handle with full tenant:agent:idPostfix:scheduleId pattern
             var fullScheduleId = BuildFullScheduleId();
-            
-            return new XiansSchedule(new ScheduleHandle(
-                await _temporalService.GetClientAsync(),
-                fullScheduleId));
+            var identity = new ScheduleIdentity
+            {
+                // Preserve null. BuildFullScheduleId omits the segment entirely for null but emits an
+                // empty one for "", so collapsing them here would address a schedule that was never
+                // created on every later Pause/Trigger/Delete call.
+                ScheduleName = _scheduleName,
+                IdPostfix = effectiveIdPostfix,
+                FullScheduleId = fullScheduleId
+            };
+            return new XiansSchedule(_agent, identity);
         }
         catch (Exception ex)
         {
@@ -368,19 +373,11 @@ public class ScheduleBuilder
     /// </summary>
     private string GetEffectiveTenantId()
     {
-        if (_agent.SystemScoped)
-        {
-            // System-scoped: use tenant from workflow context
-            // XiansContext.TenantId will throw if not in workflow/activity context
-            return XiansContext.TenantId;
-        }
-        else
-        {
-            // Tenant-scoped: must have a valid tenant ID
-            return _agent.Options?.CertificateTenantId 
-                ?? throw new InvalidOperationException(
-                    "Tenant-scoped agent must have a valid tenant ID. XiansOptions not properly configured.");
-        }
+        // Shared with ScheduleClient and ScheduleActivityExecutor so that creating a schedule and
+        // later managing it resolve the same tenant, and therefore the same schedule id. Reading
+        // CertificateTenantId directly here used to let creation ignore the context that management
+        // honours.
+        return XiansContext.ResolveTenantId(_agent);
     }
 
     /// <summary>

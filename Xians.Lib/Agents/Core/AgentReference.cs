@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core.Activations;
 using Xians.Lib.Agents.Workflows;
@@ -14,6 +11,8 @@ namespace Xians.Lib.Agents.Core;
 /// <see cref="TenantAgents.Agent(string)"/>. Lets the calling agent inspect whether that
 /// agent (and a given activation of it) exists and is active, and manage its activations,
 /// without requiring the target agent to be registered in this process.
+/// Safe to call from Temporal workflows (HTTP is stubbed to <see cref="ActivationActivities"/>)
+/// and from activities (direct HTTP).
 /// </summary>
 /// <example>
 /// <code>
@@ -29,8 +28,7 @@ namespace Xians.Lib.Agents.Core;
 /// </example>
 public class AgentReference
 {
-    private readonly XiansAgent _owner;
-    private readonly ILogger<AgentReference> _logger;
+    private readonly ActivationActivityExecutor _executor;
 
     /// <summary>
     /// Gets the name of the referenced agent.
@@ -39,13 +37,14 @@ public class AgentReference
 
     internal AgentReference(XiansAgent owner, string agentName)
     {
-        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+        ArgumentNullException.ThrowIfNull(owner);
         if (string.IsNullOrWhiteSpace(agentName))
             throw new ArgumentException("Agent name is required.", nameof(agentName));
 
         Name = IdentifierSanitizer.SanitizeAndValidateAgentName(agentName, nameof(agentName));
 
-        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<AgentReference>();
+        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<AgentReference>();
+        _executor = new ActivationActivityExecutor(owner, Name, logger);
     }
 
     /// <summary>
@@ -57,27 +56,9 @@ public class AgentReference
     /// <exception cref="InvalidOperationException">Thrown when the HTTP service is not available
     /// or the server rejects the request (400).</exception>
     /// <exception cref="HttpRequestException">Thrown for transient/server errors so retry policies can apply.</exception>
-    public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
     {
-        EnsureHttpService();
-
-        var url = $"{WorkflowConstants.ApiEndpoints.AgentExists}?agentName={Uri.EscapeDataString(Name)}";
-        _logger.LogDebug("Checking agent existence for '{AgentName}'", Name);
-
-        var client = await _owner.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-
-        if (response.IsSuccessStatusCode)
-            return true;
-
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return false;
-
-        await ThrowForResponseAsync(response, "check agent existence");
-        return false; // unreachable
+        return _executor.ExistsAsync(cancellationToken);
     }
 
     /// <summary>
@@ -90,20 +71,14 @@ public class AgentReference
     /// <exception cref="InvalidOperationException">Thrown when the HTTP service is not available
     /// or the server rejects the request (400).</exception>
     /// <exception cref="HttpRequestException">Thrown for transient/server errors so retry policies can apply.</exception>
-    public async Task<ActivationCheckStatus> GetActivationStatusAsync(
+    public Task<ActivationCheckStatus> GetActivationStatusAsync(
         string activationName,
         CancellationToken cancellationToken = default)
     {
         var sanitizedActivationName = IdentifierSanitizer.SanitizeAndValidateActivationName(
             activationName, nameof(activationName));
 
-        EnsureHttpService();
-
-        var client = await _owner.HttpService!.GetHealthyClientAsync();
-        var tenantId = XiansContext.SafeTenantId ?? _owner.Options?.CertificateTenantId;
-
-        return await ActivationValidationService.CheckActivationStatusAsync(
-            client, Name, sanitizedActivationName, tenantId, _owner.SystemScoped, cancellationToken);
+        return _executor.GetActivationStatusAsync(sanitizedActivationName, cancellationToken);
     }
 
     /// <summary>
@@ -127,26 +102,8 @@ public class AgentReference
     /// <returns>The agent's activations (empty list when none exist).</returns>
     public async Task<List<ActivationInfo>> ListActivationsAsync(CancellationToken cancellationToken = default)
     {
-        EnsureHttpService();
-
-        var url = $"{WorkflowConstants.ApiEndpoints.Activations}?agentName={Uri.EscapeDataString(Name)}";
-        _logger.LogDebug("Listing activations for agent '{AgentName}'", Name);
-
-        var client = await _owner.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "list activations");
-
-        var list = await response.Content.ReadFromJsonAsync<List<ActivationInfo>>(cancellationToken)
-                   ?? new List<ActivationInfo>();
-        foreach (var item in list)
-        {
-            item.Bind(this);
-        }
-
+        var list = await _executor.ListActivationsAsync(cancellationToken);
+        BindAll(list);
         return list;
     }
 
@@ -169,37 +126,12 @@ public class AgentReference
     {
         var sanitizedName = IdentifierSanitizer.SanitizeAndValidateActivationName(name, nameof(name));
 
-        EnsureHttpService();
-
-        var body = new CreateActivationBody
-        {
-            Name = sanitizedName,
-            AgentName = Name,
-            Description = description,
-            ParticipantId = participantId,
-            WorkflowConfiguration = workflows == null
-                ? null
-                : new ActivationWorkflowConfig { Workflows = workflows.ToList() }
-        };
-
-        _logger.LogDebug(
-            "Creating activation '{ActivationName}' for agent '{AgentName}'",
-            body.Name,
-            Name);
-
-        var client = await _owner.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Post, WorkflowConstants.ApiEndpoints.Activations)
-        {
-            Content = JsonContent.Create(body, options: UnicodeJson.SerializerOptions)
-        };
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "create activation");
-
-        var created = await response.Content.ReadFromJsonAsync<ActivationInfo>(cancellationToken)
-                      ?? throw new InvalidOperationException("Server returned an empty response for create activation.");
+        var created = await _executor.CreateActivationAsync(
+            sanitizedName,
+            description,
+            participantId,
+            workflows,
+            cancellationToken);
         created.Bind(this);
         return created;
     }
@@ -220,35 +152,12 @@ public class AgentReference
         if (string.IsNullOrWhiteSpace(activationId))
             throw new ArgumentException("Activation id is required.", nameof(activationId));
 
-        EnsureHttpService();
-
-        var url = $"{WorkflowConstants.ApiEndpoints.Activations}/{Uri.EscapeDataString(activationId)}/activate";
-        _logger.LogDebug(
-            "Activating activation '{ActivationId}' for agent '{AgentName}'",
+        var activated = await _executor.ActivateAsync(
             activationId,
-            Name);
-
-        HttpContent? content = null;
-        if (workflowConfiguration != null)
-        {
-            content = JsonContent.Create(new ActivateBody
-            {
-                WorkflowConfiguration = new ActivationWorkflowConfig
-                {
-                    Workflows = workflowConfiguration.ToList()
-                }
-            });
-        }
-
-        var client = await _owner.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "activate activation");
-
-        return await ReadActivationFromEnvelopeAsync(response, cancellationToken);
+            workflowConfiguration,
+            cancellationToken);
+        activated.Bind(this);
+        return activated;
     }
 
     /// <summary>
@@ -265,108 +174,16 @@ public class AgentReference
         if (string.IsNullOrWhiteSpace(activationId))
             throw new ArgumentException("Activation id is required.", nameof(activationId));
 
-        EnsureHttpService();
-
-        var url = $"{WorkflowConstants.ApiEndpoints.Activations}/{Uri.EscapeDataString(activationId)}/deactivate";
-        _logger.LogDebug(
-            "Deactivating activation '{ActivationId}' for agent '{AgentName}'",
-            activationId,
-            Name);
-
-        var client = await _owner.HttpService!.GetHealthyClientAsync();
-        using var request = new HttpRequestMessage(HttpMethod.Post, url);
-        AddTenantHeader(request);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "deactivate activation");
-
-        return await ReadActivationFromEnvelopeAsync(response, cancellationToken);
+        var deactivated = await _executor.DeactivateAsync(activationId, cancellationToken);
+        deactivated.Bind(this);
+        return deactivated;
     }
 
-    private async Task<ActivationInfo> ReadActivationFromEnvelopeAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
+    private void BindAll(IEnumerable<ActivationInfo> list)
     {
-        var envelope = await response.Content.ReadFromJsonAsync<ActivationActionEnvelope>(cancellationToken);
-        var activation = envelope?.Activation
-                         ?? throw new InvalidOperationException(
-                             "Server returned an empty activation in the activate/deactivate response.");
-        activation.Bind(this);
-        return activation;
-    }
-
-    private void EnsureHttpService()
-    {
-        if (_owner.HttpService == null)
+        foreach (var item in list)
         {
-            throw new InvalidOperationException(
-                "HTTP service is not available. Cannot call agent/activation APIs.");
+            item.Bind(this);
         }
-    }
-
-    /// <summary>
-    /// Adds the tenant header for system-scoped owners so the server can resolve the acting tenant.
-    /// Mirrors the behavior of the webhook and activation-validation clients.
-    /// </summary>
-    private void AddTenantHeader(HttpRequestMessage request)
-    {
-        if (!_owner.SystemScoped)
-            return;
-
-        var tenantId = XiansContext.SafeTenantId ?? _owner.Options?.CertificateTenantId;
-        if (!string.IsNullOrWhiteSpace(tenantId))
-        {
-            request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
-        }
-    }
-
-    private async Task ThrowForResponseAsync(HttpResponseMessage response, string operation)
-    {
-        var body = await response.Content.ReadAsStringAsync();
-        _logger.LogError(
-            "Agent/activation {Operation} failed: StatusCode={StatusCode}, Body={Body}",
-            operation,
-            response.StatusCode,
-            body);
-
-        if (response.StatusCode == HttpStatusCode.BadRequest)
-        {
-            throw new InvalidOperationException(
-                $"Agent/activation {operation} failed. Status: {response.StatusCode}. {body}");
-        }
-
-        throw new HttpRequestException(
-            $"Agent/activation {operation} failed. Status: {response.StatusCode}. {body}");
-    }
-
-    private sealed class CreateActivationBody
-    {
-        [JsonPropertyName("name")]
-        public required string Name { get; set; }
-
-        [JsonPropertyName("agentName")]
-        public required string AgentName { get; set; }
-
-        [JsonPropertyName("description")]
-        public string? Description { get; set; }
-
-        [JsonPropertyName("participantId")]
-        public string? ParticipantId { get; set; }
-
-        [JsonPropertyName("workflowConfiguration")]
-        public ActivationWorkflowConfig? WorkflowConfiguration { get; set; }
-    }
-
-    private sealed class ActivateBody
-    {
-        [JsonPropertyName("workflowConfiguration")]
-        public ActivationWorkflowConfig? WorkflowConfiguration { get; set; }
-    }
-
-    private sealed class ActivationActionEnvelope
-    {
-        [JsonPropertyName("activation")]
-        public ActivationInfo? Activation { get; set; }
     }
 }

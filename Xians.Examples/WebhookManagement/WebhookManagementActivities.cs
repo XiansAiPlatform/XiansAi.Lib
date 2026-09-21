@@ -6,13 +6,12 @@ using Xians.Lib.Agents.Webhooks.Models;
 namespace Xians.Examples.WebhookManagement;
 
 /// <summary>
-/// Activities that exercise the new self-service webhook SDK methods.
+/// Activities that exercise the self-service webhook SDK methods.
 /// <para>
-/// The webhook SDK methods (<c>agent.Webhooks.CreateAsync/ListAsync/DeleteAsync</c>) perform real HTTP
-/// calls to the Xians server, so they must run inside a Temporal <b>activity</b> - never directly in
-/// deterministic workflow code. The workflow (<see cref="WebhookLifecycleWorkflow"/>) invokes these
-/// activities via <c>Workflow.ExecuteActivityAsync</c> and controls the delay between create and delete
-/// with a durable workflow timer.
+/// The webhook SDK (<c>agent.Webhooks.CreateAsync/ListAsync/DeleteAsync</c>) is safe to call from
+/// both workflows and activities (workflows are stubbed to <c>WebhookActivities</c>). This sample
+/// still runs create/list/delete in activities so <see cref="WebhookInfo.WebhookUrl"/> is not
+/// recorded in workflow history — the URL embeds a callable credential.
 /// </para>
 /// <para>
 /// Notice that the agent and activation are never passed in explicitly - they are resolved

@@ -372,21 +372,9 @@ public class WorkflowHelper
         // Get agent
         var agent = XiansContext.GetAgent(agentName);
         
-        // Determine tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
-        string tenantId;
-        if (agent.SystemScoped)
-        {
-            tenantId = XiansContext.GetTenantId();
-        }
-        else
-        {
-            if (agent.Options == null || string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but tenant ID is missing. Ensure API key is properly configured.");
-            }
-            tenantId = agent.Options.CertificateTenantId;
-        }
+        // Context first, certificate only for tenant-scoped agents, so the handle addresses the same
+        // workflow ID the workflow was started under.
+        var tenantId = XiansContext.ResolveTenantId(agent);
 
         // Build workflow ID using the same format as SubWorkflowService
         var workflowId = BuildWorkflowId(agentName, workflowType, tenantId, idPostfix);
@@ -420,21 +408,9 @@ public class WorkflowHelper
         // Get agent
         var agent = XiansContext.GetAgent(agentName);
         
-        // Determine tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
-        string tenantId;
-        if (agent.SystemScoped)
-        {
-            tenantId = XiansContext.GetTenantId();
-        }
-        else
-        {
-            if (agent.Options == null || string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but tenant ID is missing. Ensure API key is properly configured.");
-            }
-            tenantId = agent.Options.CertificateTenantId;
-        }
+        // Context first, certificate only for tenant-scoped agents, so the handle addresses the same
+        // workflow ID the workflow was started under.
+        var tenantId = XiansContext.ResolveTenantId(agent);
 
         // Build workflow ID using the same format as SubWorkflowService
         var workflowId = BuildWorkflowId(agentName, workflowType, tenantId, idPostfix);

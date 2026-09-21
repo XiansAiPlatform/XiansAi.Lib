@@ -100,10 +100,11 @@ dotnet test --filter "Category=RealServer"
 
 ## Running Tests
 
-### Run All Tests
+### Run All Tests (Default Loop)
 ```bash
 cd Xians.Lib.Tests
 dotnet test
+# unit + mock integration; RealServer excluded. See docs/RUNNING_TESTS.md
 ```
 
 ### Run Only Unit Tests

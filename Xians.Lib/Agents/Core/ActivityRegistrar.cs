@@ -8,6 +8,8 @@ using Xians.Lib.Temporal.Workflows.Documents;
 using Xians.Lib.Temporal.Workflows.A2A;
 using Xians.Lib.Temporal.Workflows.Tasks;
 using Xians.Lib.Temporal.Workflows.Usage;
+using Xians.Lib.Temporal.Workflows.Secrets;
+using Xians.Lib.Temporal.Workflows.Webhooks;
 
 namespace Xians.Lib.Agents.Core;
 
@@ -97,8 +99,22 @@ internal class ActivityRegistrar
                 workerOptions,
                 workflowType,
                 "ActivationActivities",
-                () => new ActivationActivities(),
+                () => new ActivationActivities(_agent),
                 typeof(ActivationActivities));
+
+            registeredCount += TryRegisterActivity(
+                workerOptions,
+                workflowType,
+                "SecretVaultActivities",
+                () => new SecretVaultActivities(_agent),
+                typeof(SecretVaultActivities));
+
+            registeredCount += TryRegisterActivity(
+                workerOptions,
+                workflowType,
+                "WebhookActivities",
+                () => new WebhookActivities(_agent),
+                typeof(WebhookActivities));
         }
         else if (_agent.Options?.LocalMode == true)
         {
@@ -117,7 +133,7 @@ internal class ActivityRegistrar
         else
         {
             _logger.LogWarning(
-                "HTTP service not available for workflow '{WorkflowType}' - Message, Knowledge, and Document activities will not be registered",
+                "HTTP service not available for workflow '{WorkflowType}' - Message, Knowledge, Document, Activation, Secret Vault, and Webhook activities will not be registered",
                 workflowType);
         }
 

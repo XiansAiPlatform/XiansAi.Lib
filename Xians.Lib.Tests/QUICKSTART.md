@@ -7,23 +7,24 @@
 cp env.template .env
 # Edit .env - set SERVER_URL and API_KEY
 
-# Run tests (fast)
-dotnet test --filter "Category!=Integration"
-
-# Run all tests (includes slower integration tests)
+# Run tests (fast — unit + mock; RealServer excluded)
 dotnet test
+
+# Unit only
+dotnet test --filter "Category!=Integration&Category!=RealServer"
 ```
 
 ## Running Tests
 
-### 1. Run All Tests
+### 1. Run Default Suite (Unit + Mock Integration)
 ```bash
 dotnet test
 ```
+RealServer tests are excluded. See [docs/RUNNING_TESTS.md](docs/RUNNING_TESTS.md).
 
 ### 2. Run Only Unit Tests (Fast - No External Dependencies)
 ```bash
-dotnet test --filter "Category!=Integration"
+dotnet test --filter "Category!=Integration&Category!=RealServer"
 ```
 
 ### 3. Run Only Integration Tests

@@ -2,6 +2,7 @@ using System;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Temporalio.Exceptions;
 using Temporalio.Workflows;
 using Temporalio.Common;
 
@@ -51,6 +52,34 @@ public abstract class ContextAwareActivityExecutor<TActivity, TService>
     }
 
     /// <summary>
+    /// Maps a failure raised inside an activity back to the exception type this SDK's contract
+    /// documents, so callers can catch the same type whether the call ran in a workflow or not.
+    /// Returns null to let the original <see cref="ActivityFailureException"/> propagate.
+    /// </summary>
+    /// <remarks>
+    /// Only return exceptions deriving from <see cref="FailureException"/>. The worker registers a
+    /// narrow <c>WorkflowFailureExceptionTypes</c> list, so any other exception thrown from workflow
+    /// code fails the workflow <em>task</em> and retries forever rather than failing the run - turning
+    /// a clean error into a stuck workflow. That is why plain BCL types such as
+    /// <see cref="InvalidOperationException"/> are deliberately not translated here.
+    /// </remarks>
+    /// <param name="failure">The application failure carried by the activity failure.</param>
+    protected virtual Exception? TranslateActivityFailure(ApplicationFailureException failure) => null;
+
+    private Exception? Translate(ActivityFailureException ex)
+    {
+        for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+        {
+            if (inner is ApplicationFailureException failure)
+            {
+                return TranslateActivityFailure(failure);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Executes an operation that returns a result.
     /// In workflow context: executes as a Temporal activity.
     /// In activity/non-workflow context: calls the service directly.
@@ -75,9 +104,16 @@ public abstract class ContextAwareActivityExecutor<TActivity, TService>
                 "Executing {Operation} via activity in workflow context",
                 opName);
 
-            return await Workflow.ExecuteActivityAsync(
-                activityCall,
-                options ?? GetDefaultActivityOptions());
+            try
+            {
+                return await Workflow.ExecuteActivityAsync(
+                    activityCall,
+                    options ?? GetDefaultActivityOptions());
+            }
+            catch (ActivityFailureException ex) when (Translate(ex) is { } translated)
+            {
+                throw translated;
+            }
         }
         else
         {
@@ -113,9 +149,16 @@ public abstract class ContextAwareActivityExecutor<TActivity, TService>
                 "Executing {Operation} via activity in workflow context",
                 opName);
 
-            await Workflow.ExecuteActivityAsync(
-                activityCall,
-                options ?? GetDefaultActivityOptions());
+            try
+            {
+                await Workflow.ExecuteActivityAsync(
+                    activityCall,
+                    options ?? GetDefaultActivityOptions());
+            }
+            catch (ActivityFailureException ex) when (Translate(ex) is { } translated)
+            {
+                throw translated;
+            }
         }
         else
         {
