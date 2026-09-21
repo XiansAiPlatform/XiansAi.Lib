@@ -362,14 +362,30 @@ public static class XiansContext
     /// </remarks>
     /// <param name="agent">The agent the operation is scoped to.</param>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when a system-scoped agent is used outside Temporal context, or a tenant-scoped agent has
-    /// no certificate tenant.
+    /// Thrown when a system-scoped agent is used outside Temporal context, a tenant-scoped agent has
+    /// no certificate tenant, or ambient context names a different tenant than a tenant-scoped agent's
+    /// certificate. <see cref="TryResolveTenantId"/> does not throw on that mismatch.
     /// </exception>
     public static string ResolveTenantId(XiansAgent agent)
     {
         var tenantId = TryResolveTenantId(agent);
         if (!string.IsNullOrEmpty(tenantId))
         {
+            // Tenant-scoped workers poll the certificate-tenant task queue. Using a different ambient
+            // tenant would start workflows and schedules that nobody consumes. Fail here rather than
+            // produce an unroutable ID. TryResolveTenantId stays non-throwing for callers that treat
+            // a missing tenant as a valid state.
+            if (!agent.SystemScoped)
+            {
+                var certTenant = agent.Options?.CertificateTenantId;
+                if (!string.IsNullOrEmpty(certTenant) && tenantId != certTenant)
+                {
+                    throw new InvalidOperationException(
+                        $"Ambient tenant '{tenantId}' does not match tenant-scoped agent '{agent.Name}' " +
+                        $"certificate tenant '{certTenant}'.");
+                }
+            }
+
             return tenantId;
         }
 

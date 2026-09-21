@@ -8,8 +8,10 @@ namespace Xians.Lib.Tests.UnitTests.Agents;
 
 /// <summary>
 /// Tenant resolution policy: context wins for every agent, and the certificate is a fallback only for
-/// tenant-scoped agents. A system-scoped agent serves many tenants, so its certificate names the key
-/// owner rather than the tenant being operated on.
+/// tenant-scoped agents. ResolveTenantId throws when ambient context disagrees with a tenant-scoped
+/// agent's certificate tenant (unroutable workflow/schedule IDs). TryResolveTenantId does not throw.
+/// A system-scoped agent serves many tenants, so its certificate names the key owner rather than the
+/// tenant being operated on.
 ///
 /// dotnet test --filter "FullyQualifiedName~ResolveTenantId"
 /// </summary>
@@ -42,14 +44,34 @@ public class ResolveTenantIdTests : IDisposable
     }
 
     [Fact]
-    public void TenantScoped_WithContext_PrefersContext()
+    public void TenantScoped_WithMatchingContext_UsesContext()
+    {
+        var agent = CreateAgent(systemScoped: false);
+        XiansContext.SetTenantId(CERTIFICATE_TENANT);
+
+        Assert.Equal(CERTIFICATE_TENANT, XiansContext.ResolveTenantId(agent));
+    }
+
+    [Fact]
+    public void TenantScoped_WithDisagreeingContext_Throws()
     {
         var agent = CreateAgent(systemScoped: false);
         XiansContext.SetTenantId(CONTEXT_TENANT);
 
-        // Creating and managing a schedule must agree on the tenant; reading the certificate directly
-        // would make creation ignore the context that management honours.
-        Assert.Equal(CONTEXT_TENANT, XiansContext.ResolveTenantId(agent));
+        var ex = Assert.Throws<InvalidOperationException>(() => XiansContext.ResolveTenantId(agent));
+
+        Assert.Contains(CONTEXT_TENANT, ex.Message);
+        Assert.Contains(CERTIFICATE_TENANT, ex.Message);
+        Assert.Contains(AGENT_NAME, ex.Message);
+    }
+
+    [Fact]
+    public void TryResolve_TenantScoped_WithDisagreeingContext_ReturnsContextWithoutThrowing()
+    {
+        var agent = CreateAgent(systemScoped: false);
+        XiansContext.SetTenantId(CONTEXT_TENANT);
+
+        Assert.Equal(CONTEXT_TENANT, XiansContext.TryResolveTenantId(agent));
     }
 
     [Fact]
