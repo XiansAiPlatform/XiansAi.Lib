@@ -30,7 +30,7 @@ internal sealed class ScheduleClient
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleClient>();
     }
 
-    public async Task<XiansSchedule> GetAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public async Task<XiansSchedule> GetAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
         try
         {
@@ -40,16 +40,16 @@ internal sealed class ScheduleClient
             {
                 // Treat empty the same as absent. BuildFullScheduleId emits an empty segment for ""
                 // but omits the segment entirely for null, so the two produce different ids.
-                if (string.IsNullOrEmpty(idPostfix))
-                    idPostfix = XiansContext.GetIdPostfix();
+                if (string.IsNullOrEmpty(activationName))
+                    activationName = XiansContext.GetIdPostfix();
 
                 fullScheduleId = ScheduleIdHelper.BuildFullScheduleId(
-                    XiansContext.ResolveTenantId(_agent), _agent.Name, idPostfix, scheduleName);
+                    XiansContext.ResolveTenantId(_agent), _agent.Name, activationName, scheduleName);
             }
 
             var handle = client.GetScheduleHandle(fullScheduleId);
             await handle.DescribeAsync();
-            return new XiansSchedule(handle, _agent, scheduleName, idPostfix);
+            return new XiansSchedule(handle, _agent, scheduleName, activationName);
         }
         catch (Temporalio.Exceptions.RpcException ex) when (
             ex.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
@@ -65,9 +65,9 @@ internal sealed class ScheduleClient
     }
 
     public async Task<ScheduleIdentity> GetIdentityAsync(
-        string scheduleName, string? idPostfix, string? fullScheduleId = null)
+        string scheduleName, string? activationName, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         return new ScheduleIdentity
         {
             ScheduleName = scheduleName,
@@ -76,11 +76,11 @@ internal sealed class ScheduleClient
         };
     }
 
-    public async Task<bool> ExistsAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public async Task<bool> ExistsAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
         try
         {
-            await GetAsync(scheduleName, idPostfix, fullScheduleId);
+            await GetAsync(scheduleName, activationName, fullScheduleId);
             return true;
         }
         catch (ScheduleNotFoundException)
@@ -89,54 +89,54 @@ internal sealed class ScheduleClient
         }
     }
 
-    public async Task DeleteAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public async Task DeleteAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         await schedule.DeleteViaHandleAsync();
     }
 
     public async Task PauseAsync(
-        string scheduleName, string? idPostfix, string? note, string? fullScheduleId = null)
+        string scheduleName, string? activationName, string? note, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         await schedule.PauseViaHandleAsync(note);
     }
 
     public async Task UnpauseAsync(
-        string scheduleName, string? idPostfix, string? note, string? fullScheduleId = null)
+        string scheduleName, string? activationName, string? note, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         await schedule.UnpauseViaHandleAsync(note);
     }
 
-    public async Task TriggerAsync(string scheduleName, string? idPostfix, string? fullScheduleId = null)
+    public async Task TriggerAsync(string scheduleName, string? activationName, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         await schedule.TriggerViaHandleAsync();
     }
 
     public async Task<ScheduleDescription> DescribeAsync(
-        string scheduleName, string? idPostfix, string? fullScheduleId = null)
+        string scheduleName, string? activationName, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         return await schedule.DescribeViaHandleAsync();
     }
 
     public async Task<ScheduleSnapshot> DescribeSnapshotAsync(
-        string scheduleName, string? idPostfix, string? fullScheduleId = null)
+        string scheduleName, string? activationName, string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         var description = await schedule.DescribeViaHandleAsync();
         return ToSnapshot(schedule.Id, description);
     }
 
     public async Task BackfillAsync(
         string scheduleName,
-        string? idPostfix,
+        string? activationName,
         IReadOnlyCollection<ScheduleBackfill> backfills,
         string? fullScheduleId = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix, fullScheduleId);
+        var schedule = await GetAsync(scheduleName, activationName, fullScheduleId);
         await schedule.BackfillViaHandleAsync(backfills);
     }
 

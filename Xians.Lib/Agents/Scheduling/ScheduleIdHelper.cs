@@ -10,12 +10,12 @@ internal static class ScheduleIdHelper
     /// </summary>
     /// <param name="tenantId">The tenant identifier.</param>
     /// <param name="agentName">The agent name.</param>
-    /// <param name="idPostfix">The ID postfix.</param>
+    /// <param name="activationName">The activation name.</param>
     /// <param name="scheduleName">The schedule identifier.</param>
     /// <returns>The fully qualified schedule ID.</returns>
-    public static string BuildFullScheduleId(string tenantId, string agentName, string? idPostfix, string scheduleName)
+    public static string BuildFullScheduleId(string tenantId, string agentName, string? activationName, string scheduleName)
     {
-        return $"{tenantId}:{agentName}{(idPostfix is not null ? $":{idPostfix}" : string.Empty)}:{scheduleName}";
+        return $"{tenantId}:{agentName}{(activationName is not null ? $":{activationName}" : string.Empty)}:{scheduleName}";
     }
 
     /// <summary>
@@ -24,8 +24,8 @@ internal static class ScheduleIdHelper
     public static string EscapeVisibilityLiteral(string value)
         => value.Replace("'", "''", StringComparison.Ordinal);
 
-    public static string BuildFullWorkflowId(string tenantId, string workflowType, string idPostfix)
+    public static string BuildFullWorkflowId(string tenantId, string workflowType, string activationName)
     {
-        return $"{tenantId}:{workflowType}:{idPostfix}";
+        return $"{tenantId}:{workflowType}:{activationName}";
     }
 }
