@@ -43,9 +43,9 @@ internal sealed class ActivationActivityExecutor : ContextAwareActivityExecutor<
     {
         var agentName = _agentName;
         return ExecuteAsync(
-            act => act.ValidateActivationAsync(agentName, activationName),
+            act => act.GetActivationStatusAsync(agentName, activationName),
             svc => svc.GetStatusAsync(activationName, cancellationToken),
-            operationName: "ValidateActivation");
+            operationName: "GetActivationStatus");
     }
 
     public Task<List<ActivationInfo>> ListActivationsAsync(CancellationToken cancellationToken = default)

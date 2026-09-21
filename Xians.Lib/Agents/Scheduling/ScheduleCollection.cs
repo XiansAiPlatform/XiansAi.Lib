@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Client.Schedules;
 using Temporalio.Workflows;
 using Xians.Lib.Agents.Scheduling.Models;
 using Xians.Lib.Temporal;
@@ -53,24 +52,19 @@ public class ScheduleCollection
         return new ScheduleBuilder(scheduleName, _agent, workflowType, _temporalService, idPostfix);
     }
 
-    /// <summary>Lists schedules owned by the current agent activation.</summary>
+    /// <summary>
+    /// Lists schedules owned by the current agent activation.
+    /// Safe to call from a workflow, an activity, or regular code.
+    /// </summary>
     public async Task<IReadOnlyList<XiansSchedule>> ListAsync()
     {
-        if (_temporalService == null)
-            throw new InvalidOperationException("Temporal service is not configured. Cannot list schedules.");
-
-        var tenantId = XiansContext.ResolveTenantId(_agent);
-        var prefix = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, XiansContext.SafeIdPostfix, "");
-        var client = await _temporalService.GetClientAsync();
-        var result = new List<XiansSchedule>();
-        await foreach (var schedule in client.ListSchedulesAsync(new ScheduleListOptions
+        if (Workflow.InWorkflow)
         {
-            Query = $"tenantId = '{tenantId}' AND agent = '{_agent.Name.Replace("'", "''")}'"
-        }))
-            if (schedule.Id.StartsWith(prefix, StringComparison.Ordinal))
-                result.Add(new XiansSchedule(client.GetScheduleHandle(schedule.Id)));
+            var identities = await _executor.ListAsync();
+            return identities.Select(identity => new XiansSchedule(_agent, identity)).ToList();
+        }
 
-        return result;
+        return await new ScheduleClient(_agent).ListAsync();
     }
 
     /// <summary>

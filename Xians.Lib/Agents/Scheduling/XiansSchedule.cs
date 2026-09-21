@@ -11,8 +11,8 @@ namespace Xians.Lib.Agents.Scheduling;
 /// <summary>
 /// Represents a Xians schedule that wraps Temporal's ScheduleHandle.
 /// Provides convenient methods for managing schedule lifecycle.
-/// Safe to use from Temporal workflows when obtained via <see cref="ScheduleCollection.GetAsync(string)"/>
-/// or schedule creation (handle RPCs are stubbed to <c>ScheduleActivities</c>).
+/// Safe to use from Temporal workflows when obtained via <see cref="ScheduleCollection.GetAsync(string)"/>,
+/// <see cref="ScheduleCollection.ListAsync"/>, or schedule creation (handle RPCs are stubbed to <c>ScheduleActivities</c>).
 /// </summary>
 public class XiansSchedule
 {
@@ -83,7 +83,7 @@ public class XiansSchedule
     public Task<ScheduleSnapshot> GetSnapshotAsync()
     {
         if (Workflow.InWorkflow)
-            return Executor().DescribeSnapshotAsync(RequireScheduleName(), _idPostfix);
+            return Executor().DescribeSnapshotAsync(RequireScheduleName(), _idPostfix, _fullScheduleId);
 
         return GetSnapshotViaHandleAsync();
     }
@@ -101,7 +101,7 @@ public class XiansSchedule
     public Task PauseAsync(string? note = null)
     {
         if (Workflow.InWorkflow)
-            return Executor().PauseAsync(RequireScheduleName(), _idPostfix, note);
+            return Executor().PauseAsync(RequireScheduleName(), _idPostfix, note, _fullScheduleId);
         return PauseViaHandleAsync(note);
     }
 
@@ -112,7 +112,7 @@ public class XiansSchedule
     public Task UnpauseAsync(string? note = null)
     {
         if (Workflow.InWorkflow)
-            return Executor().UnpauseAsync(RequireScheduleName(), _idPostfix, note);
+            return Executor().UnpauseAsync(RequireScheduleName(), _idPostfix, note, _fullScheduleId);
         return UnpauseViaHandleAsync(note);
     }
 
@@ -122,7 +122,7 @@ public class XiansSchedule
     public Task TriggerAsync()
     {
         if (Workflow.InWorkflow)
-            return Executor().TriggerAsync(RequireScheduleName(), _idPostfix);
+            return Executor().TriggerAsync(RequireScheduleName(), _idPostfix, _fullScheduleId);
         return TriggerViaHandleAsync();
     }
 
@@ -164,7 +164,7 @@ public class XiansSchedule
     {
         if (Workflow.InWorkflow)
         {
-            var deleted = await Executor().DeleteAsync(RequireScheduleName(), _idPostfix);
+            var deleted = await Executor().DeleteAsync(RequireScheduleName(), _idPostfix, _fullScheduleId);
             if (!deleted)
                 throw new ScheduleNotFoundException(RequireScheduleName());
             return;
@@ -180,7 +180,7 @@ public class XiansSchedule
     public Task BackfillAsync(IReadOnlyCollection<ScheduleBackfill> backfills)
     {
         if (Workflow.InWorkflow)
-            return Executor().BackfillAsync(RequireScheduleName(), _idPostfix, backfills);
+            return Executor().BackfillAsync(RequireScheduleName(), _idPostfix, backfills, _fullScheduleId);
         return BackfillViaHandleAsync(backfills);
     }
 

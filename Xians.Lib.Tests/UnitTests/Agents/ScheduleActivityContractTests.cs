@@ -133,6 +133,35 @@ public class ScheduleActivityContractTests
         Assert.NotEqual(withNull, withEmpty);
     }
 
+    /// <summary>
+    /// List filters by prefix and treats the remainder as the schedule name, so a listed identity
+    /// rebuilds the same full id that Get/Pause/Delete would address.
+    /// </summary>
+    [Theory]
+    [InlineData("tenant", "agent", null, "daily")]
+    [InlineData("tenant", "agent", "act", "daily")]
+    [InlineData("tenant", "agent", "act", "foo:bar")]
+    [InlineData("tenant", "agent with space", "act-1", "daily")]
+    public void ListedIdentity_RebuildsTheSameFullScheduleId(
+        string tenant, string agent, string? postfix, string scheduleName)
+    {
+        var full = ScheduleIdHelper.BuildFullScheduleId(tenant, agent, postfix, scheduleName);
+        var prefix = ScheduleIdHelper.BuildFullScheduleId(tenant, agent, postfix, "");
+        var identity = ScheduleClient.IdentityFromListedId(full, prefix, postfix);
+
+        Assert.Equal(scheduleName, identity.ScheduleName);
+        Assert.Equal(postfix, identity.IdPostfix);
+        Assert.Equal(full, identity.FullScheduleId);
+        Assert.Equal(full, ScheduleIdHelper.BuildFullScheduleId(tenant, agent, identity.IdPostfix, identity.ScheduleName));
+    }
+
+    [Fact]
+    public void EscapeVisibilityLiteral_DoublesSingleQuotes()
+    {
+        Assert.Equal("O''Brien", ScheduleIdHelper.EscapeVisibilityLiteral("O'Brien"));
+        Assert.Equal("plain", ScheduleIdHelper.EscapeVisibilityLiteral("plain"));
+    }
+
     private static void AssertDeserializable(Type type, string description)
     {
         try

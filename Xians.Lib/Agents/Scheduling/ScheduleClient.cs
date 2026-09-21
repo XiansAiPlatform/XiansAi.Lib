@@ -140,6 +140,73 @@ internal sealed class ScheduleClient
         await schedule.BackfillViaHandleAsync(backfills);
     }
 
+    /// <summary>
+    /// Builds the list filter from the current tenant / agent / idPostfix.
+    /// Called from workflow code so the prefix is resolved against search attributes and memo.
+    /// </summary>
+    internal static ListSchedulesRequest BuildListRequest(XiansAgent agent)
+    {
+        var tenantId = XiansContext.ResolveTenantId(agent);
+        var idPostfix = XiansContext.SafeIdPostfix;
+        return new ListSchedulesRequest
+        {
+            TenantId = tenantId,
+            AgentName = agent.Name,
+            IdPostfix = idPostfix,
+            Prefix = ScheduleIdHelper.BuildFullScheduleId(tenantId, agent.Name, idPostfix, "")
+        };
+    }
+
+    public async Task<List<XiansSchedule>> ListAsync(ListSchedulesRequest? request = null)
+    {
+        request ??= BuildListRequest(_agent);
+        var client = await _temporalService.GetClientAsync();
+        var result = new List<XiansSchedule>();
+        var query =
+            $"tenantId = '{ScheduleIdHelper.EscapeVisibilityLiteral(request.TenantId)}' AND " +
+            $"agent = '{ScheduleIdHelper.EscapeVisibilityLiteral(request.AgentName)}'";
+
+        await foreach (var schedule in client.ListSchedulesAsync(new ScheduleListOptions { Query = query }))
+        {
+            if (!schedule.Id.StartsWith(request.Prefix, StringComparison.Ordinal))
+                continue;
+
+            var identity = IdentityFromListedId(schedule.Id, request.Prefix, request.IdPostfix);
+            result.Add(new XiansSchedule(
+                client.GetScheduleHandle(identity.FullScheduleId),
+                _agent,
+                identity.ScheduleName,
+                identity.IdPostfix));
+        }
+
+        return result;
+    }
+
+    public async Task<List<ScheduleIdentity>> ListIdentitiesAsync(ListSchedulesRequest request)
+    {
+        var schedules = await ListAsync(request);
+        return schedules.Select(s => new ScheduleIdentity
+        {
+            ScheduleName = s.ScheduleName ?? s.Id,
+            IdPostfix = s.IdPostfix,
+            FullScheduleId = s.Id
+        }).ToList();
+    }
+
+    internal static ScheduleIdentity IdentityFromListedId(string fullScheduleId, string prefix, string? idPostfix)
+    {
+        var scheduleName = fullScheduleId.StartsWith(prefix, StringComparison.Ordinal)
+            ? fullScheduleId[prefix.Length..]
+            : fullScheduleId;
+
+        return new ScheduleIdentity
+        {
+            ScheduleName = scheduleName,
+            IdPostfix = idPostfix,
+            FullScheduleId = fullScheduleId
+        };
+    }
+
     internal static ScheduleSnapshot ToSnapshot(string id, ScheduleDescription description)
     {
         return new ScheduleSnapshot

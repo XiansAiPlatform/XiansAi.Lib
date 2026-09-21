@@ -2,11 +2,12 @@ namespace Xians.Lib.Temporal.Workflows.Activations;
 
 /// <summary>
 /// Result of an activation existence check performed by
-/// <see cref="ActivationActivities.ValidateActivationAsync"/>.
+/// <see cref="ActivationActivities.ValidateActivationAsync"/> (child-workflow pre-flight)
+/// and <see cref="ActivationActivities.GetActivationStatusAsync"/> (public status API).
 /// Returned as a value (instead of throwing) so a definitive negative result completes the
 /// activity successfully - Temporal logs every failed activity at Warning level with a full
 /// stack trace, which is just noise for an expected "not found" outcome. The workflow-side
-/// caller converts non-<see cref="Active"/> statuses into the typed activation exceptions.
+/// pre-flight caller converts non-<see cref="Active"/> statuses into the typed activation exceptions.
 /// </summary>
 public enum ActivationCheckStatus
 {

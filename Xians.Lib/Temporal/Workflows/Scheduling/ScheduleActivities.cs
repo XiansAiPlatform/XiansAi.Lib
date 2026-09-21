@@ -257,6 +257,15 @@ public class ScheduleActivities
     }
 
     /// <summary>
+    /// Lists schedules owned by the current agent activation.
+    /// </summary>
+    [Activity]
+    public Task<List<ScheduleIdentity>> ListSchedules(ListSchedulesRequest request)
+    {
+        return Client().ListIdentitiesAsync(request);
+    }
+
+    /// <summary>
     /// Reconstructs SearchAttributeCollection from serializable dictionary format.
     /// </summary>
     private SearchAttributeCollection? ReconstructSearchAttributes(Dictionary<string, object>? searchAttrs) =>

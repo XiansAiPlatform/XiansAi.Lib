@@ -88,6 +88,21 @@ public class GetScheduleRequest : ScheduleRequestBase
 }
 
 /// <summary>
+/// Request object for listing schedules owned by the current agent activation.
+/// </summary>
+/// <remarks>
+/// <see cref="Prefix"/> is resolved in workflow code before dispatch (tenant, agent, idPostfix).
+/// The activity must not re-derive it: search attributes and memo are unreadable from an activity.
+/// </remarks>
+public class ListSchedulesRequest
+{
+    public required string TenantId { get; set; }
+    public required string AgentName { get; set; }
+    public string? IdPostfix { get; set; }
+    public required string Prefix { get; set; }
+}
+
+/// <summary>
 /// Serializable identity of a schedule, returned from get/exists activities.
 /// </summary>
 public class ScheduleIdentity
