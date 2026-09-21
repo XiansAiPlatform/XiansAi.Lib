@@ -78,6 +78,21 @@ public class SecretVaultTests : IDisposable
     }
 
     [Fact]
+    public async Task FailedRequest_DoesNotEmbedServerBodyInException()
+    {
+        // Activity failures are persisted in Temporal workflow history. The server may echo a
+        // secret value in an error payload; that must never appear in the exception message.
+        const string leakedSecret = "sk-should-not-leak";
+        SetupResponse(HttpStatusCode.InternalServerError, new StringContent($"{{\"error\":\"{leakedSecret}\"}}"));
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            _agent.Secrets.TenantScope(TENANT_ID).CreateAsync("api-key", "sk-xxx"));
+
+        Assert.DoesNotContain(leakedSecret, ex.Message);
+        Assert.Contains("InternalServerError", ex.Message);
+    }
+
+    [Fact]
     public async Task FetchByKeyAsync_NotFound_ReturnsNull()
     {
         SetupResponse(HttpStatusCode.NotFound, new StringContent(""));

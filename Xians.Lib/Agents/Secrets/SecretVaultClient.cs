@@ -39,7 +39,7 @@ internal sealed class SecretVaultClient
         if (response.StatusCode == HttpStatusCode.Conflict)
             throw new InvalidOperationException("A secret with this key already exists.");
         if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "create secret");
+            ThrowForResponse(response, "create secret");
 
         var result = await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
         return result ?? throw new InvalidOperationException("Server returned empty response for create secret.");
@@ -67,7 +67,7 @@ internal sealed class SecretVaultClient
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
         if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "fetch secret");
+            ThrowForResponse(response, "fetch secret");
 
         return await response.Content.ReadFromJsonAsync<SecretVaultFetchResponse>(cancellationToken);
     }
@@ -90,7 +90,7 @@ internal sealed class SecretVaultClient
 
         var response = await client.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "list secrets");
+            ThrowForResponse(response, "list secrets");
 
         var list = await response.Content.ReadFromJsonAsync<List<SecretVaultListItem>>(cancellationToken);
         return list ?? new List<SecretVaultListItem>();
@@ -112,7 +112,7 @@ internal sealed class SecretVaultClient
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
         if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "get secret");
+            ThrowForResponse(response, "get secret");
 
         return await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
     }
@@ -144,7 +144,7 @@ internal sealed class SecretVaultClient
         if (response.StatusCode == HttpStatusCode.NotFound)
             throw new InvalidOperationException("Secret not found.");
         if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "update secret");
+            ThrowForResponse(response, "update secret");
 
         var result = await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
         return result ?? throw new InvalidOperationException("Server returned empty response for update secret.");
@@ -166,7 +166,7 @@ internal sealed class SecretVaultClient
         if (response.StatusCode == HttpStatusCode.NotFound)
             return false;
         if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "delete secret");
+            ThrowForResponse(response, "delete secret");
 
         return true;
     }
@@ -184,14 +184,14 @@ internal sealed class SecretVaultClient
             request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, tenantId);
     }
 
-    private async Task ThrowForResponseAsync(HttpResponseMessage response, string operation)
+    private void ThrowForResponse(HttpResponseMessage response, string operation)
     {
-        var body = await response.Content.ReadAsStringAsync();
+        // Do not log or throw the response body: Secret Vault error payloads can echo the secret
+        // value, and an activity exception is persisted in Temporal workflow history.
         _logger.LogError(
-            "Secret Vault {Operation} failed: StatusCode={StatusCode}, Body={Body}",
+            "Secret Vault {Operation} failed: StatusCode={StatusCode}",
             operation,
-            response.StatusCode,
-            body);
-        throw new HttpRequestException($"Secret Vault {operation} failed. Status: {response.StatusCode}. {body}");
+            response.StatusCode);
+        throw new HttpRequestException($"Secret Vault {operation} failed. Status: {response.StatusCode}.");
     }
 }
