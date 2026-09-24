@@ -276,13 +276,13 @@ internal static class WorkflowMetadataResolver
         string tenantId,
         string agentName,
         string userId,
-        string idPostfix)
+        string activationName)
     {
         return new SearchAttributeCollection.Builder()
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.TenantId), tenantId)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.Agent), agentName)
             .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), userId)
-            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), idPostfix)
+            .Set(SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.idPostfix), activationName)
             .ToSearchAttributeCollection();
     }
 

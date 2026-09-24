@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <RootNamespace>Xians.Lib.Tests</RootNamespace>
+    <!-- Real-server coverage lives in XiansAi.Server. Plain dotnet test stays local.
+         Override with filter Category=RealServer. -->
+    <VSTestTestCaseFilter Condition="'$(VSTestTestCaseFilter)' == ''">Category!=RealServer</VSTestTestCaseFilter>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +22,9 @@
     <PackageReference Include="MSTest.TestAdapter" Version="3.2.0" />
     <PackageReference Include="MSTest.TestFramework" Version="3.2.0" />
     <PackageReference Include="WireMock.Net" Version="1.6.8" />
+    <!-- WireMock.Net 1.6.8 pulls Scriban.Signed 5.5.0 (NU1902/1903/1904). Pin a patched version;
+         these tests do not use Scriban response templating. -->
+    <PackageReference Include="Scriban.Signed" Version="7.2.5" />
     <PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0">

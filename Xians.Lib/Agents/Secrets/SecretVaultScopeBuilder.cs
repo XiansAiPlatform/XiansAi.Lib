@@ -1,11 +1,7 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Encodings.Web;
-using Microsoft.Extensions.Logging;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Secrets.Models;
-using Xians.Lib.Common;
 using Xians.Lib.Common.Infrastructure;
+using Xians.Lib.Temporal.Workflows.Secrets.Models;
 
 namespace Xians.Lib.Agents.Secrets;
 
@@ -18,11 +14,17 @@ namespace Xians.Lib.Agents.Secrets;
 /// overload that takes a value. Then perform CRUD: <see cref="CreateAsync"/>, <see cref="FetchByKeyAsync"/>,
 /// <see cref="ListAsync"/>, <see cref="GetByIdAsync"/>, <see cref="UpdateAsync"/>, <see cref="DeleteAsync"/>.
 /// </para>
+/// <para>
+/// All operations work from activities and from regular code. From <b>workflow</b> code only
+/// <see cref="ListAsync"/> and <see cref="DeleteAsync"/> are available: the other four carry a
+/// plaintext secret in the activity argument or result, which Temporal would record permanently in
+/// workflow history. They throw if called from a workflow - read and use secrets inside an activity
+/// or a message handler instead.
+/// </para>
 /// </summary>
 public class SecretVaultScopeBuilder
 {
     private readonly XiansAgent _agent;
-    private readonly ILogger<SecretVaultScopeBuilder> _logger;
     private string? _tenantId;
     private string? _agentId;
     private string? _userId;
@@ -35,7 +37,6 @@ public class SecretVaultScopeBuilder
         _agentId = agentId;
         _userId = userId;
         _activationName = activationName;
-        _logger = Common.Infrastructure.LoggerFactory.CreateLogger<SecretVaultScopeBuilder>();
     }
 
     /// <summary>
@@ -141,7 +142,7 @@ public class SecretVaultScopeBuilder
     /// <param name="additionalData">Optional flat key-value metadata (string, number, or boolean values only).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The created secret (with decrypted value).</returns>
-    public async Task<SecretVaultGetResponse> CreateAsync(
+    public Task<SecretVaultGetResponse> CreateAsync(
         string key,
         string value,
         object? additionalData = null,
@@ -149,34 +150,9 @@ public class SecretVaultScopeBuilder
     {
         ValidationHelper.ValidateRequiredWithMaxLength(key, nameof(key), 512);
         ValidationHelper.ValidateRequired(value, nameof(value));
-        EnsureHttpService();
         ValidateScopeAgainstMessageContext();
 
-        var request = new SecretVaultCreateRequest
-        {
-            Key = key,
-            Value = value,
-            TenantId = _tenantId,
-            AgentId = _agentId,
-            UserId = _userId,
-            ActivationName = _activationName,
-            AdditionalData = additionalData
-        };
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, WorkflowConstants.ApiEndpoints.Secrets);
-        httpRequest.Content = JsonContent.Create(request);
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.Conflict)
-            throw new InvalidOperationException("A secret with this key already exists.");
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "create secret");
-
-        var result = await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
-        return result ?? throw new InvalidOperationException("Server returned empty response for create secret.");
+        return GetExecutor().CreateAsync(key, value, additionalData, cancellationToken);
     }
 
     /// <summary>
@@ -185,84 +161,37 @@ public class SecretVaultScopeBuilder
     /// <param name="key">Secret key.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Value and additionalData, or null if not found or access denied.</returns>
-    public async Task<SecretVaultFetchResponse?> FetchByKeyAsync(string key, CancellationToken cancellationToken = default)
+    public Task<SecretVaultFetchResponse?> FetchByKeyAsync(string key, CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequiredWithMaxLength(key, nameof(key), 512);
-        EnsureHttpService();
         ValidateScopeAgainstMessageContext();
 
-        var query = $"key={UrlEncoder.Default.Encode(key)}";
-        if (_tenantId != null) query += $"&tenantId={UrlEncoder.Default.Encode(_tenantId)}";
-        if (_agentId != null) query += $"&agentId={UrlEncoder.Default.Encode(_agentId)}";
-        if (_userId != null) query += $"&userId={UrlEncoder.Default.Encode(_userId)}";
-        if (_activationName != null) query += $"&activationName={UrlEncoder.Default.Encode(_activationName)}";
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WorkflowConstants.ApiEndpoints.Secrets}/fetch?{query}");
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return null;
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "fetch secret");
-
-        return await response.Content.ReadFromJsonAsync<SecretVaultFetchResponse>(cancellationToken);
+        return GetExecutor().FetchByKeyAsync(key, cancellationToken);
     }
 
     /// <summary>
     /// Lists secrets with optional tenant/agent filter (current scope values).
     /// </summary>
-    public async Task<List<SecretVaultListItem>> ListAsync(CancellationToken cancellationToken = default)
+    public Task<List<SecretVaultListItem>> ListAsync(CancellationToken cancellationToken = default)
     {
-        EnsureHttpService();
         ValidateScopeAgainstMessageContext();
-
-        var query = new List<string>();
-        if (_tenantId != null) query.Add($"tenantId={UrlEncoder.Default.Encode(_tenantId)}");
-        if (_agentId != null) query.Add($"agentId={UrlEncoder.Default.Encode(_agentId)}");
-        if (_activationName != null) query.Add($"activationName={UrlEncoder.Default.Encode(_activationName)}");
-        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : "";
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WorkflowConstants.ApiEndpoints.Secrets}{queryString}");
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "list secrets");
-
-        var list = await response.Content.ReadFromJsonAsync<List<SecretVaultListItem>>(cancellationToken);
-        return list ?? new List<SecretVaultListItem>();
+        return GetExecutor().ListAsync(cancellationToken);
     }
 
     /// <summary>
     /// Gets a secret by id (full record including decrypted value).
     /// </summary>
-    public async Task<SecretVaultGetResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+    public Task<SecretVaultGetResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
-        EnsureHttpService();
         ValidateScopeAgainstMessageContext();
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return null;
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "get secret");
-
-        return await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
+        return GetExecutor().GetByIdAsync(id, cancellationToken);
     }
 
     /// <summary>
     /// Updates a secret by id. Omitted properties leave existing values unchanged.
     /// </summary>
-    public async Task<SecretVaultGetResponse> UpdateAsync(
+    public Task<SecretVaultGetResponse> UpdateAsync(
         string id,
         string? value = null,
         object? additionalData = null,
@@ -273,55 +202,33 @@ public class SecretVaultScopeBuilder
         CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
-        EnsureHttpService();
         ValidateScopeAgainstMessageContext();
-
-        var request = new SecretVaultUpdateRequest
-        {
-            Value = value,
-            AdditionalData = additionalData,
-            TenantId = tenantId ?? _tenantId,
-            AgentId = agentId ?? _agentId,
-            UserId = userId ?? _userId,
-            ActivationName = activationName ?? _activationName
-        };
-
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
-        httpRequest.Content = JsonContent.Create(request);
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            throw new InvalidOperationException("Secret not found.");
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "update secret");
-
-        var result = await response.Content.ReadFromJsonAsync<SecretVaultGetResponse>(cancellationToken);
-        return result ?? throw new InvalidOperationException("Server returned empty response for update secret.");
+        return GetExecutor().UpdateAsync(
+            id, value, additionalData, tenantId, agentId, userId, activationName, cancellationToken);
     }
 
     /// <summary>
     /// Deletes a secret by id.
     /// </summary>
     /// <returns>True if deleted, false if not found.</returns>
-    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         ValidationHelper.ValidateRequired(id, nameof(id));
-        EnsureHttpService();
         ValidateScopeAgainstMessageContext();
+        return GetExecutor().DeleteAsync(id, cancellationToken);
+    }
 
-        var client = await _agent.HttpService!.GetHealthyClientAsync();
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, $"{WorkflowConstants.ApiEndpoints.Secrets}/{UrlEncoder.Default.Encode(id)}");
-        AddTenantHeader(httpRequest);
-
-        var response = await client.SendAsync(httpRequest, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return false;
-        if (!response.IsSuccessStatusCode)
-            await ThrowForResponseAsync(response, "delete secret");
-
-        return true;
+    private SecretVaultActivityExecutor GetExecutor()
+    {
+        var logger = Common.Infrastructure.LoggerFactory.CreateLogger<SecretVaultActivityExecutor>();
+        var scope = new SecretVaultScopePayload
+        {
+            TenantId = _tenantId,
+            AgentId = _agentId,
+            UserId = _userId,
+            ActivationName = _activationName
+        };
+        return new SecretVaultActivityExecutor(_agent, scope, logger);
     }
 
     /// <summary>
@@ -366,24 +273,5 @@ public class SecretVaultScopeBuilder
             throw new InvalidOperationException(
                 $"Secret Vault activationName scope '{_activationName}' does not match message context activation '{contextActivationName}'.");
         }
-    }
-
-    private void EnsureHttpService()
-    {
-        if (_agent.HttpService == null)
-            throw new InvalidOperationException("HTTP service is not configured. Secret Vault requires a connection to the Xians server.");
-    }
-
-    private void AddTenantHeader(HttpRequestMessage request)
-    {
-        if (!string.IsNullOrEmpty(_tenantId))
-            request.Headers.TryAddWithoutValidation(WorkflowConstants.Headers.TenantId, _tenantId);
-    }
-
-    private async Task ThrowForResponseAsync(HttpResponseMessage response, string operation)
-    {
-        var body = await response.Content.ReadAsStringAsync();
-        _logger.LogError("Secret Vault {Operation} failed: StatusCode={StatusCode}, Body={Body}", operation, response.StatusCode, body);
-        throw new HttpRequestException($"Secret Vault {operation} failed. Status: {response.StatusCode}. {body}");
     }
 }

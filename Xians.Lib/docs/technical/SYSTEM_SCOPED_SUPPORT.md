@@ -12,10 +12,22 @@ This document summarizes how all agent operations support system-scoped agents b
 
 ### Tenant ID Resolution Strategy
 
-| Agent Type | Tenant ID Source | When Available |
-|------------|------------------|----------------|
-| **Non-System-Scoped** | `agent.Options.CertificateTenantId` | Always (static) |
-| **System-Scoped** | `XiansContext.TenantId` | Workflow/Activity context only |
+All operations resolve the tenant through `XiansContext.ResolveTenantId(agent)` (or its non-throwing
+companion `TryResolveTenantId`). Do not read `agent.Options.CertificateTenantId` directly.
+
+| Agent Type | Tenant ID Source | Fallback |
+|------------|------------------|----------|
+| **Non-System-Scoped** | Workflow/activity context when available | `agent.Options.CertificateTenantId` |
+| **System-Scoped** | Workflow/activity context | **None** - throws |
+
+Context wins for both agent types, so an operation always acts on the tenant it is running for. A
+system-scoped agent serves many tenants under one certificate, so that certificate names the key owner
+rather than the tenant being acted on; falling back to it would silently address the wrong tenant.
+Those agents therefore fail loudly when no acting tenant is available.
+
+The one deliberate exception is `XiansWorkflow.GetTenantIdOrNull()`, which names task queues and
+registers handlers at worker startup. That value must be stable rather than per-execution, and a
+system-scoped worker legitimately serves all tenants, so it stays `null` there.
 
 ### Workflow ID → Tenant ID Extraction
 

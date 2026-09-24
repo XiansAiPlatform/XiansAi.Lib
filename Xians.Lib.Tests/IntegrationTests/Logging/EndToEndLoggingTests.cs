@@ -13,6 +13,7 @@ using Xians.Lib.Tests.TestUtilities;
 namespace Xians.Lib.Tests.IntegrationTests.Logging;
 
 [Trait("Category", "Integration")]
+[Collection("LoggingServices")] // Shares static LoggingServices state with LoggingServicesTests
 public class EndToEndLoggingTests : IAsyncLifetime
 {
     private WireMockServer? _mockServer;

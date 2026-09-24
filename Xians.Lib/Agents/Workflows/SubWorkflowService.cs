@@ -6,7 +6,6 @@ using Xians.Lib.Agents.Core;
 using Xians.Lib.Common;
 using Xians.Lib.Common.MultiTenancy;
 using Xians.Lib.Temporal.Workflows.Activations;
-using System.Reflection;
 using System.Text.Json;
 
 namespace Xians.Lib.Agents.Workflows;
@@ -584,22 +583,9 @@ public static class SubWorkflowService
 
         var agent = XiansContext.GetAgent(agentName);
 
-        string tenantId;
-        if (agent.SystemScoped)
-        {
-            tenantId = XiansContext.SafeTenantId ?? agent.Options?.CertificateTenantId
-                ?? throw new InvalidOperationException(
-                    $"System-scoped agent '{agentName}' requires workflow context or CertificateTenantId for signalling.");
-        }
-        else
-        {
-            if (agent.Options == null || string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but CertificateTenantId is missing.");
-            }
-            tenantId = agent.Options.CertificateTenantId;
-        }
+        // Resolves from async-local, workflow metadata or the workflow ID - all sync in-memory lookups,
+        // so this stays workflow-safe.
+        var tenantId = XiansContext.ResolveTenantId(agent);
 
         return BuildSubWorkflowId(agentName, workflowType, tenantId, uniqueKeys);
     }
@@ -628,30 +614,9 @@ public static class SubWorkflowService
         // Get Temporal client
         var client = await agent.TemporalService.GetClientAsync();
 
-        // Get tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
-        string tenantId;
-        if (agent.SystemScoped)
-        {
-            // Try context first; when outside workflow/activity, fall back to certificate tenant if available
-            tenantId = XiansContext.SafeTenantId ?? agent.Options?.CertificateTenantId
-                ?? throw new InvalidOperationException(
-                    $"System-scoped agent '{agentName}' requires workflow/activity context or CertificateTenantId when starting workflows from outside Temporal context.");
-        }
-        else
-        {
-            if (agent.Options == null)
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but Options is null. Ensure XiansOptions is configured.");
-            }
-
-            if (string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but CertificateTenantId is missing. Ensure API key is properly configured.");
-            }
-            tenantId = agent.Options.CertificateTenantId;
-        }
+        // Starting a workflow under the key owner's tenant because no acting tenant was available would
+        // run it for the wrong tenant, so a system-scoped agent fails here instead.
+        var tenantId = XiansContext.ResolveTenantId(agent);
 
         return (client, tenantId, agent.SystemScoped, agentName);
     }

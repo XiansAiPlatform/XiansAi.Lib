@@ -713,50 +713,54 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
     {
         if (!RunRealServerTests) return;
 
-        // Create a system-scoped agent
         XiansContext.CleanupForTests();
         var systemOptions = CreateTestOptions();
         var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
-        var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration 
-        { 
-            Name = "SystemScopedKnowledgeAgent",
-            IsTemplate = true  // System-scoped agent
+
+        // Unique name: DeployAsync leaves a tenant replica, and deleting only the system
+        // agent used to 409 the next run ("already exists in tenant tests").
+        var agentName = $"SystemScopedKnowledgeAgent-{_testKnowledgePrefix}";
+        var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+        {
+            Name = agentName,
+            IsTemplate = true
         });
-        var workflow = systemAgent.Workflows.DefineBuiltIn("sys-knowledge-test");
+        systemAgent.Workflows.DefineBuiltIn("sys-knowledge-test");
         await systemAgent.UploadWorkflowDefinitionsAsync();
-        
-        // Deploy the system-scoped agent to the tenant before use
         await systemAgent.DeployAsync();
 
+        var deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+        {
+            Name = agentName,
+            IsTemplate = false
+        });
+
+        var knowledgeName = $"{_testKnowledgePrefix}-system-scoped";
         try
         {
-            // Arrange
-            var knowledgeName = $"{_testKnowledgePrefix}-system-scoped";
-            
-            // Act - Create knowledge with system-scoped agent (should auto-inherit SystemScoped = true)
             await systemAgent.Knowledge.UpdateAsync(
-                knowledgeName, 
+                knowledgeName,
                 "System-wide default knowledge",
                 "text");
 
-            // Retrieve and verify
             var retrieved = await systemAgent.Knowledge.GetAsync(knowledgeName);
-            
-            // Assert
+
             Assert.NotNull(retrieved);
             Assert.Equal(knowledgeName, retrieved.Name);
             Assert.True(retrieved.SystemScoped, "Knowledge should be system-scoped when created by system-scoped agent");
             Assert.Equal("System-wide default knowledge", retrieved.Content);
-            
-            Console.WriteLine("✓ System-scoped agent automatically creates system-scoped knowledge");
 
-            // Cleanup
-            await systemAgent.Knowledge.DeleteAsync(knowledgeName);
-            await systemAgent.DeleteAsync();
+            Console.WriteLine("✓ System-scoped agent automatically creates system-scoped knowledge");
         }
         catch (Exception ex)
         {
             throw new Exception($"System-scoped knowledge test failed: {ex.Message}", ex);
+        }
+        finally
+        {
+            try { await systemAgent.Knowledge.DeleteAsync(knowledgeName); } catch { /* ignore cleanup errors */ }
+            try { await deployedAgent.DeleteAsync(); } catch { /* ignore cleanup errors */ }
+            try { await systemAgent.DeleteAsync(); } catch { /* ignore cleanup errors */ }
         }
     }
 
@@ -809,65 +813,74 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
         XiansContext.CleanupForTests();
         var systemOptions = CreateTestOptions();
         var systemPlatform = await XiansPlatform.InitializeAsync(systemOptions);
+        var templateAgentName = $"TemplateAgent-{_testKnowledgePrefix}";
         var systemAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
         {
-            Name = "TemplateAgent",
+            Name = templateAgentName,
             IsTemplate = true
         });
         systemAgent.Workflows.DefineBuiltIn("template-workflow");
 
         var knowledgeName = $"{_testKnowledgePrefix}-template-knowledge";
+        XiansAgent? deployedAgent = null;
 
-        // Upload the system-scoped knowledge using the text helper
-        await systemAgent.Knowledge.UploadTextResourceAsync(
-            knowledgeName,
-            "Original system template greeting",
-            "text");
-        await systemAgent.UploadWorkflowDefinitionsAsync();
-
-        var systemKnowledgeBefore = await systemAgent.Knowledge.GetSystemAsync(knowledgeName);
-        Assert.NotNull(systemKnowledgeBefore);
-        Assert.True(systemKnowledgeBefore.SystemScoped);
-        Assert.Equal("Original system template greeting", systemKnowledgeBefore.Content);
-
-        // Deploy the system agent to create the tenant-scoped replica
-        await systemAgent.DeployAsync();
-        Console.WriteLine("✓ Deployed system-scoped agent to tenant");
-
-        // Access the deployed (tenant-scoped) replica and change its knowledge
-        var deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+        try
         {
-            Name = "TemplateAgent",
-            IsTemplate = false
-        });
+            // Upload the system-scoped knowledge using the text helper
+            await systemAgent.Knowledge.UploadTextResourceAsync(
+                knowledgeName,
+                "Original system template greeting",
+                "text");
+            await systemAgent.UploadWorkflowDefinitionsAsync();
 
-        var deployedKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
-        Assert.NotNull(deployedKnowledge);
-        Assert.False(deployedKnowledge.SystemScoped);
-        Assert.Equal("Original system template greeting", deployedKnowledge.Content);
+            var systemKnowledgeBefore = await systemAgent.Knowledge.GetSystemAsync(knowledgeName);
+            Assert.NotNull(systemKnowledgeBefore);
+            Assert.True(systemKnowledgeBefore.SystemScoped);
+            Assert.Equal("Original system template greeting", systemKnowledgeBefore.Content);
 
-        await deployedAgent.Knowledge.UpdateAsync(
-            knowledgeName,
-            "Modified tenant greeting",
-            "text",
-            systemScoped: false);
+            // Deploy the system agent to create the tenant-scoped replica
+            await systemAgent.DeployAsync();
+            Console.WriteLine("✓ Deployed system-scoped agent to tenant");
 
-        var modifiedTenantKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
-        Assert.NotNull(modifiedTenantKnowledge);
-        Assert.False(modifiedTenantKnowledge.SystemScoped);
-        Assert.Equal("Modified tenant greeting", modifiedTenantKnowledge.Content);
+            // Access the deployed (tenant-scoped) replica and change its knowledge
+            deployedAgent = systemPlatform.Agents.Register(new XiansAgentRegistration
+            {
+                Name = templateAgentName,
+                IsTemplate = false
+            });
 
-        // Verify the original system-scoped knowledge is unchanged
-        var systemKnowledgeAfter = await systemAgent.Knowledge.GetSystemAsync(knowledgeName);
-        Assert.NotNull(systemKnowledgeAfter);
-        Assert.True(systemKnowledgeAfter.SystemScoped);
-        Assert.Equal("Original system template greeting", systemKnowledgeAfter.Content);
+            var deployedKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
+            Assert.NotNull(deployedKnowledge);
+            Assert.False(deployedKnowledge.SystemScoped);
+            Assert.Equal("Original system template greeting", deployedKnowledge.Content);
 
-        // Cleanup
-        await systemAgent.Knowledge.DeleteAsync(knowledgeName);
-        await deployedAgent.Knowledge.DeleteAsync(knowledgeName);
-        await deployedAgent.DeleteAsync();
-        await systemAgent.DeleteAsync();
+            await deployedAgent.Knowledge.UpdateAsync(
+                knowledgeName,
+                "Modified tenant greeting",
+                "text",
+                systemScoped: false);
+
+            var modifiedTenantKnowledge = await deployedAgent.Knowledge.GetAsync(knowledgeName);
+            Assert.NotNull(modifiedTenantKnowledge);
+            Assert.False(modifiedTenantKnowledge.SystemScoped);
+            Assert.Equal("Modified tenant greeting", modifiedTenantKnowledge.Content);
+
+            // Verify the original system-scoped knowledge is unchanged
+            var systemKnowledgeAfter = await systemAgent.Knowledge.GetSystemAsync(knowledgeName);
+            Assert.NotNull(systemKnowledgeAfter);
+            Assert.True(systemKnowledgeAfter.SystemScoped);
+            Assert.Equal("Original system template greeting", systemKnowledgeAfter.Content);
+        }
+        finally
+        {
+            try { await systemAgent.Knowledge.DeleteAsync(knowledgeName); } catch { /* ignore cleanup errors */ }
+            if (deployedAgent != null)
+            {
+                try { await deployedAgent.Knowledge.DeleteAsync(knowledgeName); } catch { /* ignore cleanup errors */ }
+                try { await deployedAgent.DeleteAsync(); } catch { /* ignore cleanup errors */ }
+            }
+            try { await systemAgent.DeleteAsync(); } catch { /* ignore cleanup errors */ }
+        }
     }
 
     [Fact]
@@ -982,9 +995,12 @@ public class RealServerKnowledgeTests : RealServerTestBase, IAsyncLifetime
             // Get Temporal client from agent
             var temporalClient = await _agent!.TemporalService!.GetClientAsync();
             
-            // Build workflow ID and task queue using TemporalTestUtils
+            // 3-part ID: {tenant}:{agent}:{workflow}. A 4th colon segment is parsed as
+            // idPostfix/activation name, which scopes created knowledge to that activation.
+            // Agent API DELETE looks up tenant-default knowledge (ActivationName == null),
+            // so an extra uniqueness segment would make delete 404.
             var workflowType = $"{AGENT_NAME}:KnowledgeWorkflowTest";
-            var workflowId = $"{_platform!.Options.CertificateTenantId}:{workflowType}:{testId}";
+            var workflowId = $"{TemporalTestUtils.BuildWorkflowId(AGENT_NAME, "KnowledgeWorkflowTest", _platform!.Options.CertificateTenantId)}-{testId}";
             var taskQueue = Xians.Lib.Common.MultiTenancy.TenantContext.GetTaskQueueName(
                 workflowType,
                 systemScoped: false,

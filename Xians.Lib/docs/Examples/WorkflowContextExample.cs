@@ -36,10 +36,10 @@ public class WorkflowContextExample
     /// </summary>
     public static async Task GetWorkflowHandleSimpleAsync()
     {
-        // Get workflow handle using the workflow class and ID postfix
+        // Get workflow handle using the workflow class and activation name
         // This automatically constructs the full workflow ID
         var workflowHandle = await XiansContext.Workflows.GetWorkflowHandleAsync<MyWorkflow>(
-            idPostfix: "12345"
+            activationName: "12345"
         );
         
         // Send signal with lambda expression
@@ -72,7 +72,7 @@ public class WorkflowContextExample
     {
         // Get workflow handle (automatically constructs workflow ID)
         var workflowHandle = await XiansContext.Workflows.GetWorkflowHandleAsync<MyWorkflow>(
-            idPostfix: "12345"
+            activationName: "12345"
         );
         
         // Query workflow state
@@ -109,7 +109,7 @@ public class WorkflowContextExample
     {
         // Get workflow handle using GetWorkflowHandleAsync
         var handle = await XiansContext.Workflows.GetWorkflowHandleAsync<DataProcessorWorkflow>(
-            idPostfix: "abc123"
+            activationName: "abc123"
         );
         
         // Query current status
@@ -127,11 +127,11 @@ public class WorkflowContextExample
     }
 
     /// <summary>
-    /// Example 8: Get workflow handle without idPostfix
+    /// Example 8: Get workflow handle without activationName
     /// </summary>
     public static async Task GetWorkflowHandleWithoutPostfixAsync()
     {
-        // If the workflow was created without an idPostfix,
+        // If the workflow was created without an activationName,
         // you can get its handle by not providing one
         var handle = await XiansContext.Workflows.GetWorkflowHandleAsync<MyWorkflow>();
         
@@ -169,7 +169,7 @@ public class WorkflowContextExample
         // If you only need to signal a workflow and don't need typed queries,
         // you can use GetWorkflowHandleUntypedAsync
         var handle = await XiansContext.Workflows.GetWorkflowHandleUntypedAsync<MyWorkflow>(
-            idPostfix: "12345"
+            activationName: "12345"
         );
         
         // Send signal (untyped) - signal name and arguments

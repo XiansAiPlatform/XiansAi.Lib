@@ -10,6 +10,9 @@ Welcome to the Xians.Lib documentation! This library provides robust HTTP and Te
 ### Configuration
 - **[Configuration Guide](Configuration.md)** - Complete configuration reference for HTTP and Temporal services
 
+### Testing
+- **[Running tests](../../Xians.Lib.Tests/docs/RUNNING_TESTS.md)** - Default `dotnet test` (excludes RealServer), filters, and optional live-Server tests
+
 ### Guides
 - **[User Messaging](Messaging.md)** - Respond to users and send proactive notifications
 - **[Document Storage](Documents.md)** - Store and query structured data with metadata
@@ -149,7 +152,11 @@ var client = await temporalService.GetClientAsync();
     - Task Queue Configuration
     - Worker Lifecycle
 
-14. [Examples](Examples/)
+14. [Running tests](../../Xians.Lib.Tests/docs/RUNNING_TESTS.md)
+    - Default `dotnet test` (unit + mock integration)
+    - Opt-in RealServer tests
+
+15. [Examples](Examples/)
    - HTTP Client Examples
    - Temporal Client Examples
 

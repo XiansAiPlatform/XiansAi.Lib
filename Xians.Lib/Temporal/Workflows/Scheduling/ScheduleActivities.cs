@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Temporalio.Activities;
+using Temporalio.Client.Schedules;
 using Temporalio.Common;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Agents.Scheduling;
 using Xians.Lib.Temporal.Workflows.Scheduling.Models;
 
 namespace Xians.Lib.Temporal.Workflows.Scheduling;
@@ -28,6 +30,8 @@ public class ScheduleActivities
         return XiansContext.CurrentAgent;
     }
 
+    private ScheduleClient Client() => new(GetCurrentAgent());
+
     /// <summary>
     /// Creates a cron-based schedule if it doesn't already exist using the Xians Schedule SDK.
     /// </summary>
@@ -40,7 +44,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await agent.Schedules!.ExistsAsync(request.ScheduleName, request.IdPostfix))
+            if (await Client().ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
                 _logger.LogDebug("Schedule '{ScheduleId}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -88,7 +92,7 @@ public class ScheduleActivities
 
         try
         {
-            if (await agent.Schedules.ExistsAsync(request.ScheduleName, request.IdPostfix))
+            if (await Client().ExistsAsync(request.ScheduleName, request.IdPostfix))
             {
                 _logger.LogDebug("Schedule '{ScheduleName}' already exists, skipping creation", request.ScheduleName);
                 return false;
@@ -130,10 +134,41 @@ public class ScheduleActivities
     /// <param name="request">The schedule exists request containing the schedule name.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
     [Activity]
-    public async Task<bool> ScheduleExists(ScheduleExistsRequest request)
+    public Task<bool> ScheduleExists(ScheduleExistsRequest request)
     {
-        var agent = GetCurrentAgent();
-        return await agent.Schedules.ExistsAsync(request.ScheduleName, request.IdPostfix);
+        return Client().ExistsAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
+    }
+
+    /// <summary>
+    /// Loads a schedule and returns its identity after verifying it exists.
+    /// </summary>
+    [Activity]
+    public Task<ScheduleIdentity> GetSchedule(GetScheduleRequest request)
+    {
+        return Client().GetIdentityAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
+    }
+
+    /// <summary>
+    /// Describes a schedule, returning a serializable projection.
+    /// </summary>
+    /// <remarks>
+    /// Temporal's <see cref="ScheduleDescription"/> cannot be returned across an activity boundary -
+    /// it has no public constructor for the JSON converter to use. See <see cref="ScheduleSnapshot"/>.
+    /// </remarks>
+    [Activity]
+    public Task<ScheduleSnapshot> DescribeSchedule(GetScheduleRequest request)
+    {
+        return Client().DescribeSnapshotAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
+    }
+
+    /// <summary>
+    /// Backfills a schedule for the given time ranges.
+    /// </summary>
+    [Activity]
+    public Task BackfillSchedule(BackfillScheduleRequest request)
+    {
+        return Client().BackfillAsync(
+            request.ScheduleName, request.IdPostfix, request.Backfills, request.FullScheduleId);
     }
 
     /// <summary>
@@ -144,11 +179,9 @@ public class ScheduleActivities
     [Activity]
     public async Task<bool> DeleteSchedule(DeleteScheduleRequest request)
     {
-        var agent = GetCurrentAgent();
-
         try
         {
-            await agent.Schedules.DeleteAsync(request.ScheduleName, request.IdPostfix);
+            await Client().DeleteAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
             _logger.LogDebug("Successfully deleted schedule '{ScheduleName}'", request.ScheduleName);
             return true;
         }
@@ -171,11 +204,10 @@ public class ScheduleActivities
     [Activity]
     public async Task PauseSchedule(PauseScheduleRequest request)
     {
-        var agent = GetCurrentAgent();
-
         try
         {
-            await agent.Schedules.PauseAsync(request.ScheduleName, request.IdPostfix, request.Note);
+            await Client().PauseAsync(
+                request.ScheduleName, request.IdPostfix, request.Note, request.FullScheduleId);
             _logger.LogDebug("Successfully paused schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
@@ -192,11 +224,10 @@ public class ScheduleActivities
     [Activity]
     public async Task ResumeSchedule(ResumeScheduleRequest request)
     {
-        var agent = GetCurrentAgent();
-
         try
         {
-            await agent.Schedules.UnpauseAsync(request.ScheduleName, request.IdPostfix, request.Note);
+            await Client().UnpauseAsync(
+                request.ScheduleName, request.IdPostfix, request.Note, request.FullScheduleId);
             _logger.LogDebug("Successfully resumed schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
@@ -213,11 +244,9 @@ public class ScheduleActivities
     [Activity]
     public async Task TriggerSchedule(TriggerScheduleRequest request)
     {
-        var agent = GetCurrentAgent();
-
         try
         {
-            await agent.Schedules.TriggerAsync(request.ScheduleName, request.IdPostfix);
+            await Client().TriggerAsync(request.ScheduleName, request.IdPostfix, request.FullScheduleId);
             _logger.LogDebug("Successfully triggered schedule '{ScheduleName}'", request.ScheduleName);
         }
         catch (Exception ex)
@@ -228,9 +257,17 @@ public class ScheduleActivities
     }
 
     /// <summary>
+    /// Lists schedules owned by the current agent activation.
+    /// </summary>
+    [Activity]
+    public Task<List<ScheduleIdentity>> ListSchedules(ListSchedulesRequest request)
+    {
+        return Client().ListIdentitiesAsync(request);
+    }
+
+    /// <summary>
     /// Reconstructs SearchAttributeCollection from serializable dictionary format.
     /// </summary>
     private SearchAttributeCollection? ReconstructSearchAttributes(Dictionary<string, object>? searchAttrs) =>
         Xians.Lib.Agents.Core.WorkflowMetadataResolver.ReconstructFromDictionary(searchAttrs);
 }
-

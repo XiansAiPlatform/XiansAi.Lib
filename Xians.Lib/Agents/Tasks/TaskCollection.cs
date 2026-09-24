@@ -29,12 +29,11 @@ public class TaskCollection
                 "Temporal service is not configured. Cannot perform task operations.");
         }
 
+        // Do not resolve the Temporal client here. GetClientAsync is illegal inside a workflow;
+        // the executor only needs the client on the direct-service (activity) path.
         var tenantId = XiansContext.GetTenantId();
-
-        var client = _agent.TemporalService.GetClientAsync().GetAwaiter().GetResult();
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskActivityExecutor>();
-        
-        return new TaskActivityExecutor(client, tenantId, logger);
+        return new TaskActivityExecutor(_agent.TemporalService, tenantId, logger);
     }
 
     /// <summary>

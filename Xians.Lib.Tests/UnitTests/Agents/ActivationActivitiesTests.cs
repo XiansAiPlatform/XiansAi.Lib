@@ -4,6 +4,7 @@ using Moq.Protected;
 using Temporalio.Exceptions;
 using Temporalio.Testing;
 using Xians.Lib.Agents.Core;
+using Xians.Lib.Common;
 using Xians.Lib.Http;
 using Xians.Lib.Temporal;
 using Xians.Lib.Temporal.Workflows.Activations;
@@ -12,10 +13,10 @@ using Xians.Lib.Tests.TestUtilities;
 namespace Xians.Lib.Tests.UnitTests.Agents;
 
 /// <summary>
-/// Unit tests for the activation validation system activity. Verifies that definitive
-/// negative results (not found / deactivated) are returned as a status - so the activity
-/// completes successfully and Temporal does not log failed-activity warnings - while
-/// invalid requests fail non-retryably and transient errors propagate for retry.
+/// Unit tests for activation system activities: child-workflow pre-flight
+/// (<see cref="ActivationActivities.ValidateActivationAsync"/>) and public status
+/// (<see cref="ActivationActivities.GetActivationStatusAsync"/>). Both use the worker
+/// owner's HTTP client and SystemScoped flag, matching exists / list / create.
 ///
 /// dotnet test --filter "FullyQualifiedName~ActivationActivitiesTests"
 /// </summary>
@@ -27,6 +28,7 @@ public class ActivationActivitiesTests : IDisposable
 
     private readonly Mock<HttpMessageHandler> _httpMessageHandler;
     private readonly HttpClient _httpClient;
+    private readonly XiansAgent _owner;
 
     public ActivationActivitiesTests()
     {
@@ -37,7 +39,7 @@ public class ActivationActivitiesTests : IDisposable
         {
             BaseAddress = new Uri("http://localhost")
         };
-        RegisterAgent();
+        _owner = RegisterAgent();
     }
 
     public void Dispose()
@@ -46,13 +48,17 @@ public class ActivationActivitiesTests : IDisposable
         XiansContext.CleanupForTests();
     }
 
-    private void SetupResponse(HttpStatusCode statusCode, string content = "")
+    private void SetupResponse(
+        HttpStatusCode statusCode,
+        string content = "",
+        Action<HttpRequestMessage>? captureRequest = null)
     {
         _httpMessageHandler.Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => captureRequest?.Invoke(req))
             .ReturnsAsync(new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(content)
@@ -68,7 +74,7 @@ public class ActivationActivitiesTests : IDisposable
         SetupResponse(HttpStatusCode.OK);
 
         var status = await RunActivityAsync(() =>
-            new ActivationActivities().ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
+            new ActivationActivities(_owner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
 
         Assert.Equal(ActivationCheckStatus.Active, status);
     }
@@ -79,7 +85,7 @@ public class ActivationActivitiesTests : IDisposable
         SetupResponse(HttpStatusCode.NotFound, "{\"error\":\"not found\"}");
 
         var status = await RunActivityAsync(() =>
-            new ActivationActivities().ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
+            new ActivationActivities(_owner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
 
         Assert.Equal(ActivationCheckStatus.NotFound, status);
     }
@@ -90,7 +96,7 @@ public class ActivationActivitiesTests : IDisposable
         SetupResponse(HttpStatusCode.Conflict, "{\"error\":\"deactivated\"}");
 
         var status = await RunActivityAsync(() =>
-            new ActivationActivities().ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
+            new ActivationActivities(_owner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
 
         Assert.Equal(ActivationCheckStatus.Deactivated, status);
     }
@@ -102,7 +108,7 @@ public class ActivationActivitiesTests : IDisposable
 
         var ex = await Assert.ThrowsAsync<ApplicationFailureException>(() =>
             RunActivityAsync(() =>
-                new ActivationActivities().ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME)));
+                new ActivationActivities(_owner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME)));
 
         Assert.True(ex.NonRetryable);
     }
@@ -114,18 +120,227 @@ public class ActivationActivitiesTests : IDisposable
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
             RunActivityAsync(() =>
-                new ActivationActivities().ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME)));
+                new ActivationActivities(_owner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME)));
+    }
+
+    [Fact]
+    public async Task ValidateActivationAsync_NoHttpService_ThrowsNonRetryable()
+    {
+        var offlineOwner = RegisterAgent("offline-preflight", withHttp: false);
+
+        var ex = await Assert.ThrowsAsync<ApplicationFailureException>(() =>
+            RunActivityAsync(() =>
+                new ActivationActivities(offlineOwner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME)));
+
+        Assert.True(ex.NonRetryable);
+        Assert.Contains("HTTP service is not available", ex.Message);
+    }
+
+    [Fact]
+    public async Task ValidateActivationAsync_UsesOwnerSystemScoped_NotTargetAgent()
+    {
+        var systemOwner = RegisterAgent("validate-owner", systemScoped: true);
+        HttpRequestMessage? captured = null;
+        SetupResponse(HttpStatusCode.OK, captureRequest: req => captured = req);
+
+        XiansContext.SetTenantId("acting-tenant");
+        try
+        {
+            var status = await RunActivityAsync(() =>
+                new ActivationActivities(systemOwner).ValidateActivationAsync(AGENT_NAME, ACTIVATION_NAME));
+
+            Assert.Equal(ActivationCheckStatus.Active, status);
+            Assert.NotNull(captured);
+            Assert.True(captured!.Headers.TryGetValues(WorkflowConstants.Headers.TenantId, out var values));
+            Assert.Equal("acting-tenant", values!.Single());
+        }
+        finally
+        {
+            XiansContext.ClearTenantId();
+        }
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_Ok_ReturnsActive()
+    {
+        SetupResponse(HttpStatusCode.OK);
+
+        var status = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME));
+
+        Assert.Equal(ActivationCheckStatus.Active, status);
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_MissingActivation_ReturnsNotFound()
+    {
+        SetupResponse(HttpStatusCode.NotFound, "{\"error\":\"not found\"}");
+
+        var status = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME));
+
+        Assert.Equal(ActivationCheckStatus.NotFound, status);
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_Deactivated_ReturnsDeactivated()
+    {
+        SetupResponse(HttpStatusCode.Conflict, "{\"error\":\"deactivated\"}");
+
+        var status = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME));
+
+        Assert.Equal(ActivationCheckStatus.Deactivated, status);
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_NoHttpService_Throws()
+    {
+        var offlineOwner = RegisterAgent("offline-owner", withHttp: false);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            RunActivityAsync(() =>
+                new ActivationActivities(offlineOwner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME)));
+
+        Assert.Contains("HTTP service is not available", ex.Message);
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_UsesOwnerSystemScoped_NotTargetAgent()
+    {
+        // The fixture agent (AGENT_NAME) is non-system-scoped. Resolving the target for HTTP
+        // would omit the tenant header. Status must follow the worker owner.
+        var systemOwner = RegisterAgent("owner-agent", systemScoped: true);
+        HttpRequestMessage? captured = null;
+        SetupResponse(HttpStatusCode.OK, captureRequest: req => captured = req);
+
+        XiansContext.SetTenantId("acting-tenant");
+        try
+        {
+            var status = await RunActivityAsync(() =>
+                new ActivationActivities(systemOwner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME));
+
+            Assert.Equal(ActivationCheckStatus.Active, status);
+            Assert.NotNull(captured);
+            Assert.True(captured!.Headers.TryGetValues(WorkflowConstants.Headers.TenantId, out var values));
+            Assert.Equal("acting-tenant", values!.Single());
+        }
+        finally
+        {
+            XiansContext.ClearTenantId();
+        }
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_NonSystemScopedOwner_OmitsHeader_EvenIfTargetIsSystemScoped()
+    {
+        RegisterAgent("system-target", systemScoped: true);
+        var owner = RegisterAgent("manager-agent", systemScoped: false);
+        HttpRequestMessage? captured = null;
+        SetupResponse(HttpStatusCode.OK, captureRequest: req => captured = req);
+
+        XiansContext.SetTenantId("acting-tenant");
+        try
+        {
+            var status = await RunActivityAsync(() =>
+                new ActivationActivities(owner).GetActivationStatusAsync("system-target", ACTIVATION_NAME));
+
+            Assert.Equal(ActivationCheckStatus.Active, status);
+            Assert.NotNull(captured);
+            Assert.False(captured!.Headers.Contains(WorkflowConstants.Headers.TenantId));
+        }
+        finally
+        {
+            XiansContext.ClearTenantId();
+        }
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_UsesOwnerHttpClient_NotTargetAgent()
+    {
+        var targetHandler = new Mock<HttpMessageHandler>();
+        targetHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ThrowsAsync(new HttpRequestException("target HTTP client must not be used"));
+
+        using var targetClient = new HttpClient(targetHandler.Object)
+        {
+            BaseAddress = new Uri("http://target.example")
+        };
+
+        RegisterAgent("throwing-target", systemScoped: true, httpClient: targetClient);
+        var owner = RegisterAgent("manager-owner");
+        SetupResponse(HttpStatusCode.OK);
+
+        var status = await RunActivityAsync(() =>
+            new ActivationActivities(owner).GetActivationStatusAsync("throwing-target", ACTIVATION_NAME));
+
+        Assert.Equal(ActivationCheckStatus.Active, status);
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_BadRequest_ThrowsInvalidOperation()
+    {
+        SetupResponse(HttpStatusCode.BadRequest, "{\"error\":\"TenantId is required\"}");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            RunActivityAsync(() =>
+                new ActivationActivities(_owner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME)));
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_TransientServerError_ThrowsHttpRequestException()
+    {
+        SetupResponse(HttpStatusCode.InternalServerError, "boom");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            RunActivityAsync(() =>
+                new ActivationActivities(_owner).GetActivationStatusAsync(AGENT_NAME, ACTIVATION_NAME)));
+    }
+
+    [Fact]
+    public async Task AgentExistsAsync_Ok_ReturnsTrue()
+    {
+        SetupResponse(HttpStatusCode.OK);
+
+        var exists = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).AgentExistsAsync(AGENT_NAME));
+
+        Assert.True(exists);
+    }
+
+    [Fact]
+    public async Task AgentExistsAsync_NotFound_ReturnsFalse()
+    {
+        SetupResponse(HttpStatusCode.NotFound, "{\"error\":\"Agent not found\"}");
+
+        var exists = await RunActivityAsync(() =>
+            new ActivationActivities(_owner).AgentExistsAsync(AGENT_NAME));
+
+        Assert.False(exists);
     }
 
     /// <summary>
-    /// Registers an agent named AGENT_NAME backed by the mocked HTTP handler, so the
-    /// underlying validation service resolves it as the target agent.
+    /// Registers an agent. HTTP uses <paramref name="httpClient"/> when provided, otherwise
+    /// the fixture client (unless <paramref name="withHttp"/> is false).
     /// </summary>
-    private void RegisterAgent()
+    private XiansAgent RegisterAgent(
+        string? name = null,
+        bool systemScoped = false,
+        bool withHttp = true,
+        HttpClient? httpClient = null)
     {
-        var mockHttpService = new Mock<IHttpClientService>();
-        mockHttpService.Setup(x => x.Client).Returns(_httpClient);
-        mockHttpService.Setup(x => x.GetHealthyClientAsync()).ReturnsAsync(_httpClient);
+        Mock<IHttpClientService>? mockHttpService = null;
+        if (withHttp)
+        {
+            var client = httpClient ?? _httpClient;
+            mockHttpService = new Mock<IHttpClientService>();
+            mockHttpService.Setup(x => x.Client).Returns(client);
+            mockHttpService.Setup(x => x.GetHealthyClientAsync()).ReturnsAsync(client);
+        }
 
         var mockTemporalService = new Mock<ITemporalClientService>();
         mockTemporalService.Setup(x => x.IsConnectionHealthy()).Returns(true);
@@ -137,8 +352,8 @@ public class ActivationActivitiesTests : IDisposable
         };
 
         var agent = new XiansAgent(
-            AGENT_NAME,
-            false, // systemScoped
+            name ?? AGENT_NAME,
+            systemScoped,
             null, // description
             null, // summary
             null, // version
@@ -147,10 +362,11 @@ public class ActivationActivitiesTests : IDisposable
             null, // prompts
             null, // uploader
             mockTemporalService.Object,
-            mockHttpService.Object,
+            mockHttpService?.Object,
             options,
             null); // cacheService
 
         XiansContext.RegisterAgent(agent);
+        return agent;
     }
 }

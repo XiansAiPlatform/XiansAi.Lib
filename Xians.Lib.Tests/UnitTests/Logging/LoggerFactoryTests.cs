@@ -106,8 +106,17 @@ public class LoggerFactoryTests : IDisposable
     [Fact]
     public void Instance_GetAndSet_DelegatesToCustomFactory()
     {
-        // Arrange — Critical-only factory: only Critical and above should be enabled.
-        var customFactory = XiansLoggerFactory.CreateDefaultLoggerFactory(LogLevel.Critical);
+        // Isolated factory whose filter does not consult LoggerFactory's static
+        // console/server overrides. CreateDefaultLoggerFactory(Critical) would still
+        // read those overrides (and may switch to API logging), so a parallel test
+        // that calls ConfigureLogLevels would make Information appear enabled.
+        var customFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
+        {
+            builder
+                .AddSimpleConsole()
+                .SetMinimumLevel(LogLevel.Trace)
+                .AddFilter((_, level) => level >= LogLevel.Critical);
+        });
 
         // Act — install the custom underlying factory.
         XiansLoggerFactory.Instance = customFactory;

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Client.Schedules;
+using Temporalio.Workflows;
 using Xians.Lib.Agents.Scheduling.Models;
 using Xians.Lib.Temporal;
 using Xians.Lib.Agents.Core;
@@ -9,11 +9,14 @@ namespace Xians.Lib.Agents.Scheduling;
 /// <summary>
 /// Manages the collection of schedules for a workflow.
 /// Provides methods to create, retrieve, list, and delete schedules.
+/// Safe to call from Temporal workflows (Temporal RPCs are stubbed to <c>ScheduleActivities</c>)
+/// and from activities (direct Temporal client).
 /// </summary>
 public class ScheduleCollection
 {
     private readonly XiansAgent _agent;
     private readonly ITemporalClientService? _temporalService;
+    private readonly ScheduleActivityExecutor _executor;
     private readonly ILogger<ScheduleCollection> _logger;
 
     internal ScheduleCollection(
@@ -23,6 +26,8 @@ public class ScheduleCollection
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _temporalService = temporalService;
         _logger = Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleCollection>();
+        var executorLogger = Common.Infrastructure.LoggerFactory.CreateLogger<ScheduleActivityExecutor>();
+        _executor = new ScheduleActivityExecutor(_agent, executorLogger);
     }
 
     /// <summary>
@@ -33,53 +38,48 @@ public class ScheduleCollection
     /// <returns>A ScheduleBuilder for configuring the schedule.</returns>
     public ScheduleBuilder Create<TWorkflow>(string scheduleName)
     {
-        var workflowType = WorkflowHelper.GetWorkflowTypeFromClass<TWorkflow>();    
+        var workflowType = WorkflowHelper.GetWorkflowTypeFromClass<TWorkflow>();
         return Create(scheduleName, workflowType);
     }
     internal ScheduleBuilder Create(string scheduleName, string workflowType, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleName) || string.IsNullOrWhiteSpace(workflowType))
             throw new ArgumentException("Schedule name and workflow type cannot be null or empty", nameof(scheduleName));
-        
+
         if (_temporalService == null)
             throw new InvalidOperationException("Temporal service is not configured. Cannot create schedules.");
-        
+
         return new ScheduleBuilder(scheduleName, _agent, workflowType, _temporalService, idPostfix);
     }
 
-    /// <summary>Lists schedules owned by the current agent activation.</summary>
+    /// <summary>
+    /// Lists schedules owned by the current agent activation.
+    /// Safe to call from a workflow, an activity, or regular code.
+    /// </summary>
     public async Task<IReadOnlyList<XiansSchedule>> ListAsync()
     {
-        if (_temporalService == null)
-            throw new InvalidOperationException("Temporal service is not configured. Cannot list schedules.");
-
-        var tenantId = XiansContext.TenantId;
-        var prefix = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, XiansContext.SafeIdPostfix, "");
-        var client = await _temporalService.GetClientAsync();
-        var result = new List<XiansSchedule>();
-        await foreach (var schedule in client.ListSchedulesAsync(new ScheduleListOptions
+        if (Workflow.InWorkflow)
         {
-            Query = $"tenantId = '{tenantId}' AND agent = '{_agent.Name.Replace("'", "''")}'"
-        }))
-            if (schedule.Id.StartsWith(prefix, StringComparison.Ordinal))
-                result.Add(new XiansSchedule(client.GetScheduleHandle(schedule.Id)));
+            var identities = await _executor.ListAsync();
+            return identities.Select(identity => new XiansSchedule(_agent, identity)).ToList();
+        }
 
-        return result;
+        return await new ScheduleClient(_agent).ListAsync();
     }
 
     /// <summary>
     /// Gets an existing schedule by ID.
-    /// </summary>  
+    /// </summary>
     /// <param name="scheduleName">The schedule identifier.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
-    public async Task<XiansSchedule> GetAsync(string scheduleName)
+    public Task<XiansSchedule> GetAsync(string scheduleName)
     {
-        return await GetAsync(scheduleName, null);
+        return GetAsync(scheduleName, null);
     }
 
     /// <summary>
     /// Gets an existing schedule by ID.
-    /// </summary>  
+    /// </summary>
     /// <param name="scheduleName">The schedule identifier.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <returns>A XiansSchedule instance for managing the schedule.</returns>
@@ -87,47 +87,23 @@ public class ScheduleCollection
     {
         if (string.IsNullOrWhiteSpace(scheduleName))
             throw new ArgumentException("Schedule ID cannot be null or empty", nameof(scheduleName));
-        
-        try
-        {
-            if (_temporalService == null)
-                throw new InvalidOperationException("Temporal service is not configured. Cannot get schedules.");
-            
-            var client = await _temporalService.GetClientAsync();
-            string tenantId = XiansContext.TenantId;
-            // When null, use empty string so we resolve the same shared schedule as Create() with no idPostfix.
-            idPostfix ??= XiansContext.GetIdPostfix();
 
-            // Full schedule ID pattern: tenantId:agentName:idPostfix:scheduleId
-            var fullScheduleId = ScheduleIdHelper.BuildFullScheduleId(tenantId, _agent.Name, idPostfix, scheduleName);
-            var handle = client.GetScheduleHandle(fullScheduleId);
-            
-            // Verify the schedule exists by attempting to describe it
-            await handle.DescribeAsync();
-            
-            return new XiansSchedule(handle);
-        }
-        catch (Temporalio.Exceptions.RpcException ex) when (
-            ex.Message?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
+        if (Workflow.InWorkflow)
         {
-            _logger.LogDebug("Schedule '{ScheduleName}' not found", scheduleName);
-            throw new ScheduleNotFoundException(scheduleName, ex);
+            var identity = await _executor.GetIdentityAsync(scheduleName, idPostfix);
+            return new XiansSchedule(_agent, identity);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get schedule '{ScheduleName}'", scheduleName);
-            throw;
-        }
+
+        return await new ScheduleClient(_agent).GetAsync(scheduleName, idPostfix);
     }
 
     /// <summary>
     /// Deletes a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to delete.</param>
-    /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
-    public async Task DeleteAsync(string scheduleName)
+    public Task DeleteAsync(string scheduleName)
     {
-        await DeleteAsync(scheduleName, null);
+        return DeleteAsync(scheduleName, null);
     }
 
     /// <summary>
@@ -142,8 +118,9 @@ public class ScheduleCollection
 
         try
         {
-            var schedule = await GetAsync(scheduleName, idPostfix);
-            await schedule.DeleteAsync();
+            var deleted = await _executor.DeleteAsync(scheduleName, idPostfix);
+            if (!deleted)
+                throw new ScheduleNotFoundException(scheduleName);
         }
         catch (ScheduleNotFoundException)
         {
@@ -157,77 +134,74 @@ public class ScheduleCollection
         }
     }
 
-    internal async Task<bool> ExistsAsync(string scheduleName)
+    /// <summary>
+    /// Checks if a schedule with the specified ID exists.
+    /// </summary>
+    /// <param name="scheduleName">The schedule identifier to check.</param>
+    /// <returns>True if the schedule exists, false otherwise.</returns>
+    public Task<bool> ExistsAsync(string scheduleName)
     {
-        return await ExistsAsync(scheduleName, null);
+        return ExistsAsync(scheduleName, null);
     }
+
     /// <summary>
     /// Checks if a schedule with the specified ID exists.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to check.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <returns>True if the schedule exists, false otherwise.</returns>
-    internal async Task<bool> ExistsAsync(string scheduleName, string? idPostfix = null)
+    internal Task<bool> ExistsAsync(string scheduleName, string? idPostfix = null)
     {
         if (string.IsNullOrWhiteSpace(scheduleName))
             throw new ArgumentException("Schedule name cannot be null or empty", nameof(scheduleName));
-        
-        try
-        {
-            await GetAsync(scheduleName, idPostfix);
-            return true;
-        }
-        catch (ScheduleNotFoundException)
-        {
-            return false;
-        }
+
+        return _executor.ExistsAsync(scheduleName, idPostfix);
     }
 
-    public async Task PauseAsync(string scheduleName, string? note = null)
+    public Task PauseAsync(string scheduleName, string? note = null)
     {
-        await PauseAsync(scheduleName, null, note);
-    }   
+        return PauseAsync(scheduleName, null, note);
+    }
+
     /// <summary>
     /// Pauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to pause.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <param name="note">Optional note explaining why the schedule is paused.</param>
-    internal async Task PauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
+    internal Task PauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix);
-        await schedule.PauseAsync(note);
+        return _executor.PauseAsync(scheduleName, idPostfix, note);
     }
 
-    public async Task UnpauseAsync(string scheduleName, string? note = null)
+    public Task UnpauseAsync(string scheduleName, string? note = null)
     {
-        await UnpauseAsync(scheduleName, null, note);
+        return UnpauseAsync(scheduleName, null, note);
     }
+
     /// <summary>
     /// Unpauses a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to unpause.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
     /// <param name="note">Optional note explaining why the schedule is unpaused.</param>
-    internal async Task UnpauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
+    internal Task UnpauseAsync(string scheduleName, string? idPostfix = null, string? note = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix);
-        await schedule.UnpauseAsync(note);
+        return _executor.UnpauseAsync(scheduleName, idPostfix, note);
     }
 
-    public async Task TriggerAsync(string scheduleName)
+    public Task TriggerAsync(string scheduleName)
     {
-        await TriggerAsync(scheduleName, null);
+        return TriggerAsync(scheduleName, null);
     }
+
     /// <summary>
     /// Triggers an immediate execution of a schedule by ID.
     /// </summary>
     /// <param name="scheduleName">The schedule identifier to trigger.</param>
     /// <param name="idPostfix">The idPostfix to use for the schedule.</param>
-    internal async Task TriggerAsync(string scheduleName, string? idPostfix = null)
+    internal Task TriggerAsync(string scheduleName, string? idPostfix = null)
     {
-        var schedule = await GetAsync(scheduleName, idPostfix);
-        await schedule.TriggerAsync();
+        return _executor.TriggerAsync(scheduleName, idPostfix);
     }
-
 }

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Temporalio.Client;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Tasks.Models;
 using Xians.Lib.Temporal;
@@ -14,22 +13,23 @@ namespace Xians.Lib.Agents.Tasks;
 /// </summary>
 internal class TaskActivityExecutor : ContextAwareActivityExecutor<TaskActivities, TaskService>
 {
-    private readonly ITemporalClient _client;
+    private readonly ITemporalClientService _temporalService;
     private readonly string _tenantId;
 
-    public TaskActivityExecutor(ITemporalClient client, string tenantId, ILogger logger)
+    public TaskActivityExecutor(ITemporalClientService temporalService, string tenantId, ILogger logger)
         : base(logger)
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _temporalService = temporalService ?? throw new ArgumentNullException(nameof(temporalService));
         _tenantId = tenantId ?? throw new ArgumentNullException(nameof(tenantId));
     }
 
     protected override TaskService CreateService()
     {
         var logger = Common.Infrastructure.LoggerFactory.CreateLogger<TaskService>();
-        var agentName = XiansContext.CurrentAgent?.Name 
-            ?? throw new InvalidOperationException("Agent name not available in workflow context");
-        return new TaskService(_client, agentName, _tenantId, logger);
+        var agentName = XiansContext.CurrentAgent?.Name
+            ?? throw new InvalidOperationException("Agent name not available in activity context");
+        var client = _temporalService.GetClientAsync().GetAwaiter().GetResult();
+        return new TaskService(client, agentName, _tenantId, logger);
     }
 
     /// <summary>

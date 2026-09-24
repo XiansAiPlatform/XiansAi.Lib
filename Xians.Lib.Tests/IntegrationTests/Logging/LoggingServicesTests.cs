@@ -308,11 +308,13 @@ public class LoggingServicesTests : IAsyncLifetime
     [Fact]
     public async Task LoggingServices_ProcessesLogs_WhenInitialized()
     {
-        // Arrange
-        LoggingServices.Initialize(_httpService!);
-        
-        // Configure for fast processing
+        // Arrange — restart the processor so a previous test's long Sleep cannot delay the first upload.
+        LoggingServices.Shutdown();
+        await Task.Delay(200);
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+
         LoggingServices.ConfigureBatchSettings(5, 1000); // 5 logs per batch, 1 second interval
+        LoggingServices.Initialize(_httpService!);
         
         var initialRequestCount = _mockServer!.LogEntries.Count();
         
@@ -341,7 +343,8 @@ public class LoggingServicesTests : IAsyncLifetime
         
         // Clear any remaining logs from previous tests
         while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
-        
+
+        LoggingServices.ConfigureBatchSettings(100, 60000);
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(100); // Allow initialization to complete
         
@@ -364,7 +367,9 @@ public class LoggingServicesTests : IAsyncLifetime
         
         // Clear queue to ensure clean state
         while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
-        
+
+        // Long interval so the background uploader cannot drain the queue before the assertion.
+        LoggingServices.ConfigureBatchSettings(100, 60000);
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(50);
         
@@ -390,7 +395,8 @@ public class LoggingServicesTests : IAsyncLifetime
         
         // Clear any remaining logs from previous tests
         while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
-        
+
+        LoggingServices.ConfigureBatchSettings(100, 60000);
         LoggingServices.Initialize(_httpService!);
         await Task.Delay(100); // Allow initialization to complete
         
@@ -434,7 +440,11 @@ public class LoggingServicesTests : IAsyncLifetime
                 .WithStatusCode(200)
                 .WithBody("{\"success\": true}"));
 
-        // Configure batch settings BEFORE initializing to avoid 60-second default interval
+        // Restart the processor so a previous test's long Sleep cannot delay this upload.
+        LoggingServices.Shutdown();
+        await Task.Delay(200);
+        while (LoggingServices.GlobalLogQueue.TryDequeue(out _)) { }
+
         LoggingServices.ConfigureBatchSettings(2, 1000);
         LoggingServices.Initialize(_httpService!);
 

@@ -266,16 +266,22 @@ public static class LoggingServices
             try
             {
                 ProcessLogBatch();
-                
-                // Sleep before processing next batch
-                Thread.Sleep(_processingIntervalMs);
+
+                // WaitHandle.WaitOne is interrupted by Shutdown(); Thread.Sleep is not, and would
+                // keep the processor "alive" so the next Initialize skipped starting a new thread.
+                if (cancellationToken.WaitHandle.WaitOne(_processingIntervalMs))
+                {
+                    break;
+                }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Error in log processing thread: {ex.Message}");
-                
-                // Sleep a bit longer after an error
-                Thread.Sleep(10000);
+
+                if (cancellationToken.WaitHandle.WaitOne(10000))
+                {
+                    break;
+                }
             }
         }
     }
@@ -444,6 +450,8 @@ public static class LoggingServices
                     Console.WriteLine("Log processing thread did not complete within timeout, forcing shutdown");
                 }
             }
+
+            _processingThread = null;
         }
 
         // Wait for pending upload tasks to complete (with timeout)

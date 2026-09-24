@@ -93,13 +93,5 @@ public class SecretVaultCollection
 
     internal string? TryResolveTenantId() => ResolveTenantId();
 
-    private string? ResolveTenantId()
-    {
-        var fromContext = XiansContext.SafeTenantId;
-        if (!string.IsNullOrEmpty(fromContext))
-            return fromContext;
-        if (!_agent.SystemScoped)
-            return _agent.Options?.CertificateTenantId;
-        return null;
-    }
+    private string? ResolveTenantId() => XiansContext.TryResolveTenantId(_agent);
 }

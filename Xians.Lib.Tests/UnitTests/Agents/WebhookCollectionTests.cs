@@ -210,8 +210,33 @@ public class WebhookCollectionTests : IDisposable
     // ---- Tenant header ----
 
     [Fact]
-    public async Task SystemScopedAgent_SendsTenantHeader()
+    public async Task SystemScopedAgent_SendsActingTenantHeaderFromContext()
     {
+        var agent = CreateAgent(systemScoped: true);
+        HttpRequestMessage? captured = null;
+        var envelope = new { webhooks = Array.Empty<WebhookInfo>() };
+        SetupResponse(HttpStatusCode.OK, JsonContent.Create(envelope), captureRequest: req => captured = req);
+
+        XiansContext.SetTenantId("acting-tenant");
+        try
+        {
+            await agent.Webhooks.ListAsync();
+        }
+        finally
+        {
+            XiansContext.ClearTenantId();
+        }
+
+        Assert.NotNull(captured);
+        Assert.True(captured!.Headers.TryGetValues(WorkflowConstants.Headers.TenantId, out var values));
+        Assert.Equal("acting-tenant", values!.Single());
+    }
+
+    [Fact]
+    public async Task SystemScopedAgent_OutsideTemporalContext_OmitsTenantHeader()
+    {
+        // One certificate serves many tenants, so falling back to it here would address the key
+        // owner's tenant instead of the one the caller meant.
         var agent = CreateAgent(systemScoped: true);
         HttpRequestMessage? captured = null;
         var envelope = new { webhooks = Array.Empty<WebhookInfo>() };
@@ -220,8 +245,7 @@ public class WebhookCollectionTests : IDisposable
         await agent.Webhooks.ListAsync();
 
         Assert.NotNull(captured);
-        Assert.True(captured!.Headers.TryGetValues(WorkflowConstants.Headers.TenantId, out var values));
-        Assert.Equal(TENANT_ID, values!.Single());
+        Assert.False(captured!.Headers.Contains(WorkflowConstants.Headers.TenantId));
     }
 
     [Fact]

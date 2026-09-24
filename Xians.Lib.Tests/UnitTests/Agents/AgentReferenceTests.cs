@@ -367,6 +367,42 @@ public class AgentReferenceTests : IDisposable
         Assert.False(captured!.Headers.Contains(WorkflowConstants.Headers.TenantId));
     }
 
+    [Fact]
+    public async Task GetActivationStatusAsync_SystemScopedOwner_SendsTenantIdHeader()
+    {
+        var owner = CreateOwner(systemScoped: true);
+        HttpRequestMessage? captured = null;
+        SetupResponse(HttpStatusCode.OK, "", captureRequest: req => captured = req);
+
+        XiansContext.SetTenantId(TENANT_ID);
+        try
+        {
+            var status = await owner.Tenant.Agent(TARGET_AGENT_NAME).GetActivationStatusAsync(ACTIVATION_NAME);
+
+            Assert.Equal(ActivationCheckStatus.Active, status);
+            Assert.NotNull(captured);
+            Assert.True(captured!.Headers.TryGetValues(WorkflowConstants.Headers.TenantId, out var values));
+            Assert.Equal(TENANT_ID, values!.Single());
+        }
+        finally
+        {
+            XiansContext.ClearTenantId();
+        }
+    }
+
+    [Fact]
+    public async Task GetActivationStatusAsync_NonSystemScopedOwner_DoesNotSendTenantIdHeader()
+    {
+        var owner = CreateOwner(systemScoped: false);
+        HttpRequestMessage? captured = null;
+        SetupResponse(HttpStatusCode.OK, "", captureRequest: req => captured = req);
+
+        await owner.Tenant.Agent(TARGET_AGENT_NAME).GetActivationStatusAsync(ACTIVATION_NAME);
+
+        Assert.NotNull(captured);
+        Assert.False(captured!.Headers.Contains(WorkflowConstants.Headers.TenantId));
+    }
+
     // ---- Construction ----
 
     [Fact]

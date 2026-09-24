@@ -351,14 +351,14 @@ public class WorkflowHelper
     #region Workflow Handle Access
 
     /// <summary>
-    /// Gets a workflow handle for a specific workflow using its class type and ID postfix.
+    /// Gets a workflow handle for a specific workflow using its class type and activation name.
     /// Automatically constructs the workflow ID using the same format as when workflows are created.
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID. If null, only base workflow ID is used.</param>
+    /// <param name="activationName">Optional activation name for workflow ID. If null, only base workflow ID is used.</param>
     /// <returns>A workflow handle that can be used to signal, query, or get results from the workflow.</returns>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not configured.</exception>
-    public async Task<WorkflowHandle<TWorkflow>> GetWorkflowHandleAsync<TWorkflow>(string? idPostfix = null)
+    public async Task<WorkflowHandle<TWorkflow>> GetWorkflowHandleAsync<TWorkflow>(string? activationName = null)
     {
         // Extract workflow type from the class
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
@@ -372,24 +372,12 @@ public class WorkflowHelper
         // Get agent
         var agent = XiansContext.GetAgent(agentName);
         
-        // Determine tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
-        string tenantId;
-        if (agent.SystemScoped)
-        {
-            tenantId = XiansContext.GetTenantId();
-        }
-        else
-        {
-            if (agent.Options == null || string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but tenant ID is missing. Ensure API key is properly configured.");
-            }
-            tenantId = agent.Options.CertificateTenantId;
-        }
+        // Context first, certificate only for tenant-scoped agents, so the handle addresses the same
+        // workflow ID the workflow was started under.
+        var tenantId = XiansContext.ResolveTenantId(agent);
 
         // Build workflow ID using the same format as SubWorkflowService
-        var workflowId = BuildWorkflowId(agentName, workflowType, tenantId, idPostfix);
+        var workflowId = BuildWorkflowId(agentName, workflowType, tenantId, activationName);
 
         // Get Temporal client
         var client = await GetClientFromAgentAsync(agent);
@@ -399,14 +387,14 @@ public class WorkflowHelper
     }
 
     /// <summary>
-    /// Gets a workflow handle for a specific workflow using its class type and ID postfix, without specifying a generic type for the handle.
+    /// Gets a workflow handle for a specific workflow using its class type and activation name, without specifying a generic type for the handle.
     /// Automatically constructs the workflow ID using the same format as when workflows are created.
     /// </summary>
     /// <typeparam name="TWorkflow">The workflow class type.</typeparam>
-    /// <param name="idPostfix">Optional postfix for workflow ID. If null, only base workflow ID is used.</param>
+    /// <param name="activationName">Optional activation name for workflow ID. If null, only base workflow ID is used.</param>
     /// <returns>An untyped workflow handle that can be used to signal the workflow.</returns>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not configured.</exception>
-    public async Task<WorkflowHandle> GetWorkflowHandleUntypedAsync<TWorkflow>(string? idPostfix = null)
+    public async Task<WorkflowHandle> GetWorkflowHandleUntypedAsync<TWorkflow>(string? activationName = null)
     {
         // Extract workflow type from the class
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
@@ -420,24 +408,12 @@ public class WorkflowHelper
         // Get agent
         var agent = XiansContext.GetAgent(agentName);
         
-        // Determine tenant ID from agent options (non-system-scoped) or from workflow context (system-scoped)
-        string tenantId;
-        if (agent.SystemScoped)
-        {
-            tenantId = XiansContext.GetTenantId();
-        }
-        else
-        {
-            if (agent.Options == null || string.IsNullOrWhiteSpace(agent.Options.CertificateTenantId))
-            {
-                throw new InvalidOperationException(
-                    $"Agent '{agentName}' is not system-scoped but tenant ID is missing. Ensure API key is properly configured.");
-            }
-            tenantId = agent.Options.CertificateTenantId;
-        }
+        // Context first, certificate only for tenant-scoped agents, so the handle addresses the same
+        // workflow ID the workflow was started under.
+        var tenantId = XiansContext.ResolveTenantId(agent);
 
         // Build workflow ID using the same format as SubWorkflowService
-        var workflowId = BuildWorkflowId(agentName, workflowType, tenantId, idPostfix);
+        var workflowId = BuildWorkflowId(agentName, workflowType, tenantId, activationName);
 
         // Get Temporal client
         var client = await GetClientFromAgentAsync(agent);
@@ -574,21 +550,21 @@ public class WorkflowHelper
 
     /// <summary>
     /// Builds a workflow ID using the same format as SubWorkflowService.
-    /// Format: {tenantId}:{agentName}:{workflowName}[:{idPostfix}]
+    /// Format: {tenantId}:{agentName}:{workflowName}[:{activationName}]
     /// </summary>
-    private static string BuildWorkflowId(string agentName, string workflowType, string tenantId, string? idPostfix)
+    private static string BuildWorkflowId(string agentName, string workflowType, string tenantId, string? activationName)
     {
         // Extract workflow name from workflow type (format: "AgentName:WorkflowName")
         var workflowName = workflowType.Contains(':') 
             ? workflowType.Split(':')[1] 
             : workflowType;
 
-        // Build workflow ID: {tenantId}:{agentName}:{workflowName}[:{idPostfix}]
+        // Build workflow ID: {tenantId}:{agentName}:{workflowName}[:{activationName}]
         var workflowId = $"{tenantId}:{agentName}:{workflowName}";
         
-        if (!string.IsNullOrWhiteSpace(idPostfix))
+        if (!string.IsNullOrWhiteSpace(activationName))
         {
-            workflowId += $":{idPostfix}";
+            workflowId += $":{activationName}";
         }
 
         return workflowId;
