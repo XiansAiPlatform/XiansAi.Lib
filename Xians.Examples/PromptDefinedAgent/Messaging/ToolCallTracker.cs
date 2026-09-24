@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 
 namespace PromptDefinedAgent.Messaging;
 
-internal static class ToolCallTracker
+internal static partial class ToolCallTracker
 {
     public static async Task<string> RunAsync(IAsyncEnumerable<AgentRunResponseUpdate> updates, Func<object, string, Task> sendToolEvent)
     {
@@ -42,9 +42,18 @@ internal static class ToolCallTracker
 
     internal static string DisplayName(string name)
     {
-        var words = Regex.Replace(name, "([A-Z]+)([A-Z][a-z])", "$1 $2");
-        words = Regex.Replace(words, "([a-z0-9])([A-Z])", "$1 $2");
-        words = Regex.Replace(words, "[_\\-\\s]+", " ").Trim();
+        var words = AcronymBoundary().Replace(name, "$1 $2");
+        words = WordBoundary().Replace(words, "$1 $2");
+        words = Separator().Replace(words, " ").Trim();
         return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(words);
     }
+
+    [GeneratedRegex("([A-Z]+)([A-Z][a-z])")]
+    private static partial Regex AcronymBoundary();
+
+    [GeneratedRegex("([a-z0-9])([A-Z])")]
+    private static partial Regex WordBoundary();
+
+    [GeneratedRegex("[_\\-\\s]+")]
+    private static partial Regex Separator();
 }

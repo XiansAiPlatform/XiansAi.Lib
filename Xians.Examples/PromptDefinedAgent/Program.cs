@@ -30,7 +30,7 @@ await agent.Knowledge.UploadEmbeddedResourceAsync(
     "Rules",
     "json");
 
-var promptAgent = new PromptAgent(
+await using var promptAgent = new PromptAgent(
     Environment.GetEnvironmentVariable("OPENAI_API_KEY")
         ?? throw new InvalidOperationException("OPENAI_API_KEY is not set"));
 

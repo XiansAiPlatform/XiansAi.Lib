@@ -123,6 +123,8 @@ In Agent Studio, open **Settings → Secrets** and save each PAT, token, or pass
 
 Secret lookup order is activation → agent → tenant. Invalid or unavailable MCP servers are skipped; only tools from successfully connected MCP servers are available.
 
+Rules and successful MCP connections are cached per activation for the worker lifetime. Restart the agent after changing Rules or referenced secrets.
+
 ## MCP diagnostics
 
 Agent terminal logs show the activation, configured/disabled servers, connection stages, per-server tool counts, and total tools. Failures include their stage, exception type, and HTTP status when available. Credentials, endpoint URLs, exception messages, and tool payloads are not logged.
