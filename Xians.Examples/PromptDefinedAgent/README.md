@@ -4,21 +4,29 @@ A reusable Xians agent configured through Agent Studio. Each activation can have
 
 Tool calls and results from chat and scheduled runs appear in Agent Studio's tool timeline with readable labels. Details retain exact tool names and call IDs, but omit arguments and result payloads to avoid exposing sensitive data.
 
-## Setup
+## Quick start
 
-Copy `.env.example` to `.env` and set:
+1. Start Xians Server and Agent Studio.
+2. Copy `.env.example` to `.env` and set:
 
-```text
-XIANS_SERVER_URL=
-XIANS_API_KEY=
-OPENAI_API_KEY=
-```
+   ```text
+   XIANS_SERVER_URL=
+   XIANS_API_KEY=
+   OPENAI_API_KEY=
+   ```
 
-Run from the solution directory:
+3. Run the agent from the solution directory:
 
-```bash
-dotnet run --project Xians.Examples/PromptDefinedAgent
-```
+   ```bash
+   dotnet run --project Xians.Examples/PromptDefinedAgent
+   ```
+
+4. In Agent Studio, create and activate a **Prompt Defined Agent** activation.
+5. Under **Knowledge**, configure activation-level `system-prompt` and `Rules` overrides.
+6. Under **Settings → Secrets**, add credentials referenced by `Rules`.
+7. Restart the agent after changing `Rules` or its referenced secrets.
+8. Open the activation chat and test an MCP-backed request. Tool calls appear in the tool timeline.
+9. To use scheduling, configure the Xians MCP and ask the agent to create a schedule through chat.
 
 ## Configure an activation
 
