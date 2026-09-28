@@ -10,7 +10,12 @@ internal sealed class RulesConfig
     public static async Task<RulesConfig> LoadAsync()
     {
         var rules = await XiansContext.CurrentAgent.Knowledge.GetAsync("Rules");
-        if (string.IsNullOrWhiteSpace(rules?.Content)) return new();
+        Console.WriteLine($"[MCP Rules] Resolving Rules for activation {JsonSerializer.Serialize(XiansContext.SafeIdPostfix)}.");
+        if (string.IsNullOrWhiteSpace(rules?.Content))
+        {
+            Console.Error.WriteLine("[MCP Rules] Rules missing or empty; no MCP servers configured.");
+            return new();
+        }
 
         try
         {
@@ -21,7 +26,7 @@ internal sealed class RulesConfig
         }
         catch (JsonException exception)
         {
-            Console.Error.WriteLine($"Ignoring invalid Rules JSON: {exception.Message}");
+            Console.Error.WriteLine($"[MCP Rules] Invalid JSON at line {exception.LineNumber}, byte {exception.BytePositionInLine}; no MCP servers configured.");
             return new();
         }
     }
@@ -33,6 +38,7 @@ internal sealed class McpServerConfig
     public string Url { get; init; } = "";
     public bool Enabled { get; init; } = true;
     public string Transport { get; init; } = "auto";
+    public string? Context { get; init; }
     public McpAuthenticationConfig? Authentication { get; init; }
 }
 

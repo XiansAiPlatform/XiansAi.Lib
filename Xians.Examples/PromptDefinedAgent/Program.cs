@@ -30,7 +30,7 @@ await agent.Knowledge.UploadEmbeddedResourceAsync(
     "Rules",
     "json");
 
-var promptAgent = new PromptAgent(
+await using var promptAgent = new PromptAgent(
     Environment.GetEnvironmentVariable("OPENAI_API_KEY")
         ?? throw new InvalidOperationException("OPENAI_API_KEY is not set"));
 
@@ -41,7 +41,7 @@ workflow.OnUserChatMessage(async context =>
     context.SkipResponse = true;
 });
 
-agent.Workflows.DefineCustom<ScheduledPromptWorkflow>()
+agent.Workflows.DefineCustom<ScheduledPromptWorkflow>(new() { Activable = false })
     .AddActivity(new ScheduledPromptActivities(promptAgent));
 
 await agent.RunAllAsync();
