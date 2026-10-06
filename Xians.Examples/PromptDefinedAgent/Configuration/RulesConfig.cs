@@ -46,6 +46,7 @@ internal sealed class McpAuthenticationConfig
 {
     public string Type { get; init; } = "none";
     public string? Secret { get; init; }
+    public string? Connection { get; init; }
     public string? Header { get; init; }
     public string? UsernameSecret { get; init; }
     public string? PasswordSecret { get; init; }

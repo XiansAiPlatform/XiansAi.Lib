@@ -115,6 +115,7 @@ Authentication values:
 - `bearer` — sends the secret named by `secret` as an HTTP bearer token.
 - `apiKey` — sends the secret named by `secret` in `header`, which defaults to `X-API-Key`.
 - `basic` — builds HTTP Basic authentication from `usernameSecret` and `passwordSecret`.
+- `oauth` — uses an activation-scoped OAuth connection created in Agent Studio.
 
 Authentication shapes:
 
@@ -123,11 +124,35 @@ Authentication shapes:
 { "type": "bearer", "secret": "TOKEN_SECRET_NAME" }
 { "type": "apiKey", "secret": "API_KEY_SECRET_NAME", "header": "X-API-Key" }
 { "type": "basic", "usernameSecret": "USERNAME_SECRET_NAME", "passwordSecret": "PASSWORD_SECRET_NAME" }
+{ "type": "oauth", "connection": "MCP_OAUTH_CONNECTION" }
 ```
+
+### OAuth MCP
+
+1. In Agent Studio, open the activation's **Connections**, select **OAuth MCP**, and copy the displayed callback URL into the provider's OAuth app.
+2. Enter the MCP URL and client credentials; Xians discovers the OAuth endpoints and scopes before authorization.
+3. Add the server to `Rules`:
+
+   ```json
+   {
+     "name": "crm",
+     "url": "https://mcp.example.com",
+     "enabled": true,
+     "transport": "streamableHttp",
+     "authentication": {
+       "type": "oauth",
+       "connection": "MCP_OAUTH_CONNECTION"
+     }
+   }
+   ```
+
+Each activation has one shared OAuth MCP connection. Use a dedicated automation account when possible. Access and refresh tokens are encrypted in Xians Secret Vault and refresh-token rotation is persisted automatically.
+
+For HubSpot, use `https://mcp.hubspot.com` as the MCP URL.
 
 ## Secrets
 
-In Agent Studio, open **Settings → Secrets** and save each PAT, token, or password under a key such as `GITHUB_MCP_TOKEN`. Put only that key in `Rules` (for example, `"secret": "GITHUB_MCP_TOKEN"`), never the credential itself. Studio currently creates tenant-scoped secrets; values are encrypted at rest and hidden after saving.
+In Agent Studio, open **Settings → Secrets** and save each PAT, token, or password under a key such as `GITHUB_MCP_TOKEN`. Put only that key in `Rules` (for example, `"secret": "GITHUB_MCP_TOKEN"`), never the credential itself. Values are encrypted at rest and hidden after saving.
 
 Secret lookup order is activation → agent → tenant. Invalid or unavailable MCP servers are skipped; only tools from successfully connected MCP servers are available.
 
