@@ -124,14 +124,14 @@ Authentication shapes:
 { "type": "bearer", "secret": "TOKEN_SECRET_NAME" }
 { "type": "apiKey", "secret": "API_KEY_SECRET_NAME", "header": "X-API-Key" }
 { "type": "basic", "usernameSecret": "USERNAME_SECRET_NAME", "passwordSecret": "PASSWORD_SECRET_NAME" }
-{ "type": "oauth", "connection": "MCP_OAUTH_CONNECTION" }
+{ "type": "oauth", "connection": "MCP_OAUTH_HUBSPOT_PRODUCTION" }
 ```
 
 ### OAuth MCP
 
 1. In Agent Studio, open the activation's **Connections**, select **OAuth MCP**, and copy the displayed callback URL into the provider's OAuth app.
-2. Enter the MCP URL and client credentials; Xians discovers the OAuth endpoints and scopes before authorization.
-3. Add the server to `Rules`:
+2. Enter a unique connection name, the MCP URL, and client credentials; Xians discovers the OAuth endpoints and scopes before authorization.
+3. Copy the generated connection key from the connection card and add it to `Rules`:
 
    ```json
    {
@@ -141,12 +141,12 @@ Authentication shapes:
      "transport": "streamableHttp",
      "authentication": {
        "type": "oauth",
-       "connection": "MCP_OAUTH_CONNECTION"
+       "connection": "MCP_OAUTH_HUBSPOT_PRODUCTION"
      }
    }
    ```
 
-Each activation has one shared OAuth MCP connection. Use a dedicated automation account when possible. Access and refresh tokens are encrypted in Xians Secret Vault and refresh-token rotation is persisted automatically.
+Connection keys use the form `MCP_OAUTH_<CONNECTION_NAME>`. Each connection is shared by the activation, and an activation can have multiple OAuth MCP connections. Use dedicated automation accounts when possible. Access and refresh tokens are encrypted in Xians Secret Vault and refresh-token rotation is persisted automatically.
 
 For HubSpot, use `https://mcp.hubspot.com` as the MCP URL.
 
