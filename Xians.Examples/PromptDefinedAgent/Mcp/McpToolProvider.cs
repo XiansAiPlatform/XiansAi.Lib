@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
@@ -11,6 +12,11 @@ namespace PromptDefinedAgent.Mcp;
 
 internal static class McpToolProvider
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public static async Task<McpToolCollection> LoadAsync(RulesConfig config, XiansToolContext context)
     {
         var result = new McpToolCollection();
@@ -132,12 +138,13 @@ internal static class McpToolProvider
 
     private static async Task<Dictionary<string, string>> BuildBasicHeadersAsync(McpAuthenticationConfig authentication)
     {
-        var username = await GetSecretAsync(authentication.UsernameSecret);
-        var password = await GetSecretAsync(authentication.PasswordSecret);
+        var usernameTask = GetSecretAsync(authentication.UsernameSecret);
+        var passwordTask = GetSecretAsync(authentication.PasswordSecret);
+        await Task.WhenAll(usernameTask, passwordTask);
         return new()
         {
             ["Authorization"] = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(
-                Encoding.UTF8.GetBytes($"{username}:{password}"))).ToString()
+                Encoding.UTF8.GetBytes($"{await usernameTask}:{await passwordTask}"))).ToString()
         };
     }
 
@@ -154,18 +161,29 @@ internal static class McpToolProvider
             .ActivationScope(context.ActivationName);
         var stored = await secrets.FetchByKeyAsync(connectionKey)
             ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' was not found for this activation.");
-        var connection = System.Text.Json.JsonSerializer.Deserialize<OAuthConnection>(stored.Value, new System.Text.Json.JsonSerializerOptions
+        OAuthConnection connection;
+        try
         {
-            PropertyNameCaseInsensitive = true
-        })
-            ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' is invalid.");
+            connection = JsonSerializer.Deserialize<OAuthConnection>(stored.Value, JsonOptions)
+                ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' is invalid.");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException($"OAuth connection '{connectionKey}' is malformed.", exception);
+        }
+
+        if (!Uri.TryCreate(connection.RedirectUri, UriKind.Absolute, out var redirectUri))
+            throw new InvalidOperationException($"OAuth connection '{connectionKey}' has an invalid redirect URI.");
+
+        var secretId = (await secrets.ListAsync()).SingleOrDefault(secret => secret.Key == connectionKey)?.Id
+            ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' could not be resolved in this activation.");
         return new ClientOAuthOptions
         {
             ClientId = connection.ClientId,
             ClientSecret = connection.ClientSecret,
-            RedirectUri = new Uri(connection.RedirectUri),
+            RedirectUri = redirectUri,
             Scopes = connection.Scopes,
-            TokenCache = new SecretVaultTokenCache(secrets, connectionKey, connection),
+            TokenCache = new SecretVaultTokenCache(secrets, secretId, connectionKey, connection),
             AuthorizationRedirectDelegate = (_, _, _) => throw new InvalidOperationException(
                 $"OAuth connection '{connectionKey}' must be reconnected in Agent Studio.")
         };

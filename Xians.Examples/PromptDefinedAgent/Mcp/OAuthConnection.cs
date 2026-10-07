@@ -1,11 +1,9 @@
-using System.Text.Json.Serialization;
 using ModelContextProtocol.Authentication;
 
 namespace PromptDefinedAgent.Mcp;
 
 internal sealed class OAuthConnection
 {
-    public required string SecretId { get; init; }
     public required string ClientId { get; init; }
     public string? ClientSecret { get; init; }
     public required string RedirectUri { get; init; }
