@@ -148,7 +148,7 @@ internal static class McpToolProvider
         };
     }
 
-    private static async Task<ClientOAuthOptions> BuildOAuthOptionsAsync(
+    internal static async Task<ClientOAuthOptions> BuildOAuthOptionsAsync(
         string? connectionKey,
         XiansToolContext context)
     {
@@ -159,7 +159,10 @@ internal static class McpToolProvider
             .TenantScope(context.TenantId)
             .AgentScope(context.AgentName)
             .ActivationScope(context.ActivationName);
-        var stored = await secrets.FetchByKeyAsync(connectionKey)
+        var fetchTask = secrets.FetchByKeyAsync(connectionKey);
+        var listTask = secrets.ListAsync();
+        await Task.WhenAll(fetchTask, listTask);
+        var stored = await fetchTask
             ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' was not found for this activation.");
         OAuthConnection connection;
         try
@@ -167,15 +170,16 @@ internal static class McpToolProvider
             connection = JsonSerializer.Deserialize<OAuthConnection>(stored.Value, JsonOptions)
                 ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' is invalid.");
         }
-        catch (JsonException exception)
+        catch (Exception exception) when (exception is not InvalidOperationException)
         {
-            throw new InvalidOperationException($"OAuth connection '{connectionKey}' is malformed.", exception);
+            throw new InvalidOperationException($"OAuth connection '{connectionKey}' failed to deserialize.", exception);
         }
 
-        if (!Uri.TryCreate(connection.RedirectUri, UriKind.Absolute, out var redirectUri))
+        if (!Uri.TryCreate(connection.RedirectUri, UriKind.Absolute, out var redirectUri) ||
+            !IsAllowedRedirectUri(redirectUri))
             throw new InvalidOperationException($"OAuth connection '{connectionKey}' has an invalid redirect URI.");
 
-        var secretId = (await secrets.ListAsync()).SingleOrDefault(secret => secret.Key == connectionKey)?.Id
+        var secretId = (await listTask).FirstOrDefault(secret => secret.Key == connectionKey)?.Id
             ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' could not be resolved in this activation.");
         return new ClientOAuthOptions
         {
@@ -188,6 +192,10 @@ internal static class McpToolProvider
                 $"OAuth connection '{connectionKey}' must be reconnected in Agent Studio.")
         };
     }
+
+    private static bool IsAllowedRedirectUri(Uri redirectUri) =>
+        redirectUri.Scheme == Uri.UriSchemeHttps ||
+        (redirectUri.Scheme == Uri.UriSchemeHttp && redirectUri.IsLoopback);
 
     private static async Task<string> GetSecretAsync(string? key)
     {
