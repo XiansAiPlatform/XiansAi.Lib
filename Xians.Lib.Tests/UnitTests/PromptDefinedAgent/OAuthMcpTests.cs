@@ -53,7 +53,7 @@ public sealed class OAuthMcpTests : IDisposable
     [Fact]
     public async Task TokenCache_RestoresPreviousTokensWhenPersistenceFails()
     {
-        ResponseOverride = _ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        ResponseOverride = _ => Task.FromResult(EmptyResponse(HttpStatusCode.InternalServerError));
         var connection = Connection();
         var original = connection.Tokens;
         var cache = Cache(connection);
@@ -102,7 +102,7 @@ public sealed class OAuthMcpTests : IDisposable
     {
         ResponseOverride = request => Task.FromResult(
             request.RequestUri!.AbsolutePath.EndsWith("/fetch")
-                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                ? EmptyResponse(HttpStatusCode.NotFound)
                 : JsonResponse(Array.Empty<object>()));
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -211,6 +211,8 @@ public sealed class OAuthMcpTests : IDisposable
 
     private static HttpResponseMessage JsonResponse<T>(T value) =>
         new(HttpStatusCode.OK) { Content = JsonContent.Create(value) };
+
+    private static HttpResponseMessage EmptyResponse(HttpStatusCode statusCode) => new(statusCode);
 
     private sealed class CallbackHandler(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> callback) : HttpMessageHandler
