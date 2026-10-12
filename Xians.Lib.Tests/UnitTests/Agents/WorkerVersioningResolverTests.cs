@@ -75,8 +75,35 @@ public class WorkerVersioningResolverTests
         var ex = Assert.Throws<InvalidOperationException>(
             () => WorkerVersioningResolver.Resolve(options, "Kjøpsassistent"));
 
-        Assert.Contains("ASCII", ex.Message);
+        Assert.Contains("'Kjøpsassistent'", ex.Message);
+        Assert.Contains("non-ASCII characters", ex.Message);
         Assert.Contains("DeploymentName", ex.Message);
+    }
+
+    [Fact]
+    public void Resolve_AgentNameWithSpaces_WithoutExplicitDeploymentName_Throws()
+    {
+        var options = new WorkerVersioningOptions { Mode = WorkerVersioningMode.Enabled, BuildId = "1.0" };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => WorkerVersioningResolver.Resolve(options, "Sales Assist Agent"));
+
+        Assert.Contains("'Sales Assist Agent'", ex.Message);
+        Assert.Contains("whitespace", ex.Message);
+        Assert.DoesNotContain("non-ASCII characters", ex.Message);
+        Assert.Contains("DeploymentName", ex.Message);
+    }
+
+    [Fact]
+    public void Resolve_AgentNameWithOtherInvalidCharacters_ListsThem()
+    {
+        var options = new WorkerVersioningOptions { Mode = WorkerVersioningMode.Enabled, BuildId = "1.0" };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => WorkerVersioningResolver.Resolve(options, "team/agent:v1"));
+
+        Assert.Contains("'team/agent:v1'", ex.Message);
+        Assert.Contains("'/' ':'", ex.Message);
     }
 
     [Fact]
@@ -95,20 +122,53 @@ public class WorkerVersioningResolverTests
     }
 
     [Fact]
-    public void Resolve_ExplicitNonAsciiDeploymentName_Throws()
+    public void Resolve_ControllerStyleDeploymentName_PassedThroughUnchanged()
+    {
+        // The Temporal Worker Controller injects "<k8s namespace>/<WorkerDeployment name>".
+        var options = new WorkerVersioningOptions
+        {
+            Mode = WorkerVersioningMode.Enabled,
+            BuildId = "0.0.1",
+            DeploymentName = "default/my-agent"
+        };
+
+        var result = WorkerVersioningResolver.Resolve(options, AgentName);
+
+        Assert.Equal("default/my-agent", result!.DeploymentName);
+    }
+
+    [Theory]
+    [InlineData("Kjøpsassistent")]
+    [InlineData("Sales Assist Agent")]
+    public void Resolve_ExplicitDeploymentName_IsNotValidated(string deploymentName)
     {
         var options = new WorkerVersioningOptions
         {
             Mode = WorkerVersioningMode.Enabled,
             BuildId = "1.0",
-            DeploymentName = "Kjøpsassistent"
+            DeploymentName = deploymentName
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => WorkerVersioningResolver.Resolve(options, AgentName));
+        var result = WorkerVersioningResolver.Resolve(options, AgentName);
 
-        Assert.Contains("ASCII", ex.Message);
-        Assert.Contains("DeploymentName", ex.Message);
+        Assert.Equal(deploymentName, result!.DeploymentName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Resolve_BlankExplicitDeploymentName_FallsBackToAgentName(string deploymentName)
+    {
+        var options = new WorkerVersioningOptions
+        {
+            Mode = WorkerVersioningMode.Enabled,
+            BuildId = "1.0",
+            DeploymentName = deploymentName
+        };
+
+        var result = WorkerVersioningResolver.Resolve(options, AgentName);
+
+        Assert.Equal(AgentName, result!.DeploymentName);
     }
 
     [Fact]
