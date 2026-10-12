@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
@@ -12,11 +11,6 @@ namespace PromptDefinedAgent.Mcp;
 
 internal static class McpToolProvider
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     public static async Task<McpToolCollection> LoadAsync(RulesConfig config, XiansToolContext context)
     {
         var result = new McpToolCollection();
@@ -24,7 +18,8 @@ internal static class McpToolProvider
         var enabledServers = EnabledServers(config, loadId);
         Console.WriteLine($"[MCP {loadId}] Loading {enabledServers.Count} enabled servers.");
 
-        var loadedServers = await Task.WhenAll(enabledServers.Select(server => ConnectAsync(server, context, loadId)));
+        var oauthConnections = new OAuthConnectionResolver(context);
+        var loadedServers = await Task.WhenAll(enabledServers.Select(server => ConnectAsync(server, context, loadId, oauthConnections)));
         foreach (var server in loadedServers)
             if (server is not null) result.Add(server);
 
@@ -56,7 +51,8 @@ internal static class McpToolProvider
     private static async Task<LoadedMcpServer?> ConnectAsync(
         McpServerConfig server,
         XiansToolContext context,
-        string loadId)
+        string loadId,
+        OAuthConnectionResolver oauthConnections)
     {
         if (string.IsNullOrWhiteSpace(server.Name) ||
             !Uri.TryCreate(server.Url, UriKind.Absolute, out var endpoint) ||
@@ -72,7 +68,7 @@ internal static class McpToolProvider
         try
         {
             Console.WriteLine($"[MCP {loadId}] Server {Label(server.Name)}: transport={Label(server.Transport)}, auth={Label(server.Authentication?.Type ?? "none")}.");
-            var authentication = await BuildAuthenticationAsync(server.Authentication, context);
+            var authentication = await BuildAuthenticationAsync(server.Authentication, oauthConnections);
             stage = "connection/initialization";
             Console.WriteLine($"[MCP {loadId}] Server {Label(server.Name)}: connecting.");
             client = await McpClient.CreateAsync(new HttpClientTransport(new()
@@ -121,7 +117,7 @@ internal static class McpToolProvider
 
     private static async Task<McpAuthentication> BuildAuthenticationAsync(
         McpAuthenticationConfig? authentication,
-        XiansToolContext context)
+        OAuthConnectionResolver oauthConnections)
     {
         if (authentication is null || authentication.Type.Equals("none", StringComparison.OrdinalIgnoreCase))
             return new(null, null);
@@ -131,7 +127,7 @@ internal static class McpToolProvider
             "bearer" => new(new() { ["Authorization"] = $"Bearer {await GetSecretAsync(authentication.Secret)}" }, null),
             "apikey" => new(new() { [authentication.Header ?? "X-API-Key"] = await GetSecretAsync(authentication.Secret) }, null),
             "basic" => new(await BuildBasicHeadersAsync(authentication), null),
-            "oauth" => new(null, await BuildOAuthOptionsAsync(authentication.Connection, context)),
+            "oauth" => new(null, await oauthConnections.ResolveAsync(authentication.Connection)),
             _ => throw new InvalidOperationException($"Unsupported MCP authentication type '{authentication.Type}'.")
         };
     }
@@ -150,52 +146,7 @@ internal static class McpToolProvider
 
     internal static async Task<ClientOAuthOptions> BuildOAuthOptionsAsync(
         string? connectionKey,
-        XiansToolContext context)
-    {
-        if (string.IsNullOrWhiteSpace(connectionKey))
-            throw new InvalidOperationException("OAuth authentication requires a connection key.");
-
-        var secrets = XiansContext.CurrentAgent.Secrets
-            .TenantScope(context.TenantId)
-            .AgentScope(context.AgentName)
-            .ActivationScope(context.ActivationName);
-        var fetchTask = secrets.FetchByKeyAsync(connectionKey);
-        var listTask = secrets.ListAsync();
-        await Task.WhenAll(fetchTask, listTask);
-        var stored = await fetchTask
-            ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' was not found for this activation.");
-        OAuthConnection connection;
-        try
-        {
-            connection = JsonSerializer.Deserialize<OAuthConnection>(stored.Value, JsonOptions)
-                ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' is invalid.");
-        }
-        catch (Exception exception) when (exception is not InvalidOperationException)
-        {
-            throw new InvalidOperationException($"OAuth connection '{connectionKey}' failed to deserialize.", exception);
-        }
-
-        if (!Uri.TryCreate(connection.RedirectUri, UriKind.Absolute, out var redirectUri) ||
-            !IsAllowedRedirectUri(redirectUri))
-            throw new InvalidOperationException($"OAuth connection '{connectionKey}' has an invalid redirect URI.");
-
-        var secretId = (await listTask).FirstOrDefault(secret => secret.Key == connectionKey)?.Id
-            ?? throw new InvalidOperationException($"OAuth connection '{connectionKey}' could not be resolved in this activation.");
-        return new ClientOAuthOptions
-        {
-            ClientId = connection.ClientId,
-            ClientSecret = connection.ClientSecret,
-            RedirectUri = redirectUri,
-            Scopes = connection.Scopes,
-            TokenCache = new SecretVaultTokenCache(secrets, secretId, connectionKey, connection),
-            AuthorizationRedirectDelegate = (_, _, _) => throw new InvalidOperationException(
-                $"OAuth connection '{connectionKey}' must be reconnected in Agent Studio.")
-        };
-    }
-
-    private static bool IsAllowedRedirectUri(Uri redirectUri) =>
-        redirectUri.Scheme == Uri.UriSchemeHttps ||
-        (redirectUri.Scheme == Uri.UriSchemeHttp && redirectUri.IsLoopback);
+        XiansToolContext context) => await new OAuthConnectionResolver(context).ResolveAsync(connectionKey);
 
     private static async Task<string> GetSecretAsync(string? key)
     {

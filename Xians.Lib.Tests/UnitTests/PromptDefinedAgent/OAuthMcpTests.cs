@@ -51,9 +51,14 @@ public sealed class OAuthMcpTests : IDisposable
     }
 
     [Fact]
-    public async Task TokenCache_RestoresPreviousTokensWhenPersistenceFails()
+    public async Task TokenCache_KeepsRefreshedTokensWhenPersistenceFails()
     {
-        ResponseOverride = _ => Task.FromResult(EmptyResponse(HttpStatusCode.InternalServerError));
+        var attempts = 0;
+        ResponseOverride = _ =>
+        {
+            attempts++;
+            return Task.FromResult(EmptyResponse(HttpStatusCode.InternalServerError));
+        };
         var connection = Connection();
         var original = connection.Tokens;
         var cache = Cache(connection);
@@ -61,11 +66,12 @@ public sealed class OAuthMcpTests : IDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() =>
             cache.StoreTokensAsync(Tokens("new-access")).AsTask());
 
-        Assert.Same(original, await cache.GetTokensAsync());
+        Assert.NotSame(original, await cache.GetTokensAsync());
+        Assert.Equal(3, attempts);
     }
 
     [Fact]
-    public async Task TokenCache_BlocksReadsDuringPersistence()
+    public async Task TokenCache_AllowsReadsDuringPersistence()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -80,19 +86,35 @@ public sealed class OAuthMcpTests : IDisposable
 
         var write = cache.StoreTokensAsync(refreshed).AsTask();
         await started.Task;
-        var read = cache.GetTokensAsync().AsTask();
+        var reads = Enumerable.Range(0, 3).Select(_ => cache.GetTokensAsync().AsTask()).ToArray();
 
-        Assert.False(read.IsCompleted);
+        Assert.All(reads, read => Assert.True(read.IsCompleted));
+        Assert.All(await Task.WhenAll(reads), token => Assert.Same(refreshed, token));
         release.SetResult();
         await write;
-        Assert.Same(refreshed, await read);
     }
 
     [Fact]
-    public async Task BuildOAuthOptions_RequiresConnectionKey()
+    public async Task TokenCache_PropagatesCancellation()
+    {
+        var cache = Cache(Connection());
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            cache.GetTokensAsync(cancellation.Token).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            cache.StoreTokensAsync(Tokens("new-access"), cancellation.Token).AsTask());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task BuildOAuthOptions_RequiresConnectionKey(string? connectionKey)
     {
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            McpToolProvider.BuildOAuthOptionsAsync(null, Context()));
+            McpToolProvider.BuildOAuthOptionsAsync(connectionKey, Context()));
 
         Assert.Contains("requires a connection key", error.Message);
     }
@@ -133,6 +155,57 @@ public sealed class OAuthMcpTests : IDisposable
         Assert.Contains("invalid redirect URI", error.Message);
     }
 
+    [Fact]
+    public async Task BuildOAuthOptions_AllowsLoopbackHttpRedirect()
+    {
+        SetConnectionResponses(System.Text.Json.JsonSerializer.Serialize(Connection("http://localhost/callback")));
+
+        var options = await McpToolProvider.BuildOAuthOptionsAsync("MCP_OAUTH_TEST", Context());
+
+        Assert.Equal("http://localhost/callback", options.RedirectUri.ToString());
+    }
+
+    [Fact]
+    public async Task BuildOAuthOptions_AllowsPublicClientWithoutSecret()
+    {
+        var connection = Connection(clientSecret: null);
+        SetConnectionResponses(System.Text.Json.JsonSerializer.Serialize(connection));
+
+        var options = await McpToolProvider.BuildOAuthOptionsAsync("MCP_OAUTH_TEST", Context());
+
+        Assert.Null(options.ClientSecret);
+    }
+
+    [Fact]
+    public async Task OAuthConnectionResolver_ReusesMetadataAndTokenCache()
+    {
+        var fetches = 0;
+        var lists = 0;
+        var value = System.Text.Json.JsonSerializer.Serialize(Connection());
+        ResponseOverride = request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/fetch"))
+            {
+                Interlocked.Increment(ref fetches);
+                return Task.FromResult(JsonResponse(new { value }));
+            }
+            Interlocked.Increment(ref lists);
+            return Task.FromResult(JsonResponse(new[]
+            {
+                new { id = "secret-1", key = "MCP_OAUTH_TEST", createdBy = "test", createdAt = DateTime.UtcNow }
+            }));
+        };
+        var resolver = new OAuthConnectionResolver(Context());
+
+        var options = await Task.WhenAll(
+            resolver.ResolveAsync("MCP_OAUTH_TEST"),
+            resolver.ResolveAsync("MCP_OAUTH_TEST"));
+
+        Assert.Equal(1, fetches);
+        Assert.Equal(1, lists);
+        Assert.Same(options[0].TokenCache, options[1].TokenCache);
+    }
+
     private Func<HttpRequestMessage, Task<HttpResponseMessage>>? ResponseOverride { get; set; }
 
     private Task<HttpResponseMessage> RespondAsync(HttpRequestMessage request) =>
@@ -166,10 +239,12 @@ public sealed class OAuthMcpTests : IDisposable
         "MCP_OAUTH_TEST",
         connection);
 
-    private static OAuthConnection Connection(string redirectUri = "https://studio.example.com/callback") => new()
+    private static OAuthConnection Connection(
+        string redirectUri = "https://studio.example.com/callback",
+        string? clientSecret = "secret") => new()
     {
         ClientId = "client",
-        ClientSecret = "secret",
+        ClientSecret = clientSecret,
         RedirectUri = redirectUri,
         Scopes = ["crm.read"],
         Tokens = Tokens("old-access")
