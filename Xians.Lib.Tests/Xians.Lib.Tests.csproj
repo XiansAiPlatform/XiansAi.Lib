@@ -39,6 +39,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Xians.Lib\Xians.Lib.csproj" />
+    <ProjectReference Include="..\Xians.Examples\PromptDefinedAgent\PromptDefinedAgent.csproj" />
   </ItemGroup>
 
   <ItemGroup>

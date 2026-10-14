@@ -7,6 +7,7 @@ using PromptDefinedAgent.Configuration;
 using PromptDefinedAgent.Mcp;
 using PromptDefinedAgent.Messaging;
 using PromptDefinedAgent.Scheduling;
+using PromptDefinedAgent.Webhooks;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Messaging;
 
@@ -32,6 +33,14 @@ public sealed class PromptAgent : IAsyncDisposable
             XiansContext.Messaging.SendToolCallMessageAsSupervisorAsync(
                 text, data, scope: request.Scope, participantId: request.ParticipantId));
 
+    public Task<string> RunWebhookAsync(WebhookContext context) =>
+        RunAsync(
+            WebhookPrompt.From(context).ToAgentPrompt(),
+            null,
+            CreateToolContext(context.Webhook.ParticipantId, context.Webhook.Scope),
+            (data, text) => XiansContext.Messaging.SendToolCallMessageAsSupervisorAsync(
+                text, data, scope: context.Webhook.Scope, participantId: context.Webhook.ParticipantId));
+
     private async Task<string> RunAsync(
         string prompt,
         UserMessageContext? context,
@@ -41,7 +50,8 @@ public sealed class PromptAgent : IAsyncDisposable
         var configuredPrompt = await XiansContext.CurrentAgent.Knowledge.GetAsync("system-prompt");
         var mcpTools = await GetMcpToolsAsync(toolContext);
         var instructions = configuredPrompt?.Content ?? "You are a helpful assistant.";
-        if (context is not null) instructions += "\n\n" + SchedulingInstructions.ForChat();
+        if (context is not null)
+            instructions += "\n\n" + SchedulingInstructions.ForChat() + "\n\n" + WebhookInstructions.ForChat();
 
         var options = new ChatClientAgentOptions
         {
