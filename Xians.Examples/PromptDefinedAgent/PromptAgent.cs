@@ -39,13 +39,15 @@ public sealed class PromptAgent : IAsyncDisposable
             null,
             CreateToolContext(context.Webhook.ParticipantId, context.Webhook.Scope),
             (data, text) => XiansContext.Messaging.SendToolCallMessageAsSupervisorAsync(
-                text, data, scope: context.Webhook.Scope, participantId: context.Webhook.ParticipantId));
+                text, data, scope: context.Webhook.Scope, participantId: context.Webhook.ParticipantId),
+            WebhookToolPolicy.Allows);
 
     private async Task<string> RunAsync(
         string prompt,
         UserMessageContext? context,
         XiansToolContext toolContext,
-        Func<object, string, Task> sendToolEvent)
+        Func<object, string, Task> sendToolEvent,
+        Func<string, bool>? includeXiansTool = null)
     {
         var configuredPrompt = await XiansContext.CurrentAgent.Knowledge.GetAsync("system-prompt");
         var mcpTools = await GetMcpToolsAsync(toolContext);
@@ -58,7 +60,7 @@ public sealed class PromptAgent : IAsyncDisposable
             ChatOptions = new ChatOptions
             {
                 Instructions = instructions,
-                Tools = new List<AITool>(mcpTools.GetTools(toolContext))
+                Tools = new List<AITool>(mcpTools.GetTools(toolContext, includeXiansTool))
             }
         };
         if (context is not null) options.ChatMessageStoreFactory = _ => new ConversationStore(context);

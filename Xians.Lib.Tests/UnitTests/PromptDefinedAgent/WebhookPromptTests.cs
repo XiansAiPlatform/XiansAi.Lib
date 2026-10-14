@@ -38,5 +38,30 @@ public class WebhookPromptTests
         Assert.Throws<InvalidOperationException>(() => WebhookPrompt.From(context));
     }
 
+    [Theory]
+    [InlineData("list_workflows")]
+    [InlineData("list_schedules")]
+    [InlineData("create_schedule")]
+    [InlineData("update_schedule_timing")]
+    [InlineData("pause_schedule")]
+    [InlineData("resume_schedule")]
+    [InlineData("delete_schedule")]
+    [InlineData("list_webhooks")]
+    [InlineData("create_webhook")]
+    [InlineData("update_webhook")]
+    [InlineData("delete_webhook")]
+    public void WebhookExecutionExcludesTriggerManagementTools(string toolName)
+    {
+        Assert.False(WebhookToolPolicy.Allows(toolName));
+    }
+
+    [Theory]
+    [InlineData("search_repositories")]
+    [InlineData("save_data_record")]
+    public void WebhookExecutionAllowsTaskTools(string toolName)
+    {
+        Assert.True(WebhookToolPolicy.Allows(toolName));
+    }
+
     private sealed class TestWebhookContext : WebhookContext;
 }
