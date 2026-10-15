@@ -357,31 +357,31 @@ public static class LoggerFactory
         }
 
         /// <summary>
-        /// Resolves a fresh underlying logger, recovering from a TOCTOU race where
-        /// another thread disposes the factory between us reading it and calling
-        /// CreateLogger on it.
+        /// Resolves a fresh underlying logger. Resolution happens under <c>_lock</c>,
+        /// the same lock that guards every library-initiated disposal of the factory
+        /// (<see cref="Reset"/>, <see cref="ConfigureLogLevels"/>, the <see cref="Instance"/>
+        /// setter), so another thread can no longer dispose the factory between us
+        /// reading it and calling CreateLogger on it. Only runs when the generation
+        /// changes, so the lock is not on the hot logging path.
         /// </summary>
         private ILogger ResolveLogger()
         {
-            try
+            lock (_lock)
             {
-                return GetUnderlying().CreateLogger(_category);
-            }
-            catch (ObjectDisposedException)
-            {
-                lock (_lock)
+                try
                 {
-                    // Drop the disposed reference; GetUnderlying() will lazy-create
-                    // a fresh factory on the next call. We bump the generation so
-                    // any sibling DelegatingLogger instances also re-resolve.
-                    if (_loggerFactory != null)
-                    {
-                        try { _loggerFactory.Dispose(); } catch (ObjectDisposedException) { }
-                        _loggerFactory = null;
-                        Interlocked.Increment(ref _generation);
-                    }
+                    return GetUnderlying().CreateLogger(_category);
                 }
-                return GetUnderlying().CreateLogger(_category);
+                catch (ObjectDisposedException)
+                {
+                    // The installed factory was disposed by its external owner (e.g. a
+                    // custom factory assigned via Instance and disposed afterwards).
+                    // Replace it with a fresh default and bump the generation so any
+                    // sibling DelegatingLogger instances also re-resolve.
+                    _loggerFactory = CreateDefaultLoggerFactory();
+                    Interlocked.Increment(ref _generation);
+                    return _loggerFactory.CreateLogger(_category);
+                }
             }
         }
 

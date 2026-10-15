@@ -349,6 +349,10 @@ public class XiansWorkflow
         {
             MaxConcurrentWorkflowTasks = Workers,
             MaxCachedWorkflows = maxCachedWorkflows,
+            // On shutdown, let running activities finish first.
+            GracefulShutdownTimeout = Options.GracefulShutdownTimeout < TimeSpan.Zero
+                ? TimeSpan.Zero
+                : Options.GracefulShutdownTimeout,
             LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true),
             // Automatically propagate OpenTelemetry trace context into workflows and activities.
             // No-op when no TracerProvider is configured (safe to keep always enabled).
