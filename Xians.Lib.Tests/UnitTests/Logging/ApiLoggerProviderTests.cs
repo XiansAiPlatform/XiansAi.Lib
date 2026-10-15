@@ -7,7 +7,6 @@ namespace Xians.Lib.Tests.UnitTests.Logging;
 /// <summary>
 /// Unit tests for ApiLoggerProvider and ApiLogger.
 /// </summary>
-[Collection(LoggerStaticStateCollection.Name)] // Reads API_LOG_LEVEL, which LoggerFactoryTests also mutates
 public class ApiLoggerProviderTests : IDisposable
 {
     private readonly ApiLoggerProvider _provider;

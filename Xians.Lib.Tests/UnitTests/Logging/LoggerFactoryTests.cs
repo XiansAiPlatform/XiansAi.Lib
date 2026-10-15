@@ -7,7 +7,6 @@ namespace Xians.Lib.Tests.UnitTests.Logging;
 /// <summary>
 /// Unit tests for LoggerFactory enhancements.
 /// </summary>
-[Collection(LoggerStaticStateCollection.Name)] // Mutates static LoggerFactory state and log-level env vars
 public class LoggerFactoryTests : IDisposable
 {
     public LoggerFactoryTests()
