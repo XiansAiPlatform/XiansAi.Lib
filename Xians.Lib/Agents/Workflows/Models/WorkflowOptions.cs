@@ -93,13 +93,6 @@ public class WorkflowOptions
     public TimeSpan? InactivityTimeout { get; set; } = TimeSpan.FromHours(12);
 
     /// <summary>
-    /// When the agent is stopping, how long running activities get to finish before they are
-    /// cancelled. Default is 30 seconds. Cancelled activities are retried later by Temporal.
-    /// Set to <see cref="TimeSpan.Zero"/> to cancel them right away.
-    /// </summary>
-    public TimeSpan GracefulShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
-
-    /// <summary>
     /// Creates a copy of these options.
     /// </summary>
     internal WorkflowOptions Clone()
@@ -110,8 +103,7 @@ public class WorkflowOptions
             MaxHistoryLength = MaxHistoryLength,
             MaxCachedWorkflows = MaxCachedWorkflows,
             Activable = Activable,
-            InactivityTimeout = InactivityTimeout,
-            GracefulShutdownTimeout = GracefulShutdownTimeout
+            InactivityTimeout = InactivityTimeout
         };
 
         // Copy backing fields without invoking the setter (so the explicit assignment flag is preserved).
