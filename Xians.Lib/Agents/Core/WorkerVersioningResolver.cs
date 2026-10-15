@@ -34,7 +34,7 @@ internal static class WorkerVersioningResolver
     /// </returns>
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <see cref="WorkerVersioningMode.Enabled"/> is configured but no Build ID (or deployment
-    /// name) was supplied.
+    /// name) was supplied, or when the agent-name fallback is not a valid deployment name.
     /// </exception>
     internal static ResolvedVersioning? Resolve(WorkerVersioningOptions? options, string agentName)
     {
@@ -54,51 +54,82 @@ internal static class WorkerVersioningResolver
                 "Set WorkerVersioning.BuildId (the agent project should source it, e.g. from its environment).");
         }
 
-        var deploymentName = FirstNonEmpty(options.DeploymentName, agentName);
+        // An explicitly supplied deployment name (e.g. injected by the Temporal Worker Controller as
+        // An explicitly supplied deployment name (e.g. injected by the Temporal Worker Controller as
+        // "<k8s namespace>/<WorkerDeployment name>") is passed through unvalidated (only whitespace-trimmed).
+        if (!string.IsNullOrWhiteSpace(options.DeploymentName))
+        {
+            return new ResolvedVersioning(options.DeploymentName!.Trim(), buildId!.Trim(), options.DefaultBehavior);
+        }
 
-        if (string.IsNullOrWhiteSpace(deploymentName))
+        if (string.IsNullOrWhiteSpace(agentName))
         {
             throw new System.InvalidOperationException(
                 "Worker versioning is enabled but no deployment name could be resolved. " +
                 "Set WorkerVersioning.DeploymentName or provide an agent name.");
         }
 
-        deploymentName = deploymentName!.Trim();
+        var deploymentName = agentName.Trim();
 
-        // Temporal Worker Deployment names are ASCII-only ([A-Za-z0-9._-]+). Unicode agent names
-        // (e.g. Kjøpsassistent) are valid as agent identifiers but cannot be used as a deployment name.
-        if (!IsAsciiDeploymentName(deploymentName))
+        // The agent-name fallback is restricted to [A-Za-z0-9._-]. Agent names may contain spaces or
+        // Unicode (e.g. "My Test Agent", "Kjøpsassistent") that do not make a safe deployment name.
+        var invalid = DescribeInvalidCharacters(deploymentName);
+        if (invalid != null)
         {
             throw new System.InvalidOperationException(
-                "Worker versioning deployment names must be ASCII letters, digits, '.', '_' or '-'. " +
-                "Set WorkerVersioning.DeploymentName explicitly when the agent name contains non-ASCII characters.");
+                $"Cannot use agent name '{deploymentName}' as the worker versioning deployment name: it contains {invalid}. " +
+                "Fallback deployment names may only contain ASCII letters, digits, '.', '_' or '-'. " +
+                "Set WorkerVersioning.DeploymentName explicitly.");
         }
 
         return new ResolvedVersioning(deploymentName, buildId!.Trim(), options.DefaultBehavior);
     }
 
-    private static string? FirstNonEmpty(params string?[] values)
+    /// <summary>
+    /// Returns a human-readable description of the characters outside <c>[A-Za-z0-9._-]</c>, or
+    /// <c>null</c> when the name is valid.
+    /// </summary>
+    private static string? DescribeInvalidCharacters(string name)
     {
-        foreach (var value in values)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-        return null;
-    }
+        var hasWhitespace = false;
+        var hasNonAscii = false;
+        var other = new System.Collections.Generic.SortedSet<char>();
 
-    private static bool IsAsciiDeploymentName(string name)
-    {
         foreach (var c in name)
         {
-            if (!(c is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-'))
+            if (c is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '_' or '-')
             {
-                return false;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(c))
+            {
+                hasWhitespace = true;
+            }
+            else if (c > 127)
+            {
+                hasNonAscii = true;
+            }
+            else
+            {
+                other.Add(c);
             }
         }
 
-        return name.Length > 0;
+        var parts = new System.Collections.Generic.List<string>();
+        if (hasWhitespace)
+        {
+            parts.Add("whitespace");
+        }
+        if (hasNonAscii)
+        {
+            parts.Add("non-ASCII characters");
+        }
+        if (other.Count > 0)
+        {
+            parts.Add("invalid characters " + string.Join(" ", System.Linq.Enumerable.Select(other, c => $"'{c}'")));
+        }
+
+        return parts.Count == 0 ? null : string.Join(", ", parts);
     }
 }
