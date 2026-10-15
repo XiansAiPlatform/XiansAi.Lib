@@ -71,6 +71,22 @@ public class WorkflowOptionsTests
         Assert.Equal(new WorkflowOptions().MaxCachedWorkflows, clone.MaxCachedWorkflows);
     }
 
+    [Fact]
+    public void GracefulShutdownTimeout_DefaultsToThirtySeconds()
+    {
+        // Temporal's default is zero, which cancels running activities at once.
+        Assert.Equal(TimeSpan.FromSeconds(30), new WorkflowOptions().GracefulShutdownTimeout);
+    }
+
+    [Fact]
+    public void Clone_CarriesGracefulShutdownTimeout()
+    {
+        var clone = InvokeClone(new WorkflowOptions { GracefulShutdownTimeout = TimeSpan.FromSeconds(90) });
+
+        // The worker uses the clone, so the value must be copied.
+        Assert.Equal(TimeSpan.FromSeconds(90), clone.GracefulShutdownTimeout);
+    }
+
     /// <summary>
     /// Clone is internal to the library and there is no public seam that exposes it, so the test reaches it
     /// directly rather than asserting on a proxy for it.
