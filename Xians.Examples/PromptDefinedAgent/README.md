@@ -92,6 +92,14 @@ The agent worker still runs `Prompt Defined Agent:Scheduled Prompt Workflow`. It
 
 The scheduled workflow is excluded from the activation wizard; chat-created schedules supply its required request.
 
+## Webhook prompts
+
+Configure the Xians MCP, then ask the agent to create a webhook-triggered workflow. If no trigger is stated, the agent asks whether to use a schedule or webhook.
+
+The agent stores the task as non-sensitive webhook workflow inputs and returns a webhook URL. Each HTTP request runs `Prompt Defined Agent:Prompt Webhook Workflow`; its body, safe headers, and non-system query parameters become task input. The HTTP response contains the agent result. Authentication headers, secrets, signatures, and credential-like query parameters are excluded.
+
+Use `list_webhooks` to inspect exact IDs and configuration, and `update_webhook` to replace workflow inputs. Delete only after explicit user confirmation.
+
 ## MCP options
 
 Server fields:
