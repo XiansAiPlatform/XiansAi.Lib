@@ -61,7 +61,7 @@ public sealed class PromptAgent : IAsyncDisposable
     {
         var key = new McpCacheKey(context.TenantId, context.AgentName, context.ActivationName);
         var candidate = new Lazy<Task<McpToolCollection>>(
-            LoadMcpToolsAsync,
+            () => LoadMcpToolsAsync(context),
             LazyThreadSafetyMode.ExecutionAndPublication);
         var cached = _mcpCache.GetOrAdd(key, candidate);
 
@@ -76,10 +76,10 @@ public sealed class PromptAgent : IAsyncDisposable
         }
     }
 
-    private static async Task<McpToolCollection> LoadMcpToolsAsync()
+    private static async Task<McpToolCollection> LoadMcpToolsAsync(XiansToolContext context)
     {
         var rules = await RulesConfig.LoadAsync();
-        return await McpToolProvider.LoadAsync(rules);
+        return await McpToolProvider.LoadAsync(rules, context);
     }
 
     private static XiansToolContext CreateToolContext(string participantId, string? scope) => new(

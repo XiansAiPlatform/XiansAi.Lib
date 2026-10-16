@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.Extensions.AI;
+using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using PromptDefinedAgent.Configuration;
 using Xians.Lib.Agents.Core;
@@ -10,14 +11,15 @@ namespace PromptDefinedAgent.Mcp;
 
 internal static class McpToolProvider
 {
-    public static async Task<McpToolCollection> LoadAsync(RulesConfig config)
+    public static async Task<McpToolCollection> LoadAsync(RulesConfig config, XiansToolContext context)
     {
         var result = new McpToolCollection();
         var loadId = Guid.NewGuid().ToString("N")[..8];
         var enabledServers = EnabledServers(config, loadId);
         Console.WriteLine($"[MCP {loadId}] Loading {enabledServers.Count} enabled servers.");
 
-        var loadedServers = await Task.WhenAll(enabledServers.Select(server => ConnectAsync(server, loadId)));
+        var oauthConnections = new OAuthConnectionResolver(context);
+        var loadedServers = await Task.WhenAll(enabledServers.Select(server => ConnectAsync(server, context, loadId, oauthConnections)));
         foreach (var server in loadedServers)
             if (server is not null) result.Add(server);
 
@@ -46,7 +48,11 @@ internal static class McpToolProvider
         return result;
     }
 
-    private static async Task<LoadedMcpServer?> ConnectAsync(McpServerConfig server, string loadId)
+    private static async Task<LoadedMcpServer?> ConnectAsync(
+        McpServerConfig server,
+        XiansToolContext context,
+        string loadId,
+        OAuthConnectionResolver oauthConnections)
     {
         if (string.IsNullOrWhiteSpace(server.Name) ||
             !Uri.TryCreate(server.Url, UriKind.Absolute, out var endpoint) ||
@@ -62,7 +68,7 @@ internal static class McpToolProvider
         try
         {
             Console.WriteLine($"[MCP {loadId}] Server {Label(server.Name)}: transport={Label(server.Transport)}, auth={Label(server.Authentication?.Type ?? "none")}.");
-            var headers = await BuildAuthenticationHeadersAsync(server.Authentication);
+            var authentication = await BuildAuthenticationAsync(server.Authentication, oauthConnections);
             stage = "connection/initialization";
             Console.WriteLine($"[MCP {loadId}] Server {Label(server.Name)}: connecting.");
             client = await McpClient.CreateAsync(new HttpClientTransport(new()
@@ -70,7 +76,8 @@ internal static class McpToolProvider
                 Name = server.Name,
                 Endpoint = endpoint,
                 TransportMode = ParseTransport(server.Transport),
-                AdditionalHeaders = headers
+                AdditionalHeaders = authentication.Headers,
+                OAuth = authentication.OAuth
             }));
             stage = "tool discovery";
             Console.WriteLine($"[MCP {loadId}] Server {Label(server.Name)}: connected; discovering tools.");
@@ -108,25 +115,38 @@ internal static class McpToolProvider
         _ => throw new InvalidOperationException($"Unsupported MCP transport '{transport}'.")
     };
 
-    private static async Task<Dictionary<string, string>?> BuildAuthenticationHeadersAsync(
-        McpAuthenticationConfig? authentication)
+    private static async Task<McpAuthentication> BuildAuthenticationAsync(
+        McpAuthenticationConfig? authentication,
+        OAuthConnectionResolver oauthConnections)
     {
         if (authentication is null || authentication.Type.Equals("none", StringComparison.OrdinalIgnoreCase))
-            return null;
+            return new(null, null);
 
         return authentication.Type.ToLowerInvariant() switch
         {
-            "bearer" => new() { ["Authorization"] = $"Bearer {await GetSecretAsync(authentication.Secret)}" },
-            "apikey" => new() { [authentication.Header ?? "X-API-Key"] = await GetSecretAsync(authentication.Secret) },
-            "basic" => new()
-            {
-                ["Authorization"] = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(
-                    Encoding.UTF8.GetBytes($"{await GetSecretAsync(authentication.UsernameSecret)}:{await GetSecretAsync(authentication.PasswordSecret)}")))
-                    .ToString()
-            },
+            "bearer" => new(new() { ["Authorization"] = $"Bearer {await GetSecretAsync(authentication.Secret)}" }, null),
+            "apikey" => new(new() { [authentication.Header ?? "X-API-Key"] = await GetSecretAsync(authentication.Secret) }, null),
+            "basic" => new(await BuildBasicHeadersAsync(authentication), null),
+            "oauth" => new(null, await oauthConnections.ResolveAsync(authentication.Connection)),
             _ => throw new InvalidOperationException($"Unsupported MCP authentication type '{authentication.Type}'.")
         };
     }
+
+    private static async Task<Dictionary<string, string>> BuildBasicHeadersAsync(McpAuthenticationConfig authentication)
+    {
+        var usernameTask = GetSecretAsync(authentication.UsernameSecret);
+        var passwordTask = GetSecretAsync(authentication.PasswordSecret);
+        await Task.WhenAll(usernameTask, passwordTask);
+        return new()
+        {
+            ["Authorization"] = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(
+                Encoding.UTF8.GetBytes($"{await usernameTask}:{await passwordTask}"))).ToString()
+        };
+    }
+
+    internal static async Task<ClientOAuthOptions> BuildOAuthOptionsAsync(
+        string? connectionKey,
+        XiansToolContext context) => await new OAuthConnectionResolver(context).ResolveAsync(connectionKey);
 
     private static async Task<string> GetSecretAsync(string? key)
     {
@@ -146,6 +166,10 @@ internal static class McpToolProvider
         return secret?.Value ?? throw new InvalidOperationException($"MCP secret '{key}' was not found.");
     }
 }
+
+internal sealed record McpAuthentication(
+    Dictionary<string, string>? Headers,
+    ClientOAuthOptions? OAuth);
 
 internal sealed record LoadedMcpServer(
     McpClient Client,
