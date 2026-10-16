@@ -46,7 +46,7 @@ workflow.OnUserChatMessage(async context =>
 agent.Workflows.DefineCustom<ScheduledPromptWorkflow>(new() { Activable = false })
     .AddActivity(new ScheduledPromptActivities(promptAgent));
 
-agent.Workflows.DefineBuiltIn("Prompt Webhook Workflow").OnWebhook(async context =>
+agent.Workflows.DefineBuiltIn("Webhook Prompt Workflow").OnWebhook(async context =>
 {
     try
     {
