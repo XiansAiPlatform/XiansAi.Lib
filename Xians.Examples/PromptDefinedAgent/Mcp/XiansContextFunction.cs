@@ -44,6 +44,10 @@ internal sealed class XiansContextFunction(
             case "save_data_record":
             case "delete_data_record":
             case "delete_data_records":
+            case "list_webhooks":
+            case "create_webhook":
+            case "update_webhook":
+            case "delete_webhook":
                 bindings["target"] = new
                 {
                     tenantId = context.TenantId,
@@ -54,6 +58,7 @@ internal sealed class XiansContextFunction(
             default:
                 return tool;
         }
+        if (function.Name == "create_webhook") bindings["participantId"] = context.ParticipantId;
         return new XiansContextFunction(function, bindings, context);
     }
 

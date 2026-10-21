@@ -18,4 +18,7 @@
   <ItemGroup>
     <EmbeddedResource Include="knowledge\**\*" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Xians.Lib.Tests" />
+  </ItemGroup>
 </Project>
