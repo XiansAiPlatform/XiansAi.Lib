@@ -772,9 +772,11 @@ public static class SubWorkflowService
     /// <summary>
     /// Overrides child-specific metadata (tenantId, agent, idPostfix) on a search attribute
     /// collection inherited from the parent workflow. The idPostfix attribute is removed when
-    /// the child has no activation context.
+    /// the child has no activation context. When the child is started while handling a message,
+    /// its userId is that message's participant rather than the parent's user, so a long-running
+    /// supervisor shared by several users does not stamp every child with whoever started it.
     /// </summary>
-    private static Temporalio.Common.SearchAttributeCollection OverrideChildMetadata(
+    internal static Temporalio.Common.SearchAttributeCollection OverrideChildMetadata(
         Temporalio.Common.SearchAttributeCollection inherited,
         string tenantId,
         string agentName,
@@ -791,6 +793,12 @@ public static class SubWorkflowService
         else
         {
             builder.Unset(WorkflowConstants.Keys.idPostfix);
+        }
+
+        var messageParticipantId = XiansContext.TryGetMessageParticipantId();
+        if (messageParticipantId != null)
+        {
+            builder.Set(Temporalio.Common.SearchAttributeKey.CreateKeyword(WorkflowConstants.Keys.UserId), messageParticipantId);
         }
 
         return builder.ToSearchAttributeCollection();

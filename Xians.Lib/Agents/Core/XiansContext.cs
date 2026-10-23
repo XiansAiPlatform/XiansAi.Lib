@@ -200,6 +200,16 @@ public static class XiansContext
     }
 
     /// <summary>
+    /// Gets the participant of the message currently being handled (set via <see cref="SetParticipantId"/>),
+    /// without falling back to the workflow's user id. Returns null when no message is being handled.
+    /// </summary>
+    internal static string? TryGetMessageParticipantId()
+    {
+        var participantId = _asyncLocalParticipantId.Value;
+        return string.IsNullOrWhiteSpace(participantId) ? null : participantId;
+    }
+
+    /// <summary>
     /// Sets the authorization for the current async execution context.
     /// This value is isolated per thread/async flow and won't affect other concurrent operations.
     /// Internal - accessible only from tests via InternalsVisibleTo.
