@@ -51,7 +51,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         var effectiveActions = request.Actions is { Length: > 0 } ? request.Actions : ["OK"];
         
         // Inherit all parent workflow's memo and search attributes, then add task-specific attributes
-        Memo = BuildInheritedMemo(tenantId, agentName, isSystemScoped, idPostfix, request.Title, request.Description, effectiveParticipantId, effectiveActions);
+        Memo = BuildInheritedMemo(tenantId, agentName, isSystemScoped, idPostfix, request.Title, request.Description, request.DescriptionType, effectiveParticipantId, effectiveActions);
         TypedSearchAttributes = BuildInheritedSearchAttributes(tenantId, agentName, effectiveParticipantId);
 
         // Set workflow summary for debugging
@@ -129,6 +129,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         string idPostfix,
         string title,
         string description,
+        TaskDescriptionType descriptionType,
         string participantId,
         string[] actions)
     {
@@ -140,6 +141,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
         memo[WorkflowConstants.Keys.UserId] = participantId;
         memo[WorkflowConstants.Keys.TaskTitle] = title;
         memo[WorkflowConstants.Keys.TaskDescription] = description;
+        memo[WorkflowConstants.Keys.TaskDescriptionType] = descriptionType.ToString();
         memo[WorkflowConstants.Keys.TaskActions] = string.Join(",", actions);
         
         return memo;
