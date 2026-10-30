@@ -7,6 +7,8 @@ public record TaskWorkflowRequest
 {
     public required string Title { get; init; }
     public required string Description { get; init; }
+    public TaskDescriptionType DescriptionType { get; init; } = TaskDescriptionType.String;
+
     public string? DraftWork { get; init; }
     
     /// <summary>
