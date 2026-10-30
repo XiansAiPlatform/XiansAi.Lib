@@ -131,7 +131,10 @@ public class ApiLogger : ILogger
         var workflowId = XiansContext.SafeWorkflowId ?? "startup-context";
         var workflowRunId = XiansContext.SafeWorkflowRunId;
         var agent = XiansContext.SafeAgentName ?? string.Empty;
-        var participantId = XiansContext.SafeParticipantId ?? XiansContext.SafeCertificateUser;
+        // Certificate user is the key owner (often a system admin), not the person who
+        // triggered the work. Leave participant empty when the workflow has no participant
+        // so logs are not attributed to that owner.
+        var participantId = XiansContext.SafeParticipantId;
         var idPostfix = XiansContext.SafeIdPostfix;
         var workflowType = XiansContext.SafeWorkflowType;
         var tenantId = XiansContext.SafeTenantId;
