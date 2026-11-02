@@ -1,5 +1,8 @@
 using Temporalio.Converters;
 using Xians.Lib.Agents.Tasks.Models;
+using Xians.Lib.Common;
+using Xians.Lib.Temporal.Workflows;
+using Xians.Lib.Temporal.Workflows.Tasks;
 
 namespace Xians.Lib.Tests.UnitTests.Agents;
 
@@ -45,5 +48,35 @@ public class TaskDescriptionTypeTests
         var legacy = Converter.ToPayload(new { Title = "t", Description = "d", TaskName = "task" });
 
         Assert.Equal(TaskDescriptionType.String, Converter.ToValue<TaskWorkflowRequest>(legacy).DescriptionType);
+    }
+
+    [Fact]
+    public void TaskMemo_StoresDescriptionTypeByName()
+    {
+        // The server reads this memo entry to build the task list.
+        var memo = TaskWorkflowOptions.BuildInheritedMemo(
+            "tenant", "agent", false, "", "Review order", "## Order", TaskDescriptionType.Markdown, "user", ["OK"]);
+
+        Assert.Equal("Markdown", memo[WorkflowConstants.Keys.TaskDescriptionType]);
+    }
+
+    [Fact]
+    public void GetTaskInfo_ReturnsRequestDescriptionType()
+    {
+        var workflow = new TaskWorkflow();
+
+        // RunAsync stores the request before waiting; outside a workflow the wait faults, which is ignored here.
+        _ = workflow.RunAsync(new TaskWorkflowRequest
+        {
+            Title = "Review order",
+            Description = "{\"amount\":1200}",
+            DescriptionType = TaskDescriptionType.Json,
+            TaskName = "task"
+        });
+
+        var payload = Converter.ToPayload(workflow.GetTaskInfo());
+
+        Assert.Contains("\"DescriptionType\":\"Json\"", payload.Data.ToStringUtf8());
+        Assert.Equal(TaskDescriptionType.Json, Converter.ToValue<TaskInfo>(payload).DescriptionType);
     }
 }

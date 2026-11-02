@@ -122,7 +122,7 @@ public class TaskWorkflowOptions : ChildWorkflowOptions
     /// Builds the memo dictionary for the task workflow by inheriting all parent memo entries
     /// and adding task-specific attributes (title, description, participantId, actions).
     /// </summary>
-    private static Dictionary<string, object> BuildInheritedMemo(
+    internal static Dictionary<string, object> BuildInheritedMemo(
         string tenantId, 
         string agentName,
         bool systemScoped,
