@@ -45,6 +45,7 @@ public class TaskCollection
     /// <summary>
     /// Creates a task with a simplified interface and waits for completion.
     /// </summary>
+    /// <param name="descriptionType">How the description is displayed in Agent Studio. Defaults to <see cref="TaskDescriptionType.String"/> (plain text).</param>
     public Task<TaskWorkflowResult> CreateAndWaitAsync(
         string? taskId,
         string title,
@@ -52,8 +53,9 @@ public class TaskCollection
         string participantId,
         string? draftWork = null,
         string[]? actions = null,
-        Dictionary<string, object>? metadata = null)
-        => TaskWorkflowService.CreateAndWaitAsync(taskId, title, description, participantId, draftWork, actions, metadata);
+        Dictionary<string, object>? metadata = null,
+        TaskDescriptionType descriptionType = TaskDescriptionType.String)
+        => TaskWorkflowService.CreateAndWaitAsync(taskId, title, description, participantId, draftWork, actions, metadata, descriptionType);
 
     /// <summary>
     /// Starts a task child workflow and returns a handle without waiting for completion.
@@ -80,6 +82,7 @@ public class TaskCollection
     /// <summary>
     /// Creates a task with a simplified interface (fire and forget).
     /// </summary>
+    /// <param name="descriptionType">How the description is displayed in Agent Studio. Defaults to <see cref="TaskDescriptionType.String"/> (plain text).</param>
     public Task CreateAsync(
         string? taskId,
         string title,
@@ -87,8 +90,9 @@ public class TaskCollection
         string participantId,
         string? draftWork = null,
         string[]? actions = null,
-        Dictionary<string, object>? metadata = null)
-        => TaskWorkflowService.CreateAsync(taskId, title, description, participantId, draftWork, actions, metadata);
+        Dictionary<string, object>? metadata = null,
+        TaskDescriptionType descriptionType = TaskDescriptionType.String)
+        => TaskWorkflowService.CreateAsync(taskId, title, description, participantId, draftWork, actions, metadata, descriptionType);
 
     /// <summary>
     /// Updates the draft work for a task.

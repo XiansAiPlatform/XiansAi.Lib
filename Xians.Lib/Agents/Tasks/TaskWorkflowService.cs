@@ -118,6 +118,7 @@ public static class TaskWorkflowService
     /// <summary>
     /// Creates a task with a simplified interface (fire and forget).
     /// </summary>
+    /// <param name="descriptionType">How the description is displayed in Agent Studio. Defaults to <see cref="TaskDescriptionType.String"/> (plain text).</param>
     public static async Task CreateAsync(
         string? taskId,
         string title,
@@ -125,12 +126,14 @@ public static class TaskWorkflowService
         string? participantId = null,
         string? draftWork = null,
         string[]? actions = null,
-        Dictionary<string, object>? metadata = null)
+        Dictionary<string, object>? metadata = null,
+        TaskDescriptionType descriptionType = TaskDescriptionType.String)
     {
         var request = new TaskWorkflowRequest
         {
             Title = title,
             Description = description,
+            DescriptionType = descriptionType,
             ParticipantId = participantId,
             DraftWork = draftWork,
             Actions = actions,
@@ -143,6 +146,7 @@ public static class TaskWorkflowService
     /// <summary>
     /// Creates a task with a simplified interface and waits for completion.
     /// </summary>
+    /// <param name="descriptionType">How the description is displayed in Agent Studio. Defaults to <see cref="TaskDescriptionType.String"/> (plain text).</param>
     public static async Task<TaskWorkflowResult> CreateAndWaitAsync(
         string? taskId,
         string title,
@@ -150,12 +154,14 @@ public static class TaskWorkflowService
         string? participantId = null,
         string? draftWork = null,
         string[]? actions = null,
-        Dictionary<string, object>? metadata = null)
+        Dictionary<string, object>? metadata = null,
+        TaskDescriptionType descriptionType = TaskDescriptionType.String)
     {
         var request = new TaskWorkflowRequest
         {
             Title = title,
             Description = description,
+            DescriptionType = descriptionType,
             ParticipantId = participantId,
             DraftWork = draftWork,
             Actions = actions,

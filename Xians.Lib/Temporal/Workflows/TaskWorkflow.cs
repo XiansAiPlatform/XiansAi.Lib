@@ -96,6 +96,7 @@ public class TaskWorkflow
         {
             Title = _request?.Title ?? string.Empty,
             Description = _request?.Description ?? string.Empty,
+            DescriptionType = _request?.DescriptionType ?? TaskDescriptionType.String,
             InitialWork = _initialWork,
             FinalWork = _finalWork,
             IsCompleted = _isCompleted,
