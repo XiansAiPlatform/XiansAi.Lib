@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Xians.Lib.Logging.Models;
@@ -60,7 +61,7 @@ public class Log
     public string? ParticipantId { get; set; }
     
     /// <summary>
-    /// Additional properties for the log entry.
+    /// The activation (ID postfix) associated with this log entry.
     /// </summary>
     public string? Activation { get; set; }
     
@@ -80,4 +81,11 @@ public class Log
     /// Populated from Activity.Current.SpanId when available, enabling log-trace correlation.
     /// </summary>
     public string? SpanId { get; set; }
+
+    /// <summary>
+    /// Additional structured properties for the log entry (e.g. event type, run id, reason code).
+    /// Omitted from the payload when null so logs without properties are sent unchanged.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, object>? Properties { get; set; }
 }

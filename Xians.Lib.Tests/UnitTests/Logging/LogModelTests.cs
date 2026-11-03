@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Xians.Lib.Logging.Models;
 
@@ -147,5 +149,69 @@ public class LogModelTests
 
         // Assert
         Assert.Null(log.Activation);
+    }
+
+    [Fact]
+    public void Log_WithoutProperties_DefaultsToNull()
+    {
+        // Arrange & Act
+        var log = new Log
+        {
+            Level = LogLevel.Information,
+            Message = "Test",
+            Agent = "agent"
+        };
+
+        // Assert
+        Assert.Null(log.Properties);
+    }
+
+    [Fact]
+    public async Task Log_WithoutProperties_OmitsPropertiesFromPayload()
+    {
+        // Arrange
+        var log = new Log
+        {
+            Level = LogLevel.Information,
+            Message = "Test",
+            Agent = "agent"
+        };
+
+        // Act - serialize the same way LoggingServices uploads logs
+        var json = await JsonContent.Create(new List<Log> { log }).ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var entry = doc.RootElement[0];
+
+        // Assert
+        Assert.False(entry.TryGetProperty("properties", out _));
+        Assert.Equal("Test", entry.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Log_WithProperties_SerializesPropertiesToPayload()
+    {
+        // Arrange
+        var log = new Log
+        {
+            Level = LogLevel.Information,
+            Message = "Run started",
+            Agent = "agent",
+            Properties = new Dictionary<string, object>
+            {
+                ["eventType"] = "RunStarted",
+                ["runId"] = "run-1",
+                ["itemCount"] = 3
+            }
+        };
+
+        // Act - serialize the same way LoggingServices uploads logs
+        var json = await JsonContent.Create(new List<Log> { log }).ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var properties = doc.RootElement[0].GetProperty("properties");
+
+        // Assert
+        Assert.Equal("RunStarted", properties.GetProperty("eventType").GetString());
+        Assert.Equal("run-1", properties.GetProperty("runId").GetString());
+        Assert.Equal(3, properties.GetProperty("itemCount").GetInt32());
     }
 }
