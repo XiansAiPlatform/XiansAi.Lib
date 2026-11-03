@@ -4,6 +4,7 @@ public record TaskInfo
 {
     public required string Title { get; init; }
     public required string Description { get; init; }
+    public TaskDescriptionType DescriptionType { get; init; } = TaskDescriptionType.String;
     
     /// <summary>
     /// The initial draft work when the task was created.

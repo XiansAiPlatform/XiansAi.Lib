@@ -21,6 +21,7 @@ public static class WorkflowConstants
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";
+        public const string TaskDescriptionType = "taskDescriptionType";
         public const string TaskActions = "taskActions";
 
     }
