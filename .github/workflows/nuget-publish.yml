@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write  # enable GitHub OIDC token issuance for NuGet trusted publishing
     
     steps:
     - name: Checkout code
@@ -66,11 +67,17 @@ jobs:
         dotnet pack -c Release -o ./nupkg /p:Version=${{ steps.version.outputs.version }} --no-build
       working-directory: ${{ env.WORK_DIR }}
       
+    - name: NuGet login (OIDC → temp API key)
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: ${{ secrets.NUGET_USER }}
+        
     - name: Publish to NuGet
       run: |
         dotnet nuget push ./nupkg/${{ env.PACKAGE_NAME }}.${{ steps.version.outputs.version }}.nupkg \
           -s ${{ env.NUGET_SOURCE }} \
-          -k ${{ secrets.NUGET_API_KEY }} \
+          -k ${{ steps.login.outputs.NUGET_API_KEY }} \
           --skip-duplicate
       working-directory: ${{ env.WORK_DIR }}
       
