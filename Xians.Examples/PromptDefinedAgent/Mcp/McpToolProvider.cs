@@ -186,13 +186,15 @@ internal sealed class McpToolCollection : IAsyncDisposable
 
     public void Add(LoadedMcpServer server) => _servers.Add(server);
 
-    public IReadOnlyList<AITool> GetTools(XiansToolContext context)
+    public IReadOnlyList<AITool> GetTools(XiansToolContext context, Func<string, bool>? includeXiansTool = null)
     {
         var result = new List<AITool>();
         foreach (var server in _servers)
         {
             foreach (var tool in server.Tools)
             {
+                if (server.UsesXiansContext && includeXiansTool is not null && !includeXiansTool(tool.Name))
+                    continue;
                 if (!server.UsesXiansContext)
                 {
                     result.Add(tool);

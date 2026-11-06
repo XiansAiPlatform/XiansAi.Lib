@@ -1,7 +1,9 @@
 using DotNetEnv;
 using PromptDefinedAgent.Scheduling;
+using PromptDefinedAgent.Webhooks;
 using Xians.Lib.Agents.Core;
 using Xians.Lib.Agents.Knowledge;
+using Xians.Lib.Agents.Messaging;
 
 Env.Load();
 
@@ -43,5 +45,18 @@ workflow.OnUserChatMessage(async context =>
 
 agent.Workflows.DefineCustom<ScheduledPromptWorkflow>(new() { Activable = false })
     .AddActivity(new ScheduledPromptActivities(promptAgent));
+
+agent.Workflows.DefineBuiltIn("Webhook Prompt Workflow").OnWebhook(async context =>
+{
+    try
+    {
+        context.Respond(new { result = await promptAgent.RunWebhookAsync(context) });
+    }
+    catch (Exception exception)
+    {
+        Console.Error.WriteLine($"Prompt webhook failed: {exception.GetType().Name}");
+        context.Response = WebhookResponse.InternalServerError("Prompt webhook execution failed.");
+    }
+});
 
 await agent.RunAllAsync();
