@@ -252,6 +252,7 @@ internal static class MessageProcessor
         {
             MessageText = message.Payload.Text,
             ParticipantId = message.Payload.ParticipantId,
+            InitiatedBy = message.Payload.InitiatedBy,
             RequestId = message.Payload.RequestId,
             Scope = message.Payload.Scope,
             Hint = message.Payload.Hint,

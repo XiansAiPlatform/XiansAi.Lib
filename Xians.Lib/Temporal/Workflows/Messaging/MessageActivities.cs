@@ -48,6 +48,9 @@ public class MessageActivities
         // Set the participant ID for this async execution context
         XiansContext.SetParticipantId(request.ParticipantId);
 
+        // The user who actually sent the message (X-On-Behalf-Of), so logs are attributed to them
+        XiansContext.SetInitiatedBy(request.InitiatedBy);
+
         // we need to set following also to async execution context request.Authorization, request.RequestId, request.TenantId.
         XiansContext.SetAuthorization(request.Authorization);
         XiansContext.SetRequestId(request.RequestId);
@@ -140,6 +143,7 @@ public class MessageActivities
         {
             // Clean up the async local context
             XiansContext.ClearParticipantId();
+            XiansContext.ClearInitiatedBy();
         }
     }
 
