@@ -28,7 +28,8 @@ public class WorkflowHelper
     /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
     /// Use this when starting a workflow that belongs to a different agent and should run under
     /// one of that agent's activations.</param>
-    /// <returns>The ID of the started workflow.</returns>
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
     public async Task<string> StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
@@ -49,7 +50,8 @@ public class WorkflowHelper
     /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
     /// Use this when starting a workflow that belongs to a different agent and should run under
     /// one of that agent's activations.</param>
-    /// <returns>The ID of the started workflow.</returns>
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
     public async Task<string> StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
         // Validate workflowType is not null

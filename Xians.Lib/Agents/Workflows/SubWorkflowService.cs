@@ -32,9 +32,11 @@ public static class SubWorkflowService
     /// <param name="workflowType">The workflow type (format: "AgentName:WorkflowName").</param>
     /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
-    /// <throws>WorkflowAlreadyStartedException if there is a running workflow with given unique keys</throws>
     /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <returns>The ID of the started workflow.</returns>
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
+    /// <exception cref="Temporalio.Exceptions.WorkflowAlreadyStartedException">Thrown from within a
+    /// workflow when a child workflow with the same unique keys is already running.</exception>
     public static async Task<string> StartAsync(string workflowType, string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
         return await StartCoreAsync(workflowType, uniqueKeys, activationName: null, executionTimeout, args);
@@ -43,10 +45,11 @@ public static class SubWorkflowService
     /// <summary>
     /// Core implementation for starting a child workflow.
     /// </summary>
-    /// <returns>The ID of the started workflow.</returns>
     /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
     /// When null, the caller's idPostfix is inherited only for same-agent children
     /// (see <see cref="ResolveChildIdPostfix(string, string?)"/>).</param>
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
     internal static async Task<string> StartCoreAsync(string workflowType, string[] uniqueKeys, string? activationName, TimeSpan? executionTimeout, object[] args)
     {
         await ValidateExplicitActivationAsync(workflowType, activationName);
@@ -88,8 +91,10 @@ public static class SubWorkflowService
     /// <param name="uniqueKeys">Optional unique keys for workflow ID uniqueness.</param>
     /// <param name="executionTimeout">Optional workflow execution timeout.</param>
     /// <param name="args">Arguments to pass to the workflow.</param>
-    /// <throws>WorkflowAlreadyStartedException if there is a running workflow with given unique keys</throws>
-    /// <returns>The ID of the started workflow.</returns>
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
+    /// <exception cref="Temporalio.Exceptions.WorkflowAlreadyStartedException">Thrown from within a
+    /// workflow when a child workflow with the same unique keys is already running.</exception>
     /// <exception cref="InvalidOperationException">Thrown when workflow type cannot be determined or agent not found.</exception>
     public static async Task<string> StartAsync<TWorkflow>(string[] uniqueKeys, TimeSpan? executionTimeout = null, params object[] args)
     {
