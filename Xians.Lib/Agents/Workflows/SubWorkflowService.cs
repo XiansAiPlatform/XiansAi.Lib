@@ -718,6 +718,14 @@ public static class SubWorkflowService
             ?? string.Empty;
         memo[WorkflowConstants.Keys.UserId] = userId;
 
+        // Carry the user who actually triggered this work (X-On-Behalf-Of) so the child's logs are
+        // attributed to them, not to whoever started the parent workflow.
+        var initiatedBy = XiansContext.TryGetInitiatedBy();
+        if (!string.IsNullOrWhiteSpace(initiatedBy))
+        {
+            memo[WorkflowConstants.Keys.InitiatedBy] = initiatedBy;
+        }
+
         return memo;
     }
 
