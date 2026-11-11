@@ -46,6 +46,10 @@ public class BuiltinWorkflow
     [WorkflowSignal("HandleInboundChatOrData")]
     public Task HandleInboundChatOrData(InboundMessage message)
     {
+        // Tag the signal and enqueue logs with the message's request ID (the delivery's ID for a
+        // webhook), so they show up with the rest of its logs.
+        using var requestIdScope = XiansContext.BeginRequestIdScope(message.Payload.RequestId);
+
         Workflow.Logger.LogDebug(
             "Signal received: Type={Type}, ParticipantId={ParticipantId}, RequestId={RequestId}, SourceWorkflowId={SourceWorkflowId}, QueueDepth={QueueDepth}",
             message.Payload.Type,
@@ -332,16 +336,27 @@ public class BuiltinWorkflow
             // Dequeue and process the message
             if (_messageQueue.TryDequeue(out var message))
             {
-                Workflow.Logger.LogDebug(
-                    "Dequeued message: Type={Type}, ParticipantId={ParticipantId}, RequestId={RequestId}, RemainingInQueue={RemainingInQueue}",
-                    message.Payload.Type,
-                    message.Payload.ParticipantId,
-                    message.Payload.RequestId,
-                    _messageQueue.Count);
-                
+                // Scoped to this log only: the loop goes on to wait for other messages.
+                using (XiansContext.BeginRequestIdScope(message.Payload.RequestId))
+                {
+                    Workflow.Logger.LogDebug(
+                        "Dequeued message: Type={Type}, ParticipantId={ParticipantId}, RequestId={RequestId}, RemainingInQueue={RemainingInQueue}",
+                        message.Payload.Type,
+                        message.Payload.ParticipantId,
+                        message.Payload.RequestId,
+                        _messageQueue.Count);
+                }
+
                 // Process message in background to avoid blocking the loop
                 _ = Workflow.RunTaskAsync(async () =>
                 {
+                    // Scoped to this message's task: its logs, and the activities it schedules,
+                    // carry its request ID. Other messages run in their own tasks.
+                    if (!string.IsNullOrEmpty(message.Payload.RequestId))
+                    {
+                        XiansContext.SetRequestId(message.Payload.RequestId);
+                    }
+
                     try
                     {
                         Workflow.Logger.LogDebug(

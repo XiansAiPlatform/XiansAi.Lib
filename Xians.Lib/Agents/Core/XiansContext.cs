@@ -165,6 +165,14 @@ public static class XiansContext
     public static string? SafeIdPostfix => TryGetIdPostfix();
 
     /// <summary>
+    /// The request ID of the message being handled, without throwing: the one set for the current
+    /// async flow (message handling, or an activity scheduled from it), else the one in the
+    /// workflow's memo (a workflow started while a message was handled). Null when there is none.
+    /// Every log row carries it, so a delivery's logs can be found across all its workflows.
+    /// </summary>
+    public static string? SafeRequestId => TryGetRequestId();
+
+    /// <summary>
     /// Safely gets the current certificate user ID without throwing exceptions.
     /// Returns null if authorization is not available or certificate is invalid.
     /// Use this in logging and other scenarios where exceptions are not desired.
@@ -239,6 +247,26 @@ public static class XiansContext
     internal static void ClearRequestId()
     {
         _asyncLocalRequestId.Value = null;
+    }
+
+    /// <summary>
+    /// Sets the request ID until the returned scope is disposed, then restores the previous one.
+    /// Used to tag logs written for a message outside its own task (signal received, queued,
+    /// dequeued). A null or empty ID leaves the current value as it is.
+    /// </summary>
+    internal static IDisposable BeginRequestIdScope(string? requestId)
+    {
+        var previous = _asyncLocalRequestId.Value;
+        if (!string.IsNullOrEmpty(requestId))
+        {
+            _asyncLocalRequestId.Value = requestId;
+        }
+        return new RequestIdScope(previous);
+    }
+
+    private sealed class RequestIdScope(string? previous) : IDisposable
+    {
+        public void Dispose() => _asyncLocalRequestId.Value = previous;
     }
 
     /// <summary>
@@ -567,6 +595,25 @@ public static class XiansContext
         try
         {
             return GetTenantId();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Backs <see cref="SafeRequestId"/>: async context first, then the workflow memo.</summary>
+    internal static string? TryGetRequestId()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(_asyncLocalRequestId.Value))
+                return _asyncLocalRequestId.Value;
+
+            var fromMemo = Workflow.InWorkflow
+                ? WorkflowMetadataResolver.GetFromWorkflowContext(Common.WorkflowConstants.Keys.RequestId)
+                : null;
+            return string.IsNullOrEmpty(fromMemo) ? null : fromMemo;
         }
         catch
         {

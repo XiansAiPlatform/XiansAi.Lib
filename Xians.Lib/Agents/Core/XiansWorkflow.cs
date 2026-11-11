@@ -356,7 +356,9 @@ public class XiansWorkflow
             LoggerFactory = Xians.Lib.Common.Infrastructure.LoggerFactory.CreateLoggerFactoryWithApiLogging(enableApiLogging: true),
             // Automatically propagate OpenTelemetry trace context into workflows and activities.
             // No-op when no TracerProvider is configured (safe to keep always enabled).
-            Interceptors = [new TracingInterceptor()],
+            // RequestIdInterceptor carries the handled message's request ID into activities, so
+            // their logs can be found by it (see XiansContext.SafeRequestId).
+            Interceptors = [new TracingInterceptor(), new Temporal.RequestIdInterceptor()],
             // Treat nondeterminism errors as workflow failures (instead of retrying the task forever).
             // This terminates the stuck run so the next SignalWithStart creates a fresh execution.
             // Activation exceptions are rethrown as typed .NET exceptions by SubWorkflowService
