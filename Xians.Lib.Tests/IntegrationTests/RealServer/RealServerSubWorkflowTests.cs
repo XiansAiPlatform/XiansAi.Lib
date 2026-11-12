@@ -594,16 +594,20 @@ public class RealServerSubWorkflowTests : RealServerTestBase, IAsyncLifetime
 
         // Act - start workflow and verify it can be found
         var childWorkflowType = ChildWorkflowType;
-        await SubWorkflowService.StartAsync(childWorkflowType, new[] { testId });
-        
+        var startedWorkflowId = await SubWorkflowService.StartAsync(childWorkflowType, new[] { testId });
+
         // Build expected workflow ID that SubWorkflowService creates
         // Format: {tenantId}:{agentName}:{fullWorkflowName}:{postfix}
         var tenantId = _agent!.Options!.CertificateTenantId;
         var workflowName = $"{CHILD_TARGET_WORKFLOW}";
         var expectedWorkflowId = $"{tenantId}:{_agentName}:{workflowName}:{testId}";
         _customWorkflowIds.Add(expectedWorkflowId);
-        
+
         Console.WriteLine($"  Expected workflow ID: {expectedWorkflowId}");
+
+        // StartAsync returns the ID it started; starting again while that run is open reuses it
+        Assert.Equal(expectedWorkflowId, startedWorkflowId);
+        Assert.Equal(expectedWorkflowId, await SubWorkflowService.StartAsync(childWorkflowType, new[] { testId }));
 
         // Wait a moment for workflow to start
         await Task.Delay(1000);
