@@ -735,14 +735,6 @@ public static class SubWorkflowService
             memo[WorkflowConstants.Keys.InitiatedBy] = initiatedBy;
         }
 
-        // Started while a message is handled: carry its request ID, so this workflow's logs (and those
-        // of anything it starts, which inherit the memo) can be found from the message.
-        var requestId = XiansContext.TryGetRequestId();
-        if (!string.IsNullOrWhiteSpace(requestId))
-        {
-            memo[WorkflowConstants.Keys.RequestId] = requestId;
-        }
-
         return memo;
     }
 

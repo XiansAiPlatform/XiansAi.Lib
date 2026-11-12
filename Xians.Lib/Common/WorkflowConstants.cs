@@ -19,12 +19,6 @@ public static class WorkflowConstants
         public const string SystemScoped = "systemScoped";
         public const string InitiatedBy = "initiatedBy";
 
-        /// <summary>
-        /// Request ID of the message whose handling started this workflow. Kept in the memo of
-        /// workflows started while a message is handled, so their logs can be found by it.
-        /// </summary>
-        public const string RequestId = "requestId";
-
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";
