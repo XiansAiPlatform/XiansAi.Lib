@@ -28,11 +28,12 @@ public class WorkflowHelper
     /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
     /// Use this when starting a workflow that belongs to a different agent and should run under
     /// one of that agent's activations.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
+    public async Task<string> StartAsync<TWorkflow>(object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
         var workflowType = GetWorkflowTypeFromClass<TWorkflow>();
-        await StartAsync(workflowType, args, uniqueKey, executionTimeout, activationName);
+        return await StartAsync(workflowType, args, uniqueKey, executionTimeout, activationName);
     }
 
     /// <summary>
@@ -49,14 +50,15 @@ public class WorkflowHelper
     /// <param name="activationName">Optional target activation name (idPostfix) for the child workflow.
     /// Use this when starting a workflow that belongs to a different agent and should run under
     /// one of that agent's activations.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
+    /// <returns>The ID of the started workflow. Outside a workflow, when a run with that ID is already
+    /// running, that run is reused and its ID is returned; no second run is started.</returns>
+    public async Task<string> StartAsync(string workflowType, object[] args, string? uniqueKey = null, TimeSpan? executionTimeout = null, string? activationName = null)
     {
         // Validate workflowType is not null
         _ = workflowType.Length;
 
         var uniqueKeys = BuildChildUniqueKeys(workflowType, uniqueKey, activationName);
-        await SubWorkflowService.StartCoreAsync(workflowType, uniqueKeys, activationName, executionTimeout, args);
+        return await SubWorkflowService.StartCoreAsync(workflowType, uniqueKeys, activationName, executionTimeout, args);
     }
 
     /// <summary>
