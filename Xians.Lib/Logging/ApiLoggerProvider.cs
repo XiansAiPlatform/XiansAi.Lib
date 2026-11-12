@@ -127,12 +127,6 @@ public class ApiLogger : ILogger
             return;
         }
 
-        LoggingServices.EnqueueLog(CreateLog(logLevel, logMessage, exception));
-    }
-
-    /// <summary>The log row for a message, with the workflow/activity context it was written in.</summary>
-    internal static Log CreateLog(LogLevel logLevel, string logMessage, Exception? exception)
-    {
         // Extract context from Temporal workflow/activity using XiansContext
         var workflowId = XiansContext.SafeWorkflowId ?? "startup-context";
         var workflowRunId = XiansContext.SafeWorkflowRunId;
@@ -141,13 +135,12 @@ public class ApiLogger : ILogger
         var idPostfix = XiansContext.SafeIdPostfix;
         var workflowType = XiansContext.SafeWorkflowType;
         var tenantId = XiansContext.SafeTenantId;
-        var requestId = XiansContext.SafeRequestId;
 
         // Capture active OpenTelemetry span IDs for log-trace correlation.
         // Only read Activity.Current outside Temporal workflow execution to avoid replay issues.
         var currentActivity = Workflow.InWorkflow ? null : Activity.Current;
 
-        return new Log
+        var log = new Log
         {
             Id = Workflow.InWorkflow ? Workflow.NewGuid().ToString() : Guid.NewGuid().ToString(),
             CreatedAt = DateTime.UtcNow,
@@ -162,13 +155,10 @@ public class ApiLogger : ILogger
             TenantId = tenantId,
             Exception = exception?.ToString(),
             TraceId = currentActivity?.TraceId.ToString(),
-            SpanId = currentActivity?.SpanId.ToString(),
-            // Lets every log of one message - across the workflows and activities it reaches - be
-            // found together (server filter: property=requestId:<id>).
-            Properties = string.IsNullOrEmpty(requestId)
-                ? null
-                : new Dictionary<string, object> { [WorkflowConstants.Keys.RequestId] = requestId }
+            SpanId = currentActivity?.SpanId.ToString()
         };
+
+        LoggingServices.EnqueueLog(log);
     }
 
     /// <summary>

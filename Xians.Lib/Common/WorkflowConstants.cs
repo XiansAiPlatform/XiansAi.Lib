@@ -17,12 +17,6 @@ public static class WorkflowConstants
         public const string UserId = "userId";
         public const string idPostfix = "idPostfix";
         public const string SystemScoped = "systemScoped";
-
-        /// <summary>
-        /// Request ID of the message whose handling started this workflow. Kept in the memo of
-        /// workflows started while a message is handled, so their logs can be found by it.
-        /// </summary>
-        public const string RequestId = "requestId";
         
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
