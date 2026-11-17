@@ -1,0 +1,11 @@
+{
+  "name": "xiansai-lib-dlc",
+  "private": true,
+  "description": "managed by xians-dlc. Pins the workflow version for this repository; npm install here sets the git hooks.",
+  "dependencies": {
+    "xiansdlc": "^0.2.0"
+  },
+  "scripts": {
+    "postinstall": "xians-dlc install --hooks-only"
+  }
+}

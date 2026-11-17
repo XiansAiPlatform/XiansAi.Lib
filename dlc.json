@@ -1,0 +1,39 @@
+{
+  "logRoot": "docs/work-item-log",
+  "baseBranch": "main",
+  "protectedBranches": [
+    "main",
+    "master"
+  ],
+  "branchPattern": "^(?<type>[a-z]+)/(?<id>\\d+)-[a-z0-9._-]+$",
+  "branchMaxLength": 0,
+  "requireIssueBranch": false,
+  "lightPrefixes": [
+    "fix",
+    "chore",
+    "docs",
+    "test"
+  ],
+  "planCategories": [
+    "Data model",
+    "Public contracts",
+    "Temporal workflows",
+    "Config and secrets",
+    "Security and tenancy",
+    "Tests",
+    "Docs"
+  ],
+  "requiredDocs": [
+    "Xians.Lib/docs/"
+  ],
+  "tracker": {
+    "kind": "github",
+    "issueRepo": "XiansAiPlatform/XiansAi.Server",
+    "prRepo": "XiansAiPlatform/XiansAi.Lib",
+    "reviewers": []
+  },
+  "adapters": [
+    "claude",
+    "cursor"
+  ]
+}

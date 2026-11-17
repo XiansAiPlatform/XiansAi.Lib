@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node -e \"const p=require('path').join(process.cwd(),'tools/dlc/node_modules/xiansdlc/adapters/cursor/hooks/shell.js');if(require('fs').existsSync(p))require(p);\""
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node -e \"const p=require('path').join(process.cwd(),'tools/dlc/node_modules/xiansdlc/adapters/cursor/hooks/prompt.js');if(require('fs').existsSync(p))require(p);\""
+      }
+    ]
+  },
+  "version": 1
+}

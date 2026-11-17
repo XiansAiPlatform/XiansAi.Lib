@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path').join(process.env.CLAUDE_PROJECT_DIR||process.cwd(),'tools/dlc/node_modules/xiansdlc/adapters/claude/hooks/pre-tool-use.js');if(require('fs').existsSync(p))require(p);\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path').join(process.env.CLAUDE_PROJECT_DIR||process.cwd(),'tools/dlc/node_modules/xiansdlc/adapters/claude/hooks/user-prompt-submit.js');if(require('fs').existsSync(p))require(p);\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const p=require('path').join(process.env.CLAUDE_PROJECT_DIR||process.cwd(),'tools/dlc/node_modules/xiansdlc/adapters/claude/hooks/session-start.js');if(require('fs').existsSync(p))require(p);else console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'SessionStart',additionalContext:'xiansdlc is not installed in this clone, so the workflow hooks are absent. Before anything else run: npm install --prefix tools/dlc. Then run xians-dlc status and follow AGENTS.md.'}}))\""
+          }
+        ]
+      }
+    ]
+  }
+}
