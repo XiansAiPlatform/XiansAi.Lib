@@ -263,12 +263,21 @@ This installs the package and the git hooks that enforce the gates. Without it n
 
 **Turning it off**
 
-| Scope | How |
-|---|---|
-| this shell or session | `XIANS_DLC=off` |
-| this clone | `xians-dlc switch off` (and `switch on` to restore) |
-| Claude Code | `"env": {"XIANS_DLC": "off"}` in `.claude/settings.local.json` |
-| Cursor | the same variable in the environment Cursor's terminal uses |
+The workflow is on unless you switch it off. There are two switches, and either one is enough:
+
+- `XIANS_DLC` is an ordinary environment variable. Set it to `off` for as long as you want the workflow off:
+
+  | For | Do this |
+  |---|---|
+  | one command | `XIANS_DLC=off git commit -m "..."` |
+  | the current terminal | `export XIANS_DLC=off` (`unset XIANS_DLC` turns it back on) |
+  | every terminal | add `export XIANS_DLC=off` to your shell profile (`~/.zshrc`, `~/.bashrc`) |
+  | Claude Code, this repo only | `"env": {"XIANS_DLC": "off"}` in `.claude/settings.local.json` |
+  | Cursor | the same variable in the environment Cursor's terminal uses |
+
+- `xians-dlc switch off` turns it off for this clone in every tool, without touching the environment. It is
+  stored in the clone's git config and never committed. `xians-dlc switch on` restores it, and
+  `xians-dlc switch status` shows which switch is in effect.
 
 When it is off, the git hooks and the editor hooks do nothing and the agent skips the gates. The committed
 `signoff.log` still shows reviewers whether a branch walked them. Settings for this repository are in
