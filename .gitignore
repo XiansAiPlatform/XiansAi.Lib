@@ -485,4 +485,10 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
-.claude/
+.claude/*
+!.claude/settings.json
+
+# xians-dlc
+tools/dlc/node_modules/
+docs/work-item-log/**/.gate-pending.json
+docs/work-item-log/**/.git-consent.json

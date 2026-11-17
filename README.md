@@ -229,3 +229,57 @@ git push origin v$VERSION
 ## License
 
 Copyright (c) 99x. All rights reserved.
+
+<!-- dlc:start (managed by xians-dlc; rewritten on `xians-dlc update`) -->
+## Development workflow
+
+This repository uses [xiansdlc](https://www.npmjs.com/package/xiansdlc), a gated workflow for AI-assisted
+development that runs entirely on your machine. Every change is tracked against a GitHub issue and walks three
+signed artifacts in `docs/work-item-log/<issue>/`: `spec.md` (what is agreed), `plan.md` (how it will be built,
+with diagrams) and `ship.md` (what was verified, reviewed and handed off). The AI agent writes them and runs
+every command; you only read and approve. The same rules apply in Claude Code, Cursor, Copilot or a plain
+terminal.
+
+**Set up once per clone**
+
+```sh
+npm install --prefix tools/dlc
+```
+
+This installs the package and the git hooks that enforce the gates. Without it nothing is enforced.
+
+**Daily use**
+
+1. Tell your agent which issue to work on, for example "work on #456". It creates the branch
+   `<type>/456-<short-description>`, runs `xians-dlc init 456` (which assigns the issue to you and labels it
+   in progress), and fills `spec.md`.
+2. The agent presents each artifact by file path and asks you to approve. Approve with `xians-dlc approve` in
+   your terminal, or by replying "proceed" in chat (Claude Code and Cursor). Edit the file and tell the agent
+   when something is wrong; it answers in the file and asks again.
+3. After `spec` is signed the agent publishes the agreed spec to the issue (the original text is kept under a
+   History block). After `plan` is signed the agent writes code. After `ship` is signed the agent commits,
+   pushes and opens the pull request.
+4. `xians-dlc status` shows where an item is at any time. `xians-dlc verify` audits a branch's log.
+
+**Turning it off**
+
+The workflow is on unless you switch it off. There are two switches, and either one is enough:
+
+- `XIANS_DLC` is an ordinary environment variable. Set it to `off` for as long as you want the workflow off:
+
+  | For | Do this |
+  |---|---|
+  | one command | `XIANS_DLC=off git commit -m "..."` |
+  | the current terminal | `export XIANS_DLC=off` (`unset XIANS_DLC` turns it back on) |
+  | every terminal | add `export XIANS_DLC=off` to your shell profile (`~/.zshrc`, `~/.bashrc`) |
+  | Claude Code, this repo only | `"env": {"XIANS_DLC": "off"}` in `.claude/settings.local.json` |
+  | Cursor | the same variable in the environment Cursor's terminal uses |
+
+- `xians-dlc switch off` turns it off for this clone in every tool, without touching the environment. It is
+  stored in the clone's git config and never committed. `xians-dlc switch on` restores it, and
+  `xians-dlc switch status` shows which switch is in effect.
+
+When it is off, the git hooks and the editor hooks do nothing and the agent skips the gates. The committed
+`signoff.log` still shows reviewers whether a branch walked them. Settings for this repository are in
+`dlc.json`; the full rules the agent follows are printed by `xians-dlc guide`.
+<!-- dlc:end -->
