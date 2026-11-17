@@ -23,6 +23,7 @@ public class InboundMessagePayload
     public required string Agent { get; set; }
     public required string ThreadId { get; set; }
     public required string ParticipantId { get; set; }
+    public string? InitiatedBy { get; set; }
     public string? Authorization { get; set; }
     public required string Text { get; set; }
 

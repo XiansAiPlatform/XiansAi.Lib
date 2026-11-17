@@ -131,7 +131,9 @@ public class ApiLogger : ILogger
         var workflowId = XiansContext.SafeWorkflowId ?? "startup-context";
         var workflowRunId = XiansContext.SafeWorkflowRunId;
         var agent = XiansContext.SafeAgentName ?? string.Empty;
-        var participantId = XiansContext.SafeParticipantId ?? XiansContext.SafeCertificateUser;
+        var participantId = XiansContext.TryGetInitiatedBy()
+            ?? XiansContext.SafeParticipantId
+            ?? XiansContext.SafeCertificateUser;
         var idPostfix = XiansContext.SafeIdPostfix;
         var workflowType = XiansContext.SafeWorkflowType;
         var tenantId = XiansContext.SafeTenantId;

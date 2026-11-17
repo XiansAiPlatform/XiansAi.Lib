@@ -17,7 +17,8 @@ public static class WorkflowConstants
         public const string UserId = "userId";
         public const string idPostfix = "idPostfix";
         public const string SystemScoped = "systemScoped";
-        
+        public const string InitiatedBy = "initiatedBy";
+
         // Task workflow specific keys
         public const string TaskTitle = "taskTitle";
         public const string TaskDescription = "taskDescription";

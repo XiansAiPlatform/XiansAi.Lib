@@ -7,6 +7,7 @@ public class ProcessMessageActivityRequest
 {
     public required string MessageText { get; set; }
     public required string ParticipantId { get; set; }
+    public string? InitiatedBy { get; set; }
     public required string RequestId { get; set; }
     public string? Scope { get; set; }
     public string? Hint { get; set; }

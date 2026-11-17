@@ -199,6 +199,48 @@ public static class XiansContext
         _asyncLocalParticipantId.Value = null;
     }
 
+    // AsyncLocal storage for the user who actually triggered the current work (X-On-Behalf-Of).
+    // Log attribution only: the participant ID still routes replies and scopes data.
+    private static readonly AsyncLocal<string?> _asyncLocalInitiatedBy = new AsyncLocal<string?>();
+
+    /// <summary>
+    /// Sets the user who actually triggered the current work for this async execution context.
+    /// Blank values clear it.
+    /// </summary>
+    internal static void SetInitiatedBy(string? initiatedBy)
+    {
+        _asyncLocalInitiatedBy.Value = string.IsNullOrWhiteSpace(initiatedBy) ? null : initiatedBy;
+    }
+
+    /// <summary>
+    /// Clears the initiating user from the current async execution context.
+    /// </summary>
+    internal static void ClearInitiatedBy()
+    {
+        _asyncLocalInitiatedBy.Value = null;
+    }
+
+    /// <summary>
+    /// The user who actually triggered the current work (the platform's X-On-Behalf-Of user):
+    /// the async context first (message handler, or an activity it was carried into), then the
+    /// workflow's <c>initiatedBy</c> memo (sub-workflows started while handling a message).
+    /// Returns null when unknown; never throws.
+    /// </summary>
+    internal static string? TryGetInitiatedBy()
+    {
+        if (!string.IsNullOrEmpty(_asyncLocalInitiatedBy.Value))
+            return _asyncLocalInitiatedBy.Value;
+        try
+        {
+            var fromMemo = WorkflowMetadataResolver.GetFromWorkflowContext(Common.WorkflowConstants.Keys.InitiatedBy);
+            return string.IsNullOrWhiteSpace(fromMemo) ? null : fromMemo;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Sets the authorization for the current async execution context.
     /// This value is isolated per thread/async flow and won't affect other concurrent operations.
